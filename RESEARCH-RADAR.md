@@ -19,6 +19,7 @@ It is organized by theme, not by paper. Each theme leads with why it matters for
 - [9. Memory and Retrieval Advances](#9-memory-and-retrieval-advances)
 - [10. Multimodal: World Models, VLAs, and Omni](#10-multimodal-world-models-vlas-and-omni)
 - [11. Smaller, Cheaper, Faster](#11-smaller-cheaper-faster)
+- [12. Test-Time Training: Learning at Inference](#12-test-time-training-learning-at-inference)
 - [A 90-Day Learning Path](#a-90-day-learning-path)
 - [How This Maps to the Guide](#how-this-maps-to-the-guide)
 
@@ -60,7 +61,7 @@ Five meta-trends sit underneath the specific papers:
 
 ## 2. The Limits of Test-Time Compute
 
-**Why it matters:** "Turn up the thinking budget" is not a free quality lever. Several 2026 results show inverse scaling past a critical token count and diminishing returns that plateau. The production takeaway is to set cost-aware, difficulty-adaptive budgets, not maximal ones.
+**Why it matters:** "Turn up the thinking budget" is not a free quality lever. Several 2026 results show inverse scaling past a critical token count and diminishing returns that plateau. The production takeaway is to set cost-aware, difficulty-adaptive budgets, not maximal ones. (Do not confuse this with test-time *training*, which updates the model's weights at inference; see [theme 12](#12-test-time-training-learning-at-inference).)
 
 - **When More Thinking Hurts: Overthinking in LLM Test-Time Compute Scaling** ([arXiv:2604.10739](https://arxiv.org/abs/2604.10739)) demonstrates inverse scaling past a critical token threshold and proposes cost-aware stopping. The single most actionable finding for anyone shipping reasoning models.
 - **Test-Time Scaling Is Not Effective for Knowledge-Intensive Tasks Yet** ([arXiv:2509.06861](https://arxiv.org/abs/2509.06861), trending) argues from information theory that compute alone cannot exceed the knowledge already in the model, and that extended reasoning can amplify confident hallucinations.
@@ -184,6 +185,35 @@ Five meta-trends sit underneath the specific papers:
 - **Multimodal token compression** is the dominant serving-cost lever for vision models, with compression during encoding rather than after.
 
 **Where it connects:** [Quantization Deep Dive](03-training-and-adaptation/07-quantization-deep-dive.md), [Speculative Decoding](04-inference-optimization/03-speculative-decoding.md), [Cost Optimization](04-inference-optimization/07-cost-optimization-playbook.md).
+
+---
+
+## 12. Test-Time Training: Learning at Inference
+
+**Why it matters:** This is the most-confused term on the page, so it earns its own section. Test-time *training* updates the model's **weights** at inference; test-time *compute* (theme 2) keeps weights frozen and just spends more forward-pass tokens. Different lever, different cost. TTT is research-stage in 2026, but it is the cleanest lens on a real question: when a frozen model plateaus on a genuinely novel task, the fix might not be to think longer or retrieve more, but to briefly *learn*.
+
+**One name, three ideas.** All three run gradient descent at inference on data available only at inference; they differ in what gets updated:
+
+- **TTT as an architecture** ([Sun et al., arXiv:2407.04620](https://arxiv.org/abs/2407.04620)): a sequence layer whose hidden state is itself a small model, updated by one self-supervised gradient step per token. A linear-cost alternative to attention that reduces to linear attention when the inner learner is linear. The paper reports it keeps improving as context grows where Mamba plateaus (at sub-1.3B scale). Extended to minute-long video generation ([arXiv:2504.05298](https://arxiv.org/abs/2504.05298)) and made compute-optimal per token by MesaNet ([arXiv:2506.05233](https://arxiv.org/abs/2506.05233)).
+- **TTT as per-task adaptation** ([Akyürek et al., arXiv:2411.07279](https://arxiv.org/abs/2411.07279)): temporarily fine-tune the model (usually a per-task LoRA) on the test input and its augmentations, predict, then discard the update. The headline result is an 8B Llama-3 reaching 53.0% on the ARC-AGI-1 public set (61.9% ensembled with program synthesis, which the paper says matches average human performance) where in-context learning alone plateaus. Lineage: the original vision TTT ([arXiv:1909.13231](https://arxiv.org/abs/1909.13231)) and test-time training on retrieved neighbors ([Hardt and Sun, arXiv:2305.18466](https://arxiv.org/abs/2305.18466)). A related RL variant, TTRL ([arXiv:2504.16084](https://arxiv.org/abs/2504.16084)), updates weights at test time from majority-vote pseudo-rewards.
+- **TTT as memory** ([TTT-E2E, arXiv:2512.23675](https://arxiv.org/abs/2512.23675), a Stanford/Berkeley/UCSD/NVIDIA/Astera effort): train the model on the long context as it streams so the context lives in the weights instead of a KV cache, giving constant latency regardless of length. The honest caveat: the paper reports it fails needle-in-a-haystack beyond its attention window (about 6% versus 99% for full attention at 128K), so context-in-weights buys gist, not verbatim recall. The memory-governance failure mode is covered in [Agent Memory and State](07-agentic-systems/05-agent-memory-and-state.md).
+
+**TTT versus test-time compute, in one table:**
+
+| | Test-Time Training | Test-Time Compute (theme 2) |
+|---|---|---|
+| What changes | weights (often an ephemeral LoRA) | nothing; weights stay frozen |
+| What you spend | backward passes at inference | extra forward passes / tokens |
+| Looks like | the model studies for this one question, then forgets | the model thinks longer and tries more drafts |
+| State | stateful; a request can mutate weights | stateless; pure function of input |
+
+They stack: the ARC result pairs a TTT weight update with augmentation voting, which is a test-time-compute trick.
+
+**When it helps versus hurts.** Helps on distribution shift, genuinely novel tasks where in-context learning plateaus (ARC is the poster child), and long-context efficiency. Hurts on cost (gradient steps at serve time; practitioner reports cite roughly 1.7-2.5x latency), per-instance overfitting, statefulness that breaks caching and reproducibility, and serving complexity, since every request mutating weights cuts against the frozen-weights assumption behind vLLM-style batching. There is also a real security angle: because the adaptation loss is self-supervised on attacker-influenceable input, crafted inputs can poison the test-time update (the test-time-data-poisoning literature, mostly vision so far).
+
+**Maturity (2026):** mostly research and competition, not live serving. Its most battle-tested home is offline ARC-Prize pipelines; the architecture and memory variants are validated at 3-5B params with no public evidence of a frontier model shipping TTT layers in its serving path. Contrast with test-time *compute*, which is in production everywhere. The practical takeaway: reach for prompting, retrieval, or plain fine-tuning first, and watch TTT as the frontier for novel-task adaptation and long-context efficiency.
+
+**Where it connects:** [The Limits of Test-Time Compute](#2-the-limits-of-test-time-compute) (its frozen-weights sibling), [Agent Memory and State](07-agentic-systems/05-agent-memory-and-state.md) (the memory variant), [Fine-Tuning Strategies](03-training-and-adaptation/02-fine-tuning-strategies.md) and [Knowledge Distillation](03-training-and-adaptation/05-knowledge-distillation.md) (the adaptation it temporarily borrows).
 
 ---
 

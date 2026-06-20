@@ -2,7 +2,7 @@
 
 Memory is what allows an agent to learn and maintain context over time. Agent memory has matured from "Chat History" into a **Multi-Tiered Cognitive Architecture** with four named layers (Working, Episodic, Semantic, Procedural), each with its own write pattern, latency budget, and failure modes. Production systems (Mem0, Letta, Anthropic Memory Tool + Skills, Zep/Graphiti, LangMem) now treat memory selection as a first-class architecture decision.
 
-The 2026 research wave shaping this chapter: A-MEM (NeurIPS 2025), HippoRAG (multi-hop graph retrieval), Multi-Layered Memory Architectures, HaluMem (operation-level memory hallucination benchmark), MINJA / MemoryGraft (query-only memory poisoning attacks), and NVIDIA's TTT-E2E test-time-training approach that compresses context into weights.
+The 2026 research wave shaping this chapter: A-MEM (NeurIPS 2025), HippoRAG (multi-hop graph retrieval), Multi-Layered Memory Architectures, HaluMem (operation-level memory hallucination benchmark), MINJA / MemoryGraft (query-only memory poisoning attacks), and TTT-E2E (a multi-lab effort spanning Stanford, Berkeley, UCSD, NVIDIA, and Astera), a test-time-training approach that compresses context into weights.
 
 ## Table of Contents
 
@@ -319,7 +319,7 @@ The trap most teams fall into is measuring memory quality only at the QA stage (
 
 On top of that, run **shadow-mode replay**: writes go through a verifier model in shadow mode; mismatches between live writes and shadow-verifier writes flag potential hallucinations for review. **Canary facts** in CI ensure the memory system does not silently regress. **Periodic full-store audits** sample random memories and ask "is this still consistent with the source conversation?"
 
-### Q: NVIDIA's TTT-E2E compresses context into weights via test-time training. Where does this fit in the L1-L4 hierarchy, and what new failure mode does it introduce?
+### Q: TTT-E2E compresses context into weights via test-time training. Where does this fit in the L1-L4 hierarchy, and what new failure mode does it introduce?
 
 **Strong answer:**
 
@@ -332,7 +332,9 @@ The new failure mode is governance. In-weights memory has:
 - **GDPR right-to-be-forgotten challenges**: the regulatory framework assumes data is at rest, not in weights.
 - **Harder poisoning detection**: there is no inspectable store to scan for canary signatures.
 
-The right framing: TTT-E2E moves memory governance from the storage layer to the training and deployment pipeline. The cost is not eliminated; it is relocated. For most production teams in May 2026, this is a research direction to track, not a deployable architecture yet.
+Beyond governance there is a capability failure mode: the approach reports failing needle-in-a-haystack retrieval beyond its attention window (about 6% versus 99% for full attention at 128K), so it preserves the gist of the context, not verbatim facts. That rules it out as the only memory tier for retrieval-critical work.
+
+The right framing: TTT-E2E moves memory governance from the storage layer to the training and deployment pipeline. The cost is not eliminated; it is relocated. For most production teams in 2026, this is a research direction to track, not a deployable architecture yet. The broader test-time-training family is mapped in [Research Radar, theme 12](../RESEARCH-RADAR.md#12-test-time-training-learning-at-inference).
 
 ---
 
@@ -372,7 +374,7 @@ The right framing: TTT-E2E moves memory governance from the storage layer to the
 - [The Day-30 Problem: agent memory drift](https://cipherbuilds.ai/blog/day-30-agent-memory-problem)
 
 ### Infrastructure
-- [NVIDIA TTT-E2E: Reimagining LLM Memory (May 2026)](https://developer.nvidia.com/blog/reimagining-llm-memory-using-context-as-training-data-unlocks-models-that-learn-at-test-time/)
+- TTT-E2E: "End-to-End Test-Time Training for Long Context" arXiv:2512.23675, and the [NVIDIA writeup: Reimagining LLM Memory](https://developer.nvidia.com/blog/reimagining-llm-memory-using-context-as-training-data-unlocks-models-that-learn-at-test-time/)
 - [vLLM PagedAttention](https://docs.vllm.ai/en/latest/design/paged_attention/)
 - [Anthropic Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
 

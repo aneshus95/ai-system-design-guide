@@ -12,6 +12,8 @@ Quick reference for key terms used throughout this guide.
 
 **AI Control** — Safety approach that assumes a model may be misaligned and designs deployment protocols (monitoring, defer-on-critical-action, resampling, factored cognition) to stay safe even then. Distinct from alignment, which aims to make the model trustworthy in the first place. See [Research Radar](RESEARCH-RADAR.md).
 
+**AI Gateway** — A control-plane proxy between your apps and model providers (LiteLLM, OpenRouter, Portkey, Kong). Exposes one OpenAI-compatible API and centralizes routing, fallback, load balancing, rate-limit handling, virtual keys and budgets, caching, and observability. See [AI Gateways and Model Routing](11-infrastructure-and-mlops/03-ai-gateways-and-model-routing.md).
+
 **Attention Mechanism** — Neural network component that allows models to focus on relevant parts of input. Self-attention compares each token to all others.
 
 **ABAC (Attribute-Based Access Control)** — Access control based on attributes of user, resource, and environment rather than fixed roles.
@@ -74,11 +76,15 @@ Quick reference for key terms used throughout this guide.
 
 **Embedding** — Dense vector representation of text. Used for semantic search and similarity comparison.
 
+**Endpointing (Turn Detection)** — In voice agents, deciding when the user has finished speaking so the agent can respond. Learned turn-detection models fire on a semantically complete thought, beating fixed silence timeouts that tax every turn. See [Real-Time Voice Agents](18-voice-and-audio-agents/01-realtime-voice-agents.md).
+
 **Ensemble** — Combining multiple model outputs to improve reliability. Includes voting, debate, and mixture-of-agents.
 
 **Eval Awareness** — A model's tendency to detect when it is being evaluated and alter behavior accordingly, which confounds safety and capability benchmarks and argues for naturalistic, held-out test conditions.
 
 **Extended Thinking** — Claude's (3.7+) internal reasoning mode where the model performs a scratchpad reasoning pass before producing a response. Configurable via `thinking.budget_tokens`. Not shown to end users by default.
+
+**EU AI Act** — Regulation (EU) 2024/1689, the first comprehensive AI law, structured by risk tier (prohibited, high-risk, limited, minimal) with separate GPAI obligations and fines up to 7% of global turnover. Prohibitions and GPAI rules are enforceable as of 2026; high-risk obligations are provisionally pushed to around 2027. See [AI Governance and Compliance](13-reliability-and-safety/04-ai-governance-and-compliance.md).
 
 ---
 
@@ -87,6 +93,8 @@ Quick reference for key terms used throughout this guide.
 **Few-Shot Prompting** — Including examples in the prompt to guide model behavior.
 
 **Fine-Tuning** — Training a pre-trained model on task-specific data to improve performance.
+
+**FinOps for AI** — The discipline of measuring, attributing, and optimizing AI spend: cost per token/request/task, prompt caching, batch economics, showback and chargeback, and unit economics. See [FinOps and Token Economics](11-infrastructure-and-mlops/04-finops-and-token-economics.md).
 
 **Framework Churn** — The rapid, breaking evolution of AI orchestration frameworks (LlamaIndex, LangChain), which reshuffle package layouts and remove abstractions roughly yearly, breaking older tutorials and courses on a fresh install. Survive it by pinning/locking versions and learning primitives over APIs. See [Navigating Framework Churn](09-frameworks-and-tools/12-navigating-framework-churn.md).
 
@@ -162,6 +170,8 @@ Quick reference for key terms used throughout this guide.
 
 **Mixture of Agents (MoA)** — Ensemble pattern where multiple agents contribute to a synthesized response.
 
+**Model Routing** — Choosing which model serves each request by task, cost, latency, capability, or semantics, often with a cascade (cheap model first, escalate on low confidence) and cross-provider fallback. See [AI Gateways and Model Routing](11-infrastructure-and-mlops/03-ai-gateways-and-model-routing.md).
+
 **Multi-Tenancy** — Serving multiple customers from shared infrastructure with data isolation.
 
 ---
@@ -217,6 +227,8 @@ Quick reference for key terms used throughout this guide.
 **Semantic Search** — Finding documents by meaning rather than keywords, using embeddings.
 
 **Speculative Decoding** — Using small draft model to propose tokens, verified by large model.
+
+**Speech-to-Speech (S2S)** — A voice-agent architecture where one multimodal model takes audio in and emits audio out directly, versus a cascaded STT to LLM to TTS pipeline. More natural and lower-latency, but less debuggable and controllable. See [Real-Time Voice Agents](18-voice-and-audio-agents/01-realtime-voice-agents.md).
 
 **Structured Outputs** — OpenAI's (and Anthropic's tool-mode) capability to guarantee model output conforms to a provided JSON Schema. Stricter than legacy JSON mode.
 

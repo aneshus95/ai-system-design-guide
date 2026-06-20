@@ -448,4 +448,4 @@ The key is fast detection and action. A bad prompt in production for 10 minutes 
 
 ---
 
-*Previous: [LLM Infrastructure](01-llm-infrastructure.md)*
+*Previous: [LLM Infrastructure](01-llm-infrastructure.md) · Next: [AI Gateways and Model Routing](03-ai-gateways-and-model-routing.md)*

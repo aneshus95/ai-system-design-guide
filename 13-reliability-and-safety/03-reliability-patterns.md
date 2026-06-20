@@ -596,4 +596,4 @@ With circuit breaker: after detecting the outage, requests fail fast. System rem
 
 ---
 
-*Previous: [Ensemble Methods](02-ensemble-methods.md)*
+*Previous: [Ensemble Methods](02-ensemble-methods.md) · Next: [AI Governance and Compliance](04-ai-governance-and-compliance.md)*

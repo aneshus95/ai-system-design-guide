@@ -804,4 +804,4 @@ My defense starts with treating all tool outputs as untrusted data. I use a dedi
 
 ---
 
-*Previous: [Use Cases and Case Studies](06-use-cases-and-case-studies.md)*
+*Previous: [Use Cases and Case Studies](06-use-cases-and-case-studies.md) · Next: [Real-Time Voice Agents](../18-voice-and-audio-agents/01-realtime-voice-agents.md)*

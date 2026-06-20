@@ -45,6 +45,10 @@ A practical, continuously updated guide to AI system design, RAG architectures, 
 | **Evaluate AI in production** | [AI Evals Guide (Phoenix/Langfuse)](ai_evals_comprehensive_study_guide.md) → [AI Evals Guide (LangWatch/Langfuse)](ai_evals_complete_guide_langwatch_langfuse.md) |
 | **Read benchmarks the right way** | [Benchmarks & Leaderboards](14-evaluation-and-observability/03-benchmarks-and-leaderboards.md) (saturation, contamination, harness variance) |
 | **Track frontier research (2026)** | [Research Radar](RESEARCH-RADAR.md) (trending papers and what to learn next) |
+| **Build a voice agent** | [Real-Time Voice Agents](18-voice-and-audio-agents/01-realtime-voice-agents.md) (cascade vs speech-to-speech, latency budgets, the stack) |
+| **Route across models / add a gateway** | [AI Gateways and Model Routing](11-infrastructure-and-mlops/03-ai-gateways-and-model-routing.md) (fallback, rate limits, LiteLLM) |
+| **Control AI cost** | [FinOps and Token Economics](11-infrastructure-and-mlops/04-finops-and-token-economics.md) (caching, batch, attribution, unit economics) |
+| **Meet AI regulations** | [AI Governance and Compliance](13-reliability-and-safety/04-ai-governance-and-compliance.md) (EU AI Act, NIST RMF, what to implement) |
 | **Find the best courses to learn AI** | [Recommended Courses & Learning Paths](COURSES.md) |
 | **Transition from my current role to AI** | [Role Transition Guide](TRANSITION_GUIDE.md) |
 | **Understand the 2026 AI job market** | [Job Market Trends - June 2026](00-interview-prep/06-job-market-trends-2026.md) |
@@ -116,13 +120,14 @@ flowchart TD
 ├── 08-memory-and-state/         # L1-L3 memory tiers, Mem0, caching
 ├── 09-frameworks-and-tools/     # LangGraph, DSPy, LlamaIndex, Claude Code, OpenCoder, framework churn
 ├── 10-document-processing/      # Vision-LLM OCR, multimodal parsing
-├── 11-infrastructure-and-mlops/ # GPU clusters, LLMOps, cost management
+├── 11-infrastructure-and-mlops/ # GPU clusters, LLMOps, AI gateways, FinOps and cost
 ├── 12-security-and-access/      # RBAC, ABAC, multi-tenant isolation
-├── 13-reliability-and-safety/   # Guardrails, red-teaming
+├── 13-reliability-and-safety/   # Guardrails, red-teaming, AI governance and compliance
 ├── 14-evaluation-and-observability/ # RAGAS, LangSmith, benchmarks & leaderboards, drift detection
 ├── 15-ai-design-patterns/       # Pattern catalog, anti-patterns
 ├── 16-case-studies/             # Real-world architectures with diagrams
 ├── 17-tool-use-and-computer-agents/ # OpenClaw, Computer Use, tool agents, safety
+├── 18-voice-and-audio-agents/   # Real-time voice agents: VAD, turn-taking, speech-to-speech
 ├── GLOSSARY.md                  # Every term defined
 │
 ├── ai_evals_comprehensive_study_guide.md      # 🔬 Deep-dive: AI Evals (Phoenix + Langfuse)
@@ -146,6 +151,7 @@ mindmap
       Retrieval Systems
       Agentic Systems
       Tool Use and Computer Agents
+      Voice and Audio Agents
     Operate
       Inference Optimization
       Memory and State

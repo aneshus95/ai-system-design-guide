@@ -2,6 +2,13 @@
 ### The Complete Interview & Production Reference
 
 <p align="center">
+  <a href="https://www.aidaddy.tech"><img src="https://img.shields.io/badge/Read%20it%20online%20%E2%86%92-7C3AED?style=for-the-badge&logo=bookstack&logoColor=white" alt="Read the guide online at aidaddy.tech"></a>
+</p>
+<p align="center">
+  <sub>🌐 Instant search, linked chapters, and a cleaner reader at <b><a href="https://www.aidaddy.tech">aidaddy.tech</a></b>. ⭐ Star the repo to support the work.</sub>
+</p>
+
+<p align="center">
   <a href="https://github.com/ombharatiya"><img src="https://img.shields.io/badge/Follow%20on%20GitHub-ombharatiya-181717?style=for-the-badge&logo=github" alt="Follow on GitHub"></a>
   <a href="https://x.com/ombharatiya"><img src="https://img.shields.io/badge/Follow%20on%20Twitter-@ombharatiya-1DA1F2?style=for-the-badge&logo=x" alt="Follow on Twitter"></a>
   <a href="https://linkedin.com/in/ombharatiya"><img src="https://img.shields.io/badge/Connect%20on%20LinkedIn-ombharatiya-0A66C2?style=for-the-badge&logo=linkedin" alt="Connect on LinkedIn"></a>
@@ -248,7 +255,7 @@ AI agents are LLM-driven systems that plan, call tools, and act over multiple st
 MCP is an open protocol that lets LLMs discover and call external tools and data sources in a standardized way. A2A (Agent-to-Agent) is a complementary protocol for inter-agent communication. They solve different layers: MCP is the tool boundary, A2A is the agent boundary. See [Tool Use and MCP](07-agentic-systems/03-tool-use-and-mcp.md).
 
 ### Which LLM should I use in production: Claude, GPT, Gemini, or open-source?
-It depends on latency budget, context length, cost per million tokens, tool-use quality, and data residency. The [Model Taxonomy](02-model-landscape/01-model-taxonomy.md) and [Pricing](02-model-landscape/03-pricing-and-costs.md) chapters give a head-to-head for Claude Opus 4.7, GPT-5.5, Gemini 3.1 Pro, DeepSeek V4, Llama 4, and others as of May 2026.
+It depends on latency budget, context length, cost per million tokens, tool-use quality, and data residency. The [Model Taxonomy](02-model-landscape/01-model-taxonomy.md) and [Pricing](02-model-landscape/03-pricing-and-costs.md) chapters give a head-to-head for Claude Opus 4.8, GPT-5.5, Gemini 3.1 Pro, DeepSeek V4, Llama 4, and others as of June 2026.
 
 ### How do I evaluate an LLM or RAG system in production?
 Combine offline evals (LLM-as-a-judge with ground-truth calibration), online metrics (faithfulness, context recall, answer relevance), and continuous tracing. The companion deep-dives [AI Evals: Phoenix + Langfuse](ai_evals_comprehensive_study_guide.md) and [AI Evals: LangWatch + Langfuse](ai_evals_complete_guide_langwatch_langfuse.md) walk through this end-to-end.
@@ -263,7 +270,7 @@ Agentic RAG combines retrieval with an agent loop that can decide what to search
 Yes, MIT-licensed and free. PRs are welcome; see [Contributing Guide](CONTRIBUTING.md). If you have production failure modes, new model benchmarks, or interview questions to add, open a PR.
 
 ### How often is this guide updated?
-Continuously. New model releases, protocol changes (MCP, A2A), and emerging patterns are added as they ship. Recent additions include [Tool-Use and Computer Agents](17-tool-use-and-computer-agents/01-tool-use-landscape.md) and the [May 2026 Job Market Trends](00-interview-prep/06-job-market-trends-2026.md).
+Continuously. New model releases, protocol changes (MCP, A2A), and emerging patterns are added as they ship. Recent additions include [Tool-Use and Computer Agents](17-tool-use-and-computer-agents/01-tool-use-landscape.md) and the [June 2026 Job Market Trends](00-interview-prep/06-job-market-trends-2026.md).
 
 ### Can I use this guide if I am transitioning from backend, QA, PM, or EM into AI?
 Yes. The [Role Transition Guide](TRANSITION_GUIDE.md) maps existing skills to AI engineering, MLE, and AI architect tracks, with reading paths per role. Pair it with [COURSES.md](COURSES.md) for curated learning resources.
@@ -293,6 +300,7 @@ See [Contributing Guide](CONTRIBUTING.md).
 
 If this guide helps you, the easiest way to support it is to follow along where new chapters and refreshes get announced first:
 
+- **Website:** [aidaddy.tech](https://www.aidaddy.tech) - read the full guide with search, clean navigation, and a mobile-friendly layout.
 - **GitHub:** [@ombharatiya](https://github.com/ombharatiya) - follow for the repo, star the project, and watch for new releases.
 - **X / Twitter:** [@ombharatiya](https://x.com/ombharatiya) - short takes on model releases, MCP, agents, and interviews.
 - **LinkedIn:** [ombharatiya](https://linkedin.com/in/ombharatiya) - deeper writeups and interview prep tips for senior AI roles.

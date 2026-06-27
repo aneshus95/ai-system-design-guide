@@ -128,6 +128,8 @@ Quick reference for key terms used throughout this guide.
 
 **Harness (Scaffold) Variance** - The 10-20 point swing in benchmark scores produced by the same model weights under different prompts, tool access, reasoning effort, or agent scaffolds. Why provider self-reports are not comparable across labs, and only same-harness numbers can be compared. See [Benchmarks and Leaderboards](14-evaluation-and-observability/03-benchmarks-and-leaderboards.md).
 
+**Harness Engineering** - Designing the deterministic driver code around an agent (context assembly, tool execution, budgets, stop conditions, durable state, observability) rather than tuning the model itself. The harness is the kernel; the model is the policy. See [Loop Engineering](07-agentic-systems/12-loop-engineering.md).
+
 **HNSW (Hierarchical Navigable Small World)** - Graph-based algorithm for approximate nearest neighbor search in vector databases.
 
 **Human-in-the-Loop (HITL)** - Patterns for human oversight, approval, or correction of AI outputs.
@@ -169,6 +171,10 @@ Quick reference for key terms used throughout this guide.
 **LoRA (Low-Rank Adaptation)** - Parameter-efficient fine-tuning that trains small adapter matrices instead of full model weights.
 
 **LLM-as-Judge** - Using an LLM to evaluate outputs from another LLM.
+
+**Loop Engineering** - The discipline of designing and continuously improving the control loops that wrap an agent (the trigger, the inner reason-act-observe loop, a verification loop, event-driven invocation, and an eval-driven improvement loop) instead of hand-prompting the model each turn. See [Loop Engineering](07-agentic-systems/12-loop-engineering.md).
+
+**Loopmaxxing** - The anti-pattern of assuming that more iterations automatically solve a task. It fails on goals with no verifiable exit condition, so the loop never converges and spend runs away. The multi-step descendant of token-maxxing. See [Loop Engineering](07-agentic-systems/12-loop-engineering.md).
 
 ---
 

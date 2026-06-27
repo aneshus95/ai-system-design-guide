@@ -2,7 +2,7 @@
 
 Building production AI agents in 2026: reasoning loops, MCP tool use, multi-agent orchestration, memory, planning, error recovery, human-in-the-loop, and evaluation.
 
-Agents are not a single technology. They are a composition of reasoning loop, tool layer, memory, planner, error handler, and evaluator. The 10 chapters in this folder cover each layer in depth, ordered so that earlier chapters establish vocabulary used in later ones.
+Agents are not a single technology. They are a composition of reasoning loop, tool layer, memory, planner, error handler, and evaluator. The 12 chapters in this folder cover each layer in depth, ordered so that earlier chapters establish vocabulary used in later ones.
 
 ## Chapter Order
 
@@ -17,6 +17,8 @@ flowchart TD
     G --> H[08 Human in the loop]
     H --> I[09 Security and sandboxing]
     I --> J[10 Evaluating agentic systems]
+    J --> K[11 Durable execution]
+    K --> L[12 Loop engineering]
 ```
 
 ## Reference Architecture
@@ -54,6 +56,7 @@ flowchart LR
 | [09-agentic-security-and-sandboxing.md](09-agentic-security-and-sandboxing.md) | Code execution sandboxes, capability gating, prompt injection in agents. |
 | [10-evaluating-agentic-systems.md](10-evaluating-agentic-systems.md) | Trajectory evals, Agent-as-judge, Process Reward Models, agent benchmarks. |
 | [11-durable-execution.md](11-durable-execution.md) | Surviving crashes in long-running agents: event history, replay, exactly-once side effects, Temporal. |
+| [12-loop-engineering.md](12-loop-engineering.md) | Engineering the loops around an agent: the four loop levels, termination and budget control, context rot, verification, anti-patterns like loopmaxxing, and the maturity ladder. |
 
 ## Companion Chapters
 
@@ -69,3 +72,4 @@ flowchart LR
 - Multi-agent orchestration (ch 04) is over-applied; single-agent with good tooling beats multi-agent for most use cases.
 - Memory (ch 05) and error recovery (ch 07) are where most production agent bugs live; budget evaluation effort there.
 - Human-in-the-loop (ch 08) is not a fallback; design gates intentionally for high-stakes actions.
+- Loop engineering (ch 12) is its own discipline now: a strong model in a weak harness loses to a decent model in a great one. Enforce termination and budgets in the harness, and keep the verifier separate from the producer.

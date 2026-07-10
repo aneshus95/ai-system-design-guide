@@ -194,6 +194,55 @@ What does "it" refer to? Understanding requires connecting "it" to "animal". Sel
 
 This is why attention is called "self"-attention: the queries, keys, and values all come from the *same* sequence, so every token refines its own representation by pulling in context from the rest of the sequence. ([Sebastian Raschka: Self-Attention From Scratch](https://sebastianraschka.com/blog/2023/self-attention-from-scratch.html))
 
+### Q, K, V in Plain English
+
+If the equations feel abstract, anchor them to one idea: **every token asks a question, wears a name tag, and carries content to share.**
+
+| Role | Question it answers | Party analogy | Google-search analogy |
+|------|--------------------|---------------|----------------------|
+| **Query (Q)** | "What am I looking for?" | The search request you walk around with | What you type into the search box |
+| **Key (K)** | "What am I?" | Your name tag / advertisement | A page's title & keywords (decides *if* it shows up) |
+| **Value (V)** | "What do I actually give you?" | The info you hand over once matched | The article you read *after* clicking |
+
+**Why three vectors and not one?** Because *"how well we match"* and *"what I give you"* are different jobs. The **Key** decides *how much* attention a token receives (the matchmaking score); the **Value** decides *what content* flows once matched. A page can rank highly (strong key match) while the thing you actually consume is its content (value) — attention keeps these deliberately separate.
+
+**Each token produces all three.** A token is not "a query" — it *generates* a Query, a Key, and a Value by multiplying its embedding through three learned weight matrices:
+
+```
+token "it"  ──┬──►  Query = it × W_Q     (how it asks)
+              ├──►  Key   = it × W_K     (how it advertises)
+              └──►  Value = it × W_V     (what it shares)
+```
+
+So a sentence of 11 tokens yields **11 Queries, 11 Keys, and 11 Values**. Every token plays all three roles at once: as a Query it goes shopping across everyone's Keys; as a Key it advertises so other tokens can find it; as a Value it offers content when attended to.
+
+**Worked example — resolving "it":** For the sentence *"The animal didn't cross the street because it was too tired,"* we process the token **"it"**.
+
+1. **"it" forms its Query:** *"I'm a pronoun — find the noun I stand for."*
+2. **Score its Query against every Key** (dot product = similarity). Illustrative scores:
+
+   | Word | Key match with "it"'s query |
+   |------|------|
+   | animal | **9.0** ← strongest |
+   | street | 4.0 |
+   | tired | 2.0 |
+   | cross | 1.0 |
+   | the | 0.5 |
+
+3. **softmax → weights that sum to 1:** animal **0.80**, street 0.10, tired 0.05, cross 0.03, the 0.02.
+4. **Blend the Values by those weights:**
+
+   ```
+   new "it" = 0.80 × Value(animal)
+            + 0.10 × Value(street)
+            + 0.05 × Value(tired)
+            + ...
+   ```
+
+   The updated vector for "it" now mostly carries the *meaning* of "animal" — the model has resolved the reference, not with a rule, but by matching a Query to Keys and blending Values.
+
+Every token does this simultaneously — 11 Query rows scored against 11 Keys form the 11 × 11 `QK^T` grid (the source of the O(n²) cost), and all tokens get updated in one parallel pass. The three W matrices (`W_Q`, `W_K`, `W_V`) are *learned during training*: the model discovers on its own how each token should ask, advertise, and contribute so that useful links like "it" → "animal" emerge.
+
 ### The Math
 
 For input sequence X of n tokens with dimension d:

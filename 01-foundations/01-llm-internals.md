@@ -610,7 +610,37 @@ The KV cache stores K and V from previous positions. On each new token:
 
 This reduces per-token complexity from O(n) to O(1) for K and V computation.
 
-**The cost:** Memory scales linearly with sequence length. For Llama 70B at 8K context, KV cache is ~21 GB per request. This limits batch size and requires techniques like PagedAttention.
+**The cost:** Memory scales linearly with sequence length. For Llama 2 70B at 8K context, the KV cache is ~2.5 GB per request *with GQA* (8 KV heads) — or ~21 GB if it used full multi-head attention (64 KV heads). This limits batch size and requires techniques like PagedAttention. ([KV cache memory arithmetic](https://pub.towardsai.net/llama-2-70b-has-64-query-heads-and-8-kv-heads-here-is-the-memory-arithmetic-nobody-shows-you-eb154f2b65e9))
+
+#### In plain English
+
+**The analogy — doing math homework without scratch paper.** Imagine solving a long multi-step problem, but every time you write the next line you re-solve *every previous line* from scratch. That is generation without a KV cache: to produce token #1000, the model would re-process tokens #1–#999 in full. The KV cache is the scratch paper — you write each step down once and just *read* it for every step after.
+
+**Why only K and V get cached (not Q).** Recall the three roles from the [Q, K, V section](#q-k-v-in-plain-english): Key = "what I advertise," Value = "what I contribute," Query = "what I'm looking for *right now*." Past tokens never change what they advertise or contribute, so their K and V are **fixed forever** once computed — perfect to cache. But the Query is about the *current* token's needs, so only the newest token needs a Query. That asymmetry is the whole trick: **old K/V are reusable, only the new Q is fresh.**
+
+**Walkthrough — generating the 4th token of "The cat sat ___":**
+
+| Step | Without cache (wasteful) | With KV cache (smart) |
+|------|--------------------------|------------------------|
+| Compute K, V for "The", "cat", "sat" | Recompute all 3 *every* step | Read from cache (already stored) |
+| Compute K, V for new token | — | Compute for the 1 new token only |
+| Compute Q | For all tokens | For the 1 new token only |
+| Attention | New Q attends over all K, V | New Q attends over all K, V |
+
+The output is identical — the cache changes *how much work*, not the answer. Per-step K/V work drops from "redo everything" to "add one column."
+
+**Why it dominates serving cost — the memory bill.** The catch: that scratch paper must live in GPU memory (VRAM) for *every* request simultaneously, and it grows with every token generated. The formula:
+
+```
+KV cache = 2 (K and V) × layers × kv_heads × head_dim × seq_len × bytes_per_value
+```
+
+For Llama 2 70B at 8K context (80 layers, 8 GQA KV heads, head_dim 128, FP16):
+`2 × 80 × 8 × 128 × 8192 × 2 bytes ≈ 2.5 GB` for a single request. Serve 40 users at once and that is ~100 GB of VRAM spent purely on caches — often more than the model weights consume for the active portion. Because a GPU has fixed VRAM, **the KV cache directly caps how many requests you can batch, which caps throughput.** That is why it is the #1 target for optimization:
+- **GQA/MQA** shrink it by sharing K/V across query heads (the 8x in the table above).
+- **PagedAttention (vLLM)** stores the cache in non-contiguous "pages" like OS virtual memory, cutting the 60–80% waste from fragmentation down to under 4%. ([vLLM PagedAttention](https://arxiv.org/pdf/2309.06180))
+
+See [Inference Optimization](../04-inference-optimization/) for how these play out in production serving.
 
 ### Q: Why do modern LLMs use Pre-LN instead of Post-LN?
 

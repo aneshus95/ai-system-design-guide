@@ -190,6 +190,10 @@ Consider the sentence: "The animal didn't cross the street because it was too ti
 
 What does "it" refer to? Understanding requires connecting "it" to "animal". Self-attention learns these connections by computing relevance scores between all token pairs.
 
+**The soft-lookup analogy:** Think of attention as a *soft dictionary lookup*. A hash map compares one query against keys and returns the single value whose key matches exactly. Attention instead compares every query against *every* key, converts the similarity scores into weights that sum to 1, and returns a *weighted blend* of all values. Nothing is retrieved hard — everything contributes in proportion to how relevant it is. So when the token "it" forms its query, the key for "animal" scores highest, and "it" ends up carrying mostly the value (meaning) of "animal" while ignoring off-topic tokens like "street".
+
+This is why attention is called "self"-attention: the queries, keys, and values all come from the *same* sequence, so every token refines its own representation by pulling in context from the rest of the sequence. ([Sebastian Raschka: Self-Attention From Scratch](https://sebastianraschka.com/blog/2023/self-attention-from-scratch.html))
+
 ### The Math
 
 For input sequence X of n tokens with dimension d:
@@ -202,17 +206,28 @@ V = XW_V   (Value: What do I contribute?)
 Attention(Q, K, V) = softmax(QK^T / √d_k) × V
 ```
 
+Each token's embedding is projected three times through learned weight matrices, producing three different "views" of the same token:
+- **Query (Q)**: what *this* token is looking for in others.
+- **Key (K)**: what *this* token offers as an advertisement to others.
+- **Value (V)**: the actual information *this* token passes on once it's been attended to.
+
+Separating Key from Value matters: the Key decides *how much* attention a token receives, while the Value decides *what content* gets delivered. Decoupling them lets a token be highly relevant (strong key match) yet contribute nuanced information (its own value), rather than forcing the "relevance signal" and the "content" to be the same vector.
+
 **Step by step:**
-1. **QK^T**: Dot product measures similarity between queries and keys (n × n matrix)
-2. **/ √d_k**: Scale to prevent softmax saturation with large dimensions
-3. **softmax**: Convert to probabilities (each row sums to 1)
-4. **× V**: Weighted sum of values based on attention weights
+1. **QK^T**: Dot product measures similarity between every query and every key, producing an n × n score matrix (row *i* holds token *i*'s affinity to all tokens). A larger dot product means the query and key point in a similar direction, i.e., higher relevance.
+2. **/ √d_k**: Scale to prevent softmax saturation with large dimensions (derived below).
+3. **softmax**: Convert each row into a probability distribution over the sequence — the attention weights, each row summing to 1. High-scoring tokens get most of the mass; irrelevant ones get near-zero.
+4. **× V**: Multiply the weights by the value matrix. Each token's output is a weighted average of *all* values, dominated by the tokens it attended to most. This is the step that actually moves information between positions. ([QKV attention mechanics](https://mbrenndoerfer.com/writing/query-key-value-attention-mechanism))
+
+For a **causal (decoder) model**, a mask sets the scores for future positions to −∞ *before* the softmax, so those weights become 0. This enforces that token *i* can only attend to tokens ≤ *i* — the property that lets the model be trained on next-token prediction over the whole sequence in parallel.
 
 ### Why Scale by √d_k?
 
 **Interview favorite**: This is frequently asked because it reveals understanding of numerical stability.
 
-Without scaling, as dimension d grows, dot products grow proportionally. Large dot products push softmax into saturated regions where gradients vanish.
+**The variance argument (why exactly √d_k, not some other constant):** Assume the components of Q and K are independent, with mean 0 and variance 1. A single dot product is a sum of `d_k` independent products `q_i · k_i`, each with mean 0 and variance 1. Variance adds across independent terms, so the dot product has **variance = d_k** and a standard deviation of **√d_k**. Dividing by √d_k rescales the variance back to exactly 1, keeping the softmax inputs in a well-behaved range regardless of head size. That is the precise reason the scale is √d_k and not, say, d_k or √d. ([outcomeschool: math behind √dₖ](https://outcomeschool.com/blog/scaling-dot-product-attention))
+
+**Why large values hurt:** softmax saturates. When one input is much larger than the rest, softmax outputs a near one-hot distribution — one weight ≈ 1, the others ≈ 0. In that regime the Jacobian of softmax is nearly zero, so gradients vanish and learning stalls early in training. The original paper states it directly: "for large values of d_k, the dot products grow large in magnitude, pushing the softmax function into regions where it has extremely small gradients." Scaling keeps the distribution soft enough for gradients to flow. ([Vaswani et al., 2017 — §3.2.1](https://arxiv.org/abs/1706.03762))
 
 ```python
 # Without scaling (problematic for large d)
@@ -233,7 +248,7 @@ scaled_dot = dot / np.sqrt(d)  # Expected magnitude: ~1
 | Softmax | O(n²) | O(n²) |
 | Weighted sum with V | O(n²d) | O(nd) |
 
-The O(n²) complexity limits context length. A 100K context window means 10 billion attention computations per layer.
+The O(n²) term comes directly from the n × n score matrix: every token attends to every other token, so doubling the sequence length quadruples both the compute and the memory for attention. This is the dominant cost at long context and the reason a 100K context window means 10 billion attention computations per layer — and why the alternatives in the interview section (Flash Attention, sparse/linear attention, Mamba) exist to break the quadratic wall.
 
 ---
 

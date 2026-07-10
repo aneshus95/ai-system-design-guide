@@ -68,6 +68,32 @@ Continue until vocabulary size target...
 - Common words tend to be single tokens
 - Rare words split into subwords
 
+#### In plain English
+
+**The analogy — inventing shorthand.** Imagine you're taking notes and notice you keep writing "l-o-w" over and over. To save effort, you invent a single shorthand squiggle for "low." Then you notice "low" is often followed by "e-r", so you invent another squiggle for "lower." BPE does exactly this: it starts with only single characters and keeps **gluing together the pair it sees most often**, growing longer tokens for whatever is common. Frequent words end up as one token; rare words stay in pieces.
+
+**Visual — merges build bottom-up:**
+
+```
+Start:   l  o  w  e  r          (every character is its own token)
+              │
+merge "l"+"o" (most frequent pair)
+              ▼
+         lo  w  e  r
+              │
+merge "lo"+"w"
+              ▼
+         low  e  r
+              │
+merge "low"+"e", then "lowe"+"r" ...
+              ▼
+         lower                  (now a single token)
+
+Rule: repeatedly glue the MOST FREQUENT adjacent pair → new token.
+```
+
+The final vocabulary is the ladder of merges it learned. At inference time it just re-applies those merges in order. ([HuggingFace: tokenizer algorithms](https://huggingface.co/docs/transformers/tokenizer_summary))
+
 ### WordPiece
 
 Used by BERT-family models.
@@ -87,6 +113,23 @@ This favors merges that are more meaningful than random co-occurrence.
 "embedding" becomes ["em", "##bed", "##ding"]
 ```
 
+#### In plain English
+
+**The analogy — merge by "surprise," not by count.** BPE merges the *most frequent* pair. WordPiece is pickier: it merges the pair that is **unusually attracted to each other** — appearing together far more than their individual popularity would predict. Think of it as asking "do these two *belong* together, or do they just both happen to be common?"
+
+Example: `play` and `##ing`. Both are common on their own, so BPE might merge other frequent-but-boring pairs first. WordPiece notices that `##ing` follows `play` *way* more than chance predicts — that surplus is a signal they form a real unit — so it merges them. The scoring formula captures exactly this "togetherness beyond chance":
+
+```
+            freq(A, B)                    ← how often they actually appear together
+score  =  ─────────────────
+          freq(A) × freq(B)               ← how often you'd EXPECT them together by chance
+
+High score  → they belong together (merge!)     e.g. play + ##ing
+Low score   → just two common tokens near each other (skip)
+```
+
+BPE would only know "playing is frequent." WordPiece additionally knows "play and ##ing are magnetically attracted." ([WordPiece explained](https://mbrenndoerfer.com/writing/wordpiece-tokenization-bert-subword-algorithm))
+
 ### Unigram (SentencePiece)
 
 Used by T5, ALBERT, some multilingual models.
@@ -99,13 +142,46 @@ Used by T5, ALBERT, some multilingual models.
 
 **Key difference:** Works with probabilities rather than frequencies. Can recover from suboptimal early merges.
 
+#### In plain English
+
+**The analogy — sculpting, not building.** BPE and WordPiece **build up** from characters by gluing pieces together. Unigram works the *opposite way*: it starts with a giant block containing *every* plausible substring, then **carves away** the tokens that turn out to be least useful — like a sculptor removing marble until only the meaningful shape remains. On each round it asks, for every token, "if I deleted you, how much worse would my model explain the text?" and prunes the ones nobody would miss.
+
+**Visual — pruning top-down:**
+
+```
+BPE / WordPiece  (bottom-up: build)      Unigram  (top-down: carve)
+
+  characters                               HUGE vocab (all substrings)
+     │  merge                                 │  prune least-useful
+     ▼                                         ▼
+  subwords                                  smaller vocab
+     │  merge                                 │  prune
+     ▼                                         ▼
+  bigger tokens                             TARGET vocab
+
+  "grow toward the target"                 "shrink toward the target"
+```
+
+Because it evaluates the whole vocabulary probabilistically, Unigram can keep a token that an early greedy merge would have destroyed — and it can even offer *multiple* valid segmentations of the same word (useful for "subword regularization"). ([Unigram tokenization explained](https://mbrenndoerfer.com/writing/unigram-language-model-tokenization))
+
 ### Comparison
 
-| Algorithm | Merge Criterion | Tokenization | Used By |
-|-----------|-----------------|--------------|---------|
-| BPE | Frequency | Deterministic | GPT, Llama, Claude |
-| WordPiece | Likelihood | Deterministic | BERT, DistilBERT |
-| Unigram | Probability | Probabilistic | T5, mT5, XLNet |
+| Algorithm | Direction | Merge/Prune Criterion | One-line intuition | Used By |
+|-----------|-----------|-----------------------|--------------------|---------|
+| BPE | Bottom-up (build) | Most **frequent** pair | "Glue the pair I see most" | GPT, Llama, Claude |
+| WordPiece | Bottom-up (build) | Highest **likelihood** gain | "Glue the pair that *belongs* together" | BERT, DistilBERT |
+| Unigram | Top-down (carve) | Remove lowest **probability** loss | "Start with everything, trim the useless" | T5, mT5, XLNet |
+
+**Visual — all three targeting the same vocab size from different directions:**
+
+```
+        BPE ─────────►┐
+                       │  (build up from characters)
+   WordPiece ─────────►┤
+                       ├──►  ~32K–200K token vocabulary
+     Unigram ◄─────────┘
+                       (carve down from all substrings)
+```
 
 ---
 

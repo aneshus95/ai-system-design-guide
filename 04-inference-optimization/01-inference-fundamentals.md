@@ -43,6 +43,28 @@ Understanding where your system is bottlenecked is critical for choosing the rig
 **The Memory Wall insight**
 As models grow larger, memory bandwidth (HBM3/HBM3e) has not scaled as fast as compute (TFLOPS). This makes the Decode phase the primary target for production optimization.
 
+#### In plain English
+
+**The analogy — reading a question vs. writing the answer by hand.** Prefill is *reading the whole question at a glance*: your eyes take in the entire prompt at once, so it's fast and parallel. Decode is *writing the answer out by hand, one word at a time* — and before every single word you re-read your entire notebook of notes (the KV cache). The thinking isn't the slow part; the writing is.
+
+**Why prefill is compute-bound.** In prefill the model runs one big matrix-matrix multiply over *all* prompt tokens together. Each weight it pulls from memory is immediately reused across every prompt token, so the GPU's arithmetic units stay busy — the bottleneck is *how fast it can do math* (~90–95% GPU utilization). ([Prefill vs Decode](https://towardsdatascience.com/prefill-is-compute-bound-decode-is-memory-bound-why-your-gpu-shouldnt-do-both/))
+
+**Why decode is memory-bound.** In decode the model produces *one* token per step (a matrix-vector multiply). To make that single token it must stream the **entire model's weights** — plus the growing KV cache — out of VRAM, while doing only a tiny amount of math per byte moved. So the GPU mostly *waits on memory* (~20–40% utilization). A 200-token answer means 200 sequential passes, each re-loading the whole model. That is why long **outputs** are slow and costly, while long **prompts** are comparatively cheap.
+
+**Worked feel for it:**
+
+| | Prefill | Decode |
+|---|---------|--------|
+| Shape of work | Matrix × matrix (all tokens at once) | Matrix × vector (one token) |
+| Weights reused across… | many tokens → efficient | just one token → wasteful |
+| Limited by | GPU math (TFLOPS) | Memory bandwidth (HBM) |
+| GPU utilization | ~90–95% | ~20–40% |
+| Fix it with | FlashAttention, FP8/FP16 | 4-bit quant, GQA, batching, speculative decode |
+
+**Why the "memory wall" points the finger at decode.** Every GPU generation, raw compute (TFLOPS) has grown much faster than memory bandwidth (HBM3/HBM3e). Since decode is the *bandwidth*-bound phase, it inherits the slower-growing resource — so it dominates production cost and is where optimization pays off. The levers all reduce *bytes moved per token*: 4-bit **quantization** (fewer bytes per weight), **GQA/MQA** (smaller KV cache), and **continuous batching** (one weight-load serves many users' tokens at once). At scale, teams even run prefill and decode on **separate GPU pools** (disaggregated serving) because one GPU can't do both efficiently. ([The memory wall](https://www.spheron.network/blog/ai-memory-wall-inference-latency-guide-2026/); [Databricks — inference performance](https://www.databricks.com/blog/llm-inference-performance-engineering-best-practices); video walkthrough: [Mark Moyou — Mastering LLM Inference Optimization](https://www.youtube.com/watch?v=9tvJ_GYJA-o))
+
+See [KV Cache and Context Caching](02-kv-cache-and-context-caching.md) for the cache that prefill fills and decode reads.
+
 ---
 
 ## Performance Metrics

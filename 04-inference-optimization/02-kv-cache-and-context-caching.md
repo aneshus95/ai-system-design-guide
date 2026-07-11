@@ -24,6 +24,24 @@ During generation, the model needs the Key (K) and Value (V) tensors for all pre
 - **Memory**: `2 (KV) * layers (80) * context (128k) * heads (8) * head_dim (128) * 2 bytes`
 - **Total**: **~42 GB per user** in 128k context.
 
+#### In plain English
+
+**What is actually being stored.** For every token the model has already seen, each attention layer keeps two vectors: the **Key** ("what this token advertises") and the **Value** ("what this token contributes"). When the model generates the next token, its Query compares against *every* stored Key and pulls a blend of the matching Values — so it must have K and V for the entire history on hand. Queries are not cached: only the newest token needs one. (See the plain-English KV cache walkthrough in [01-foundations/01-llm-internals.md](../01-foundations/01-llm-internals.md) for why K/V are reusable but Q is always fresh.)
+
+**Why "expensive" — it grows, and it lives in the scarcest place.** Two things make the cache the #1 memory headache:
+1. **It grows linearly with every token generated.** The cache for token 100,000 must hold the K,V of all 99,999 predecessors, so a long conversation costs far more memory than a short one. Cache size is proportional to `sequence length × batch size`.
+2. **It sits in GPU VRAM, right next to the model weights.** VRAM is fixed and small. The weights take a constant chunk; whatever is left is split among the KV caches of *every request in flight at the same time*.
+
+**The real consequence — the KV cache, not the model, caps concurrency.** Because the leftover VRAM is shared across all concurrent requests, the cache directly limits how many users you can batch together — and batch size is what drives throughput (and therefore cost per query). Run out of KV space and you must reject requests, evict caches, or truncate context. The ~42 GB above is the cache for *one* user at 128k context — often a large fraction of an entire GPU board — so only a handful of long-context users fit alongside the weights before VRAM is gone. That is exactly why long-context serving is hard and why providers meter context length. ([KV cache memory arithmetic](https://pub.towardsai.net/llama-2-70b-has-64-query-heads-and-8-kv-heads-here-is-the-memory-arithmetic-nobody-shows-you-eb154f2b65e9))
+
+**The formula is a menu of levers:**
+
+```
+KV cache = 2 (K and V) × layers × kv_heads × head_dim × sequence_length × bytes_per_value
+```
+
+Every term is something you can attack, and the rest of this module does exactly that: shrink `kv_heads` (**GQA/MQA**, next section), shrink `bytes_per_value` (**quantized KV cache**), and allocate `sequence_length × batch` smartly instead of contiguously (**PagedAttention**).
+
 ---
 
 ## GQA: Grouped Query Attention

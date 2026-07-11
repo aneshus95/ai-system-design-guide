@@ -76,6 +76,24 @@ See [KV Cache and Context Caching](02-kv-cache-and-context-caching.md) for the c
 | **Throughput** | Tokens/Second (Agg) | Maximize | Determining cost per query. |
 | **Latency** | End-to-End Time | < 2.0s | Total turn-around for the agent. |
 
+#### In plain English
+
+**The analogy — a restaurant kitchen.** TTFT is how fast the *first* dish reaches a table; TPOT is how quickly the following courses arrive; **throughput** is how many meals the whole kitchen serves *per hour*. Cooking more orders in parallel raises meals-per-hour — but pile on too many and every table waits longer for each course. That tension, total output vs. per-customer speed, is the throughput-vs-latency trade-off.
+
+**What throughput measures.** Work completed per unit time — usually **tokens per second** (sometimes requests per second). It comes in two kinds, and mixing them up is a classic interview slip:
+- **Per-request throughput** — tokens/sec a *single* user experiences (≈ `1 / TPOT`).
+- **Aggregate (system) throughput** — tokens/sec across *all* concurrent users on the GPU. **This is the number that sets cost**, because you divide the GPU's hourly price by it:
+
+```
+cost per 1M tokens  ≈  GPU $/hour  ÷  aggregate tokens per hour
+```
+
+Double the aggregate throughput on the same GPU and you roughly halve cost per token — which is why "Maximize" is the goal in the table above.
+
+**Why it fights with latency — and how batching mediates.** Putting more requests in one **batch** lets a single expensive weight-load from VRAM serve many users' tokens at once, so aggregate throughput rises — but each individual token now takes a little longer, so per-user latency (TPOT) rises too. **Continuous batching** (vLLM) manages this dynamically: it fills freed slots token-by-token so the GPU stays busy (high throughput) without forcing large static batches (high latency). ([Databricks — inference performance](https://www.databricks.com/blog/llm-inference-performance-engineering-best-practices))
+
+**The nuance — goodput, not raw throughput.** You can inflate tokens/sec by batching so aggressively that everyone blows past the latency SLA. **Goodput** counts only the throughput that *still meets your SLOs* (e.g., tokens/sec delivered to requests that keep TTFT < 200 ms and TPOT < 30 ms). At scale you optimize **goodput**, not the vanity throughput number. ([DistServe, OSDI 2024](https://www.usenix.org/system/files/osdi24-zhong-yinmin.pdf))
+
 ---
 
 ## Hardware-Enabled Optimizations (FP8)

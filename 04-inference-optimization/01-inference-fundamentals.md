@@ -61,6 +61,15 @@ As models grow larger, memory bandwidth (HBM3/HBM3e) has not scaled as fast as c
 | GPU utilization | ~90–95% | ~20–40% |
 | Fix it with | FlashAttention, FP8/FP16 | 4-bit quant, GQA, batching, speculative decode |
 
+```mermaid
+flowchart LR
+    P["Prompt: all tokens at once"] -->|"parallel, COMPUTE-bound"| PF[Prefill]
+    PF --> FT["First token + KV cache filled"]
+    FT -->|"serial, MEMORY-bound"| D["Decode: 1 token per step"]
+    D -->|"reloads full model each token"| D
+    D --> R["Full response"]
+```
+
 **Why the "memory wall" points the finger at decode.** Every GPU generation, raw compute (TFLOPS) has grown much faster than memory bandwidth (HBM3/HBM3e). Since decode is the *bandwidth*-bound phase, it inherits the slower-growing resource — so it dominates production cost and is where optimization pays off. The levers all reduce *bytes moved per token*: 4-bit **quantization** (fewer bytes per weight), **GQA/MQA** (smaller KV cache), and **continuous batching** (one weight-load serves many users' tokens at once). At scale, teams even run prefill and decode on **separate GPU pools** (disaggregated serving) because one GPU can't do both efficiently. ([The memory wall](https://www.spheron.network/blog/ai-memory-wall-inference-latency-guide-2026/); [Databricks — inference performance](https://www.databricks.com/blog/llm-inference-performance-engineering-best-practices); video walkthrough: [Mark Moyou — Mastering LLM Inference Optimization](https://www.youtube.com/watch?v=9tvJ_GYJA-o))
 
 See [KV Cache and Context Caching](02-kv-cache-and-context-caching.md) for the cache that prefill fills and decode reads.
@@ -91,6 +100,15 @@ cost per 1M tokens  ≈  GPU $/hour  ÷  aggregate tokens per hour
 Double the aggregate throughput on the same GPU and you roughly halve cost per token — which is why "Maximize" is the goal in the table above.
 
 **Why it fights with latency — and how batching mediates.** Putting more requests in one **batch** lets a single expensive weight-load from VRAM serve many users' tokens at once, so aggregate throughput rises — but each individual token now takes a little longer, so per-user latency (TPOT) rises too. **Continuous batching** (vLLM) manages this dynamically: it fills freed slots token-by-token so the GPU stays busy (high throughput) without forcing large static batches (high latency). ([Databricks — inference performance](https://www.databricks.com/blog/llm-inference-performance-engineering-best-practices))
+
+```mermaid
+flowchart TB
+    W["Load model weights from VRAM<br/>(expensive — happens once per step)"]
+    W --> UA["User A: next token"]
+    W --> UB["User B: next token"]
+    W --> UC["User C: next token"]
+    UA & UB & UC --> TH["Bigger batch = more tokens per single weight-load<br/>= higher aggregate throughput (lower cost),<br/>but each user's token waits a little longer"]
+```
 
 **The nuance — goodput, not raw throughput.** You can inflate tokens/sec by batching so aggressively that everyone blows past the latency SLA. **Goodput** counts only the throughput that *still meets your SLOs* (e.g., tokens/sec delivered to requests that keep TTFT < 200 ms and TPOT < 30 ms). At scale you optimize **goodput**, not the vanity throughput number. ([DistServe, OSDI 2024](https://www.usenix.org/system/files/osdi24-zhong-yinmin.pdf))
 

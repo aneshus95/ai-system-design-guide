@@ -34,6 +34,17 @@ During generation, the model needs the Key (K) and Value (V) tensors for all pre
 
 **The real consequence — the KV cache, not the model, caps concurrency.** Because the leftover VRAM is shared across all concurrent requests, the cache directly limits how many users you can batch together — and batch size is what drives throughput (and therefore cost per query). Run out of KV space and you must reject requests, evict caches, or truncate context. The ~42 GB above is the cache for *one* user at 128k context — often a large fraction of an entire GPU board — so only a handful of long-context users fit alongside the weights before VRAM is gone. That is exactly why long-context serving is hard and why providers meter context length. ([KV cache memory arithmetic](https://pub.towardsai.net/llama-2-70b-has-64-query-heads-and-8-kv-heads-here-is-the-memory-arithmetic-nobody-shows-you-eb154f2b65e9))
 
+```
+GPU VRAM (fixed, e.g. 80 GB)
++----------------------------+---------+---------+---------+--------+
+|    model weights (const)   | KV req1 | KV req2 | KV req3 |  free  |
++----------------------------+---------+---------+---------+--------+
+                                  |         |         |
+        each KV block grows +1 entry for every token generated  -->
+   more users / longer context  ->  free space vanishes
+                                 ->  reject requests, evict, or truncate context
+```
+
 **The formula is a menu of levers:**
 
 ```

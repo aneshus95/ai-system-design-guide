@@ -186,15 +186,51 @@ For extremely long contexts (10M+), we use **Reasoning-Aware Deletion (RAD-L)**.
 **Strong answer:**
 I choose Long Context when high-fidelity retrieval and cross-document reasoning are critical. RAG suffers from "Retrieval Gap"—if your vector search misses the relevant chunk, the model never sees it. Long Context (up to 2M tokens) provides 100% recall. Specifically, I'd use it for codebase analysis, legal document review, and multi-file financial auditing. I'd stick to RAG for dynamic web-scale data or billion-document datasets that exceed any context window.
 
+**Deeper context — it's a trade-off across several axes, not a binary.** Recall is only one of them, and the honest answer names the others:
+
+| Axis | Long Context wins | RAG wins |
+|------|-------------------|----------|
+| **Recall / fidelity** | 100% — the whole doc is in the window | Depends on retrieval quality (the Retrieval Gap) |
+| **Cross-document reasoning** | Strong — sees everything at once | Weak — chunks arrive in isolation |
+| **Freshness** | Must re-send the doc each time | Swap one vector-DB record, no re-prompt |
+| **Scale** | Capped by the window (~1–2M tokens) | Billions of documents |
+| **Cost / latency** | Prefills a huge prompt every call (unless cached) | Prefills only the retrieved chunks |
+| **Access control** | Hard to filter per-user | Natural — filter at retrieval time |
+
+```mermaid
+flowchart TD
+    A[Task] --> B{Fits in the window?<br/>under ~1-2M tokens}
+    B -->|No| R[Use RAG]
+    B -->|Yes| C{Needs cross-doc reasoning<br/>or 100% recall?}
+    C -->|Yes| L[Long Context + prompt caching]
+    C -->|No| D{Data changes constantly,<br/>or per-user access control?}
+    D -->|Yes| R
+    D -->|No| L
+```
+
+In practice the strongest answer is often **hybrid**: use RAG to pre-filter a billion-document corpus down to the few thousand relevant pages, then load *those* into a long-context window for high-fidelity reasoning. And note the cost caveat — a 1M-token prompt is expensive to prefill on every call, so Long Context only pays off when paired with **prompt caching** (the next question).
+
 ### Q: How do you handle the high TTFT associated with million-token prompts?
 
 **Strong answer:**
 The primary solution is **Context Caching**. By caching the heavy document on the GPU cluster, the model doesn't have to "re-read" (prefill) the entire 1M tokens for every turn. The TTFT for a cached prompt is nearly the same as for a 1k token prompt. Additionally, for non-cached requests, I would use **Streaming Prefill**, where the model generates an initial summary or "Thought" while it is still processing the latter half of the massive context.
 
+**Deeper context — why the TTFT is brutal, and why caching fixes it.** TTFT is dominated by the **prefill** phase, which is *compute-bound* and scales with input length: a 1M-token prompt forces the GPU to run attention over all 1M tokens before it can emit the first output token (see [Inference Fundamentals](../04-inference-optimization/01-inference-fundamentals.md) and [KV Cache and Context Caching](../04-inference-optimization/02-kv-cache-and-context-caching.md)). Context/prompt caching stores that prompt's **KV cache**, so a reused prefix **skips prefill entirely** — the second call pays roughly 0.1x for the cached tokens and its TTFT collapses toward that of a 1k-token prompt.
+
+```
+Cold 1M-token request:   [ prefill 1M tokens ....... ] -> first token   (huge TTFT)
+Cached 1M-token prefix:  [ read KV cache ] -> first token                (tiny TTFT)
+                          ^ prefill skipped; pay ~0.1x for cached tokens
+```
+
+The architectural rule (see this chapter's Prompt Caching Economics section): keep the heavy, shared prefix **static and first** so it stays a cache hit. One honest caveat to raise: "streaming prefill" (starting to answer while still ingesting the tail of the context) is a frontier technique, not yet a standard, universally-exposed knob — lead with caching, and offer streaming prefill for cold, uncacheable requests.
+
 ### Q: An agent works fine for short tasks but degrades on long-running ones. How do you fix it?
 
 **Strong answer:**
 This is **context rot**: the window fills with stale tool output and the model loses the thread. I would apply agentic context engineering. First, **compaction**: summarize the history at a threshold and continue from the summary plus the most-recent artifacts. Second, **just-in-time loading**: hold file paths and IDs instead of full content, and fetch on demand. Third, **structured note-taking**: have the agent write progress to a scratch file it can re-read, so working memory stays small. For sub-tasks that generate a lot of intermediate detail (deep search, multi-file analysis), I would use **sub-agent isolation** so that detail returns as a short summary instead of flooding the main window. The goal is the smallest high-signal token set per turn, not the largest.
+
+**Deeper context — why rot happens, and how to pick the technique.** Two mechanisms drive it: attention cost grows roughly **n²** with token count, and training data skews toward *shorter* sequences — so a window that is technically 1M tokens becomes *less reliable* as you fill it, not merely slower. That is why the objective is the smallest high-signal token set per turn, not the largest. Match the lever to the failure mode: history getting long → **compaction**; corpus too big to fit → **just-in-time loading**; task spans dozens of tool calls → **structured note-taking**; a sub-task floods the window with intermediate detail → **sub-agent isolation** (see the [Five Core Techniques](#agentic-context-engineering) table above). They compose — a long-running coding agent typically runs all four at once.
 
 ---
 

@@ -10,6 +10,7 @@ Chunking is the process of splitting a document into discrete segments for retri
 - [Hierarchical (Parent-Child) Chunking](#hierarchical)
 - [Content-Specific Strategies (Code, PDF, Tables)](#content-specific)
 - [The Modern Default (2026): Late Chunking & Contextual Retrieval](#modern-default)
+- [Choosing a Strategy: Trigger -> What It Improves](#choosing)
 - [Interview Questions](#interview-questions)
 - [References](#references)
 
@@ -153,6 +154,29 @@ Two upgrades help across almost any corpus:
 | Stacks with | hierarchical + reranking | hierarchical + reranking (the 67% figure) |
 
 **Recommended default stack:** recursive **512-token** splitting → **Late Chunking** (or **Contextual Retrieval** when accuracy is paramount and you can pay the index-time LLM cost) → **hierarchical parent-child** for context → a **reranker** at query time. Start simple, measure recall@k, and add each layer only when the numbers justify it — there is no universal winner, just a strong default plus upgrades matched to your bottleneck.
+
+---
+
+## Choosing a Strategy: Trigger -> What It Improves
+
+Don't pick a strategy by fashion — pick it by which **metric is leaking**. Chunking mostly moves two of the three retrieval-gap metrics (see [Retrieval Quality Gap](01-rag-fundamentals.md)): **recall@k** (did a well-formed chunk get retrieved at all?) and **faithfulness / answer quality** (is the returned chunk complete enough to reason over?). Ranking **precision** is mainly a *reranker's* job — though sharper chunks help it.
+
+| Strategy | Reach for it when... | Primarily improves | Cost / trade-off |
+|----------|----------------------|--------------------|------------------|
+| **Fixed-size + overlap** | quick prototype; uniform text | baseline; overlap nudges **recall@k** (fewer boundary cuts) | wasted storage, near-duplicate vectors |
+| **Recursive (structure-aware)** | your default for mixed docs | **precision + chunk coherence** vs fixed (complete units) | almost none — no models, fast |
+| **Semantic** | chunks blur several topics; precision is the bottleneck | **retrieval precision / relevance** (nDCG, context precision) — one-idea vectors | slow/expensive indexing; brittle threshold |
+| **Hierarchical (parent-child)** | LLM answers wrong for *lack of surrounding context* | **faithfulness / context sufficiency** — without losing match precision | extra storage; must de-dup parents |
+| **Content-specific** (code AST / tables / PDF-layout) | corpus is code, tables, or layout-heavy PDFs | **recall + faithfulness on that content type** | per-type parsing (AST, VLM) |
+| **Late chunking** | chunks are ambiguous alone (pronouns, headers, cross-refs) | **recall@k** on context-dependent chunks | one long-context embedding pass (cheap) |
+| **Contextual retrieval** | max accuracy; chunks aren't self-contained | **recall@k** — the single biggest win (~49% fewer failures, ~67% with a reranker) | LLM call per chunk at index time (cache it) |
+
+**How to use this — diagnose, then pick:**
+- **recall@k low** (the right chunk was never retrieved) -> add overlap, then **late chunking**, then **contextual retrieval** (and hybrid search at the retrieval layer).
+- **precision / nDCG low** (junk ranked above the answer) -> **semantic chunking** for sharper vectors, and add a **reranker**.
+- **retrieval is fine but the answer is wrong/incomplete** (low faithfulness) -> **hierarchical** (return the parent) or larger / content-specific chunks.
+
+The trap to avoid: reaching for a fancier chunker when your leaking metric is *precision* (fix it with a reranker) or *recall of exact terms* (fix it with hybrid search) — chunking can't repair a stage it doesn't touch.
 
 ---
 

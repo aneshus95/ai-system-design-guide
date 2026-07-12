@@ -289,14 +289,18 @@ The whole idea is a single contrast: **one vector per page** vs. **many vectors 
         one vector PER square  (~1024 per page)
 ```
 
-**Late interaction (MaxSim) — each query WORD finds its own best square.** Split the query into words (each a vector); for each word, take its single best-matching square (the "Max"), then add those up:
+**Late interaction (MaxSim) — the actual computation.** First split the query into **tokens** (subwords — e.g., `"BM25"` splits into `"bm"` + `"25"`), each a vector. Then compute the similarity of **every query token against every patch** (a full grid), keep **each token's best patch** (the "Max"), and **sum** those bests. For query `"APAC revenue"` over a few of the page's patches:
 ```
-  query words:   "APAC"                 "revenue"
-     "APAC"    -> best square = the APAC table row     score 0.9
-     "revenue" -> best square = the $ column / chart   score 0.8
-                                    page score = 0.9 + 0.8 = 1.7
+  similarity of each query TOKEN to each PATCH:
+
+                title   APAC-row-cell   $-column-cell   chart
+   "APAC"        0.20     0.90 (max)      0.30          0.20
+   "revenue"     0.20     0.40            0.85 (max)    0.60
+
+  step 1  max per query token:   "APAC" -> 0.90 ,  "revenue" -> 0.85
+  step 2  sum the maxes:         page score = 0.90 + 0.85 = 1.75
 ```
-Each query word "points at" the exact spot on the page it belongs to; the score is *how well every query word found a good home.*
+So it is **not** "each patch vs. the whole query." It is **every query token vs. every patch**, then **max per token, then sum**. Each token finds the one region it belongs to, and the page wins only if *all* its tokens found a good region. You compute this score for every candidate page, then rank pages by it.
 
 > **Analogy:** keep the page as a grid of **sticky notes** (one per region). When a query arrives, **each query word wanders the grid and sticks to the best-matching note**, and you score by how well every word found a note. Fine details survive because nothing was ever summarized into a single blur.
 

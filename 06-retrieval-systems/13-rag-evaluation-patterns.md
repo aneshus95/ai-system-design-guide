@@ -218,6 +218,72 @@ The RAG Triad evaluates the system end-to-end. Component-level evaluation isolat
 | NDCG@10 | 0.50 | 0.70 | 0.85+ |
 | Precision@5 | 0.40 | 0.60 | 0.80+ |
 
+#### In plain English: the four metrics on one example
+
+They split into two families: **set metrics** (did we get the right docs at all — order ignored) and **rank metrics** (are the good ones near the top?).
+
+```
+Query: "how does BM25 work?"      corpus has 3 relevant docs total: R1, R2, R3
+
+Retriever top-5 (K = 5):
+  rank 1:  doc A    not relevant
+  rank 2:  R1       RELEVANT      (the first relevant appears here)
+  rank 3:  doc B    not relevant
+  rank 4:  R2       RELEVANT
+  rank 5:  doc C    not relevant
+  ---- top-5 cutoff ----
+  rank 9:  R3       RELEVANT      (MISSED - not in the top 5)
+```
+
+**Recall@K — "did we find them ALL?"** Fraction of *all relevant docs* that reached the top K.
+```
+  Recall@5 = (relevant in top 5) / (total relevant) = 2 / 3 = 0.67
+```
+Denominator = total relevant. The #1 RAG metric: did the answer chunk even make it into the context you feed the LLM?
+
+**Precision@K — "is the list CLEAN?"** Fraction of the *K shown* that are relevant.
+```
+  Precision@5 = (relevant in top 5) / K = 2 / 5 = 0.40
+```
+Denominator = K. Matters for user-facing results and tight context budgets.
+(Recall = did we miss any?  Precision = how much junk did we include?)
+
+**MRR — "how SOON is the FIRST hit?"** Score = 1 / rank of the first relevant doc (MRR averages this over queries).
+```
+  first relevant at rank 2  ->  RR = 1/2 = 0.50
+  ladder:  rank 1 -> 1.00   rank 2 -> 0.50   rank 3 -> 0.33   rank 5 -> 0.20
+```
+Only the first correct answer matters — perfect for "one good result, fast" (Q&A / lookup).
+
+**NDCG@K — "are the BEST docs ranked HIGHEST?"** Each doc earns relevance points, discounted the lower it sits, then normalized to 0-1 by the ideal ordering.
+```
+  DCG@5  = 1/log2(2+1) + 1/log2(4+1) = 0.63 + 0.43 = 1.06    (R1 at rank 2, R2 at rank 4)
+  IDCG@5 = 1/log2(1+1) + 1/log2(2+1) = 1.00 + 0.63 = 1.63    (ideal: the two at ranks 1 and 2)
+  NDCG@5 = 1.06 / 1.63 = 0.65
+```
+If R1 and R2 sat at ranks 1 and 2, NDCG = 1.0 (perfect order). Best for graded relevance and reranker tuning.
+
+**All four on one picture:**
+```
+  ranked list:  A(-)  R1(+)  B(-)  R2(+)  C(-)      R3(+) way down at rank 9
+
+  SET  (order ignored)   Recall@5    = 2/3 = 0.67          found them ALL?
+                         Precision@5 = 2/5 = 0.40          list CLEAN?
+  RANK (order counts)    MRR         = 1/2 = 0.50          first hit how SOON?
+                         NDCG@5      = 1.06/1.63 = 0.65    BEST ranked HIGHEST?
+```
+
+**Which to optimize:**
+
+| Metric | Cares about | Use it when |
+|--------|-------------|-------------|
+| **Recall@K** | coverage — found them all? | RAG retrieval (the answer must be *somewhere* in the K you send the LLM) |
+| **Precision@K** | cleanliness — junk in the list? | user-facing results / tight context budgets |
+| **MRR** | position of the *first* hit | Q&A, "one good answer fast" |
+| **NDCG@K** | overall ordering quality | search ranking, reranker tuning, graded relevance |
+
+**Rule of thumb for RAG:** Recall@K is the headline (did retrieval fetch the right chunk at all?); NDCG/MRR measure how well the reranker then *orders* what recall found.
+
 ### Generator Evaluation
 
 Isolate the generator by fixing the retrieval context and varying only the generation.

@@ -48,6 +48,35 @@ Production RAG systems are categorized by their "Agentic Depth":
 - **Flow**: Extract entities/relationships -> Build Knowledge Graph -> Traverse graph to find "connected knowledge."
 - **Win**: Solves "Aggregative Questions" (e.g., "Summarize all legal risks across 50 documents").
 
+### The through-line: each level buys accuracy with latency, cost, and complexity
+
+These four are a **ladder, not a menu of equals**. Each rung exists to fix the failure of the one below it, and you pay for that fix in latency, tokens, and operational complexity. The senior move is to **match the depth to the query difficulty**, not to reach for the fanciest by default.
+
+```
+  capability / cost
+       ^
+ GraphRAG |  connect facts across many docs  (global / "aggregative" questions)
+ Agentic  |  loop + self-correct: re-query, switch index, verify  (multi-hop, ambiguous)
+ Advanced |  precision: hybrid search + rerank  (the production default)
+ Naive    |  one-shot retrieve-then-generate    (demos, simple FAQ)
+       +-------------------------------------------------> query difficulty
+```
+
+| Level | Fixes the problem of... | Best for | Cost / latency |
+|-------|-------------------------|----------|----------------|
+| **Naive** | (baseline) | simple FAQ, demos | lowest — 1 LLM call |
+| **Advanced** | low precision; keyword-vs-semantic mismatch | most production RAG | + rerank step |
+| **Agentic** | the Retrieval Gap — missing info, multi-hop | ambiguous / multi-step queries | high — several LLM calls in a loop |
+| **GraphRAG** | chunk retrieval can't *connect* scattered facts | global / aggregative questions | highest — build + maintain a graph |
+
+**The technique names, decoded:**
+- **RRF (Reciprocal Rank Fusion)** — merges the keyword (BM25) and semantic (vector) result lists by each item's *rank position*, not its raw score, so you never have to force two incomparable score scales to agree. Robust and near parameter-free — the default fusion for hybrid search (see [Hybrid Search](05-hybrid-search.md)).
+- **Self-RAG** — the model is trained to decide *whether* retrieval is even needed and to critique its own retrieved passages ("relevant? is my answer supported?"), retrieving again if not.
+- **Corrective RAG (CRAG)** — grades the retrieved set; if it's weak, it *falls back* (e.g., to a web search) and rewrites the query instead of answering from bad context (both: see [Agentic RAG](08-agentic-rag.md)).
+- **GraphRAG** — pre-extracts entities and relationships into a knowledge graph so a query can *traverse* connections ("which risks recur across all 50 contracts?") that flat top-k chunking would only ever see one fragment of at a time.
+
+**Interview soundbite:** *"I default to Advanced RAG — hybrid search plus a reranker — and only climb to Agentic when queries are multi-hop or the first retrieval can miss, or to GraphRAG when the questions are global/aggregative. Each level trades latency and cost for recall on harder queries; you match depth to the query, not to the demo."*
+
 The four variants by agentic depth:
 
 ```mermaid

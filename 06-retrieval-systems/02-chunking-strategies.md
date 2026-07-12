@@ -9,6 +9,7 @@ Chunking is the process of splitting a document into discrete segments for retri
 - [Semantic Chunking](#semantic)
 - [Hierarchical (Parent-Child) Chunking](#hierarchical)
 - [Content-Specific Strategies (Code, PDF, Tables)](#content-specific)
+- [The Modern Default (2026): Late Chunking & Contextual Retrieval](#modern-default)
 - [Interview Questions](#interview-questions)
 - [References](#references)
 
@@ -125,6 +126,34 @@ See [Contextual Retrieval](10-contextual-retrieval.md) for the complementary tri
 - **Tables** — a raw Markdown grid embeds *terribly*: the vector is dominated by pipes, header words, and digits, not meaning, so it rarely matches a natural-language query. "Summarized tables" fix this — embed a sentence describing the table for *retrieval*, but hand the LLM the full table for *reasoning* (the same index-small / return-rich split as hierarchical chunking).
 - **PDF / layout** — reading order is 2-D, not linear; naive text extraction interleaves a sidebar into a paragraph. Layout-aware/VLM parsing keeps each visual block (body, caption, chart, footnote) intact.
 
+**PDF/layout in more depth — two modern approaches:**
+
+1. **Parse → structure → chunk.** A layout model or VLM parser (**Docling / GraniteDocling**, **Marker**, **LlamaParse**) reconstructs the document *tree* — headings, body, tables, formulas, captions, and their section path, even across multi-column pages — then you chunk *that* structure (section-aware). Practical params: ~512-1000 token targets, a hard cap (~1200) for table chunks, drop tiny fragments (< ~30 tokens). Keep tables/figures whole and pair them with the summarized-table trick above. ([LlamaIndex — best AI PDF parsers](https://www.llamaindex.ai/insights/best-ai-pdf-parsers))
+2. **Skip parsing — embed the page image (ColPali / ColQwen2).** Instead of OCR → layout → caption → text-embed, a vision-language retriever embeds the *rendered page* directly as a **multi-vector** (ColBERT-style late interaction), matching the query against the page's visual layout itself. Charts, scans, and complex tables "just work," and it beats the classic extract-and-embed pipeline on visually rich docs — at the cost of a heavier multi-vector index. ([ColPali, arXiv](https://arxiv.org/abs/2407.01449); [Vespa — retrieval with VLMs](https://blog.vespa.ai/retrieval-with-vision-language-models-colpali/))
+
+Rule of thumb: **parse-then-chunk** for mostly-text PDFs where you want clean text in the prompt; **ColPali-style visual retrieval** when figures/tables/scans dominate and the *layout is the information*.
+
+---
+
+## The Modern Default (2026): Late Chunking &amp; Contextual Retrieval
+
+**Is there one strategy that wins everywhere? Not quite — but there is a clear default and two general-purpose upgrades.** 2026 benchmarks still put **recursive splitting at ~512 tokens** as the best *starting* point: highest end-to-end accuracy across mixed document types, and effectively free (no model calls). Everything else is an upgrade you add *only when a metric justifies it*. ([denser.ai — 2026 chunking benchmarks](https://denser.ai/blog/rag-chunking-strategies/), [DigitalApplied — 2026 playbook](https://www.digitalapplied.com/blog/rag-chunking-strategies-2026-retrieval-quality-playbook))
+
+Two upgrades help across almost any corpus:
+
+**Late Chunking — the cheap, broad win.** Flip the order: embed the *whole document* first with a long-context embedding model, *then* split the resulting token embeddings into chunks (mean-pool each span). Because every chunk's vector was computed with the full document in view, it carries long-range context — a chunk that only says "It supports 40W" inherits the surrounding "Model X charger" signal. No per-chunk LLM call, so it's cheap. Best when chunks are ambiguous alone (pronouns, headers, cross-references). ([FutureAGI — advanced chunking](https://futureagi.com/blog/advanced-chunking-techniques-for-rag/))
+
+**Contextual Retrieval — the max-accuracy win.** Prepend a short, LLM-generated context blurb to each chunk *before* embedding it ("This is from the 2025 Model X drone manual, battery section: ..."). Anthropic reported this cuts retrieval failures by **49%**, and **67% combined with a reranker** — a bigger gain than upgrading from a cheap to an expensive embedding model. The cost is one LLM call per chunk at index time, heavily amortized by prompt caching. ([Anthropic — Contextual Retrieval](https://www.anthropic.com/news/contextual-retrieval))
+
+| | Late Chunking | Contextual Retrieval |
+|---|---|---|
+| How | embed whole doc, then split the embeddings | LLM writes a context blurb, prepend it, then embed |
+| Cost | cheap — one long-context embedding pass | LLM call per chunk (cache it) |
+| Best at | cross-references, pronouns, headers | making chunks self-contained; max accuracy |
+| Stacks with | hierarchical + reranking | hierarchical + reranking (the 67% figure) |
+
+**Recommended default stack:** recursive **512-token** splitting → **Late Chunking** (or **Contextual Retrieval** when accuracy is paramount and you can pay the index-time LLM cost) → **hierarchical parent-child** for context → a **reranker** at query time. Start simple, measure recall@k, and add each layer only when the numbers justify it — there is no universal winner, just a strong default plus upgrades matched to your bottleneck.
+
 ---
 
 ## Interview Questions
@@ -142,7 +171,11 @@ Contextual Retrieval involves prepending a 1-sentence global context to every ch
 ---
 
 ## References
-- Anthropic. "Contextual Retrieval: Improving RAG Accuracy" (2024)
+- Anthropic. "Contextual Retrieval: Improving RAG Accuracy" (2024) — https://www.anthropic.com/news/contextual-retrieval
+- Günther et al. (Jina AI). "Late Chunking: Contextual Chunk Embeddings Using Long-Context Models" (2024)
+- Faysse et al. "ColPali: Efficient Document Retrieval with Vision Language Models" (arXiv:2407.01449, 2024)
+- LlamaIndex. "Best AI PDF Parsers" (2026) — https://www.llamaindex.ai/insights/best-ai-pdf-parsers
+- Denser.ai / DigitalApplied. "RAG Chunking Strategies 2026" (benchmarks)
 - LlamaIndex. "Advanced Chunking Strategies for RAG" (2025)
 - LangChain. "RecursiveCharacterTextSplitter Benchmarks" (2024)
 

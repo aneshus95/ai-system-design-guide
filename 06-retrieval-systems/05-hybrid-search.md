@@ -210,6 +210,49 @@ def reciprocal_rank_fusion(
 
 **Typical k values:** 60 (original paper), 10-100 in practice
 
+#### The formula
+
+```
+RRF(d) = sum over each ranker r of   1 / (k + rank_r(d))
+
+  rank_r(d) = position of d in ranker r's list   (1 = top, 2 = second, ...)
+  k         = constant, usually 60               (a "dampener")
+  d absent from a ranker's list -> that term contributes 0
+```
+
+Two pieces do the work:
+
+- **`1 / rank`** — being near the top is worth a lot, and each step down is worth less (rank 1 -> 1, rank 2 -> 1/2, rank 3 -> 1/3). That is the *reciprocal* part.
+- **`k` (the +60)** — a dampener. Without it, rank 1 (1/1 = 1.0) would crush rank 2 (1/2 = 0.5). With k=60, rank 1 = 1/61 = 0.0164 vs rank 2 = 1/62 = 0.0161 — nearly equal. So a large k **flattens** the per-rank contribution, which makes **agreement across lists matter more than being #1 in any single list**.
+
+> Code note: the implementation above writes `1 / (k + rank + 1)` because Python's `enumerate` is 0-based — the `+ 1` converts it to the 1-based `rank` used in the formula.
+
+#### Worked example (k = 60)
+
+Two retrievers return these ordered lists:
+
+```
+  BM25 (keyword):    D3 , D1 , D5 , D2
+  Vector (semantic): D1 , D3 , D4 , D5
+```
+
+Summing `1/(k + rank)` for each doc across the lists it appears in:
+
+| Doc | BM25 term (rank) | Vector term (rank) | RRF total |
+|-----|------------------|--------------------|-----------|
+| **D1** | 1/(60+2) = .01613 (rank 2) | 1/(60+1) = .01639 (rank 1) | **.03252** |
+| **D3** | 1/(60+1) = .01639 (rank 1) | 1/(60+2) = .01613 (rank 2) | **.03252** |
+| **D5** | 1/(60+3) = .01587 (rank 3) | 1/(60+4) = .01563 (rank 4) | .03150 |
+| **D4** | — (absent) | 1/(60+3) = .01587 (rank 3) | .01587 |
+| **D2** | 1/(60+4) = .01563 (rank 4) | — (absent) | .01563 |
+
+**Fused order: D1 ≈ D3 > D5 > D4 > D2.**
+
+The story the numbers tell:
+- **D1 and D3 win on consensus** — each sits near the top of *both* lists, which neither list alone would reveal (BM25 called D3 best; the vector search called D1 best).
+- **D5** is in both lists but lower in each, so it lands third.
+- **D2 and D4 sink** — each appears in only *one* list, so a single retriever's vote isn't enough to lift it. That is the whole point of RRF: reward documents that multiple retrievers independently agree on.
+
 ### Weighted Score Fusion
 
 Combine normalized scores:

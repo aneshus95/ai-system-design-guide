@@ -136,6 +136,31 @@ The "Retrieval Gap" is the #1 cause of RAG failure.
 - **Gap 2: Missing Context**: Relevant info is in the DB, but the Retriever missed it. Solved by **Hybrid Search**.
 - **Gap 3: Lost-in-the-Middle**: info is in the prompt, but LLM misses it. Solved by **Context Compression**.
 
+### The deeper frame: three gaps = three *different stages* failing
+
+A chunk has to survive **three consecutive stages** to actually help the answer, and each gap is a failure at one of them. That's why "RAG doesn't work" is never a single problem:
+
+```
+  question
+     |
+     v  [1] RETRIEVE  -- did we even fetch the right chunk?   <- Gap 2 (recall)
+     v  [2] RANK      -- is it near the TOP of the results?   <- Gap 1 (precision)
+     v  [3] GENERATE  -- does the LLM actually read it?       <- Gap 3 (attention)
+     |
+     v
+   answer
+```
+
+| Gap | Stage that fails | Symptom | Fix | Why the fix works | Metric to watch |
+|-----|------------------|---------|-----|-------------------|-----------------|
+| **2 — Missing context** | Retrieve (recall) | the right chunk isn't in the top-k at all | **Hybrid search** (BM25 + vector) | keyword matching catches exact terms/codes the embedding missed | recall@k |
+| **1 — Semantic mismatch** | Rank (precision) | it was retrieved, but buried below junk | **Reranker** (cross-encoder) | reads query + chunk *together* to score true relevance, not just vector proximity | nDCG / MRR |
+| **3 — Lost-in-the-middle** | Generate (attention) | it's in the prompt, but the LLM ignores it | **Context compression / reordering** | shrink to high-signal tokens and put the key chunk at the start or end, where attention is strongest | faithfulness / answer quality |
+
+See [Hybrid Search](05-hybrid-search.md), [Reranking Strategies](06-reranking-strategies.md), and [Context Engineering](../05-prompting-and-context/05-context-engineering.md) for each fix in depth.
+
+**The senior insight — the gaps are ordered, so fix them in order.** A reranker can't rescue a chunk that retrieval never fetched (fix Gap 2 first), and compression can't help a chunk that was ranked so low it never made it into the prompt (Gap 1 before Gap 3). So *diagnose which stage is leaking* — measure **recall@k** first, then ranking metrics, then generation faithfulness — rather than bolting on a reranker and hoping.
+
 ---
 
 ## Interview Questions

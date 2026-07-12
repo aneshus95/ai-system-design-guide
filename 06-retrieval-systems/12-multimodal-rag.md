@@ -87,6 +87,41 @@ There are three dominant patterns for multi-modal RAG, each with distinct trade-
 
 **Recommendation**: Pattern 3 (vision-first) is gaining ground fast for document-heavy use cases. Pattern 2 remains the production workhorse when you need precise text search alongside visual retrieval.
 
+### In plain English: one example, three patterns
+
+Say a single PDF page has three things, and a user asks a question:
+
+```
+  the page:   [ paragraph text ]   [ revenue TABLE ]   [ revenue CHART ]
+  the query:  "show me the APAC revenue trend"
+```
+
+All three patterns are just three ways to make that page searchable:
+
+**Pattern 1 — one shared bucket.** Turn the text, table, and chart all into vectors in the *same* space, so one query can reach any of them.
+```
+  text  --\
+  table ---> [ ONE index / one shared space ]  <== the query lands here too
+  chart --/
+```
+*Like one shelf where books, photos, and spreadsheets are filed by the same topic system — search once, get every type back.* Simple, but each vector is "jack-of-all-trades" quality, and tables must be turned into text first.
+
+**Pattern 2 — separate buckets, then merge (the workhorse).** One index per type, the best model for each, then fuse the results.
+```
+  query --> [ Text index  ] -> top text chunks --\
+        --> [ Table index ] -> top tables        ---> FUSE (RRF / rerank) -> final top-k
+        --> [ Image index ] -> top charts        --/
+```
+*Like asking three specialist librarians and having a head librarian merge their answers into one ranked list.* Best quality per type; more infrastructure plus a merge step.
+
+**Pattern 3 — photograph the page (ColPali).** Skip extraction entirely: screenshot each page and search the *images*.
+```
+  page --> screenshot --> [ index of PAGE IMAGES ]  <== query matches the whole page picture
+```
+*Like keeping a photo of the page and hiring someone who can "read" photos to find it.* No OCR/table/chart pipeline; big index; weaker exact-text search.
+
+**In one line:** Pattern 1 = *everything in one bucket*; Pattern 2 = *one bucket per type, then merge*; Pattern 3 = *search the page photos*.
+
 ---
 
 ## Multi-Modal Embedding Strategies
@@ -230,6 +265,43 @@ ColPali represents a paradigm shift: instead of building complex OCR + layout + 
 ### ViDoRe Benchmark Results
 
 ColPali excels on visually complex benchmarks like InfographicVQA, ArxivQA, and TabFQuAD, which test infographics, figures, and tables respectively. It outperforms traditional text-based pipelines even on text-centric documents.
+
+### In plain English: one vector vs. many (why "late interaction" wins)
+
+The whole idea is a single contrast: **one vector per page** vs. **many vectors per page**.
+
+**The old way — one vector per page (a blur).** Squish the whole page (title + table + chart) into ONE vector, squish the query into one vector, compare -> one score.
+```
+  whole page       --squish-->  [ 1 vector ]
+  "APAC revenue"   --squish-->  [ 1 vector ]
+  compare  ->  a single score
+  problem: the specific "APAC" table cell got averaged in with everything
+           else on the page and faded away — so the query can't "see" it.
+```
+
+**ColPali — many vectors per page (keep the detail).** Cut the page image into a grid of small squares ("patches") and make ONE vector per square. A page becomes ~1024 vectors, one per region:
+```
+  +-------+-------+-------+-------+
+  | title | title |   .   |   .   |
+  +-------+-------+-------+-------+
+  | cell  | cell  |    chart      |     cell = table cells
+  +-------+-------+-------+-------+     chart = part of the chart
+        one vector PER square  (~1024 per page)
+```
+
+**Late interaction (MaxSim) — each query WORD finds its own best square.** Split the query into words (each a vector); for each word, take its single best-matching square (the "Max"), then add those up:
+```
+  query words:   "APAC"                 "revenue"
+     "APAC"    -> best square = the APAC table row     score 0.9
+     "revenue" -> best square = the $ column / chart   score 0.8
+                                    page score = 0.9 + 0.8 = 1.7
+```
+Each query word "points at" the exact spot on the page it belongs to; the score is *how well every query word found a good home.*
+
+> **Analogy:** keep the page as a grid of **sticky notes** (one per region). When a query arrives, **each query word wanders the grid and sticks to the best-matching note**, and you score by how well every word found a note. Fine details survive because nothing was ever summarized into a single blur.
+
+**Why "late":** the old way compresses *early* (into one vector) and then compares — detail is already lost. Here you keep the detail and compare *late*, word-against-square, at query time.
+**The cost:** ~1024 vectors/page instead of 1 -> a ~1000x bigger index -> quantization (binary / PQ) is mandatory at scale.
 
 ---
 

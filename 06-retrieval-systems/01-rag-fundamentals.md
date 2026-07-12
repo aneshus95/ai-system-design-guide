@@ -131,35 +131,42 @@ flowchart TD
 
 ## The Retrieval Quality Gap
 
-The "Retrieval Gap" is the #1 cause of RAG failure.
-- **Gap 1: Semantic Mismatch**: Query says "fast cars," DB has "Porsche 911." Solved by **Embedding Rerankers**.
-- **Gap 2: Missing Context**: Relevant info is in the DB, but the Retriever missed it. Solved by **Hybrid Search**.
-- **Gap 3: Lost-in-the-Middle**: info is in the prompt, but LLM misses it. Solved by **Context Compression**.
+The "Retrieval Gap" is the #1 cause of RAG failure — but it is really **three different gaps, one per pipeline stage**. A chunk must survive all three to help the answer:
+
+- **Gap 1 — Recall (never retrieved).** The right chunk didn't make the top-k. Two distinct causes that need *different* halves of retrieval:
+  - **Vocabulary mismatch** — query and doc use different words for the same thing ("fast cars" vs "Porsche 911"). Keyword/BM25 shares no tokens, so it misses → this is a job for **dense / semantic** retrieval.
+  - **Exact-term miss** — a rare code, name, or acronym the embedding mis-tokenizes ("HTTP 429", `NVIDIA_VISIBLE_DEVICES`). Dense misses it → this is a job for **sparse / BM25** keyword search.
+  - Running *both* = **Hybrid Search** — which is why hybrid is the production recall baseline.
+- **Gap 2 — Precision (retrieved but ranked low).** The right chunk was fetched but buried below junk, because bi-encoder cosine similarity is only a rough relevance proxy. Fixed by a **Reranker (cross-encoder)** that reads query + chunk *together* and reorders the candidates.
+- **Gap 3 — Attention / Lost-in-the-Middle (in the prompt but ignored).** The chunk made it into the context, but the LLM's attention skips over it. Fixed by **Context Compression / reordering** — shrink to high-signal tokens and place the key chunk at the start or end.
 
 ### The deeper frame: three gaps = three *different stages* failing
 
-A chunk has to survive **three consecutive stages** to actually help the answer, and each gap is a failure at one of them. That's why "RAG doesn't work" is never a single problem:
+Each gap fails at a different stage, so "RAG doesn't work" is never a single problem:
 
 ```
   question
      |
-     v  [1] RETRIEVE  -- did we even fetch the right chunk?   <- Gap 2 (recall)
-     v  [2] RANK      -- is it near the TOP of the results?   <- Gap 1 (precision)
-     v  [3] GENERATE  -- does the LLM actually read it?       <- Gap 3 (attention)
+     v  [1] RETRIEVE  -- did we fetch the right chunk?      <- Gap 1 recall     -> Hybrid (dense + sparse)
+     v  [2] RANK      -- is it at the TOP of the results?   <- Gap 2 precision  -> Reranker (cross-encoder)
+     v  [3] GENERATE  -- does the LLM actually read it?     <- Gap 3 attention  -> Compression / reorder
      |
      v
    answer
 ```
 
-| Gap | Stage that fails | Symptom | Fix | Why the fix works | Metric to watch |
-|-----|------------------|---------|-----|-------------------|-----------------|
-| **2 — Missing context** | Retrieve (recall) | the right chunk isn't in the top-k at all | **Hybrid search** (BM25 + vector) | keyword matching catches exact terms/codes the embedding missed | recall@k |
-| **1 — Semantic mismatch** | Rank (precision) | it was retrieved, but buried below junk | **Reranker** (cross-encoder) | reads query + chunk *together* to score true relevance, not just vector proximity | nDCG / MRR |
-| **3 — Lost-in-the-middle** | Generate (attention) | it's in the prompt, but the LLM ignores it | **Context compression / reordering** | shrink to high-signal tokens and put the key chunk at the start or end, where attention is strongest | faithfulness / answer quality |
+| Gap | Stage | Symptom | Root cause | Fix | Metric to watch |
+|-----|-------|---------|------------|-----|-----------------|
+| **1a — Recall: vocabulary mismatch** | Retrieve | right chunk not in top-k; query &amp; doc use different words ("fast cars" vs "Porsche 911") | keyword can't bridge synonyms | **Dense / semantic** (the semantic arm of **Hybrid**) | recall@k |
+| **1b — Recall: exact-term miss** | Retrieve | right chunk not in top-k; a rare code/name (`HTTP 429`) | embedding mis-tokenizes rare tokens | **Sparse / BM25** (the keyword arm of **Hybrid**) | recall@k |
+| **2 — Precision** | Rank | retrieved, but buried below junk | bi-encoder cosine is a rough relevance proxy | **Reranker** (cross-encoder) | nDCG / MRR |
+| **3 — Attention** | Generate | in the prompt, but the LLM ignores it | lost-in-the-middle attention gradient | **Compression / reorder** (key chunk to the edges) | faithfulness / answer quality |
 
 See [Hybrid Search](05-hybrid-search.md), [Reranking Strategies](06-reranking-strategies.md), and [Context Engineering](../05-prompting-and-context/05-context-engineering.md) for each fix in depth.
 
-**The senior insight — the gaps are ordered, so fix them in order.** A reranker can't rescue a chunk that retrieval never fetched (fix Gap 2 first), and compression can't help a chunk that was ranked so low it never made it into the prompt (Gap 1 before Gap 3). So *diagnose which stage is leaking* — measure **recall@k** first, then ranking metrics, then generation faithfulness — rather than bolting on a reranker and hoping.
+**Careful with the labels (common interview trap):** a *vocabulary* mismatch ("fast cars" -> "Porsche 911") is a **recall** problem solved by **dense retrieval** — keyword search can't bridge synonyms, so this is exactly what the semantic arm of hybrid is for. A **reranker** is a *separate*, **precision** fix that only helps a chunk that was **already retrieved** but mis-ranked. Don't reach for a reranker to solve a retrieval miss.
+
+**The senior insight — the gaps are ordered, so fix them in order.** A reranker (Gap 2) can't rescue a chunk that retrieval never fetched (fix Gap 1 first), and compression (Gap 3) can't help a chunk ranked so low it never entered the prompt. So *diagnose which stage is leaking* — measure **recall@k** first, then ranking (nDCG/MRR), then generation faithfulness — rather than reflexively bolting on a reranker.
 
 ---
 

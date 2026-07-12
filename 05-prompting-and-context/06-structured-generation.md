@@ -51,6 +51,73 @@ generator = outlines.generate.regex(model, r"(\d{3})-\d{3}-\d{4}")
 # Result: The model can ONLY output telephone numbers.
 ```
 
+### How it works — token masking at every step
+
+Constrained decoding restricts *which tokens the model may sample* at each step, so invalid output becomes impossible rather than merely unlikely. The loop:
+
+1. **Compile** the spec (a regex, a CFG, or a JSON Schema) into an automaton.
+2. The automaton tracks **where you are** in the structure.
+3. At each step it lists the **legal next tokens**; every illegal token's logit is set to **−∞**.
+4. Softmax + sample **only among the legal tokens**, then **advance** the automaton.
+
+```
+state: after '{"amount": '   grammar allows -> digits . -
+   token   raw logit        masked logit
+   "12"      8.1      ->      8.1     allowed
+   "-"       2.3      ->      2.3     allowed
+   "abc"     7.9      ->      -inf    masked (illegal)
+   " the"    6.5      ->      -inf    masked (illegal)
+   softmax over survivors -> sample -> advance state
+=> a letter here is UNREACHABLE, not just unlikely
+```
+
+Because illegal tokens can't be sampled, the output is a **mathematical guarantee** of validity, not a hope — and it's often *faster* than free decoding (forced single-legal-token steps are skipped; Outlines precompiles the schema for O(1) valid-token lookup per step).
+
+### Regex vs CFG — finite states vs a stack
+
+The two differ in *what they can express*, and it maps to classic automata theory:
+
+- **Regex compiles to a Finite State Machine (FSM).** Great for **flat** patterns — dates, phone numbers, enums, fixed shapes — but an FSM has no memory of depth, so it **cannot** track arbitrary nesting.
+- **CFG compiles to a Pushdown Automaton (FSM + a stack).** The stack lets it **count nesting depth**, which is exactly what balanced braces/brackets in JSON, or nested code, require. This is why *full* JSON or code needs a **grammar**, not just a regex.
+
+```mermaid
+flowchart LR
+    S((start)) -->|digit| A
+    A -->|digit| B
+    B -->|digit| C
+    C -->|"-"| D
+    D -->|digit| E
+    E -->|digit| F
+    F -->|digit| G
+    G -->|"-"| H
+    H -->|digit| I
+    I -->|digit| J
+    J -->|digit| K((end))
+```
+
+*Regex FSM for `\d{3}-\d{3}-\d{4}`: at each node, only the labeled token type may be emitted next — that IS the mask.*
+
+```
+Why JSON needs a CFG: nesting is tracked with a STACK (pushdown automaton)
+   input:  { "a": { "b": 1 } }
+   '{'  push  -> stack: [ {, ]
+   '{'  push  -> stack: [ {, {, ]
+   '}'  pop   -> stack: [ {, ]
+   '}'  pop   -> stack: [ ]        -> balanced, valid to end
+   A plain regex/FSM can't do this — it can't count unbounded depth.
+```
+
+| | Regex | CFG (grammar) |
+|---|-------|----------------|
+| Compiles to | Finite State Machine | Pushdown automaton (FSM + stack) |
+| Handles | flat: dates, phone, enums, fixed shapes | nested/recursive: full JSON, code, balanced brackets |
+| Limitation | no unbounded nesting | (superset of regex) |
+| API | `outlines.generate.regex` / vLLM `guided_regex` | Outlines CFG / vLLM `guided_grammar` / llama.cpp GBNF |
+
+**Tools:** Outlines, vLLM (`guided_json` / `guided_regex` / `guided_grammar`), XGrammar, llama.cpp (GBNF grammars), Guidance, SGLang. Provider "strict structured output" modes use this technique under the hood.
+
+**Two caveats (worth stating in an interview):** (1) constrained decoding needs access to the model's **logits**, so it works on self-hosted models or a provider's *strict* mode — with plain API tool-use you fall back to validate-and-retry. (2) It guarantees **format, not truth** — a schema-valid `{"amount": 999}` can still be wrong; semantic correctness needs grounding, verification, and evaluation.
+
 ---
 
 ## Multi-Stage Extraction Pattern

@@ -176,7 +176,7 @@ See [Hybrid Search](05-hybrid-search.md), [Reranking Strategies](06-reranking-st
 
 **Strong answer:**
 Three tiers of reasons:
-1. **Cost and Latency**: Even with prompt caching, re-reading 2M tokens for every new user query is significantly more expensive and has higher TTFT (Time to First Token) than retrieving 5 relevant chunks (approx. 2k tokens). 
+1. **Cost and Latency**: Even with prompt caching, you still pay the (discounted, ~0.1x) input cost for all 2M tokens on *every* query, and the model still attends over the full 2M-token cache for *every generated token*. Caching removes the re-**computation** (prefill), not the per-query token bill or the attention over the whole context — so a cached 2M context is roughly **100x pricier per query** (~$1 vs ~$0.01) and higher-latency than retrieving ~5 relevant chunks (approx. 2k tokens) with RAG. (And if the identical prefix isn't reused within the cache TTL, you re-pay the cold prefill + cache-write premium.) 
 2. **Freshness**: RAG can access real-time APIs (Stock prices, News) which cannot be statically embedded in a context window.
 3. **Scale**: Enterprise datasets (SharePoint, Terabyte logs) exceed even 2M tokens. RAG serves as the "Filter" to find the relevant 0.01% of data that *should* go into that high-value context window.
 

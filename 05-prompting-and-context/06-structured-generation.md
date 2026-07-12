@@ -61,14 +61,25 @@ Constrained decoding restricts *which tokens the model may sample* at each step,
 4. Softmax + sample **only among the legal tokens**, then **advance** the automaton.
 
 ```
-state: after '{"amount": '   grammar allows -> digits . -
-   token   raw logit        masked logit
-   "12"      8.1      ->      8.1     allowed
-   "-"       2.3      ->      2.3     allowed
-   "abc"     7.9      ->      -inf    masked (illegal)
-   " the"    6.5      ->      -inf    masked (illegal)
-   softmax over survivors -> sample -> advance state
-=> a letter here is UNREACHABLE, not just unlikely
+Goal: emit the JSON   {"amount": 12.5}   one token at a time.
+Progress so far:       {"amount": _         (the _ is the slot we fill now)
+
+Right here the grammar knows a NUMBER must come next, so it ALLOWS only
+these token types:   0-9    .    -      (anything else is illegal here)
+
+  candidate     model's      is it legal          can the model
+  next token    raw score    at this spot?        actually pick it?
+  ----------    ---------    -----------------    ------------------
+  "abc"           8.1        NO  (letters)        blocked  (score -> -inf)
+  " the"          6.5        NO  (a word)         blocked  (score -> -inf)
+  "1"             7.9        YES (a digit)        allowed
+  "-"             2.3        YES (minus sign)     allowed
+
+The twist: the model SCORED "abc" highest -- left alone it would have
+emitted junk. But a blocked token has probability 0, so it is physically
+impossible to choose. The grammar overrides the model's preference.
+
+  sample among the survivors  ->  "1"  ->  {"amount": 1_   (grammar advances)
 ```
 
 Because illegal tokens can't be sampled, the output is a **mathematical guarantee** of validity, not a hope — and it's often *faster* than free decoding (forced single-legal-token steps are skipped; Outlines precompiles the schema for O(1) valid-token lookup per step).
@@ -98,13 +109,22 @@ flowchart LR
 *Regex FSM for `\d{3}-\d{3}-\d{4}`: at each node, only the labeled token type may be emitted next — that IS the mask.*
 
 ```
-Why JSON needs a CFG: nesting is tracked with a STACK (pushdown automaton)
-   input:  { "a": { "b": 1 } }
-   '{'  push  -> stack: [ {, ]
-   '{'  push  -> stack: [ {, {, ]
-   '}'  pop   -> stack: [ {, ]
-   '}'  pop   -> stack: [ ]        -> balanced, valid to end
-   A plain regex/FSM can't do this — it can't count unbounded depth.
+Why JSON needs a CFG: the grammar must remember how deep the nesting is,
+so it keeps a STACK of open braces (that stack is what makes it a
+"pushdown" automaton).
+
+   reading:  { "a": { "b": 1 } }
+
+   token   action        stack (open braces)   depth
+   -----   -----------   -------------------   -----
+     {     push          [ {  ]                  1
+     {     push          [ {  {  ]               2
+     }     pop           [ {  ]                  1
+     }     pop           [  ]                    0   <- balanced, OK to stop
+
+A plain regex/FSM has no stack, so it cannot count depth -- it can't tell a
+valid closing } from one too many. That is why nested formats (JSON, code)
+need a grammar, not just a regex.
 ```
 
 | | Regex | CFG (grammar) |

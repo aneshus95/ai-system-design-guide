@@ -10,6 +10,7 @@ Chunking is the process of splitting a document into discrete segments for retri
 - [Hierarchical (Parent-Child) Chunking](#hierarchical)
 - [Content-Specific Strategies (Code, PDF, Tables, Charts, Excel)](#content-specific)
 - [Handling Tables, Images & Charts in Production — Step by Step](#handling-tables-images--charts-in-production--step-by-step)
+- [Answering Questions *from* Tables (Interview Deep Dive)](#answering-questions-from-tables-interview-deep-dive)
 - [The Modern Default (2026): Late Chunking & Contextual Retrieval](#modern-default)
 - [Choosing a Strategy: Trigger -> What It Improves](#choosing)
 - [Interview Questions](#interview-questions)
@@ -205,6 +206,62 @@ The naive pipeline (extract text → fixed-size chunk → embed) throws away the
 - **Vision-first shortcut** — Cohere Embed 4 / ColQwen can ingest **raw PDF pages without a parsing pipeline** at all; simplest to operate, at the cost of a heavier multi-vector index. ([Cohere Embed 4 / multimodal 2026](https://helain-zimmermann.com/blog/multimodal-rag-2026-vision-and-text-for-state-of-the-art-pipelines))
 - **Always attach metadata** (source, page, section, element type, permissions) at partition time — it powers filtering, citations, and access control later.
 - **Treat ingested images as untrusted** — visual-document RAG is poisonable with a single crafted image; scan/validate before indexing.
+
+---
+
+## Answering Questions *from* Tables (Interview Deep Dive)
+
+> A common system-design question: *"How would you design chunking if the user wants to get an answer from a table?"* The trap is to jump straight to a chunking scheme. The strong answer starts by recognizing that **"answer from a table" is two different problems depending on the question**, and that for one of them **chunking is the wrong tool entirely.**
+
+### Step 1 — Clarify first (this decides the whole design)
+
+- **What does the user ask of the table?**
+  - **Lookup** — "What was North-region revenue in Q1?" (find one cell) → *retrieval problem*.
+  - **Aggregation / analytics** — "Total revenue across all regions?", "Which region grew fastest?" (sum, count, filter, rank) → *computation problem*.
+- **How big is the table?** A 10-row spec table and a 500k-row export are completely different designs.
+
+**The punchline:** *lookup → chunk the table for retrieval; aggregation / large table → don't chunk at all, query it with SQL.*
+
+### Step 2 — Name the core problem
+
+A table's meaning lives at the **intersection of row header × column header × cell**. Token chunking cuts rows apart and separates values from headers, so `$4.2M` arrives with no idea it means *North / Q1 / Revenue*. And a **raw table embeds terribly** — the vector is dominated by pipes and digits, so it won't match a natural-language query. So there are two sub-problems, solved differently: a **retrieval** problem and a **reasoning/computation** problem.
+
+### Step 3 — Design for lookup-style questions
+
+1. **Parse structurally first** — a layout-aware parser detects the table, recovers rows/columns + header (OCR if scanned).
+2. **Keep atomic if it fits; else row-chunk with the header repeated** in every piece so each chunk is self-contained.
+3. **Serialize each row into a self-describing record** — the single most effective trick for row-level Q&A:
+
+```
+Raw table row:   | North | Q1 2023 | 4.2 | 12% |
+Serialized:      "Region: North, Quarter: Q1 2023, Revenue: $4.2M, Growth: 12%"
+```
+
+   Now the chunk embeds well *and* carries its headers, so "how did North do in Q1" matches it directly.
+4. **Dual representation (index-small / return-rich):** embed a **natural-language summary** of the table for *retrieval* ("Quarterly revenue and growth by region, 2023"), but link it by ID to the **full original table** (Markdown/HTML/JSON) you return to the LLM for *reasoning*.
+5. **Contextual enrichment + metadata:** prepend the table's document context ("From the 2023 annual report, regional performance…") and attach table title, column names, source, page — powering filtering and citations.
+
+### Step 4 — The pivot: when chunking is the wrong tool
+
+For **aggregation or large analytical tables, don't use vector RAG at all** — vector search cannot reliably sum, count, filter, or rank. Instead:
+- Load the table into **SQL / a dataframe** and use **text-to-SQL (NL2SQL)**: the LLM writes a query, the database computes the *exact* answer.
+- Use retrieval only to **find the right table**, then hand off to SQL to **compute over it**.
+
+Recognizing this — that "answer from a table" often means *querying structured data, not retrieving text* — is what separates a strong answer.
+
+### Step 5 — The routing flow
+
+```
+ query ──► ROUTE
+            ├─ lookup / single-fact ──► retrieve row/summary chunks ──► fetch full table ──► LLM
+            └─ aggregation / analytics ─► find table ──► text-to-SQL ──► exact result ──► LLM
+```
+
+### The crisp answer
+
+> *"First I'd ask what they ask of the table — a single-cell lookup or an aggregation — and how big it is, because that decides everything. For lookups, I parse the table structurally, keep it atomic or row-chunk with the header repeated, and serialize each row into a self-describing record like 'Region: North, Quarter: Q1, Revenue: $4.2M' so it embeds well and keeps its headers. I use a dual representation — embed a summary for retrieval, return the full Markdown table to the LLM for reasoning, with the table's context prepended. For aggregations or large tables, I wouldn't use vector RAG at all, because vector search can't sum or filter — I'd load it into SQL and use text-to-SQL, routing lookup queries to retrieval and analytical queries to SQL."*
+
+The point interviewers most want to hear: **aggregation over tables belongs in SQL, not embeddings.**
 
 ---
 

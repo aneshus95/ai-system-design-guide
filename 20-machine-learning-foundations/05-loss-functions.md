@@ -264,4 +264,4 @@ These don't predict a label — they **shape an embedding space** so that distan
 | **Reconstruction Loss** | The component of the VAE loss that measures how accurately the decoder reproduces the input | Balances fidelity of reconstruction against the KL regularisation term in the ELBO |
 | **Prediction Interval** | A range that is expected to contain the true future value with a specified probability | Produced by training models at two complementary quantiles, e.g., τ = 0.05 and τ = 0.95 |
 
-*Previous: [ML System Design](04-ml-system-design.md) | Up: [Guide Home](../README.md)*
+*Previous: [ML System Design](04-ml-system-design.md) | Next: [Classification Metrics](06-classification-metrics.md) | Up: [Guide Home](../README.md)*

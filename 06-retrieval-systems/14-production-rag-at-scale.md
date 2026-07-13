@@ -18,6 +18,7 @@ Production RAG is no longer a weekend project. It is a distributed system with r
 - [Multi-Tenant RAG Isolation](#multi-tenant)
 - [Real-World Architecture Examples](#architectures)
 - [System Design Interview Angle](#interview)
+- [Glossary](#glossary)
 - [References](#references)
 
 ---
@@ -240,6 +241,28 @@ Semantic caching recognizes when a new query has essentially the same meaning as
            v
     Full RAG Pipeline
 ```
+
+#### In plain English: the three layers cache *different things*
+
+The first time a query is asked, the full pipeline runs and you save **both** the final **answer** and the **retrieved chunks**. Then different follow-up queries hit different layers:
+
+```
+  "What is the refund policy?"     -> [1] EXACT     same text char-for-char  -> return answer  (<5ms)
+  "what's the return policy?"      -> [2] SEMANTIC  same MEANING (cos 0.96)  -> return answer  (~50ms)
+  "refund policy for ENTERPRISE?"  -> [3] DOC CACHE new answer needed, but the same refund docs
+                                                     are relevant -> reuse the retrieved chunks,
+                                                     skip embed+search, and just GENERATE
+```
+
+| Layer | Matches on | Stores | Skips on a hit |
+|-------|-----------|--------|----------------|
+| **1. Exact** | hash of the exact query text | the final **answer** | the *entire* pipeline |
+| **2. Semantic** | the query's **embedding** (its meaning) | the final **answer** | the *entire* pipeline |
+| **3. Document (chunk)** | a query / doc key | the **retrieved chunks** (not the answer) | just the **retrieval** step — you *still generate* |
+
+- **Semantic cache** = "have I answered something that *means the same thing* before?" — catches paraphrases the exact cache misses.
+- **Doc cache** = "even if the question is new, have I already *fetched these documents* for a similar query?" — skips the costly embed + search + rerank, then generates a fresh answer.
+- So layers 1-2 short-circuit the *whole* pipeline; layer 3 short-circuits only *retrieval*.
 
 ### Semantic Cache Implementation
 
@@ -1484,6 +1507,28 @@ Third, check for **retrieval thrash** in agentic RAG paths. If the Corrective RA
 Fourth, check the **embedding pipeline**. If documents are being re-embedded unnecessarily (duplicate ingestion, no deduplication), embedding costs can spike.
 
 The fix depends on the root cause, but common interventions are: tune the semantic cache threshold, implement a cost ceiling per query to force cheaper fallback paths, fix embedding staleness to reduce corrective retrieval loops, and add deduplication to the ingestion pipeline.
+
+---
+
+## Glossary
+
+Quick definitions for the terms used throughout this chapter.
+
+- **Cosine similarity** — a 0-1 score for how closely two embedding vectors point the same way; ~1 = same meaning. The semantic cache fires above a **threshold** (e.g., 0.95).
+- **TTL (time-to-live)** — how long a cache entry stays valid before it auto-expires (e.g., 1 hour).
+- **Cache invalidation** — deleting cache entries when their source document changes, so you never serve a stale answer (usually triggered by an update webhook).
+- **Hit rate** — the fraction of queries served from cache; higher = cheaper and faster.
+- **p95 / p99 latency** — the response time that 95% (or 99%) of requests come in *under* — a tail-latency metric. "p95 < 2s" means only 5% of users wait longer than 2s.
+- **QPS** — queries per second; the system's throughput.
+- **RRF (Reciprocal Rank Fusion)** — merges two ranked lists (keyword + vector) by rank *position*, not raw score. See [Hybrid Search](05-hybrid-search.md).
+- **Reranker / cross-encoder** — a second-pass model that re-scores the top retrieved chunks by reading the query and chunk *together*; improves ranking precision.
+- **Faithfulness** — whether every claim in the answer is supported by the retrieved context (vs. invented). **Hallucination rate** = the fraction of answers with unsupported claims.
+- **Recall@K / Precision@K / MRR / NDCG** — retrieval-quality metrics. See [RAG Evaluation Patterns](13-rag-evaluation-patterns.md).
+- **Sharding** — splitting one huge index across multiple machines (by hash, date, or tenant) so it fits and stays fast.
+- **Read replica** — a query-only copy of the index, so heavy ingestion (writes) doesn't slow down retrieval (reads).
+- **Multi-tenant / tenant isolation** — many customers ("tenants") share the system; isolation guarantees Tenant A can never retrieve Tenant B's data. **Noisy neighbor** = one tenant's heavy usage degrading others (fixed with per-tenant rate limits).
+- **Tiered models** — route easy queries to a small/cheap model and hard ones to a big/expensive model, instead of using the big model for everything.
+- **CRAG (Corrective RAG)** — grades retrieved docs *before* generating; supplements (e.g., web search) or re-retrieves if they're weak.
 
 ---
 

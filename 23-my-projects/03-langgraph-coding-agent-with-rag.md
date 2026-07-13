@@ -1,6 +1,6 @@
-# LangGraph AI Coding Agent + Azure AI Search RAG
+# LangGraph AI Coding Agent + Azure Production Stack
 
-> **My project.** Helped build an AI coding agent on **LangGraph** — a multi-node conversation graph with **dynamic tool calls** — backed by a **vector-store RAG** layer (**Azure AI Search + OpenAI embeddings**) that grounds answers in proprietary documentation to reduce hallucination.
+> **My project.** Helped build a production AI coding agent on **LangGraph** — a multi-node conversation graph with **dynamic tool calls**, **human-in-the-loop** plan approval, and streaming — backed by a **vector-store RAG** layer (**Azure AI Search + OpenAI embeddings**) that grounds answers in proprietary documentation to reduce hallucination. It ran entirely on **Azure**: Container Apps, CosmosDB (checkpoint persistence), Key Vault, Azure OpenAI, Dynamic Sessions (secure code sandbox), and Entra ID auth.
 
 ## Table of Contents
 
@@ -11,6 +11,8 @@
 - [Deep Dive 3 — Azure AI Search as the RAG Backend](#deep-dive-3--azure-ai-search-as-the-rag-backend)
 - [Deep Dive 4 — OpenAI Embeddings](#deep-dive-4--openai-embeddings)
 - [Deep Dive 5 — Grounding & Hallucination Reduction](#deep-dive-5--grounding--hallucination-reduction)
+- [Deep Dive 6 — Production LangGraph Internals](#deep-dive-6--production-langgraph-internals)
+- [Deep Dive 7 — The Azure Production Stack](#deep-dive-7--the-azure-production-stack)
 - [Interview Q&A](#interview-qa)
 - [Honest Caveats](#honest-caveats)
 - [References](#references)
@@ -122,6 +124,137 @@ Sources: [RAG in Azure AI Search](https://learn.microsoft.com/en-us/azure/search
 
 ---
 
+## Deep Dive 6 — Production LangGraph Internals
+
+Getting from "a graph" to "a graph that survives restarts, serves many users, and pauses for human approval" is where the real engineering lives.
+
+### Build → compile → run (Pregel)
+
+```python
+graph = StateGraph(AgentState)          # 1. blueprint: define state schema
+graph.add_node("agent", agent_node)     #    nodes = units of work
+graph.add_node("tools", tools_node)
+graph.set_entry_point("agent")
+graph.add_edge("tools", "agent")        #    tools → back to agent
+graph.add_conditional_edges("agent", should_continue, {"continue":"tools","end":END})
+runnable = graph.compile(checkpointer=checkpointer)   # 2. compile → a Pregel engine
+```
+
+`.compile()` turns the blueprint into a **Pregel** runtime — Google's message-passing graph-computation model — that knows every node, edge, and the checkpointer. **Pregel is LangGraph's core execution engine**; it wires in persistence and human-in-the-loop.
+
+### State schema + reducers
+
+State is a `TypedDict`; each field can attach a **reducer** that decides how updates merge:
+
+```python
+class AgentState(TypedDict):
+    messages: Annotated[list, add_messages]   # APPEND-ONLY (accumulates history)
+    repository_context: dict                   # OVERWRITE (config, replace on change)
+    plan: str                                  # OVERWRITE
+```
+
+`add_messages` is why the frontend sends **only the new message** each turn — LangGraph loads the checkpoint and *appends* the new message, so the LLM always sees the full history without the client re-sending it.
+
+### Checkpointing & thread_id (durable memory)
+
+A **checkpointer** snapshots the full state at every super-step, keyed by **`thread_id`**. That single mechanism buys: **cross-turn memory** (continue days later), **fault-tolerant resume** (survive a server restart), and the ability to **pause/resume** for HITL. In production this is backed by a durable store (e.g., a Postgres/CosmosDB-backed saver); `MemorySaver` is dev-only.
+
+### Human-in-the-loop via `interrupt` / `Command`
+
+Before the agent does something irreversible (write code, open a PR), it **pauses for approval**:
+
+```python
+from langgraph.types import interrupt, Command
+
+# inside a "submit_plan" tool/node:
+decision = interrupt({"action":"submit_plan","plan":plan})   # raises GraphInterrupt
+# ^ executor serializes full state to the checkpointer under thread_id and HALTS
+
+# later, when the human approves, the API resumes with the SAME thread_id:
+await runnable.astream(Command(resume={"approved": True}), config=config)
+```
+
+`interrupt()` raises an internal `GraphInterrupt` the executor catches, **persists state**, and stops. Resuming requires the **same `thread_id`** (that's how the checkpointer restores the frozen state) and a **`Command(resume=...)`** carrying the human's decision — not fresh input data.
+
+```
+ agent proposes plan → interrupt() → checkpoint saved, graph HALTS
+        │                                        │
+   UI shows "Awaiting approval"          user clicks Approve
+        │                                        │
+        └──── Command(resume={approved:true}) ───┘ → graph resumes from checkpoint → implements
+```
+
+### Streaming with `astream()` (background task + queue + SSE)
+
+An agent turn can take minutes, so you can't block the HTTP response. The pattern:
+
+```
+ request ──► create asyncio.Queue ──► start agent.astream() as a BACKGROUND TASK
+                                          │  each chunk → put on Queue
+                                          ▼
+             StreamingResponse reads Queue ──► emits Server-Sent Events (SSE) to the browser
+```
+
+`astream(stream_mode=["values","updates"])` yields **`updates`** (only changed fields — fast incremental UI) and **`values`** (full state snapshots); `subgraphs=True` surfaces sub-agent chunks too. Each chunk is serialized (LangChain message objects → JSON) and pushed as an SSE event (`event: updates\ndata: {...}`).
+
+### Multi-replica concurrency (agent cache + thread claim)
+
+Two real production problems and their fixes:
+- **Agent cache** — creating an agent (middleware, tool wiring, DB connection) is expensive, so cache **one compiled agent per `thread_id`**, created lazily with **double-checked locking** (check → lock → check → create) so two simultaneous first-messages don't build it twice.
+- **Thread coordination** — the app runs as **multiple container replicas**, so an in-memory lock isn't enough. Claim a thread with an **atomic compare-and-swap (CAS)** on a store record (e.g., a CosmosDB **ETag**): if a second request can't claim it, its message is **queued** and injected on the next turn — preventing two runs from corrupting one conversation.
+- **`recursion_limit`** — cap node executions per turn (raised well above the default 100) so a runaway tool loop aborts instead of hanging.
+
+Sources: [LangGraph — Human-in-the-loop & interrupts (DeepWiki)](https://deepwiki.com/langchain-ai/langgraph/3.7-human-in-the-loop-and-interrupts) · [Pregel — LangGraph API reference](https://langchain-ai.github.io/langgraphjs/reference/classes/langgraph.Pregel.html) · [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
+
+---
+
+## Deep Dive 7 — The Azure Production Stack
+
+The agent didn't run on a laptop — it ran on a managed Azure stack. Each service has a clear job, and interviewers love "why that service."
+
+```
+                         INTERNET
+                            │  HTTPS + Bearer token (Entra ID / MSAL)
+                    ┌───────▼─────────────────────┐
+                    │   Azure CONTAINER APPS       │  backend (FastAPI + LangGraph)
+                    │   auto-scaling containers    │  + frontend, no VM management
+                    │   ┌──────────────────────┐   │
+                    │   │ LangGraph agent +     │   │
+                    │   │ middleware pipeline    │   │
+                    │   └──────────┬────────────┘   │
+                    └──────────────┼────────────────┘
+          ┌──────────────┬─────────┼──────────┬─────────────────┐
+          ▼              ▼         ▼          ▼                 ▼
+   ┌────────────┐ ┌────────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────────┐
+   │ Azure      │ │  CosmosDB  │ │  Key     │ │ Dynamic      │ │  Entra ID    │
+   │ OpenAI     │ │ (NoSQL):   │ │  Vault   │ │ Sessions     │ │  (auth) +    │
+   │ (GPT-4o)   │ │ checkpoints│ │ secrets  │ │ (ACADS):     │ │  MSAL + OBO  │
+   │ + AI Search│ │ + threads  │ │ via MI   │ │ code sandbox │ │              │
+   └────────────┘ └────────────┘ └──────────┘ └──────────────┘ └──────────────┘
+                  all infra defined as code in Azure BICEP (IaC)
+```
+
+| Service | Role in the agent | Why it (interview answer) |
+|---|---|---|
+| **Azure Container Apps** | Runs the backend (Python/FastAPI/LangGraph) and frontend as **auto-scaling containers** | Serverless containers — scale to load, pay per use, no VM/K8s management; "works on my machine" solved by Docker packaging |
+| **CosmosDB** (NoSQL) | Stores **LangGraph checkpoints + threads** — the durable state behind `thread_id` | Conversation state is schema-flexible JSON; globally distributed, and its **atomic ETag/CAS** enables cross-replica thread claiming |
+| **Azure Key Vault** | Holds secrets (API keys, connection strings) — never in code | App reads secrets at startup via **Managed Identity** — *no password to access the password store*; secrets never land in Git |
+| **Azure OpenAI** | The LLM (GPT-4o); API-compatible with OpenAI, wrapped as `AzureChatOpenAI` | Enterprise security/compliance/data-residency over calling OpenAI directly; one **central LLM registry** so switching models is a one-file change |
+| **Azure AI Search** | The **RAG retrieval backend** (see [DD3](#deep-dive-3--azure-ai-search-as-the-rag-backend)) — hybrid + semantic ranker | Grounds answers in proprietary docs to cut hallucination |
+| **Azure Dynamic Sessions (ACADS)** | **Secure sandbox** where agent-generated shell/Python runs | **Hyper-V-isolated**, per-session, pre-warmed pool, ready in ms, destroyed after — the safe way to run **untrusted LLM-generated code** instead of on the backend host |
+| **Entra ID + MSAL + OBO** | Authentication & delegated calls | Entra ID issues **JWT** tokens via **PKCE**; MSAL manages tokens in the browser; **OBO** lets the backend call downstream APIs (e.g., a git service) **with the user's own permissions**, so it only sees repos the user can |
+| **Azure Bicep** | **Infrastructure as Code** — every resource defined in code | Recreate/version infra in Git; simpler than ARM JSON; audit what changed and who changed it |
+
+**The two Azure services worth emphasizing in an interview:**
+
+1. **Dynamic Sessions (the code sandbox).** An AI coding agent *runs code* — and LLM-generated code is untrusted. You never execute it on the backend host (it could delete files, exfiltrate secrets). Azure Container Apps **Dynamic Sessions** hands you a **Hyper-V-isolated** sandbox from a pre-warmed pool in milliseconds via REST, runs the code, and destroys it. It's the production-only execution path; a local shell backend is dev-only.
+
+2. **Managed Identity + OBO (the auth story).** Secrets live in Key Vault, and the app authenticates to it with a **Managed Identity** (Azure-managed credential — no stored password). When the agent needs to act **as the user** against another service (e.g., read only the git repos that user can access), it uses the **On-Behalf-Of** flow to exchange the user's token for a downstream token — preserving least privilege end-to-end.
+
+Sources: [Azure Container Apps — Dynamic sessions](https://learn.microsoft.com/en-us/azure/container-apps/sessions) · [Serverless code interpreter sessions](https://learn.microsoft.com/en-us/azure/container-apps/sessions-code-interpreter) · [Entra — OAuth2 On-Behalf-Of flow](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-on-behalf-of-flow) · [Authenticate to Key Vault (Managed Identity)](https://learn.microsoft.com/en-us/azure/key-vault/general/authentication)
+
+---
+
 ## Interview Q&A
 
 **Q: Why LangGraph over a simple chain?**
@@ -142,6 +275,24 @@ It does hybrid (BM25 + HNSW vector) merged by RRF, plus an optional semantic cro
 **Q: How did you evaluate hallucination reduction?**
 Build a ground-truth Q/A set from the proprietary docs; measure retrieval quality (recall@k, MRR/nDCG) and answer faithfulness/groundedness (is each claim supported by a retrieved passage) plus citation correctness, comparing no-RAG vs RAG. Only cite a specific reduction % if you actually measured it.
 
+**Q: The agent writes and runs code — how do you do that safely?**
+Never on the backend host. Agent-generated shell/Python runs in **Azure Dynamic Sessions** — a Hyper-V-isolated sandbox pulled from a pre-warmed pool in milliseconds, used for that session only, then destroyed. It's the sole execution path in production; a local shell backend is dev-only.
+
+**Q: Where does conversation state live, and how do you resume a conversation?**
+LangGraph checkpoints the full state to CosmosDB keyed by `thread_id` after each turn. Resuming loads that checkpoint; the frontend only sends the new message, and the `add_messages` reducer appends it to the restored history so the LLM sees the whole conversation.
+
+**Q: How do you handle human approval before the agent does something irreversible?**
+A LangGraph `interrupt()` inside the plan-submission step raises a `GraphInterrupt`; the executor persists state and halts. The UI shows an approval panel; on approve, the API resumes with `Command(resume={"approved": True})` under the **same `thread_id`** — the checkpointer restores the frozen state and the agent continues.
+
+**Q: You run multiple replicas — how do two tabs not corrupt one conversation?**
+An in-memory lock can't span replicas, so I claim a thread with an **atomic CAS (CosmosDB ETag)**. First claimant runs; a concurrent message fails the claim and is queued, then injected on the next turn. The compiled agent is also cached per `thread_id` with double-checked locking.
+
+**Q: Why Azure OpenAI instead of calling OpenAI directly? How do you manage secrets?**
+Azure OpenAI gives enterprise security/compliance/data-residency and the same API surface (`AzureChatOpenAI`), routed through one central LLM registry so model swaps are a one-file change. Secrets (keys, connection strings) live in **Key Vault**, accessed via **Managed Identity** — no password stored anywhere, nothing in Git.
+
+**Q: How does the agent act with the user's permissions on other services?**
+The **On-Behalf-Of (OBO)** flow: the backend exchanges the user's Entra ID token for a downstream token scoped to the target service (e.g., a git API), so it can only reach resources that specific user is authorized for — least privilege end-to-end.
+
 ---
 
 ## Honest Caveats
@@ -152,8 +303,10 @@ Verify against your real implementation before an interview: the exact **state s
 
 ## References
 
-- [LangGraph — Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api) · [Quickstart](https://docs.langchain.com/oss/python/langgraph/quickstart) · [Human-in-the-loop](https://docs.langchain.com/oss/python/langchain/human-in-the-loop)
+- [LangGraph — Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api) · [Quickstart](https://docs.langchain.com/oss/python/langgraph/quickstart) · [Human-in-the-loop](https://docs.langchain.com/oss/python/langchain/human-in-the-loop) · [Persistence](https://docs.langchain.com/oss/python/langgraph/persistence) · [Pregel reference](https://langchain-ai.github.io/langgraphjs/reference/classes/langgraph.Pregel.html)
 - [Azure AI Search — Hybrid search overview](https://learn.microsoft.com/en-us/azure/search/hybrid-search-overview) · [RAG overview](https://learn.microsoft.com/en-us/azure/search/retrieval-augmented-generation-overview)
+- [Azure Container Apps — Dynamic sessions](https://learn.microsoft.com/en-us/azure/container-apps/sessions) · [Serverless code interpreter sessions](https://learn.microsoft.com/en-us/azure/container-apps/sessions-code-interpreter)
+- [Microsoft Entra — OAuth2 On-Behalf-Of flow](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-on-behalf-of-flow) · [Authenticate to Azure Key Vault (Managed Identity)](https://learn.microsoft.com/en-us/azure/key-vault/general/authentication)
 - [OpenAI — New embedding models](https://openai.com/index/new-embedding-models-and-api-updates/) · [Embeddings guide](https://developers.openai.com/api/docs/guides/embeddings)
 - [Citation-enforced prompting in RAG (MDPI)](https://www.mdpi.com/2076-3417/16/6/3013)
 

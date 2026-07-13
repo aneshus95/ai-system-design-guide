@@ -4,6 +4,7 @@
 
 ## Table of Contents
 
+- [The Narrative](#the-narrative)
 - [Problem & Design Choice](#problem--design-choice)
 - [End-to-End Pipeline](#end-to-end-pipeline)
 - [Feature Engineering — the Digraph Vector](#feature-engineering--the-digraph-vector)
@@ -16,6 +17,18 @@
 - [Results & Honest Limitations](#results--honest-limitations)
 - [Interview Talking Points](#interview-talking-points)
 - [References](#references)
+
+---
+
+## The Narrative
+
+**Situation.** Passwords prove *what you know*, not *who you are* — a stolen password is game over. Behavioral biometrics ask a different question: can we recognize a person by *how* they type, continuously and invisibly, from any keyboard? I started from a strong reference (Kasprowski et al., *Sensors* 2022), but its softmax classifier had a fatal deployment flaw: **adding a new user means retraining the whole model**, and accuracy collapses as the user count grows (88% → 69% from 20 → 60 users).
+
+**Task.** Build a keystroke-dynamics system that **verifies identity** and lets you **enroll a new person without retraining** — the exact limitation the paper's authors flagged.
+
+**Action.** I kept the paper's proven feature design (digraph timing: dwell, flight, down-down) but **re-architected the model into a siamese CNN→GRU trained with cosine embedding loss** — mapping a window of typing into a 16-dim embedding where the same person's windows point the same way and different people push apart. Enrolling someone new is then just "compute and store their embedding."
+
+**Result.** A verification system that cleanly separates typists by cosine similarity and **removes the retrain-to-enroll bottleneck** — the same metric-learning paradigm behind TypeNet, which the reference paper itself cites as the stronger approach.
 
 ---
 

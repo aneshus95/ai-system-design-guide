@@ -2,6 +2,8 @@
 
 Production RAG is no longer a weekend project. It is a distributed system with retrieval pipelines, caching layers, routing logic, self-correction loops, multi-tenant isolation, and cost controls, all operating under strict latency SLAs. When RAG fails in production, the failure is in retrieval roughly 73% of the time, not generation, so the enterprise deployments that succeed treat the knowledge source (not the model) as the primary investment.
 
+> **See also:** [16 — Production RAG Considerations: The Complete Checklist](16-production-rag-considerations.md) for the full breadth across six pillars (retrieval quality, data/freshness, evaluation/observability, latency/scale/cost, security/governance, reliability/LLMOps). This page is the deep-dive on specific implementation patterns; that page is the panoramic checklist.
+
 ## Table of Contents
 
 - [RAG vs Long Context](#rag-vs-long-context)

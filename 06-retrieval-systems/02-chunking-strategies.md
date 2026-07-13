@@ -8,7 +8,8 @@ Chunking is the process of splitting a document into discrete segments for retri
 - [Recursive Structure Splitting](#recursive)
 - [Semantic Chunking](#semantic)
 - [Hierarchical (Parent-Child) Chunking](#hierarchical)
-- [Content-Specific Strategies (Code, PDF, Tables)](#content-specific)
+- [Content-Specific Strategies (Code, PDF, Tables, Charts, Excel)](#content-specific)
+- [Handling Tables, Images & Charts in Production — Step by Step](#handling-tables-images--charts-in-production--step-by-step)
 - [The Modern Default (2026): Late Chunking & Contextual Retrieval](#modern-default)
 - [Choosing a Strategy: Trigger -> What It Improves](#choosing)
 - [Interview Questions](#interview-questions)
@@ -133,6 +134,77 @@ See [Contextual Retrieval](10-contextual-retrieval.md) for the complementary tri
 2. **Skip parsing — embed the page image (ColPali / ColQwen2).** Instead of OCR → layout → caption → text-embed, a vision-language retriever embeds the *rendered page* directly as a **multi-vector** (ColBERT-style late interaction), matching the query against the page's visual layout itself. Charts, scans, and complex tables "just work," and it beats the classic extract-and-embed pipeline on visually rich docs — at the cost of a heavier multi-vector index. ([ColPali, arXiv](https://arxiv.org/abs/2407.01449); [Vespa — retrieval with VLMs](https://blog.vespa.ai/retrieval-with-vision-language-models-colpali/))
 
 Rule of thumb: **parse-then-chunk** for mostly-text PDFs where you want clean text in the prompt; **ColPali-style visual retrieval** when figures/tables/scans dominate and the *layout is the information*.
+
+### 4. Charts, Images & Figures
+- **The danger:** the answer is often *in the picture* (a trend line, a bar height, a diagram) — text-only pipelines silently discard it.
+- **Two strategies:**
+  - **Caption-and-embed (image → text):** a vision model (GPT-4o, Qwen-VL) writes a description ("line chart: revenue rises $2M→$5M, 2020-2024"), then you chunk/embed *that text*. Cheap to store, works with a text-only index, and keeps the pipeline simple.
+  - **Multimodal / visual embedding:** embed the image directly with CLIP/SigLIP or an enterprise multimodal model (**Cohere Embed 4**), or use **ColPali/ColQwen** to embed the rendered page — no captioning step to lose information.
+- **Always keep the caption + surrounding paragraph** with the figure — they carry the interpretation the pixels alone don't.
+
+### 5. Excel / Spreadsheets
+- **The danger:** spreadsheets are often **huge** and pure grid — one giant blob is useless, one-row-per-chunk loses the headers.
+- **Strategy:**
+  - Chunk **per sheet**, and within a sheet by **logical block / row range**, always carrying the **header row + sheet name** into each chunk so every value keeps its meaning.
+  - For very large or numeric sheets, treat it as **structured data, not text**: load into a dataframe/SQL table and use **text-to-SQL** to query it — embedding 100k near-identical rows is expensive and low-signal.
+  - Add a **per-sheet summary chunk** (column names + what the sheet contains) for discoverability.
+
+---
+
+## Handling Tables, Images &amp; Charts in Production — Step by Step
+
+The naive pipeline (extract text → fixed-size chunk → embed) throws away the highest-value content in enterprise documents. Here is the production pipeline that preserves it.
+
+```
+ document (PDF / DOCX / XLSX / scan)
+        │
+        ▼
+ STEP 1  DETECT & PARTITION      layout model splits the page into typed elements:
+         (layout-aware parse)    text · table · figure/chart · title · caption
+        │
+        ▼
+ STEP 2  ROUTE BY ELEMENT TYPE   each type goes down its own branch
+        │
+   ┌─────────────────────┬─────────────────────────┬────────────────────┐
+   ▼                     ▼                         ▼                    ▼
+ TEXT                  TABLE                    FIGURE/CHART          (metadata)
+ recursive/            keep atomic +            VLM caption OR         source, page,
+ semantic chunk        structured (MD/JSON)     multimodal embed       section, type,
+                       + NL summary                                    permissions
+        │                     │                         │
+        └─────────────────────┴────────────┬────────────┘
+                                            ▼
+ STEP 3  BUILD DUAL REPRESENTATION   embed a retrieval-friendly summary/text;
+         (index-small, return-rich)  store the FULL original (table markdown /
+                                     image / rows) linked by ID for the LLM
+        │
+        ▼
+ STEP 4  EMBED & INDEX          text embeddings for summaries; optional
+                               multimodal/multi-vector index for images/pages
+        │
+        ▼
+ STEP 5  RETRIEVE → RESOLVE     retrieve on the summary, then fetch and pass the
+                               FULL original element to the (multimodal) LLM
+```
+
+**Step 1 — Detect & partition (layout-aware parsing).** Run a layout parser (**Unstructured**, **Docling**, **Marker**, **Azure AI Document Intelligence**, **LlamaParse**) that classifies each region as *text / table / figure / title / caption* and recovers reading order across multi-column pages. For scanned pages, **OCR happens here** — and OCR quality gates matter because OCR noise cascades downstream. ([Unstructured — ingestion](https://unstructured.io/insights/rag-pipeline-challenges-from-data-ingestion-to-retrieval))
+
+**Step 2 — Route each element type to its own handler.** Don't treat everything as text:
+- **Text** → recursive/semantic chunking (the standard path).
+- **Table** → keep the table **atomic** and in a **structured format** (Markdown/HTML/JSON) so the LLM can reason over rows/columns; for a table too big to fit, split by **row groups and repeat the header row** in each piece.
+- **Figure/chart** → either **caption it with a VLM** (image→text) or **embed it directly** (CLIP/SigLIP/Cohere Embed 4/ColPali).
+
+**Step 3 — Build a dual representation (the key trick).** For tables and figures, **embed a concise natural-language summary for *retrieval*, but store the full original** (table markdown, image bytes, raw rows) linked by an ID and **return that to the LLM for *reasoning***. This is the same *index-small / return-rich* pattern as parent-child chunking — a raw table or image embeds terribly against a text query, but a one-sentence summary matches well. ([Databricks — multimodal RAG](https://www.databricks.com/blog/unite-your-patients-data-multi-modal-rag))
+
+**Step 4 — Embed & index.** Text/summaries go to a normal text embedding index; images/pages can go to a **multimodal or multi-vector (ColPali-style)** index. Two common architectures: (a) **one unified multimodal embedding space** (text + images together, e.g. Cohere Embed 4), or (b) **separate indexes** (text index + image index) unified by a query router. ([multimodal RAG 2026](https://bigdataboutique.com/blog/multimodal-rag-retrieval-over-images-pdfs-and-text))
+
+**Step 5 — Retrieve → resolve → generate.** Retrieve on the summaries, then **de-reference the ID to fetch the full element** and pass the original table/image to a **multimodal LLM** at generation time (so it sees the actual chart, not just your caption of it).
+
+**Production tips:**
+- **Tiered image encoding for cost** — full resolution for complex diagrams/charts, thumbnails for decorative images, **skip** tiny/low-information images entirely.
+- **Vision-first shortcut** — Cohere Embed 4 / ColQwen can ingest **raw PDF pages without a parsing pipeline** at all; simplest to operate, at the cost of a heavier multi-vector index. ([Cohere Embed 4 / multimodal 2026](https://helain-zimmermann.com/blog/multimodal-rag-2026-vision-and-text-for-state-of-the-art-pipelines))
+- **Always attach metadata** (source, page, section, element type, permissions) at partition time — it powers filtering, citations, and access control later.
+- **Treat ingested images as untrusted** — visual-document RAG is poisonable with a single crafted image; scan/validate before indexing.
 
 ---
 

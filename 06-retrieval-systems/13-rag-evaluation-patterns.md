@@ -7,6 +7,7 @@ Evaluation is the hardest unsolved problem in RAG. You can build a retrieval pip
 - [The RAG Triad](#the-rag-triad)
 - [RAGAS Framework and Metrics](#ragas-framework)
 - [Component-Level Evaluation](#component-level-evaluation)
+- [Evaluating a Generated Summary from Retrieved Context](#evaluating-a-generated-summary-from-retrieved-context)
 - [LLM-as-Judge for RAG](#llm-as-judge)
 - [Building Golden Test Sets](#golden-test-sets)
 - [Automated Regression Testing](#regression-testing)
@@ -318,6 +319,57 @@ Isolate the generator by fixing the retrieval context and varying only the gener
     +-- Recall preservation: Did reranking lose any relevant docs?
     +-- Latency: What did reranking add to query time?
 ```
+
+---
+
+## Evaluating a Generated Summary from Retrieved Context
+
+A summary is a specific generation task with a built-in tension: it must be **faithful** to the retrieved context *and* **cover** the important information *and* stay **concise** — and those pull against each other. Score each property separately, because a single number hides which one broke.
+
+### The dimensions
+
+| Dimension | Question | Failure it catches |
+|---|---|---|
+| **Faithfulness / groundedness** | Is every claim supported by the retrieved context? | **Hallucination** (the #1 risk) |
+| **Coverage / completeness** | Did it include the *important* facts from the context? | **Omission** |
+| **Relevance** | Does it summarize what the query/intent asked for? | Off-topic / generic summary |
+| **Conciseness / non-redundancy** | Tight, no repetition or filler? | Bloat, padding |
+| **Coherence / fluency** | Reads well, flows logically? | Disjointed, contradictory |
+
+> **Split retrieval from generation first.** If the retrieved context was missing the key document, even a perfect summary is incomplete — that's a *retrieval* failure (measure with **context recall**), not a summary failure. Don't blame the summarizer for what the retriever never fetched.
+
+### Three families of method
+
+**1. Reference-free / grounding-based (most important for RAG).** You check the summary against *the retrieved context itself* — no gold summary needed.
+- **Faithfulness** — decompose the summary into atomic claims → verify each is **entailed** by the context (NLI model or LLM judge). Faithfulness ≈ supported claims ÷ total claims. (This is [RAGAS faithfulness](#ragas-framework) applied to the summary.)
+- **Coverage** — the mirror image: extract the key facts *from the context* → check how many appear in the summary. Low = omission.
+
+**2. LLM-as-judge (the soft dimensions).** Give a judge the query + context + summary and a **rubric** (faithful / complete / concise / relevant) with reasoning-before-score. Control its biases (see [LLM-as-Judge](#llm-as-judge)) — especially **verbosity bias**, which is dangerous when you're scoring conciseness — and use a **different model family** than the generator.
+
+**3. Reference-based (only if you have gold summaries).**
+- **ROUGE** — n-gram / longest-common-subsequence overlap; the classic summarization metric, but surface-only: misses paraphrase and **cannot detect hallucination**.
+- **BERTScore** — semantic-similarity version, better on paraphrase.
+- Use these as a cheap regression signal, **never as the sole metric**.
+
+### Putting it together
+
+```
+ query + retrieved context ──► summary
+                                 │
+       ┌─────────────────────────┼─────────────────────────┐
+       ▼                         ▼                          ▼
+ FAITHFULNESS               COVERAGE / RELEVANCE       FLUENCY / CONCISENESS
+ decompose → entailment     key-facts recall +         LLM-judge rubric
+ (RAGAS / NLI)              LLM-judge vs query          (+ ROUGE/BERTScore if gold)
+```
+
+- **Offline:** run faithfulness + coverage + a judge rubric on a golden set in CI; **hard-gate** on faithfulness.
+- **Online:** thumbs up/down, "was this useful?", and a sampled human review — automated metrics don't fully predict perceived quality.
+- **Watch the trade-off:** pushing conciseness can drop coverage; pushing faithfulness (extractive, quote-heavy) can hurt fluency. Track them **together** so you see the trade, not one number.
+
+**One-liner:** *Score a retrieval-grounded summary on faithfulness (every claim entailed by the context — catch hallucination), coverage (key facts made it in — catch omission), and relevance/conciseness/coherence (LLM-judge). Check it against the retrieved context itself, keep retrieval and generation separate, calibrate the judge against humans, and back it with online feedback.*
+
+Sources: [RAGAS — faithfulness & answer relevancy](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/) · [BERTScore (arXiv 1904.09675)](https://arxiv.org/abs/1904.09675)
 
 ---
 

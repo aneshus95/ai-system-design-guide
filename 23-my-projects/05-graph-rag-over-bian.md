@@ -7,6 +7,7 @@
 - [The Narrative](#the-narrative)
 - [What I Built — Architecture](#what-i-built--architecture)
 - [Deep Dive 1 — BIAN Terminology (Get This Exactly Right)](#deep-dive-1--bian-terminology-get-this-exactly-right)
+- [BIAN in Plain English — Why It's All About Relationships (Worked Example)](#bian-in-plain-english--why-its-all-about-relationships-worked-example)
 - [Deep Dive 2 — Graph RAG vs Vector RAG](#deep-dive-2--graph-rag-vs-vector-rag)
 - [Deep Dive 3 — Property Graph (and Why Not RDF)](#deep-dive-3--property-graph-and-why-not-rdf)
 - [Deep Dive 4 — Modeling BIAN as a Property Graph](#deep-dive-4--modeling-bian-as-a-property-graph)
@@ -64,6 +65,51 @@ Nailing these definitions is what makes you credible in a BIAN interview.
 So **"CR-BQ"** = the Control-Record → Behavior-Qualifier composition of a Service Domain — a natural **parent→child edge set** in a graph.
 
 Sources: [BIAN — Service Landscape](https://bian.org/deliverables/service-landscape/) · [BIAN Semantic API Practitioner Guide V8.1 (PDF)](https://bian.org/wp-content/uploads/2024/12/BIAN-Semantic-API-Pactitioner-Guide-V8.1-FINAL.pdf) · [Open Group ArchiMate-BIAN — Service Landscape](https://digital-portfolio.opengroup.org/archimate-bian/latest/01-doc/chap03.html)
+
+---
+
+## BIAN in Plain English — Why It's All About Relationships (Worked Example)
+
+**What BIAN is, plainly:** think of BIAN as a **standard set of Lego bricks for a bank**. Instead of every bank inventing its own way to describe "process a payment" or "open an account," BIAN pre-defines ~300+ reusable capabilities (**Service Domains**) with agreed names, responsibilities, and the data they exchange. Build your bank's software from these bricks and different systems (and vendors) can snap together.
+
+**But the value isn't the bricks — it's how they *connect*.** A single Service Domain does almost nothing alone. Real banking processes are **choreographies**: one capability calls another, which needs a third, which reads data owned by a fourth. That web of **dependencies and data exchange** *is* the architecture. So the questions architects actually ask are **relationship questions**, and answering them means **walking the connections** — not finding a paragraph that "sounds similar."
+
+### Worked example — "What does *Payment Execution* depend on to move money?"
+
+To execute one outbound payment, the **Payment Execution** Service Domain doesn't act alone — it depends on a chain of other domains:
+
+```
+                         ┌─────────────────────┐
+                         │  Payment Order       │  captures & validates the instruction
+                         └──────────┬──────────┘
+                                    │ initiates
+                                    ▼
+   ┌────────────────┐      ┌─────────────────────┐      ┌────────────────────────┐
+   │ Party           │◄─── │  PAYMENT EXECUTION   │ ───► │ Fraud / Financial Crime │
+   │ Authentication  │auth │  (the domain asked   │check │ (screen the payment)    │
+   └────────────────┘      │   about)             │      └────────────────────────┘
+                           └───────┬─────┬────────┘
+                        debits     │     │  routes via
+                                   ▼     ▼
+                    ┌────────────────┐  ┌──────────────────────────┐
+                    │ Current Account │  │ Correspondent Bank /      │
+                    │ (funds check +  │  │ Payment Rails (ACH/SWIFT) │
+                    │  debit)         │  │ (settle externally)       │
+                    └────────────────┘  └──────────────────────────┘
+```
+
+**Why vector RAG fails this question:** the fact "Payment Execution depends on Current Account for the debit" is **not written in any single paragraph** — it lives in the *edges* between domains, spread across many documents (service definitions, business scenarios, BOM data-exchange specs). Embedding-similarity retrieval pulls back chunks that *mention* "payment," but it can't **assemble the dependency chain** or guarantee it's complete. Ask "what breaks if Current Account is unavailable?" and similarity search has nothing to traverse.
+
+**Why the graph nails it:** model each domain as a **node** and each dependency as a typed **edge** (`DEPENDS_ON`, `DEBITS`, `ROUTES_VIA`), and the question becomes a one-hop (or multi-hop) **traversal**:
+
+```cypher
+MATCH (:ServiceDomain {name:"Payment Execution"})-[:DEPENDS_ON]->(d)
+RETURN d          // → Payment Order, Party Authentication, Fraud, Current Account, Correspondent Bank
+```
+
+The same structure answers the deeper ones vector search can't: *"trace every domain touched by a cross-border transfer"* (multi-hop path), *"which domains own the objects exchanged in this payment?"* (follow `OWNS` edges to BOM entities), *"what's the blast radius if this domain changes?"* (reverse-traverse `DEPENDS_ON`). And because you return the **traversed subgraph as provenance**, the answer is auditable — essential when you're defending a "BIAN-compliant" design to a client.
+
+> **The one-liner:** *BIAN is a graph of interdependent capabilities. Architecture questions are dependency-traversal questions. Vector similarity retrieves lookalike text; only a graph can walk the edges — completely and explainably.*
 
 ---
 

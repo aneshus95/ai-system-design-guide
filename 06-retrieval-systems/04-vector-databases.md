@@ -243,6 +243,53 @@ No approximation, exact search.
 
 Critical for multi-tenant and filtering use cases.
 
+### What Metadata Is (and Why It Matters)
+
+Every chunk is stored as **`(vector, text, metadata)`**. The **vector** answers *"what is this about?"* (semantic meaning); the **metadata** is everything *factual* about the chunk that you can filter, sort, secure, or cite on. The embedding gets you semantic recall; the metadata gets you **precision, security, freshness, and citations** — production RAG needs both.
+
+```json
+{
+  "text": "Refunds are processed within 5 business days...",
+  "vector": [0.021, -0.44, "..."],
+  "metadata": {
+    "source": "returns_policy.pdf", "doc_id": "policy-2024-v3", "page": 12,
+    "section": "Refunds", "created_at": "2024-06-01", "version": 3,
+    "doc_type": "policy", "department": "support",
+    "allowed_roles": ["agent", "manager"], "language": "en"
+  }
+}
+```
+
+### What Info Goes Into Metadata
+
+| Category | Example fields | Why you store it |
+|---|---|---|
+| **Source / provenance** | `source`, `doc_id`, `url`, `author`, `page`, `chunk_id` | Trace an answer to its origin; **citations** |
+| **Structural** | `section`, `heading`, `parent_id`, `chunk_index`, `table_id` | Reconstruct context (parent-child), keep hierarchy |
+| **Temporal** | `created_at`, `updated_at`, `effective_date`, `version` | **Freshness / recency** filtering; "as-of" queries |
+| **Access / security** | `tenant_id`, `allowed_roles`, `owner`, `classification` | **Authorization** — don't retrieve what a user can't see |
+| **Semantic / categorical** | `doc_type`, `department`, `topic`, `product`, `language`, `region` | **Routing** and **filtering** to the right subset |
+| **Quality / scoring** | `confidence`, `source_trust`, `is_canonical` | Boost trusted sources; drop superseded content |
+| **Custom / domain** | `customer_id`, `case_status`, `jurisdiction`, `sku` | Any business dimension you need to slice on |
+
+> **Attach metadata at ingestion time.** Source, section, timestamp, permissions, and type are cheap to capture during ingestion and nearly impossible to backfill accurately later.
+
+### How Metadata Is Used in RAG
+
+1. **Pre-filtering (the big one)** — apply metadata constraints *before* the vector search so similarity is computed only over eligible chunks (`department = support AND language = en`). More accurate *and* faster than filtering afterward — irrelevant chunks never compete for the top-K.
+2. **Access control / multi-tenancy** — filter on `tenant_id` / `allowed_roles` at query time so a user retrieves only what they're authorized to see. Must be a **pre-filter at the DB layer** (post-filtering can leak via scores/counts).
+3. **Citations & trust** — `source`, `page`, `url` show *where the answer came from* — essential for auditability and to let users verify (reduces perceived hallucination).
+4. **Recency / freshness** — vector similarity has **no sense of time**, so `updated_at` / `version` is how you drop stale docs, apply recency weighting, or answer "as-of" questions.
+5. **Query routing** — a router uses `doc_type` / `topic` to send a query to the right index or filter (a code question → `doc_type = code`).
+6. **Boosting / reranking** — `source_trust` / `is_canonical` weight or reorder results, preferring the official policy over a semantically-similar forum post.
+7. **Deduplication & conflict resolution** — `doc_id` + `version` + `is_canonical` return one canonical answer instead of near-duplicates, and drop superseded versions.
+8. **Cache invalidation** — storing `doc_id`s with a cached answer is exactly what lets you invalidate by source when a document changes (see [event-driven / version-tagged invalidation](14-production-rag-at-scale.md#cache-invalidation-strategies)).
+9. **Hybrid metadata + vector queries** — combine structured constraints with semantic search in one call: "chunks *about* refund timing (`vector`) **from** the 2024 policy (`metadata`)."
+
+> **Intuition:** the embedding tells you what a chunk **means**; the metadata tells you what it **is** — where it's from, when, who can see it, and what type.
+
+### Filtering Mechanics
+
 ```python
 # Pinecone
 results = index.query(

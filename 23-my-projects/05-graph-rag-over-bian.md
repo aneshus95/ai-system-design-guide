@@ -182,4 +182,4 @@ Deterministic mapping of official artifacts (not LLM-guessed) for structural edg
 
 ---
 
-*Previous: [Distributed ML Pipeline](04-distributed-ml-pipeline-pyspark-ray.md) | Up: [Guide Home](../README.md)*
+*Previous: [Distributed ML Pipeline](04-distributed-ml-pipeline-pyspark-ray.md) | Next: [Shipping-Time Forecasting](06-shipping-time-forecasting-catboost.md) | Up: [Guide Home](../README.md)*

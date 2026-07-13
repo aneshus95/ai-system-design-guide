@@ -329,7 +329,19 @@ class SemanticCache:
 | **Version-tagged** | Doc version mismatch | Compliance-critical |
 | **Confidence-gated** | Low retrieval score | Volatile domains |
 
-**Critical Rule**: Always cache the source document IDs alongside the response. When any source document is updated, invalidate all cache entries that reference it.
+**The core problem (in plain English).** A cache trades *freshness* for *speed*: you serve a saved answer instead of recomputing it. That's a great deal — until the underlying knowledge changes and your saved answer becomes **confidently wrong**. Cache invalidation is the discipline of deciding *when a saved answer can no longer be trusted*. Each strategy below is a different answer to "how do I know it's gone stale?" — trading simplicity against precision. You often **layer several** (e.g. a TTL as a safety net *plus* event-driven for correctness).
+
+- **TTL-based — "milk with an expiry date."** Every cached answer gets a fixed lifespan (say 1 hour); after that it's thrown out and recomputed, no questions asked. Dead simple and needs no hooks into your data — but it's a blunt guess: set it too long and you serve stale answers, too short and you barely cache at all. *Intuition:* good when data changes on a rough, predictable cadence and slight staleness is tolerable (general FAQs, news that refreshes hourly).
+
+- **Event-driven — "invalidate the moment the source changes."** A webhook fires when a document is updated, and you immediately drop every cached answer that used it. Precise (no stale window) and efficient (you only invalidate what actually changed) — but you must *wire up the plumbing*: change events from the source system and a map of which cache entries reference which docs. *Intuition:* the right default for a curated **knowledge base** where edits are the main source of staleness and correctness matters.
+
+- **Version-tagged — "check the receipt before serving."** Store the **version** of each source doc alongside the cached answer; at serve time, compare the cached version to the current one and only reuse the answer if they still match. This is a **verify-on-read** safety check rather than a proactive purge, so a stale answer can *never* slip through even if an event was missed. The cost is a version lookup on every cache hit. *Intuition:* for **compliance-critical** domains (legal, medical, finance) where serving a superseded answer is unacceptable and you need a provable guarantee, not just "probably fresh."
+
+- **Confidence-gated — "don't trust a weak answer."** Skip or bypass the cache when a signal says the answer is shaky — e.g. the retrieval scores backing it are low, so the cached response was built on thin evidence. Instead of trusting time or events, you trust the *quality* of the answer itself. *Intuition:* useful in **volatile domains** where you can't predict when things change but you *can* detect uncertainty, catching cases the other strategies miss.
+
+**How to choose:** start with a **TTL** as a cheap backstop; add **event-driven** invalidation once correctness matters; add **version-tagged** verify-on-read when a stale answer is a compliance risk; add **confidence-gating** when freshness is unpredictable. They compose — TTL bounds the worst case, events handle the common case, versioning guarantees the critical case.
+
+**Critical Rule**: Always cache the source document IDs alongside the response. When any source document is updated, invalidate all cache entries that reference it — this is exactly what makes **event-driven** and **version-tagged** invalidation possible (you can't invalidate by source if you never recorded which sources an answer used).
 
 ```python
 # Webhook-based cache invalidation

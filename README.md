@@ -40,6 +40,7 @@ A practical, continuously updated guide to AI system design, RAG architectures, 
 | I want to... | Start here |
 |--------------|------------|
 | **Prepare for interviews** | [Question Bank](00-interview-prep/01-question-bank.md) → [Answer Frameworks](00-interview-prep/02-answer-frameworks.md) |
+| **Brush up ML / stats fundamentals** | [Classical ML](20-machine-learning-foundations/01-classical-ml-algorithms.md) → [Deep Learning](20-machine-learning-foundations/02-deep-learning-fundamentals.md) → [Statistics & Probability](20-machine-learning-foundations/03-statistics-and-probability.md) → [ML System Design](20-machine-learning-foundations/04-ml-system-design.md) |
 | **Learn AI systems fast** | [LLM Internals](01-foundations/01-llm-internals.md) → [RAG Fundamentals](06-retrieval-systems/01-rag-fundamentals.md) |
 | **Build production RAG** | [Chunking](06-retrieval-systems/02-chunking-strategies.md) → [Vector DBs](06-retrieval-systems/04-vector-databases.md) → [Reranking](06-retrieval-systems/06-reranking-strategies.md) → [Production RAG](06-retrieval-systems/14-production-rag-at-scale.md) |
 | **Advanced retrieval** | [Contextual Retrieval](06-retrieval-systems/10-contextual-retrieval.md) → [ColBERT](06-retrieval-systems/11-late-interaction-colbert.md) → [Multi-modal RAG](06-retrieval-systems/12-multimodal-rag.md) |
@@ -142,6 +143,7 @@ flowchart TD
 ├── 17-tool-use-and-computer-agents/ # OpenClaw, Computer Use, tool agents, safety
 ├── 18-voice-and-audio-agents/   # Real-time voice agents: VAD, turn-taking, speech-to-speech
 ├── 19-multimodal-generation/    # Image/video/audio generation: pipelines, provenance, evaluation
+├── 20-machine-learning-foundations/ # Classical ML, deep learning, statistics, ML system design (Data Scientist interview prep)
 ├── GLOSSARY.md                  # Every term defined
 │
 ├── ai_evals_comprehensive_study_guide.md      # 🔬 Deep-dive: AI Evals (Phoenix + Langfuse)
@@ -160,6 +162,7 @@ mindmap
       LLM Internals
       Model Landscape
       Training and Adaptation
+      ML and Stats Foundations
     Build
       Prompting and Context
       Retrieval Systems

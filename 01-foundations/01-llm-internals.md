@@ -681,4 +681,60 @@ Llama 2 70B uses GQA with 8 KV heads for 64 query heads, reducing KV cache by 8x
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Transformer** | A neural network architecture that uses self-attention instead of recurrence to process sequences | Foundation of all modern LLMs; enables parallel training and long-range context |
+| **RNN (Recurrent Neural Network)** | A type of network that processes tokens one at a time, passing a hidden state forward | Historical predecessor to transformers; slow to train due to sequential nature |
+| **LSTM (Long Short-Term Memory)** | An improved RNN variant with gating mechanisms to selectively remember or forget past information | Pre-transformer approach to long-range dependencies; replaced by attention |
+| **Self-Attention** | A mechanism where every token in a sequence computes a relevance score against every other token and blends their information | Core of the transformer; allows direct connections between any two positions |
+| **Query (Q)** | A learned projection of a token that represents "what this token is looking for" in the sequence | Drives the matching process in attention; determines what each token attends to |
+| **Key (K)** | A learned projection of a token that represents "what this token advertises" to others | Acts as the index side of attention matching; decides how much attention a token receives |
+| **Value (V)** | A learned projection of a token that represents "what content this token shares" once attended to | Carries the actual information transferred between positions in attention |
+| **Softmax** | A function that converts a vector of raw scores into a probability distribution summing to 1 | Converts raw attention scores into weights used to blend values |
+| **Causal Mask** | A triangular mask applied before softmax that sets future positions to negative infinity | Enforces left-to-right generation so each token can only see past tokens |
+| **QK^T** | Matrix multiplication of query and key matrices, producing an n×n score grid | Measures pairwise similarity between all token pairs; source of O(n²) cost |
+| **√d_k scaling** | Dividing attention scores by the square root of the key dimension | Prevents softmax saturation (near-one-hot distributions) that causes vanishing gradients |
+| **Multi-Head Attention (MHA)** | Running multiple independent attention operations in parallel and concatenating results | Each head learns different patterns (syntax, semantics, coreference) for richer representations |
+| **Grouped-Query Attention (GQA)** | Sharing Key and Value heads across groups of Query heads instead of having one per head | Reduces KV cache memory by 8× or more with minimal quality loss; critical for serving efficiency |
+| **Multi-Query Attention (MQA)** | All query heads share a single Key and Value head | Maximum KV cache reduction but some quality degradation; used in PaLM, Falcon |
+| **KV Cache** | Stored Key and Value tensors from all previously generated tokens | Avoids recomputing past token projections on every generation step; essential for autoregressive serving |
+| **PagedAttention** | A technique that stores KV cache in non-contiguous memory "pages" analogous to OS virtual memory | Reduces VRAM fragmentation from ~60–80% waste to under 4%; enables more concurrent requests |
+| **Decoder-Only** | Transformer variant that uses causal (left-to-right) self-attention only | Dominant architecture for text generation; used by GPT, Claude, Llama |
+| **Encoder-Only** | Transformer variant with bidirectional attention where each token sees all others | Best for classification, NER, and embedding tasks; used by BERT |
+| **Encoder-Decoder** | Transformer with a bidirectional encoder and a decoder connected via cross-attention | Used for sequence-to-sequence tasks like translation and summarization |
+| **Mixture of Experts (MoE)** | Architecture where the feed-forward layer is replaced by multiple expert networks and a router that selects which experts process each token | Decouples total parameters (memory cost) from active parameters (compute cost) |
+| **Router** | The component in an MoE layer that decides which experts to activate for each token | Controls which specialized experts see each token; must be balanced to avoid routing collapse |
+| **Load Balancing Loss** | An auxiliary training objective that penalizes the router for overusing a small subset of experts | Ensures all experts are trained and utilized during MoE training |
+| **Multi-head Latent Attention (MLA)** | Compresses Key and Value vectors into a low-dimensional latent representation before caching | Reduces KV cache to ~5% of MHA baseline while matching or exceeding GQA quality |
+| **Chinchilla Scaling Laws** | Empirical rules relating optimal model size to training data volume for a fixed compute budget | Informed training-optimal model sizing; now being superseded by inference-optimal strategies |
+| **Inference-Optimal Scaling** | Training smaller models on far more data than Chinchilla recommends to minimize per-token serving cost | Cheaper to serve millions of users; Llama 3 8B trained on 15T+ tokens exemplifies this |
+| **Over-training** | Training a model on substantially more tokens than the Chinchilla compute-optimal point | Makes small models comparable in quality to larger models at much lower inference cost |
+| **Native Multimodality** | Architecture where visual and text tokens share the same vocabulary and transformer blocks from the start | Enables better spatial reasoning and world-model understanding than adapter-based approaches |
+| **Vision Adapter** | A module that connects a frozen image encoder to an LLM via a projection layer | Older multimodal approach; less effective than native multimodal training |
+| **Feed-Forward Network (FFN)** | A position-wise two-layer MLP applied after attention in each transformer block | Stores factual knowledge and applies non-linear transformations; holds ~2/3 of layer parameters |
+| **SwiGLU** | An activation function combining Swish gating with a gated linear unit in the FFN | State-of-the-art activation for LLMs; improves quality at the cost of ~50% more FFN parameters |
+| **GELU** | Gaussian Error Linear Unit activation function, a smooth approximation of ReLU | Standard activation in BERT and GPT-2; smoother gradient flow than ReLU |
+| **ReLU** | Rectified Linear Unit: outputs max(0, x), zeroing out negative values | Simple baseline activation; sparse but can cause dead neurons |
+| **Layer Normalization (LayerNorm)** | Normalizes activations within a single training example across the feature dimension | Stabilizes training by keeping activations in a consistent range |
+| **RMSNorm** | Simplified layer normalization that skips mean-centering and only divides by root mean square | 10–15% faster than LayerNorm with similar training stability; used in Llama and Mistral |
+| **Pre-LN (Pre-Normalization)** | Applies layer normalization before each sublayer rather than after | Enables stable training of very deep models without careful learning-rate warmup |
+| **Post-LN (Post-Normalization)** | Applies layer normalization after the residual addition | Original transformer approach; harder to train at depth but can achieve slightly higher peak quality |
+| **Residual Connection** | Adding the input of a sublayer directly to its output (skip connection) | Allows gradients to flow through deep networks and prevents vanishing gradient problems |
+| **Sinusoidal Position Encoding** | Fixed sine/cosine patterns added to embeddings to inject position information | Deterministic and parameter-free but does not extrapolate well beyond training length |
+| **Rotary Position Embedding (RoPE)** | Encodes position by rotating query and key vectors by position-dependent angles | Better length extrapolation than absolute encodings; used in Llama, Mistral, GPT-4 |
+| **ALiBi (Attention with Linear Biases)** | Adds a position-dependent linear bias directly to attention scores instead of modifying embeddings | Excellent length extrapolation; used in BLOOM and MPT |
+| **Flash Attention** | A memory-efficient attention implementation using tiling and on-chip SRAM to avoid materializing the full n×n matrix | Achieves exact attention with O(n) memory instead of O(n²); 2–4× faster in practice |
+| **Sparse Attention** | Attention that computes scores only for a subset of position pairs rather than all n² pairs | Reduces compute to O(n) at the cost of missing some long-range dependencies |
+| **Linear Attention** | Approximates softmax attention using kernel methods to reduce complexity from O(n²) to O(n) | Faster for very long sequences but quality degrades compared to exact attention |
+| **Mamba / State-Space Models** | Alternative to transformers using selective state-space models for O(n) sequence processing | Competitive quality with O(n) compute and memory; used for long-context efficiency |
+| **Logits** | Raw unnormalized scores output by the LM head before converting to probabilities | Intermediate representation used for sampling or computing loss during training |
+| **LM Head** | A linear projection from the hidden dimension to vocabulary size applied at the output | Converts final hidden states into per-token probability distributions for generation |
+| **FP16 (Half Precision)** | 16-bit floating-point number format used to store model weights | Halves memory versus FP32 with negligible quality loss; standard for serving |
+| **TFLOPs** | Tera floating-point operations per second; measure of GPU compute throughput | Used to estimate inference latency and compare hardware options |
+| **H100** | NVIDIA's flagship datacenter GPU for AI training and inference | Current reference hardware for LLM serving; ~990 TFLOPS in FP16 |
+
 *Next: [Tokenization Deep Dive](02-tokenization-deep-dive.md)*

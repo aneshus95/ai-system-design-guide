@@ -334,4 +334,37 @@ Context rot is silent quality degradation as the transcript grows with stale ins
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Loop Engineering** | The discipline of designing, instrumenting, and continuously improving the control loops that wrap an agent, rather than hand-prompting the model | Treats the harness as the engineered artifact — the source of leverage beyond model quality |
+| **Inner Agent Loop** | The reason-act-observe cycle a harness runs within one agent run, repeated until a stop condition is met | The fundamental execution unit that enables multi-step, tool-using agents |
+| **Harness** | The deterministic outer code that drives the agent loop, enforces budgets, checks stop conditions, and routes to humans | The "kernel" that controls the agent — most safety and reliability properties live here, not in the model |
+| **Trigger** | The event that starts an agent loop cycle — a human message, a schedule, an external event, or a self-set goal | Determines the agent's cost and concurrency profile from the outset |
+| **Context Assembly** | Gathering instructions, working state, retrieved memory, and prior outputs before each model call | Where context rot is fought — curating what the model sees per call is critical for quality |
+| **Stagnation Detector** | A harness component that catches repeated calls, oscillation, or no-progress patterns and escalates | Prevents runaway loops by detecting when the agent is stuck rather than making progress |
+| **Termination Logic** | Explicit harness-enforced conditions for when a loop should exit with success, failure, or escalation | Ensures the loop cannot run forever and that exit is verified, not just self-reported by the model |
+| **Context Rot** | Silent quality degradation as the model's context window fills with stale instructions, old tool output, and failed attempts | The primary long-loop failure mode — sets in before the hard context limit and is hard to detect |
+| **Loopmaxxing** | The mistaken belief that adding more iterations automatically solves harder or more subjective problems | Fails on goals with no verifiable exit condition, causing runaway spend with no convergence |
+| **Goal Predicate** | A testable, objective function that returns true when the agent's task is genuinely complete | Required to distinguish real completion from the model falsely claiming to be done |
+| **Hallucinated Success** | When the model reports task completion but the actual goal has not been met | Caught by deterministic verifiers and goal predicates, not by trusting the model's self-report |
+| **Reflexion** | A loop pattern with an outer loop that stores a written self-critique after each failed attempt and reloads it on the next try | Enables learning across trials (not just within one run) — the ancestor of all stacked-loop designs |
+| **ReWOO** | A loop variant that defers observations until after planning, executing tool calls in a batch to reduce token use | Reduces latency and token cost for runs where tools are known in advance |
+| **LLMCompiler** | A loop pattern that plans a parallel tool DAG and executes independent branches simultaneously | Minimizes wall-clock time for tasks where sub-steps do not depend on each other |
+| **Evaluator-Optimizer Loop** | A generate-then-critique pattern where one subagent drafts and another reviews, looping until quality criteria are met | Improves output quality by separating production from adversarial evaluation |
+| **Orchestrator-Workers** | A multi-agent loop where a planner agent dispatches parallel worker agents on independent subtasks | Scales throughput for broad research or build tasks, at roughly 15x the token cost of a single chat |
+| **Fresh-Context Technique** | Re-running the goal prompt with a completely clean context each iteration, tracking progress in an external state file | The strongest defense against context rot in long multi-iteration loops |
+| **Generator-Verifier Separation** | Having one subagent produce output and a structurally separate (often stronger) subagent review it adversarially | Prevents optimistic self-grading and reward-hacking |
+| **Rate-of-Spend** | The rate at which an agent consumes tokens or dollars per minute, used as a real-time runaway signal | More effective than cumulative caps because it catches runaway loops within minutes, not months |
+| **Circuit Breaker** | A hard stop triggered when rate-of-spend, repetition count, or other thresholds are exceeded | An external safety mechanism that the agent cannot disable |
+| **Comprehension Debt** | The accumulating cost when loop-generated changes outpace the human team's ability to review them | The human bandwidth limit on how many loops can run in parallel, not the tool capacity |
+| **pass@k / pass^k** | Metrics that measure "at least one of k attempts succeeds" vs. "all k attempts succeed" — they diverge rapidly | Distinguishes ceiling capability from reliable customer-facing performance |
+| **OODA Loop** | A military decision framework (Observe-Orient-Decide-Act) that is the historical ancestor of agent loop design | Provides the conceptual foundation for sense-plan-act cycles in autonomous systems |
+| **Objective Misspecification** | When the goal given to the agent is ambiguous or uses a proxy metric that does not capture the true intent | Causes agents to technically "succeed" by gaming the metric rather than achieving the real goal |
+| **Compaction** | Replacing verbose history in the context window with a dense summary before quality degrades | Keeps the context focused on useful information without hitting the hard token limit |
+| **Prompt Cache Hit Rate** | The fraction of prompt tokens served from the cached prefix rather than re-computed | A cost and latency metric — high hit rates indicate good prompt stability and prefix-stable ordering |
+
 *Next: [Memory Architectures](../08-memory-and-state/01-memory-architectures.md)*

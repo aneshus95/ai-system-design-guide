@@ -205,4 +205,34 @@ Advanced RAG is a **deterministic pipeline** (Linear: Rewrite -> Search -> Reran
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RAG (Retrieval-Augmented Generation)** | An architecture where an LLM is given relevant external documents at query time instead of relying solely on its trained knowledge | Grounds LLM responses in verifiable, up-to-date facts |
+| **Naive RAG** | The simplest RAG pattern: embed the query, fetch the top-K chunks by vector similarity, hand them to an LLM | Baseline approach useful for demos and simple FAQ bots |
+| **Advanced RAG** | A multi-stage pipeline adding query rewriting, hybrid search, and reranking before generation | Production-grade baseline that outperforms Naive RAG in precision |
+| **Agentic RAG** | A loop-based system where the model decides when and how to retrieve, re-retrieves if the context is insufficient, and can call multiple tools | Handles complex, multi-hop, or ambiguous queries that a fixed pipeline cannot resolve |
+| **GraphRAG** | RAG that pre-extracts entities and relationships into a knowledge graph and traverses it to answer questions requiring connections across many documents | Solves "aggregative" questions that flat chunk retrieval cannot answer |
+| **Fine-Tuning** | Updating a model's weights on task-specific data to bake in a style or behavior | Teaches a model *how* to behave; contrasted with RAG which supplies *what* to know |
+| **Hybrid Search** | Running both dense (semantic) and sparse (keyword) retrieval in parallel and merging the results | Covers both vocabulary-mismatch failures and exact-term misses in a single retrieval pass |
+| **RRF (Reciprocal Rank Fusion)** | A fusion method that combines ranked result lists by each document's rank position rather than its raw score | Merges keyword and semantic results without needing to normalize incomparable score scales |
+| **Self-RAG** | A technique where the model is trained to decide whether retrieval is needed and to critique its own retrieved passages, re-retrieving if needed | Reduces unnecessary retrieval and improves faithfulness by letting the model self-correct |
+| **Corrective RAG (CRAG)** | A variant that grades retrieved documents and falls back to web search or query rewriting if the retrieved context is weak | Prevents bad context from being fed to the generator |
+| **BM25** | A classical keyword-ranking algorithm that scores documents by how often query terms appear relative to document length | The standard sparse-retrieval baseline; excels at exact-term and rare-token queries |
+| **Dense / Semantic Retrieval** | Retrieval that converts text to a vector and finds the closest vectors in embedding space | Catches synonym and paraphrase matches that keyword search misses |
+| **Bi-Encoder** | An embedding architecture that encodes query and document independently into separate vectors for fast similarity scoring | Enables pre-computing document vectors offline for sub-millisecond retrieval at scale |
+| **In-Context RAG (ICR)** | Placing the entire corpus directly in the LLM's prompt instead of retrieving chunks | Simplest option when the corpus fits comfortably inside the context window |
+| **Prompt Caching** | Reusing a previously computed KV-cache for a repeated prompt prefix | Cuts the cost and latency of re-sending a large static context on every query |
+| **Recall@k** | The fraction of relevant documents that appear in the top-k retrieved results | Primary metric for diagnosing Gap 1 (retrieval misses) |
+| **nDCG (Normalized Discounted Cumulative Gain)** | A ranking quality metric that rewards placing the most relevant document as high as possible | Diagnoses Gap 2 (precision / ranking quality) |
+| **MRR (Mean Reciprocal Rank)** | The average of the reciprocal of the rank at which the first relevant document appears | Quick single-number measure of whether the best result is near the top |
+| **Lost-in-the-Middle** | The observation that LLMs tend to ignore information placed in the middle of a long context | Motivates context compression and placing key chunks at the start or end of the prompt |
+| **Context Compression** | Shrinking the retrieved context to only the highest-signal tokens before passing it to the LLM | Counters Gap 3 by reducing the chance the LLM skips over relevant content |
+| **Cross-Encoder (Reranker)** | A model that reads the query and document together to produce a precise relevance score | Fixes Gap 2 by reordering retrieved candidates more accurately than cosine similarity alone |
+| **Top-K** | The number of highest-scoring chunks returned by the retriever | Controls the recall-vs-cost trade-off at the retrieval stage |
+| **Knowledge Graph (KG)** | A structured store of entities (nodes) and relationships (edges) extracted from documents | Lets GraphRAG traverse logical connections that vector similarity cannot follow |
+
 *Next: [Chunking Strategies](02-chunking-strategies.md)*

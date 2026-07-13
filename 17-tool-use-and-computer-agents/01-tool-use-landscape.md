@@ -547,4 +547,45 @@ Sandboxed (Docker/VM): Use for untrusted code execution, multi-tenant systems, o
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **MCP (Model Context Protocol)** | A standardized protocol for connecting AI agents to external tools and data sources | Acts as a universal plug-in system so any LLM can call any tool without custom integration code |
+| **Tool Use** | The ability of an LLM to call external functions or APIs rather than just generating text | Lets AI models take real actions like searching databases or running code, not just respond with words |
+| **Autonomous Agent** | A software program powered by an LLM that takes multi-step actions on your behalf without constant human input | Enables complex tasks to be delegated end-to-end to AI instead of requiring step-by-step human direction |
+| **OpenClaw** | An open-source, self-hosted personal AI agent that connects to messaging apps and can run commands, manage files, and control devices | Shows how personal AI assistants can be built to live inside chat platforms people already use |
+| **SOUL.md** | A plain Markdown file that defines an OpenClaw agent's personality, values, and behavioral limits | Lets operators configure how the agent behaves and communicates without writing code |
+| **PI Agent (Process Interactor)** | A small runtime inside OpenClaw that lets the LLM create, edit, run, and delete files on the host machine | Gives the AI "hands" to execute code and manipulate the filesystem |
+| **ClawHub** | The community marketplace for OpenClaw skills, hosting over 44,000 user-contributed extensions | Allows the community to extend agent capabilities through shared plugins |
+| **AgentSkills spec** | A specification format for packaging and distributing OpenClaw skill extensions | Standardizes how capabilities are bundled and shared across the OpenClaw ecosystem |
+| **AGENTS.md** | An OpenClaw workspace file containing operational instructions and tool configurations | Tells the agent which tools to use and how to behave in a specific workspace context |
+| **HEARTBEAT.md** | An OpenClaw workspace file that defines scheduled autonomous actions, similar to cron jobs | Allows agents to run tasks on a schedule without being explicitly prompted each time |
+| **OpenHands (OpenDevin)** | An open-source autonomous AI software engineer that runs inside Docker containers to clone repos, run tests, and fix bugs | Demonstrates how AI can act as a full developer agent with safe isolation |
+| **CodeAct 1.0** | The default agent template in OpenHands that embeds LLM reasoning into a coding control plane | Provides a structured approach to AI-driven software development tasks |
+| **BrowserGym** | A framework for browser automation that OpenHands uses to let agents interact with web pages | Enables agents to navigate and interact with the web through declarative primitives |
+| **Event-stream architecture** | A design where all agent-environment interactions flow as typed events through a central hub | Provides a clean separation between agent actions and their observed results |
+| **Claude Computer Use** | An Anthropic API feature that lets Claude control a desktop by interpreting screenshots and issuing mouse/keyboard commands | Enables automation of any GUI application without requiring a dedicated API |
+| **OSWorld-Verified** | A benchmark that measures how well a computer-use agent can complete real desktop tasks | Tracks the accuracy and capability of vision-based computer agents over time |
+| **SWE-bench Pro** | A benchmark that evaluates AI agents on real GitHub software engineering tasks | Measures how well coding agents can solve actual software development problems |
+| **Vision-Action Loop** | The repeating cycle of taking a screenshot, reasoning about it, and executing an action | The core operating mechanism that computer-use agents use to navigate GUIs |
+| **Zoom Action** | A 2026 enhancement to Claude Computer Use that captures a high-resolution crop of a small UI region before clicking | Reduces misclick errors on dense or small interface elements |
+| **Claude Code** | Anthropic's terminal-based agentic coding tool that reads codebases, edits files, and runs commands autonomously | Provides professional software development assistance directly in the developer's working environment |
+| **Subagent spawning** | The ability of an agent to create and run additional agent processes in parallel to handle subtasks | Enables parallel workstreams and faster completion of complex multi-part tasks |
+| **Worktree isolation** | Running parallel agent sessions in separate Git working trees so they do not interfere with each other | Allows multiple concurrent changes to a codebase without conflicts |
+| **CLAUDE.md** | A configuration file that Claude Code reads to understand project-specific instructions and context | Provides persistent, file-based instructions to the agent across sessions |
+| **Cursor** | A VS Code fork with deep AI integration including Agent Mode, Background Agents, and Mission Control | Represents the IDE agent category where AI is embedded directly into the code editor |
+| **Background Agents** | Cursor's feature that clones a repository into a cloud VM and works autonomously, opening a pull request when done | Enables asynchronous agent work so developers are notified when tasks complete rather than waiting |
+| **Windsurf (Codeium)** | An IDE agent acquired by Cognition that features the Cascade multi-step agent and proprietary SWE-1.5 model | Competes in the IDE agent market with its own model and cross-IDE plugin support |
+| **Cascade** | Windsurf's multi-step AI agent that analyzes project structure, coordinates cross-file changes, and self-recovers from errors | Shows how IDE agents can manage complex, multi-file refactoring autonomously |
+| **Cline** | A VS Code extension that operates as a fully autonomous agent with multi-step execution and self-error-correction | Offers a more autonomous alternative to autocomplete-style coding assistants |
+| **Firecracker VM** | A lightweight virtual machine technology used to sandbox agent code execution | Provides strong isolation so untrusted agent-generated code cannot affect the host system |
+| **E2B** | A cloud service providing pre-configured sandboxed environments for remote agent execution | Removes the need to manage Docker setups by offering ready-made isolated VMs via API |
+| **Plan-and-Execute pattern** | A multi-agent approach where a powerful model plans a task and cheaper models execute each step | Reduces LLM cost by 87% or more by reserving expensive models for planning only |
+| **AGPL-3.0 / MIT license** | Open-source software licenses; AGPL requires sharing derivative source code, MIT does not | Affects how enterprise teams can legally deploy and modify open-source agent tools |
+| **Sandboxed execution** | Running agent-generated code inside an isolated container or VM so it cannot affect the host system | Prevents a bad LLM output from deleting files, exfiltrating data, or crashing the host |
+| **Dynamic Manifest** | A technique for loading only the tool schemas relevant to the current user intent, rather than all schemas at once | Prevents context bloat and keeps the model focused on the tools that actually matter for the task |
+
 *Next: [Architecture Patterns for Tool-Use Agents](02-architecture-patterns.md)*

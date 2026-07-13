@@ -197,4 +197,33 @@ A: Every decision includes the full reasoning chain: the claim extracted, the re
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **FDA (Food and Drug Administration)** | The US government agency that regulates pharmaceutical products and their marketing | Sets the regulations this system must verify compliance against |
+| **CFR (Code of Federal Regulations)** | The official compilation of US federal regulations, including FDA rules for drug advertising (Title 21) | Provides the specific legal citations used in compliance reports |
+| **RAG (Retrieval-Augmented Generation)** | A technique where an LLM is given retrieved documents as context instead of relying solely on its training | Lets the system always reference the latest regulation text without retraining |
+| **Fine-Tuning** | Retraining a model on domain-specific data to bake in specialized knowledge | Alternative to RAG; rejected here because regulations change too frequently |
+| **Claim Extraction** | Parsing a document to identify individual factual or promotional assertions | Breaks complex marketing materials into discrete, checkable units |
+| **Efficacy Claim** | A statement about how well a drug works (e.g., "reduces symptoms by 80%") | High-risk claim type that must be backed by clinical trial data |
+| **Safety Claim** | A statement about a drug's side-effect profile (e.g., "no side effects") | Frequently flagged by FDA because absolute safety claims are rarely supportable |
+| **False Negative** | A real violation that the system fails to detect | Catastrophic outcome in compliance; the system is tuned to minimize these |
+| **False Positive** | A legitimate item incorrectly flagged as a violation | Adds reviewer workload; the system targets keeping these under 20% |
+| **Precision** | The fraction of flagged items that are genuine violations | Measures how trustworthy the system's flags are |
+| **Recall** | The fraction of actual violations that the system catches | Priority metric for compliance; missing a violation is worse than over-flagging |
+| **Vector Database** | A database that stores and searches embeddings by similarity | Stores regulation passages and precedent violations for fast retrieval |
+| **Precedent Database** | A collection of past FDA warning letters showing how rules have been enforced | Adds real-world enforcement context that raw regulation text lacks |
+| **Warning Letter** | An official FDA notice sent to a company for a specific regulatory violation | Evidence of how ambiguous regulations are interpreted in practice |
+| **Audit Trail** | A chronological log of every decision, including what data and model version was used | Required for regulatory inspection and legal accountability |
+| **Confidence Score** | A numerical estimate of how certain the model is about a compliance decision | Drives the severity tier assigned to each flagged claim |
+| **Threshold Hierarchy** | A tiered set of confidence cutoffs that determine action (flag HIGH, MEDIUM, LOW, or log only) | Balances sensitivity and reviewer workload in a principled way |
+| **Severity Level** | A label (HIGH / MEDIUM / LOW) assigned to a flagged issue based on confidence | Helps legal reviewers prioritize which flags need immediate attention |
+| **Vision-LLM** | A large language model capable of understanding image content as well as text | Extracts implicit claims from marketing images (e.g., before/after photos) |
+| **Regulation Watch** | A monitoring service that detects when FDA updates or releases new guidance documents | Keeps the knowledge base current without manual intervention |
+| **Federal Register** | The US government's official daily journal where new rules and proposed changes are published | Source monitored to detect regulatory updates in near real time |
+| **Claim Type** | A category label (efficacy, safety, endorsement) assigned to each extracted claim | Routes each claim to the most relevant regulation sections |
+
 *Related chapters: [RAG Fundamentals](../06-retrieval-systems/01-rag-fundamentals.md), [Guardrails Implementation](../13-reliability-and-safety/01-guardrails.md)*

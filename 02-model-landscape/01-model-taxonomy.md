@@ -722,4 +722,46 @@ Both use internal chain-of-thought, but the mechanics differ:
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Frontier Model** | The most capable AI models available at a given time, representing the state of the art | Benchmarking against the best; used for the hardest reasoning and coding tasks |
+| **MoE (Mixture-of-Experts)** | An architecture where a large model is divided into many "expert" sub-networks, and only a small subset are activated per token | Reduces compute and memory needed per inference while keeping total parameter count high |
+| **Active Parameters** | The number of model parameters actually used during a single forward pass (relevant for MoE models) | Determines real compute cost per inference; lower active params = cheaper and faster |
+| **Context Window** | The maximum number of tokens a model can read and reason over in one call, including both input and output | Limits how much text, code, or conversation history the model can consider at once |
+| **Token** | The basic unit of text an LLM processes; roughly 0.75 words on average, but varies by tokenizer | Pricing, context limits, and throughput are all measured in tokens |
+| **Extended Thinking** | A mode where a model reasons internally through a scratchpad before producing its final answer | Improves accuracy on hard math, logic, and multi-step problems at the cost of extra latency and tokens |
+| **Adaptive Thinking** | Extended thinking that automatically adjusts how much reasoning it does based on question difficulty | Balances cost and quality without requiring the user to manually set a reasoning budget |
+| **CoT (Chain-of-Thought)** | A prompting or training technique where the model reasons step-by-step before giving a final answer | Dramatically improves performance on complex reasoning and math tasks |
+| **SWE-bench Verified** | A benchmark measuring how often a model autonomously resolves real GitHub software engineering issues | Industry standard for comparing coding and agentic capability across models |
+| **ARC-AGI-2** | A challenging benchmark testing abstract reasoning and generalization to novel tasks | Used to gauge how close models are to flexible, human-like general intelligence |
+| **GPQA Diamond** | A very hard multiple-choice benchmark written by domain experts in science fields | Tests graduate-level scientific reasoning beyond what memorization alone can solve |
+| **MMLU** | Massive Multitask Language Understanding; a broad academic benchmark across 57 subjects | Used for initial model filtering across general knowledge domains |
+| **HumanEval** | A benchmark of Python coding problems measuring pass rate on unit tests | Standard proxy for basic code generation quality |
+| **Embedding Model** | A model that converts text into a fixed-length vector of numbers representing its meaning | Enables semantic search, clustering, and similarity comparison in RAG systems |
+| **MTEB** | Massive Text Embedding Benchmark; scores embedding models across retrieval, clustering, and classification tasks | Standard leaderboard for comparing embedding model quality |
+| **RAG (Retrieval-Augmented Generation)** | An architecture that fetches relevant documents from a database and injects them into the model's prompt | Lets models answer questions using up-to-date external knowledge without retraining |
+| **Semantic Router** | A system that classifies incoming queries by meaning and routes each to the most cost-appropriate model | Automates cost optimization by sending simple queries to cheap models and hard queries to frontier models |
+| **Batch API** | An endpoint that accepts many requests at once and processes them asynchronously at a discount (typically 50% off) | Reduces cost for non-real-time workloads like document processing or overnight evaluations |
+| **Prompt Caching** | A provider feature that stores a reused prompt prefix so subsequent requests pay a much lower "cache hit" price | Cuts input token costs dramatically when the same long system prompt or context is reused across requests |
+| **SWE-Bench Pro** | A harder version of SWE-bench using more complex, real-world software engineering tasks | Better differentiates frontier models on difficult agentic coding |
+| **Dynamic Workflows** | An Anthropic feature (Claude Opus 4.8 research preview) that lets a model spawn and coordinate hundreds of parallel sub-agents | Enables codebase-scale automated migrations and complex parallel engineering tasks |
+| **Project Glasswing** | Anthropic's restricted partner program granting access to unrestricted Mythos-class models due to dual-use cybersecurity concerns | Limits the most capable models to vetted defenders; shapes the Fable/Mythos two-track release model |
+| **Agentic / Agent** | Describes a model or system that plans and executes multi-step tasks autonomously using tools, rather than answering a single question | Core pattern for coding agents, research bots, and automated workflows |
+| **Tool Use / Function Calling** | The ability of a model to call external APIs, run code, or query databases as part of answering a question | Extends model capability beyond text into real-world actions and live data |
+| **Computer Use** | A model capability to control a desktop or web browser by observing a screen and issuing keyboard/mouse commands | Enables automation of GUI-based workflows without custom integrations |
+| **Open Weights** | A model whose trained parameters are publicly released so anyone can run or fine-tune it | Enables self-hosting, fine-tuning, and use without sending data to a provider |
+| **Sovereign AI / Data Residency** | Deploying AI infrastructure in specific geographic or legally isolated environments to comply with local data laws | Required for financial, government, and EU-regulated workloads under GDPR and similar rules |
+| **GDPR** | EU law requiring that personal data be collected lawfully, stored securely, and not sent outside approved regions | Major reason enterprises use sovereign clouds or self-hosted models |
+| **Distillation** | Training a smaller "student" model to mimic the outputs of a larger "teacher" model | Produces compact, fast models that approach frontier quality at a fraction of the cost |
+| **LoRA (Low-Rank Adaptation)** | A fine-tuning technique that trains only a small set of adapter weights, leaving the base model frozen | Fast, cheap way to specialize a model for a domain without full retraining |
+| **Multimodal** | Describes a model that can understand or generate multiple types of data such as text, images, audio, and video | Enables document understanding, image analysis, and video comprehension in a single model call |
+| **TTFT (Time-to-First-Token)** | The latency between sending a request and receiving the first output token from the model | Key latency metric for streaming applications; drives perceived responsiveness |
+| **Tokenizer** | The component that splits raw text into tokens before the model processes it; different models use different tokenizers | Affects how many tokens a given piece of text consumes and therefore the cost and context usage |
+| **Speculative Drafting** | A technique where a small fast model drafts tokens and a large model verifies them in parallel to increase throughput | Reduces perceived latency for large model inference without changing output quality |
+| **Elo Rating** | A numerical score borrowed from chess used to rank models based on head-to-head win rates in evaluations | Produces relative rankings that are robust to judge personality drift and model version changes |
+
+---
+
 *Next: [Capability Assessment](02-capability-assessment.md)*

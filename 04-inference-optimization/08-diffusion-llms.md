@@ -118,4 +118,33 @@ Because the speed comes with real tradeoffs and the ecosystem is young. The qual
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Autoregressive (AR) Model** | A language model that generates tokens left to right, one per forward pass, each conditioned only on previous tokens | The dominant LLM paradigm; sequential by design, which makes it memory-bandwidth bound |
+| **Diffusion Language Model** | A model that starts from a fully masked sequence and iteratively denoises all positions in parallel over several steps | Achieves much higher throughput than AR by committing many tokens per forward pass |
+| **Masked Diffusion** | The specific diffusion process for text, where tokens are randomly replaced with [MASK] and the model learns to reconstruct them | The core training and inference mechanism for diffusion LLMs; enables parallel generation |
+| **Forward Process (diffusion)** | The process of progressively masking tokens in a sequence as noise level t increases toward 1 | The "corruption" direction in diffusion training — teaches the model what fully masked sequences look like |
+| **Reverse Process (diffusion)** | The generation process of starting fully masked and iteratively unmasking tokens toward a clean sequence | The "denoising" direction used at inference time to produce text |
+| **Unmasking Schedule** | A policy that decides how many high-confidence token predictions to commit at each denoising step | Controls the speed-quality tradeoff: committing more tokens per step is faster but may produce less coherent output |
+| **Likelihood Bound** | A mathematical lower bound on the true probability of a sequence that masked diffusion models optimize | A theoretical disadvantage vs. AR models, which optimize exact likelihood; contributes to quality gaps on hard reasoning |
+| **Bidirectional Attention** | Attention that lets each token see both past and future positions simultaneously | Enables diffusion models to fix earlier tokens based on later context — a native advantage for infilling and editing |
+| **Infilling** | Generating text to fill in masked or missing positions within an existing sequence | A native use case for diffusion models; harder for AR models that generate strictly left to right |
+| **Block Diffusion (BD3-LMs)** | A hybrid model that applies AR generation across blocks and diffusion within each block | Recovers KV caching and variable-length output while keeping much of the parallel-generation speed |
+| **LLaDA** | "Large Language Diffusion with mAsking" — the foundational open-weight masked diffusion LLM | The canonical research reference for diffusion LLMs; showed competitive quality with similar-size AR models |
+| **Mercury / Mercury 2** | Inception Labs' commercial diffusion LLM with an OpenAI-compatible API | The most accessible production diffusion option in mid-2026; ~1,000–1,200 tokens/sec reported |
+| **DiffusionGemma** | Google's open-weight diffusion model based on the Gemma architecture | An open-source alternative to proprietary diffusion APIs; over 1,000 tokens/sec reported on one datacenter GPU |
+| **TiDAR** | A hybrid system that uses a diffusion model to draft token blocks and an AR model to verify them | Combines diffusion speed with AR quality; reported ~5x AR throughput while preserving the target distribution |
+| **Fast-dLLM v2** | A technique that adapts an existing AR model (Qwen) into a block-diffusion model with a block-wise KV cache | Practical recipe for getting diffusion-speed inference from checkpoints you already have |
+| **d1 (diffu-GRPO)** | A reinforcement learning approach applying GRPO-style RL to masked diffusion LLMs | First method to improve diffusion model reasoning via RL; gains on math and planning benchmarks |
+| **GRPO (Group Relative Policy Optimization)** | An RL training algorithm used to improve model reasoning by comparing a group of sampled outputs | The RL method adapted for diffusion LLMs in the d1 paper |
+| **Tokens Committed per Forward Pass** | The number of tokens finalized in one denoising step | The core metric driving diffusion speedup; AR commits one, diffusion commits many |
+| **Denoising Steps** | The number of iterative refinement passes a diffusion model runs to go from fully masked to clean text | Fewer steps means faster and lower quality; the primary speed-quality knob at inference time |
+| **Dream 7B** | An open-weight diffusion LLM with a tunable denoising-steps knob and strong planning benchmarks | Notable for Sudoku/Countdown task performance; shows diffusion can handle structured reasoning |
+| **Agentic / Tool-Use Workflows** | AI tasks that involve multiple tool calls, function invocations, or multi-step planning across a conversation | A 2026 weakness of diffusion models; AR still dominates here due to better long-context and function-calling support |
+| **KV Cache (diffusion context)** | The mechanism for caching key-value attention pairs; pure diffusion lacks it, but block-diffusion variants recover it | Without KV caching, diffusion models recompute all past context at every step, limiting context efficiency |
+
 *Next: [On-Device and Edge Deployment](09-on-device-and-edge-deployment.md)*

@@ -107,4 +107,31 @@ DoRA (Weight-Decomposed Low-Rank Adaptation) is a 2024 technique that separates 
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **PEFT (Parameter-Efficient Fine-Tuning)** | A class of techniques that fine-tune only a tiny fraction of a model's weights rather than all of them | Enables fine-tuning of large models on limited hardware with low risk of catastrophic forgetting |
+| **LoRA (Low-Rank Adaptation)** | A PEFT method that injects small, trainable rank-decomposition matrices (A and B) alongside the frozen pretrained weight matrices | Achieves adaptation quality close to full fine-tuning while updating less than 1% of parameters |
+| **Rank-Decomposition** | Expressing a large weight update as the product of two smaller matrices (A and B), where the bottleneck dimension is the rank r | Reduces the number of trainable parameters from (d × d) to (d × r + r × d) |
+| **Rank (r)** | The bottleneck dimension of the LoRA adapter matrices, controlling how much capacity the adapter has | Higher rank = more expressive but more memory; lower rank = cheaper but limited for complex tasks |
+| **Alpha (α)** | A LoRA scaling factor applied as alpha/r to the adapter output, normalizing the magnitude of updates | Decouples the learning rate from the rank so you don't need to retune LR when changing r |
+| **Target Modules** | The specific weight matrices inside the transformer (q, k, v, o, gate, up, down projections) that LoRA adapters are attached to | Targeting all linear layers rather than just q/v gives better stability and performance |
+| **QLoRA** | An extension of LoRA where the base model is quantized to 4-bit (NF4) precision, with LoRA adapters remaining in 16-bit | Enables fine-tuning of 70B parameter models on a single A100 GPU |
+| **NF4 (NormalFloat4)** | A 4-bit data type optimized for the normal distribution that LLM weights follow, mapping them to 16 equal-density bins | Achieves higher information density than standard Int4, minimizing accuracy loss at 4-bit precision |
+| **Double Quantization** | Quantizing the constants used to dequantize NF4 weights (the quantization constants themselves) | Saves roughly 0.5 GB of VRAM per model with negligible quality impact |
+| **Paging (Unified Memory)** | Using Nvidia's unified memory system to spill GPU VRAM overflow to CPU RAM seamlessly | Prevents out-of-memory crashes during fine-tuning without requiring a smaller batch size |
+| **DoRA (Weight-Decomposed Low-Rank Adaptation)** | A LoRA variant that separately learns the magnitude and direction of weight updates, analogous to weight normalization | Converges faster than standard LoRA and often matches full fine-tuning quality even at low ranks |
+| **Magnitude** | In DoRA, a scalar that controls how much the weight changes (the size of the update vector) | Decoupled learning of magnitude and direction allows the model to adjust each independently, improving convergence |
+| **Direction** | In DoRA, the unit vector that controls which way the weight changes in parameter space | Separating direction from magnitude is what gives DoRA its convergence advantage over standard LoRA |
+| **Vera (Vector-based Random Aggregation)** | A PEFT method that uses fixed random projection matrices with a small trainable scalar vector instead of full A and B matrices | Reduces adapter size by ~10x versus LoRA, making it practical for massive-scale multi-adapter serving |
+| **RS-LoRA (Rank-Stabilized LoRA)** | A LoRA variant that scales the adapter output by alpha/sqrt(r) instead of alpha/r | Allows stable training at very high ranks (256+) without needing to lower the learning rate |
+| **Multi-LoRA Serving** | Running a single base model in memory while dynamically swapping different LoRA adapters per request | Enables serving many specialized models (finance, legal, medical) with the memory cost of one base model |
+| **Adapter** | A set of lightweight trained weights (e.g., a LoRA A+B pair) that modify a frozen base model's behavior | The modular unit that can be swapped or stacked to give the base model different skills |
+| **Continuous Batching** | Dynamically adding new requests to the inference batch as others complete, rather than waiting for a full batch | Maximizes GPU utilization and throughput in production serving |
+| **PagedAttention** | A memory management technique that stores KV cache in non-contiguous pages, similar to OS virtual memory | Greatly increases the number of concurrent requests a single GPU can serve |
+| **Weight Normalization** | Decomposing a weight matrix into magnitude and direction for more stable optimization | The inspiration for DoRA's design; improves gradient conditioning during training |
+
+---
+
 *Next: [RLHF and DPO](04-rlhf-and-dpo.md)*

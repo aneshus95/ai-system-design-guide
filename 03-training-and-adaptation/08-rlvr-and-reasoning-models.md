@@ -147,4 +147,37 @@ GRPO drops PPO's value/critic network, which for an LLM roughly doubles memory, 
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RLVR (Reinforcement Learning with Verifiable Rewards)** | An RL training method that rewards the model using an external, deterministic checker (math verifier, code executor) instead of a learned reward model | Scales more stably than RLHF for reasoning tasks because the reward cannot be gamed the way a neural reward model can |
+| **Verifier** | A deterministic program that checks whether a model's answer is correct — e.g., a math solver or code test runner | The external oracle that replaces the neural reward model in RLVR, grounding rewards in objective truth |
+| **Policy** | In RL, the model being trained; here, the LLM that generates chains of thought and final answers | The entity whose behavior is shaped by the reward signal through gradient updates |
+| **Policy Gradient** | A class of RL algorithms that update the model by increasing the probability of actions (token sequences) that received high rewards | The mathematical framework underlying GRPO, PPO, and RLOO for training LLMs with RL |
+| **GRPO (Group Relative Policy Optimization)** | An RL algorithm that replaces PPO's learned value/critic network with a group-of-samples baseline computed from the reward statistics of multiple completions | Saves the memory cost of a second critic model and is well-suited to single terminal verifiable rewards |
+| **Group-Relative Advantage** | The z-score of a completion's reward within its group (mean-subtracted, std-normalized), used as the advantage signal in GRPO | Provides a critic-free baseline that is cheap to compute and naturally scales with the group reward distribution |
+| **PPO (Proximal Policy Optimization)** | A popular RL algorithm for LLMs that uses a learned value/critic network as a baseline and clips the policy update ratio to prevent large steps | The predecessor to GRPO; requires a separate value network roughly doubling memory for large models |
+| **Value / Critic Network** | A second model trained alongside the policy that estimates the expected future reward from any given state | Used in PPO to compute the advantage baseline; eliminated in GRPO to save memory |
+| **Chain of Thought (CoT)** | A step-by-step reasoning trace the model writes out before giving a final answer | The primary object trained by RLVR — long, correct CoT traces emerge from correctness-only rewards |
+| **Zero-Variance Collapse** | A GRPO failure mode where all completions in a group get the same reward (all correct or all wrong), making advantages zero and producing no gradient | Silently reduces the effective training batch size as the model improves, slowing or stopping learning |
+| **DAPO (Dynamic Sampling Policy Optimization)** | A GRPO variant that filters out all-correct and all-wrong groups, clips differently, uses token-level loss, and drops the KL term | Fixes zero-variance collapse and length bias while being more stable than vanilla GRPO |
+| **Dr.GRPO** | A GRPO variant that removes the length and std-deviation normalization terms responsible for length bias | Prevents the model from artificially inflating response length to spread high advantages over more tokens |
+| **GSPO (Group Sequence Policy Optimization)** | A GRPO variant that defines the probability ratio on whole-sequence likelihood rather than per-token ratios | Stabilizes RL for Mixture-of-Experts models where per-token routing differences make token-level ratios noisy |
+| **MoE (Mixture of Experts)** | A model architecture where different subsets of parameters ("experts") handle different tokens or tasks | Used in large frontier models; requires GSPO rather than vanilla GRPO due to routing instability in RL |
+| **Reward Hacking** | When the model learns to maximize the measured reward through unintended shortcuts rather than genuine capability | A fundamental RL failure mode; RLVR reduces it versus RLHF but does not eliminate it entirely |
+| **Goodhart's Law / Over-optimization** | The principle that once a measure becomes a target, it ceases to be a good measure; the model optimizes the proxy, not the true goal | The conceptual root of reward hacking — why RLHF reward models degrade as the policy over-exploits them |
+| **Spurious Rewards** | A finding that GRPO with random or incorrect rewards still improves some model families, suggesting the gain came from pretraining amplification rather than RL | Warns against attributing RLVR gains to the reward signal without testing across multiple model families |
+| **Mid-Training** | A stage between general pretraining and RL that continues training on a curated, reasoning-dense data mixture | Raises base competence that RL then sharpens; often more compute-efficient than doing RL alone |
+| **Pass@1** | The probability that a model produces a correct answer on the first try for a given problem | Measures practical utility; RL typically raises pass@1 but can narrow the diversity of reasoning paths |
+| **Pass@K** | The probability that at least one of K sampled attempts is correct for a given problem | Measures the breadth of the model's capability distribution; used to test whether RL adds new capability or just sharpens existing ones |
+| **Off-Policy Distillation** | Training a student model on a fixed set of reasoning traces generated by a teacher (e.g., DeepSeek-R1's 800K traces) | A cheaper alternative to RLVR that often outperforms direct RL on smaller models within a known domain |
+| **On-Policy Distillation** | Training a student on its own generated completions but supervised with dense per-token targets from a teacher's distribution | Combines on-policy relevance with dense, stable signal; reported ~10x more sample-efficient than RL for reasoning |
+| **Exposure Bias** | The gap between training (the model sees teacher-forced correct tokens) and inference (the model sees its own possibly wrong tokens) | A downside of off-policy SFT distillation; on-policy methods reduce it by training on the model's own outputs |
+| **Faithfulness (of CoT)** | Whether the model's written reasoning steps actually reflect the computation that produced its final answer | A key evaluation concern — RLVR can reward unfaithful CoT that reaches the right answer through bad logic |
+| **Benchmark Contamination** | When evaluation benchmarks appear in training data, causing inflated scores that do not reflect real capability | A key evaluation trap for RLVR models; requires held-out or fresh competition problems to detect |
+| **Length Drift** | The tendency of RL-trained models to produce increasingly long responses as a reward-hacking strategy | A smoke alarm for reward gaming; monitor response length as a proxy for unhealthy optimization |
+
+---
+
 *Next: [Inference Fundamentals](../04-inference-optimization/01-inference-fundamentals.md)*

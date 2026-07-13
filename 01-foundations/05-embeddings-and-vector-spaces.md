@@ -542,4 +542,50 @@ For most applications, 768-1024 dimensions provide good balance. The exception i
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Embedding** | A dense floating-point vector that represents text (word, sentence, or document) in a high-dimensional space | Encodes semantic meaning so that similar texts end up close together; enables similarity search |
+| **Vector Space** | A high-dimensional coordinate system where text is placed such that semantic relationships become geometric ones | Foundation of embedding-based retrieval; similarity = closeness in this space |
+| **Dimensionality** | The number of coordinates (float values) in an embedding vector, typically 256–4096 | Higher dimensions can capture more information but cost more storage and search time |
+| **Word2Vec** | A 2013 model that learns static word embeddings using skip-gram or CBOW objectives | Demonstrated that word meaning can be encoded as vectors with arithmetic properties (king − man + woman ≈ queen) |
+| **GloVe** | A word embedding model trained on global word co-occurrence statistics from a corpus | Produces static embeddings; computationally efficient but context-insensitive like Word2Vec |
+| **FastText** | A word embedding model that represents words as sums of their subword character n-grams | Handles out-of-vocabulary words by decomposing them into known subword pieces |
+| **Static Embedding** | One fixed vector per word regardless of context | Limitation of early models; "bank" in "river bank" and "bank account" gets the same vector |
+| **Contextual Embedding** | A vector for a word that changes depending on surrounding words | Produced by transformer models; captures polysemy and nuance |
+| **Bi-Encoder** | Architecture where query and document are each encoded separately into a single vector, then compared | Allows documents to be pre-computed and indexed offline; O(1) lookup per document with ANN |
+| **Cross-Encoder** | Architecture where query and document are concatenated and fed jointly into the model | More accurate than bi-encoder but cannot pre-index; used for reranking top-K candidates |
+| **Mean Pooling** | Averaging all token embeddings across a sequence to produce one sentence vector | Simple and effective aggregation; most common pooling strategy in modern embedding models |
+| **CLS Token** | A special [CLS] token prepended to BERT-style inputs; its output is used as the sequence embedding | Standard aggregation for BERT-family models; trained to summarize the full input |
+| **Contrastive Learning** | Training objective that pulls embeddings of similar pairs closer and pushes dissimilar pairs apart | The dominant training paradigm for modern embedding models; produces semantically structured spaces |
+| **Hard Negatives** | Training examples that are similar to the anchor but not truly relevant (e.g., BM25 near-misses) | Makes contrastive training harder and more discriminative; critical for retrieval quality |
+| **In-Batch Negatives** | Using other items in the same training batch as negative examples for each anchor | Efficient training strategy; larger batches provide more negatives and better gradient signal |
+| **Temperature (τ)** | A scaling factor in contrastive loss controlling how sharply the model distinguishes positives from negatives | Lower τ makes the model more discriminating; a key hyperparameter for embedding quality |
+| **Instruction-Tuned Embeddings** | Embedding models that accept a task description prefix to specialize their output | Allows one model to serve multiple retrieval tasks; improves performance when task is specified |
+| **Cosine Similarity** | Similarity measure based on the angle between two vectors, ignoring their magnitudes | Default metric for text embeddings; range [−1, 1]; invariant to vector length |
+| **Dot Product** | Sum of element-wise products of two vectors; equals cosine similarity for unit-norm vectors | Computationally efficient; preferred when embeddings are already normalized |
+| **Euclidean Distance** | Straight-line distance between two vectors in the embedding space | Less common for text; affected by magnitude; more natural for image embeddings |
+| **ANN (Approximate Nearest Neighbor)** | Algorithms that find the closest vectors to a query without comparing against all candidates | Enables sub-millisecond retrieval over millions of embeddings; used in all vector databases |
+| **MTEB (Massive Text Embedding Benchmark)** | A standard benchmark suite covering retrieval, classification, clustering, and reranking tasks | The primary leaderboard for comparing embedding model quality across tasks |
+| **Matryoshka Representation Learning (MRL)** | Training embeddings such that any prefix of the full vector is also a valid, useful embedding | Enables using shorter embeddings for fast first-stage retrieval and full embeddings for reranking |
+| **Late Chunking** | Embedding the full document first, then pooling token-level embeddings at chunk boundaries | Each chunk's embedding retains full-document context from self-attention; improves retrieval precision |
+| **Traditional Chunking** | Splitting a document into pieces first, then embedding each chunk independently | Simpler but each chunk loses context from other parts of the document |
+| **Binary Quantization** | Reducing each float in an embedding to a single bit (positive → 1, negative → 0) | 32× storage reduction; enables billions of vectors in memory; ~5–10% quality loss |
+| **Scalar (Int8) Quantization** | Reducing each float in an embedding to an 8-bit integer | 4× storage reduction; under 1% quality loss; widely supported in vector databases |
+| **ColBERT** | Late-interaction retrieval model that stores per-token embeddings and computes MaxSim at query time | Higher precision than single-vector bi-encoders; 10–100× storage cost; used for critical retrieval |
+| **Late Interaction** | Computing token-level similarity between query and document embeddings at query time rather than using one vector per item | Preserves more lexical precision than single-vector retrieval; the core idea behind ColBERT |
+| **MaxSim** | ColBERT's scoring function: for each query token, find its maximum similarity to any document token, then sum | Captures fine-grained lexical matches while remaining efficient within the late-interaction framework |
+| **RAGatouille** | Python library providing a high-level interface for ColBERT indexing and retrieval | Simplifies integration of ColBERT-style late interaction into RAG pipelines |
+| **BM25** | A classical lexical ranking algorithm based on term frequency and inverse document frequency | Used to mine hard negatives during embedding training and as a baseline for hybrid retrieval |
+| **Embedding Drift** | Incompatibility between embeddings produced by different models or different versions of the same model | Requires re-embedding the entire corpus when the embedding model changes; must be planned for |
+| **Blue-Green Deployment** | Running two parallel indexes (old and new embeddings) simultaneously during a migration | Enables atomic, zero-downtime cutover when updating the embedding model |
+| **RAG (Retrieval-Augmented Generation)** | Architecture that retrieves relevant documents via embeddings and feeds them as context to an LLM | Combines the accuracy of retrieval with the generative power of LLMs; depends heavily on embedding quality |
+| **Vector Database** | A database system optimized for storing, indexing, and querying high-dimensional embedding vectors | Infrastructure layer enabling semantic similarity search at production scale |
+| **Pinecone / Qdrant / Weaviate** | Popular managed and open-source vector databases supporting cosine, dot product, and Euclidean metrics | Infrastructure choices for embedding-based retrieval; differ in scalability, filtering, and deployment model |
+| **Normalization** | Scaling an embedding vector to unit length (L2 norm = 1) | Makes dot product equivalent to cosine similarity; standard preprocessing for most retrieval systems |
+| **Reranking** | A second-pass scoring step that applies a more expensive model (cross-encoder or ColBERT) to re-order top-K candidates | Improves retrieval precision after fast first-stage ANN retrieval |
+
 *Previous: [Transformer Architecture](04-transformer-architecture.md) | Next: [Inference Pipeline](06-inference-pipeline.md)*

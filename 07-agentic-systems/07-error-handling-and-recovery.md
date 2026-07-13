@@ -81,4 +81,29 @@ Silent failures are the most dangerous. We implement **Output Validation Agents*
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Hallucinated Tool** | When a model tries to call a tool that does not exist in its available tool list | A common agent failure mode that must be caught and handled gracefully |
+| **Schema Violation** | Passing incorrectly typed or structured arguments to a real tool | Causes tool execution to fail even when the right tool is chosen |
+| **Environment Error** | A failure where the external API or system the tool connects to is unavailable or broken | An external failure the agent cannot fix on its own, requiring a fallback strategy |
+| **Logical Stall** | When an agent gets stuck repeating the same failing action without making progress | The most expensive agentic failure mode, often resulting in infinite loops |
+| **ReAct Loop of Death** | An informal name for a stalled ReAct agent that retries the same broken action forever | Describes the most common infinite loop failure pattern |
+| **Self-Correction Loop** | Feeding an error message back into the model as a prompt so it can reason about what went wrong and try a different approach | Treats errors as useful information rather than stopping conditions |
+| **Error Injection** | Intercepting a runtime exception and converting it into a structured observation the model can reason about | Allows the agent to adapt its plan around failures rather than crashing |
+| **Synthesized Observation** | A formatted error message constructed by the platform to be fed back to the model as if it were a tool result | Enables the model to treat errors the same way it treats any other observation |
+| **Stateful Rollback** | Resetting an agent's state to a previously saved checkpoint after detecting it is stuck | Prevents a late-stage failure from invalidating all prior work |
+| **Checkpoint** | A saved snapshot of the agent's state after each successful step, stored in a persistent database | Enables recovery from failures without restarting from the beginning |
+| **State Snapshot** | A complete copy of the agent's memory and progress captured at a specific point in time | The artifact written at each checkpoint to enable rollback |
+| **Counter-Based Intervention** | A rule that triggers when the same tool-and-arguments combination has been called N times in one session | Detects stuck loops reliably using simple counting, not complex ML |
+| **Pivot Instruction** | A mandatory injected message that forces the agent to change strategy after a detected loop | Breaks the agent out of a dead-end without requiring human intervention |
+| **Graceful Degradation** | Falling back to a simpler, more reliable mode of operation when the primary agent keeps failing | Ensures the user still gets some useful response even when the full agent cannot complete its task |
+| **RAG-only Mode** | A fallback where the agent disables all action tools and only answers from its knowledge base | Provides a safe, reliable response when the action-taking agent is failing |
+| **Output Validation Agent** | A smaller, fast model that checks whether a tool's output actually answers the intended query | Catches silent failures where a tool returns HTTP 200 but the data is wrong or irrelevant |
+| **Silent Failure** | A failure where a tool returns a success code but the data it returns is incorrect or meaningless | The most dangerous failure type because it goes undetected without explicit output validation |
+| **Try/Catch** | A traditional programming construct that catches exceptions when code fails | Insufficient for agentic systems because it stops execution instead of giving the agent a chance to recover |
+
 *Next: [Human-in-the-Loop Patterns](08-human-in-the-loop-patterns.md)*

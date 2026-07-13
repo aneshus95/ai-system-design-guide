@@ -255,4 +255,33 @@ Three things. First, **fewer bad inputs leak through**. The LLM-facing schema is
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Pydantic AI** | A Python agent framework built by the Pydantic team that enforces strict output types and typed tool signatures. | Eliminates silent schema drift by making the LLM output a validated Pydantic model rather than a raw string. |
+| **Mastra** | A TypeScript-first agent framework with a built-in local dev server, workflows, memory, RAG, and one-command cloud deploy. | Provides a Vercel-style developer experience for building and shipping typed agents in the JavaScript/TypeScript ecosystem. |
+| **Typed Agent** | An agent whose output type, tool inputs, and tool outputs are all enforced by the type system at both compile time and runtime. | Catches schema mismatches between the LLM and downstream code before they cause silent production failures. |
+| **output_type** | A Pydantic AI `Agent` parameter that specifies the Pydantic model the agent must return. | Guarantees that `result.output` is the declared type or the call raises an error, eliminating untyped string outputs. |
+| **RunContext** | Pydantic AI's typed dependency container passed to every tool function, carrying injected services and settings. | Makes agents trivially unit-testable by allowing tools to receive mock dependencies instead of real ones. |
+| **Dependency Injection** | A design pattern where a component receives its dependencies from an external caller rather than constructing them internally. | Enables clean unit tests of agent tools by replacing database or API clients with mocks. |
+| **pydantic_evals** | Pydantic AI's declarative evaluation module for running LLM-judge and code-graded eval suites. | Allows the same Pydantic model used for production output to serve as the expected-output type in evaluations. |
+| **Graph API (Pydantic AI)** | An optional Pydantic AI abstraction for defining explicit state machines when the simple agent loop is insufficient. | Provides a more structured alternative for multi-step workflows without requiring a full LangGraph dependency. |
+| **Provider Adapter** | A thin wrapper in Pydantic AI or Mastra that translates calls to a specific LLM provider API into the framework's unified interface. | Allows switching between Anthropic, OpenAI, Google, and local models by changing one line. |
+| **OpenTelemetry (OTLP)** | An open-source, vendor-neutral standard for collecting and exporting traces, metrics, and logs from applications. | Enables Pydantic AI traces to be sent to any compatible observability backend (Logfire, Jaeger, Datadog, etc.). |
+| **Pydantic Logfire** | A cloud observability platform built by the Pydantic team that ingests OpenTelemetry traces with Pydantic-aware display. | Provides a first-party dashboard for monitoring Pydantic AI agents with rich schema-aware trace visualization. |
+| **Mastra dev** | The local development server shipped with Mastra that provides a playground UI, eval runner, and trace viewer. | Eliminates the need to write a custom frontend to interactively test agents and inspect tool inputs and outputs. |
+| **Workflow (Mastra)** | A typed graph of steps (agents and tools) with branching, suspend/resume, and human-in-the-loop, all type-checked. | Provides a structured, type-safe alternative to hand-coding multi-step agent logic with explicit control flow. |
+| **Suspend / Resume** | A workflow capability that pauses execution at a defined step and continues after receiving an external signal or human input. | Enables durable, long-running workflows that can wait for approvals or external events without polling. |
+| **Vercel AI SDK** | Vercel's open-source library for building AI-powered applications with streaming, tool calls, and multi-provider support in JavaScript/TypeScript. | The underlying provider-call layer that Mastra builds on top of for streaming and model interaction. |
+| **Zod** | A TypeScript schema declaration and validation library used by Mastra for tool input/output schemas. | Provides the single source of truth for both runtime validation and TypeScript type inference in Mastra tools. |
+| **Schema Drift** | A silent divergence between the schema the LLM is told to produce and the schema the application code expects to receive. | The core failure mode that typed agent frameworks like Pydantic AI and Mastra are designed to prevent. |
+| **Elastic License v2** | A source-available software license that allows free use and modification but restricts commercialized hosting of the software as a service. | The license under which Mastra is published, permitting most enterprise production use while protecting the project's commercial interests. |
+| **libsql / pgvector** | Storage adapters for SQLite (via libsql) and PostgreSQL (via the pgvector extension) used by Mastra for memory and RAG. | Provides out-of-the-box vector storage for agent memory without requiring a dedicated vector database. |
+| **useChat / streamText** | Vercel AI SDK primitives for streaming chat UI and streaming text generation in Next.js applications. | Give Mastra-powered agents a ready-made real-time streaming interface without custom WebSocket or SSE code. |
+| **FastAPI** | A Python web framework for building APIs with automatic Pydantic-based request and response validation. | The canonical pairing for Pydantic AI: the same Pydantic models validate both the HTTP boundary and the LLM output type. |
+| **Time-Travel Debugging** | The ability to replay a workflow from any previously saved checkpoint, not just the most recent one. | Enables engineers to reproduce and fix failures by branching from the exact historical state where a problem occurred. |
+
 *Next: See the [Framework Selection Guide](08-framework-selection-guide.md) for cross-framework selection criteria.*

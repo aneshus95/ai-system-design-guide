@@ -86,4 +86,35 @@ Tier 3 (Semantic Memory) must be **Sharded by Namespace**. Each user or organiza
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Three-Tiered Cognitive Architecture** | A layered memory model (L1, L2, L3) that mirrors how human cognition organises fast recall, recent experiences, and deep knowledge | Provides a framework for designing AI memory systems that balance speed, cost, and depth |
+| **L1 (Working Memory)** | The active, in-context "scratch pad" the model reads and writes to during a single inference call | Fastest tier; holds whatever the model is currently reasoning about |
+| **L2 (Episodic Memory)** | Storage of past events and interaction histories retrieved via semantic search | Allows an agent to recall what happened in previous sessions |
+| **L3 (Semantic Memory)** | Permanent store of facts, rules, and relationships that rarely change | Acts as the ground truth knowledge base across all users and sessions |
+| **Context Window** | The maximum number of tokens an LLM can read at one time (e.g., 128K tokens) | Sets the hard upper bound on how much information fits in L1 at once |
+| **KV Cache** | Pre-computed key-value pairs stored on GPU memory so repeated tokens are not reprocessed | Reduces latency and compute cost for calls that share a common prefix |
+| **Sliding Window** | A context management strategy that retains only the most recent N tokens and drops older ones | Keeps context size constant without summarisation overhead |
+| **Prefix Caching** | Reusing the cached KV state for a static prefix (e.g., system prompt) across many requests | Cuts compute cost and latency for repeated prefixes like tool schemas |
+| **Vector Database** | A specialised database (Pinecone, Weaviate, Qdrant) that stores and searches high-dimensional embedding vectors | Enables fast fuzzy semantic retrieval for episodic and semantic memories |
+| **Semantic Search** | Finding documents or memories by meaning rather than exact keyword match | Lets an agent retrieve relevant history even when wording differs |
+| **Experience Replay** | Retrieving past successful trajectories and using them to inform current decisions | Helps agents avoid repeating mistakes and leverage proven strategies |
+| **Knowledge Graph** | A graph-based data structure where nodes are entities and edges are relationships (e.g., Neo4j) | Enables traversal of connected facts, useful for structural semantic knowledge |
+| **Mem0** | A managed memory service that extracts structured facts from conversations and stores them persistently | Provides a ready-made L3 layer without building custom extraction pipelines |
+| **Zep** | A production memory service with built-in temporal awareness for agent conversations | Tracks when facts were learned and prioritises recency |
+| **Letta** | An agent memory framework designed for long-running agents with OS-style paging of memory in and out | Handles memory that exceeds what fits in a single context window |
+| **Cognee** | A memory service that organises knowledge as a graph-first structure for RAG use cases | Ideal when relationship traversal between facts is more important than fuzzy search |
+| **Memory Consolidation** | The process of moving information from transient L1 into persistent L2 or L3 stores | Ensures valuable session content is not lost when the context is cleared |
+| **Temporal Decay** | Reducing the relevance score of older memories that have not been accessed recently | Prevents stale data from crowding out fresher, more accurate memories |
+| **Namespace Sharding** | Partitioning a vector DB or knowledge graph so each user/org has an isolated shard | Prevents data from one tenant leaking into another tenant's queries |
+| **RLS (Row Level Security)** | A database feature that enforces access control at the individual row level | Ensures users can only retrieve their own memory records |
+| **PII-Scrubbing Layer** | A processing step that removes personally identifiable information before data is stored long-term | Prevents sensitive data like passwords or health details from persisting in L3 |
+| **TTFT (Time to First Token)** | The delay between sending a request and receiving the first output token | A key latency metric; grows with context size because the KV cache must be loaded |
+| **Lost in the Middle** | A known LLM failure mode where relevant information buried in the middle of a long context is ignored | Motivates keeping context focused rather than stuffing every available token |
+| **RAG (Retrieval-Augmented Generation)** | A pattern where relevant external documents or memories are retrieved and injected into the prompt before generation | Lets the model answer questions using up-to-date or user-specific knowledge it was not trained on |
+
 *Next: [Short-Term Context Management](02-short-term-context.md)*

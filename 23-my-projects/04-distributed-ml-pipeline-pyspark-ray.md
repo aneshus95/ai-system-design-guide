@@ -167,4 +167,35 @@ The counterfactual/selection bias — you only see the outcome of the route you 
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **PySpark** | Python API for Apache Spark — a distributed data processing engine that splits work across many machines | Handles feature engineering over billions of rows that won't fit on one machine |
+| **Ray** | A Python framework for distributing compute-heavy tasks (training, tuning, simulation) across a cluster | Scales model training and hyperparameter search beyond what a single machine can do |
+| **Ray Data** | Ray's distributed data-loading and preprocessing library that feeds Ray Train pipelines | Bridges from raw data or Spark output to the training loop without a memory bottleneck |
+| **Ray Train** | Ray's distributed training library wrapping PyTorch, XGBoost, and other frameworks | Runs the same training job across multiple GPUs or machines in parallel |
+| **Ray Tune** | Ray's distributed hyperparameter search library with efficient search algorithms | Finds the best model configuration faster than sequential grid search |
+| **Ray Serve** | Ray's model-serving layer for deploying trained models as scalable REST endpoints | Serves the trained routing model at real-time latency inside the auth flow |
+| **RayDP** | A library that runs PySpark inside a Ray cluster so Spark output feeds directly into Ray training | Eliminates data-hand-off overhead when running both Spark and Ray together |
+| **Data Parallelism** | Running the same operation on every row of a dataset in parallel across nodes | Spark's strength; ideal for ETL and feature engineering over large datasets |
+| **Task/Compute Parallelism** | Distributing compute-heavy tasks (model training iterations, trials) across workers | Ray's strength; ideal for distributed training and hyperparameter sweeps |
+| **ETL (Extract, Transform, Load)** | The pipeline that reads raw data, cleans and transforms it, and writes it to a target store | The first stage of any ML pipeline; produces the feature dataset for training |
+| **Lazy Evaluation** | Deferring computation until an action is explicitly triggered | Allows Spark to optimize the full computation plan before running any work |
+| **Delta Lake** | An open-source storage layer on top of Parquet files that adds ACID transactions and versioning | Stores features reliably with schema enforcement and time-travel for point-in-time training |
+| **Feature Store** | A system with an offline store (for training) and an online store (for serving) sharing the same feature definitions | Eliminates training–serving skew by enforcing identical feature logic in both environments |
+| **Training–Serving Skew** | A mismatch between feature values computed offline during training and those computed online at inference | Causes the model to perform worse in production than in evaluation |
+| **Point-in-Time Join** | Joining features to labels using only data that was available before the label's timestamp | Prevents leakage of future information into the training set |
+| **Online Store** | A low-latency key-value store (e.g., Redis) that serves pre-materialized feature vectors at inference time | Enables single-digit millisecond feature lookups inside the authorization flow |
+| **Transaction Routing** | Choosing which card network to route a payment through at authorization time | Optimizing routing for approval rate recovers revenue lost to unnecessary declines |
+| **Authorization Rate** | The percentage of submitted transactions that the issuer or network approves | The primary business metric; even a 0.5% lift is significant at scale |
+| **Least-Cost Routing (LCR)** | Routing a payment to the cheapest eligible network | A constraint that may conflict with approval-rate maximization; motivates multi-objective framing |
+| **Durbin Amendment** | A 2010 U.S. law (Dodd-Frank) requiring debit transactions to be routable over at least two unaffiliated networks | The legal basis for merchant network choice in debit routing |
+| **Class Imbalance** | When one target class (e.g., declined transactions) is much rarer than the other | Naive accuracy metrics are misleading; requires cost-sensitive learning or PR-AUC |
+| **PR-AUC (Precision-Recall AUC)** | Area under the precision-recall curve; more informative than ROC-AUC under class imbalance | Measures model quality for the minority class without being inflated by easy negatives |
+| **Counterfactual / Off-Policy Bias** | The problem that you only observe outcomes for the routes you actually chose, not for alternatives | Training on logged data bakes in the old policy's biases; requires off-policy evaluation to correct |
+| **BIN (Bank Identification Number)** | The first digits of a card number identifying the issuing bank and card type | A key feature for routing models; different issuers have different approval patterns by network |
+
+---
+
 *Previous: [LangGraph Coding Agent](03-langgraph-coding-agent-with-rag.md) | Next: [Graph RAG over BIAN](05-graph-rag-over-bian.md) | Up: [Guide Home](../README.md)*

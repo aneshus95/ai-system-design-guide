@@ -228,4 +228,32 @@ Deterministic mapping of official artifacts (not LLM-guessed) for structural edg
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **BIAN (Banking Industry Architecture Network)** | A global non-profit that defines a standard service-oriented reference architecture for banking with ~300+ reusable capabilities | Provides a shared vocabulary so banking systems and vendors can interoperate |
+| **Service Domain** | BIAN's finest-grained building block — a unique, discrete banking capability that implements one functional pattern on one type of business asset | Maps to one microservice or DDD aggregate in a BIAN-compliant implementation |
+| **Service Landscape** | The classification hierarchy that organizes all Service Domains: Business Area → Business Domain → Service Domain | Provides the containment structure modeled as CONTAINS edges in the graph |
+| **Control Record (CR)** | The aggregate root of a Service Domain — the primary business object it manages end-to-end | Defines the Service Domain's API path root and enforces consistency for sub-capabilities |
+| **Behavior Qualifier (BQ)** | A finer-grained sub-capability owned by a Control Record; modifiable only through the CR context | Shapes the REST API path `/ServiceDomain/{cr}/BehaviorQualifier/{bq}/Operation` |
+| **BOM (Business Object Model)** | BIAN's conceptual data model defining the objects exchanged between Service Domains | Standardizes information exchange; each business object is owned by exactly one Service Domain |
+| **Semantic API** | The collection of REST service operations a Service Domain exposes, derived from BOM and CR scope | The public interface through which Service Domains communicate |
+| **Graph RAG** | A retrieval strategy that builds a knowledge graph and answers questions by traversing edges rather than retrieving similar text chunks | Enables multi-hop, relational answers that vector similarity search cannot reconstruct |
+| **Property Graph (LPG)** | A graph model where both nodes and edges carry typed labels and key-value properties | Best fit for traversal-heavy retrieval; edge attributes require no special workaround |
+| **RDF (Triples)** | A W3C standard graph format using subject-predicate-object triples without native edge properties | Targets formal semantics and linked data; less ergonomic for traversal-heavy workloads |
+| **Neo4j** | A popular native property-graph database with the Cypher query language | Stores the BIAN graph and supports both traversal and vector search in one system |
+| **Cypher** | Neo4j's declarative graph query language using `MATCH (a)-[:REL]->(b)` patterns | Used to traverse BIAN dependency chains, CR-BQ structures, and BOM ownership at query time |
+| **Vector-Cypher (Hybrid Retrieval)** | Combining vector similarity search to find entry-point nodes with Cypher graph traversal to assemble relational context | Provides both semantic fuzzy matching and exact structural traversal |
+| **Node (Graph)** | An entity in the property graph, e.g., a ServiceDomain or BusinessObject, with a type label and properties | Represents a BIAN concept; queried by similarity or exact name |
+| **Edge (Graph)** | A directed, typed relationship between two nodes, e.g., `DEPENDS_ON`, `HAS_BQ`, `OWNS` | The primary way relational context is stored; what graph traversal walks |
+| **LLM Entity/Relationship Extraction** | Using an LLM to parse unstructured text and produce graph nodes and edges | Supplements deterministic ingestion for looser BIAN prose (definitions, business scenarios) |
+| **Microsoft GraphRAG** | A Graph RAG framework from Microsoft that uses LLM extraction, Leiden community detection, and LLM community summaries | Powerful for thematic Q&A over unstructured text; costly and lossy on already-structured corpora |
+| **Leiden Community Detection** | A graph algorithm that partitions nodes into densely connected communities | Used by MS GraphRAG to identify topic clusters for global summarization |
+| **Provenance (Subgraph)** | The traversed nodes and edges returned alongside an answer to explain where it came from | Makes answers auditable — critical when defending a BIAN-compliant design to a client |
+| **DDD Aggregate** | Domain-Driven Design concept for a cluster of related objects managed as a unit by a root entity | Analogy used to explain what a BIAN Service Domain/Control Record represents |
+| **Business Scenario** | A BIAN artifact describing an end-to-end banking process involving multiple Service Domains | Source of cross-domain DEPENDS_ON and EXCHANGES_WITH edges in the graph |
+
+---
+
 *Previous: [Distributed ML Pipeline](04-distributed-ml-pipeline-pyspark-ray.md) | Next: [Shipping-Time Forecasting](06-shipping-time-forecasting-catboost.md) | Up: [Guide Home](../README.md)*

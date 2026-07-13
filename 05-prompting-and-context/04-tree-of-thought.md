@@ -80,4 +80,29 @@ The primary drawback is **Exponential Cost and Latency**. Exploring 3 branches t
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Tree-of-Thought (ToT)** | A prompting architecture where the model explores multiple branching reasoning paths and backtracks from dead ends | Solves problems with large search spaces that linear chains cannot handle reliably |
+| **Chain-of-Thought (CoT)** | A linear prompting technique where the model reasons step-by-step toward a single answer | The simpler predecessor to ToT; best for tasks where one reasoning path is sufficient |
+| **Thought Proposer** | The module in a ToT system that generates 3–5 candidate next steps at each decision point | Enables breadth-first exploration of the solution space |
+| **State Evaluator** | The module that scores each proposed thought as "Good," "Maybe," or "Impossible" | Acts as the quality gate that decides which branches are worth pursuing further |
+| **Search Algorithm** | A method like BFS or DFS that decides the order in which branches are explored | Controls the trade-off between exhaustive coverage and computational cost |
+| **BFS (Breadth-First Search)** | A search strategy that explores all branches at the current depth before going deeper | Finds the shallowest (cheapest) valid solution in a ToT tree |
+| **DFS (Depth-First Search)** | A search strategy that dives deep along one branch before trying alternatives | Useful when early success signals are informative and backtracking is cheap |
+| **Backtracking** | Abandoning a reasoning branch when it is scored below a threshold and returning to a prior decision point | The core mechanism that allows ToT to recover from mistakes in early steps |
+| **Pruning** | Removing branches from the search tree whose score falls below a threshold | Reduces wasted compute by stopping exploration of dead-end reasoning paths |
+| **Hallucination Cascade** | The compounding of errors in a linear chain where a wrong Step 1 corrupts all subsequent steps | The key failure mode that ToT is specifically designed to prevent via backtracking |
+| **Monte Carlo Tree Search (MCTS)** | A probabilistic search algorithm that uses random sampling to estimate branch quality in large trees | Scales ToT to very deep or wide problem spaces with manageable compute |
+| **Search-time Compute Scaling** | Using many small inference calls (100 small prompts) instead of one large one to explore a solution space | Trades latency for quality by spending more compute during inference |
+| **RAD-T (Reasoning-as-Data-Tree)** | A training approach where searcher models are natively trained to manage branching reasoning trees | Bakes ToT capability into the model weights rather than requiring external orchestration |
+| **Commitment Bias** | The tendency of a linear reasoning chain to double down on an incorrect path rather than reconsidering it | The fundamental weakness of CoT that ToT's evaluation-and-backtrack loop addresses |
+| **Hybrid Model (ToT)** | Using ToT for high-stakes offline tasks and distilling results into a fast linear model for real-time use | Balances the quality of tree search against the latency and cost constraints of live applications |
+| **Exponential Cost** | The rapid multiplication of LLM calls as tree depth and branching factor increase | The primary practical limitation of ToT that must be managed through pruning and hybrid designs |
+| **LLM Call** | A single request-response round-trip to a language model | The unit of cost and latency in ToT; minimizing calls while maximizing coverage is the key design challenge |
+| **Circular Dependency** | A situation in code or logic where A depends on B and B depends on A, making the solution impossible | An example of the "global consistency" issue that ToT detects via evaluation before committing to code |
+
 *Next: [Context Engineering](05-context-engineering.md)*

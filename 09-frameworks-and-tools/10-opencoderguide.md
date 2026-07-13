@@ -525,4 +525,34 @@ I also track **regression rate** — if an agent fix introduces a new failing te
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Open-Weight Model** | An LLM whose trained weights are publicly released, allowing anyone to download, self-host, and fine-tune it. | Enables enterprises with data-privacy or cost requirements to run capable coding models entirely on their own infrastructure. |
+| **Qwen2.5-Coder** | Alibaba's family of open-weight coding models ranging from 1.5B to 32B parameters. | Provides a commercially licensed, self-hostable coding model competitive with frontier closed models for many tasks. |
+| **DeepSeek-Coder-V2** | DeepSeek's open-weight coding model using a Mixture-of-Experts architecture with 236B total but only ~21B active parameters. | Delivers high-quality code generation with lower inference cost than a dense model of comparable capability. |
+| **StarCoder2** | BigCode's open-weight coding model family, released under the BigCode OpenRAIL-M license. | Provides a fully open coding model well-suited to low-latency IDE completions. |
+| **DeepSeek-R1-Distill** | A smaller model produced by distilling the reasoning capability of DeepSeek-R1 into a Qwen or Llama backbone. | Brings reasoning-quality code generation to self-hosted deployments that cannot run the full 671B R1 model. |
+| **MoE (Mixture of Experts)** | A model architecture where the full parameter set is divided into specialized sub-networks ("experts"), and only a subset activates for each token. | Reduces inference cost per token compared to a dense model of the same total parameter count. |
+| **FIM (Fill-in-the-Middle)** | A model capability that predicts missing code given both the text before and after the gap. | Powers IDE autocomplete features where the cursor position is in the middle of existing code. |
+| **vLLM** | A high-throughput inference server for open-weight LLMs. | Efficiently serves large models on GPU hardware, enabling production-grade self-hosted deployments. |
+| **SWE-bench Verified** | A benchmark measuring an agent's ability to resolve real GitHub issues from open-source repositories. | Industry-standard metric for comparing autonomous coding agents on real software engineering tasks. |
+| **HumanEval+** | An extended version of the HumanEval benchmark with additional test cases to reduce false positives. | Evaluates a model's ability to write correct Python functions from docstring descriptions. |
+| **LiveCodeBench** | A benchmark of fresh competitive programming problems not included in model training data. | Provides a harder, contamination-free signal of a model's true algorithmic reasoning ability. |
+| **Cursor** | A VS Code fork with deep AI integration featuring multi-file agentic editing (Composer) and predictive completions. | The leading AI-native IDE for developers who want agentic editing within a familiar graphical interface. |
+| **Windsurf** | A VS Code fork by Codeium that differentiates via Flows (deterministic agentic sequences) and a generous free tier. | Provides a Cursor-like experience with model flexibility and no subscription required for basic use. |
+| **OpenHands** | An open-source autonomous coding agent that runs in a Docker sandbox and supports any LLM backend. | Gives teams full control over the agent runtime, model choice, and code isolation without proprietary infrastructure. |
+| **Aider** | An open-source, terminal-first coding agent that integrates natively with git, committing changes as it works. | Maintains a clean, reviewable git history as the agent makes changes, making code audit straightforward. |
+| **Cline** | An open-source VS Code extension for autonomous coding with full MCP support and per-action permission prompts. | Delivers autonomous coding inside VS Code with no subscription and full model flexibility. |
+| **Google Antigravity** | Google's agentic development platform, the successor to the Gemini CLI, with a multi-agent manager UI. | Lets developers delegate coding goals to multiple concurrent agents and review plans and artifacts before execution. |
+| **Cascade** | Windsurf's internal name for its agentic editing mode. | The engine that handles multi-file autonomous code changes within the Windsurf IDE. |
+| **Composer** | Cursor's multi-file agentic editing feature, analogous to Claude Code's autonomous loop. | Enables Cursor users to give a high-level instruction and have the agent implement changes across multiple files. |
+| **Context Map** | Aider's internal representation of the entire codebase structure, even for files not explicitly added to the active context. | Allows Aider to make correct cross-file changes without the user having to manually specify every relevant file. |
+| **Domain-Specific Language (DSL)** | A programming language or syntax designed for a specific problem domain within one organization. | Understanding this term motivates fine-tuning open models on internal code, since closed APIs cannot be customized. |
+| **Tensor Parallel** | A GPU distribution strategy that splits a model's weight matrices across multiple GPUs so large models fit in memory. | Enables self-hosting of 32B+ parameter models on multi-GPU configurations without quantization. |
+| **Regression Rate** | The proportion of agent-generated changes that introduce new failing tests in a previously passing test suite. | A hard failure metric for CI-integrated coding agents; a good agent should never increase the number of failing tests. |
+
 *Previous: [Claude Code](09-claude-code.md) | Next: [Framework Selection Guide](08-framework-selection-guide.md)*

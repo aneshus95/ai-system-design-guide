@@ -505,4 +505,42 @@ MMLU has several problems for specific use cases:
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **MMLU** | Massive Multitask Language Understanding; a broad multiple-choice benchmark across 57 academic subjects | Used for initial model filtering; not a substitute for domain-specific evaluation |
+| **HumanEval** | A benchmark of Python coding problems scored by unit-test pass rate | Standard proxy for code generation capability |
+| **GSM8K** | A dataset of grade-school math word problems used to measure arithmetic and reasoning | Tests whether a model can follow multi-step mathematical logic |
+| **Benchmark Contamination** | When a model has seen benchmark test questions during training, inflating its scores | Makes public benchmarks unreliable for direct quality comparisons |
+| **Hallucination** | When a model generates confident-sounding text that is factually wrong or fabricated | A core quality risk in production; measured separately from accuracy |
+| **LLM-as-Judge** | Using one language model to score or compare the outputs of another model | Scalable alternative to human evaluation for subjective quality metrics |
+| **Pairwise Elo** | An evaluation method where two models answer the same query and a judge picks the winner; ratings update like chess Elo | More robust than rubric scoring because it produces relative rankings unaffected by absolute scale drift |
+| **Elo Rating** | A numerical ranking system updated after each head-to-head comparison | Enables consistent internal leaderboards that track model quality over time |
+| **CoT (Chain-of-Thought)** | A reasoning technique where the model thinks step-by-step before giving an answer | Improves accuracy on complex tasks; useful for auditing reasoning quality |
+| **Thinking Mode / Extended Thinking** | A model operating mode where internal reasoning tokens are generated before the final output | Boosts performance on hard problems at the cost of higher latency and token spend |
+| **Hybrid Mode** | A mode where the user or system controls how much reasoning the model performs per query | Balances cost and quality by applying deep reasoning only when the query warrants it |
+| **Logic Efficiency** | A metric defined as accuracy divided by the number of inference tokens used | Identifies when a model is wasting compute on over-thinking simple queries |
+| **Model Arbitration** | Routing incoming queries through a cheap fast model to decide whether the query needs an expensive thinking-mode model | Cuts the latency and cost penalty of extended thinking for simple requests |
+| **Needle-in-a-Haystack** | An evaluation that hides a specific fact deep inside a long document and asks the model to retrieve it | Tests whether a model reliably uses its entire context window, not just nearby text |
+| **Context Recall** | How accurately a model retrieves information from different positions across its context window | Critical quality dimension for long-context RAG and document analysis |
+| **Window Recall** | The percentage of factual queries answered correctly when the answer is at the 90% depth of the context window | Concrete measurement of whether a model truly uses its full stated context length |
+| **Cross-Document Reasoning** | The ability to link information spread across multiple documents or widely separated positions in one long context | Required for synthesizing answers from large codebases, legal corpora, or multi-file projects |
+| **Contextual Noise Resistance** | A model's accuracy when most of the context window is filled with irrelevant content | Measures whether the model stays focused on the relevant needle amid distracting filler |
+| **Evaluation Set Leakage** | Using the same data samples for both prompt engineering and final evaluation | Produces falsely optimistic scores; the held-out test set must never be seen during tuning |
+| **Ground Truth** | The correct or expected answer used to score a model's response | The reference against which model outputs are judged for accuracy |
+| **Semantic Similarity** | A measure of how close two pieces of text are in meaning, typically computed with embedding cosine distance | Alternative to exact match; captures paraphrase and synonym variants of a correct answer |
+| **Cosine Similarity** | A mathematical score (–1 to 1) of how similar two vectors are in direction | Used in semantic caching, embedding search, and evaluating response similarity to ground truth |
+| **Confidence Interval** | A range of values that, with stated probability, contains the true metric value | Required when reporting benchmark scores to show whether differences are statistically meaningful |
+| **Shadow Mode** | Running a new model on live traffic in parallel without serving its responses to users | Safe way to validate production quality before a full rollout |
+| **A/B Testing** | Splitting live traffic between two model variants and comparing outcome metrics | Production validation method that uses real users to confirm a model change is beneficial |
+| **P50 / P99 Latency** | The median (P50) and 99th-percentile (P99) response times; P99 represents the worst-case experience for most users | Used to size infrastructure and SLAs; P99 matters most for user-facing latency budgets |
+| **CSAT (Customer Satisfaction Score)** | A survey metric collected after an interaction, typically a 1–5 or thumbs-up/down rating | Business-level signal for whether model quality improvements translate to user value |
+| **Rubric Scoring** | Judging responses on a fixed numeric scale (e.g., 1–5) against explicit criteria | Simple but prone to judge fatigue and scale drift; supplemented by pairwise Elo in modern systems |
+| **Overfitting to Benchmarks** | When a model is tuned to score well on specific tests rather than on general real-world tasks | Means high benchmark scores do not guarantee good task performance |
+| **Quality-Adjusted Cost** | A metric combining model quality score and cost per query into a single efficiency number | Allows fair comparison across models that trade off quality and price differently |
+| **Temperature** | A parameter controlling the randomness of a model's output; higher values produce more varied responses | Must be set above 0 when measuring model variance across repeated runs of the same prompt |
+
+---
+
 *Previous: [Model Taxonomy](01-model-taxonomy.md) | Next: [Pricing and Costs](03-pricing-and-costs.md)*

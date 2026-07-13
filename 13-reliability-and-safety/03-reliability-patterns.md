@@ -596,4 +596,36 @@ With circuit breaker: after detecting the outage, requests fail fast. System rem
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Retry** | Automatically re-attempting a failed request after a short wait | Recovers from transient errors like network hiccups or momentary overload |
+| **Exponential Backoff** | Each retry waits twice as long as the previous one | Prevents the system from hammering an already-stressed provider during recovery |
+| **Jitter** | Adding a random amount to the backoff delay | Prevents all retrying clients from firing at the same moment (thundering herd) |
+| **Thundering Herd** | Many clients simultaneously retrying after a shared failure, overwhelming the recovering service | A problem that jitter in backoff delays is specifically designed to prevent |
+| **Retryable Error** | An error type where retrying may succeed, such as rate limits or timeouts | Signals that the failure is transient and worth attempting again |
+| **Non-Retryable Error** | An error type where retrying will not help, such as authentication or invalid request errors | Signals that the client must fix the request before trying again |
+| **Circuit Breaker** | A mechanism that stops sending requests to a failing provider after a threshold of failures | Prevents wasting latency on a provider that is clearly down and gives it time to recover |
+| **Circuit State: Closed** | The normal state where all requests flow through | Indicates the provider is healthy |
+| **Circuit State: Open** | The failure state where all requests are immediately rejected | Stops hammering the failing provider and fails fast for callers |
+| **Circuit State: Half-Open** | A recovery-testing state that allows a limited number of trial requests | Checks whether the provider has recovered before fully reopening traffic |
+| **Failure Threshold** | The number of consecutive failures that trips the circuit breaker to Open | Configures how sensitive the circuit is to detecting outages |
+| **Recovery Timeout** | How long the circuit stays Open before switching to Half-Open to test recovery | Controls how quickly the system tries to restore normal operation |
+| **Bulkhead Pattern** | Isolating different workloads into separate resource pools with independent limits | Prevents a surge in one workload (e.g., batch jobs) from starving another (e.g., real-time queries) |
+| **Semaphore** | A concurrency primitive that limits how many operations can run simultaneously | The mechanism used inside a bulkhead to cap concurrent requests |
+| **Graceful Degradation** | Switching to a simpler, cheaper, or cached response path when the full system is unhealthy | Keeps the product partially functional instead of returning an outright error |
+| **Degradation Level** | A named tier of service capability (Full, Reduced, Minimal, Cached, Offline) | Gives operators a clear vocabulary for expressing how much the system has scaled back |
+| **Multi-Provider Failover** | Routing requests to a secondary or tertiary LLM provider when the primary fails | Eliminates single-provider dependency and maintains availability through outages |
+| **Request Hedging** | Sending the same request to a backup provider after a delay if the primary has not responded | Reduces tail latency by racing providers and using whichever answers first |
+| **Health Check** | A lightweight probe sent to a provider to test whether it is available | Used to determine when to restore a circuit breaker or re-enable a failed provider |
+| **Rate Limit Error** | An error returned when a client exceeds the provider's allowed request quota | The most common transient error in LLM systems; triggers retry with backoff |
+| **Context Length Exceeded** | An error indicating the input is too large for the model's context window | A non-retryable error; the request must be shortened before retrying |
+| **Adaptive Timeout** | A timeout value that adjusts automatically based on observed recent latency | Prevents both premature timeouts during slow periods and indefinitely long waits |
+| **p99 Latency** | The response time that 99% of requests complete within | A standard SLO metric for measuring worst-case user experience |
+| **Availability** | The percentage of time a service successfully handles requests | The headline SLO metric; expressed as nines (99.9% = one nine of three) |
+| **SLO (Service Level Objective)** | An internal target for reliability or performance, such as 99.9% availability or p99 < 10s | Sets the bar that reliability patterns are designed to meet |
+
 *Previous: [Ensemble Methods](02-ensemble-methods.md) · Next: [AI Governance and Compliance](04-ai-governance-and-compliance.md)*

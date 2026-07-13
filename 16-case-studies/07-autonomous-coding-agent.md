@@ -166,4 +166,32 @@ A: We run a static analysis tool (Semgrep) in the sandbox as part of the test su
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Autonomous Coding Agent** | An AI system that can independently read a codebase, write code changes, run tests, and iterate—without per-step human guidance | The core product goal: take a high-level task and produce a working, tested pull request autonomously |
+| **Planner Agent** | A specialized agent whose only job is to read the codebase and produce a structured task plan before any code is written | Separates high-level reasoning (what to change) from low-level syntax generation (how to write it), enabling checkpoint review |
+| **Coder Agent** | The agent that receives the plan and generates the actual file edits | Focused purely on precise code generation rather than codebase understanding |
+| **E2B Sandbox** | A cloud-hosted isolated container that resets after each session and safely runs agent-generated code | Prevents destructive agent actions (like `rm -rf /`) from affecting the host system |
+| **Self-Correction Loop** | The cycle where the agent applies changes, runs tests, reads failure output, and tries again | Handles the reality that first-attempt code generation frequently fails; retry with error context fixes most issues |
+| **Extended Thinking** | A reasoning mode where the model generates internal step-by-step reasoning before its final answer | Used selectively in the planning phase and on difficult debugging passes to improve accuracy without inflating cost on every step |
+| **SWE-bench** | A benchmark that measures how often an AI agent can correctly resolve real GitHub issues on open-source repositories | The standard way to compare coding agent quality across models; Claude Opus 4.7 leads at 64.3% here |
+| **Tiered Retrieval** | A three-level strategy: search file summaries first, then drill into symbol graphs, then load full file content | Solves the problem of fitting a 1,000-file codebase into a limited context window |
+| **Symbol Graph** | A data structure mapping every function, class, and variable to the files and lines where they are defined and used | Lets the agent navigate large codebases by relationships rather than reading every file |
+| **tree-sitter** | A fast, language-agnostic parser that builds an AST (abstract syntax tree) from source code | Used to construct the symbol graph without running the code; works for 40+ languages |
+| **AST (Abstract Syntax Tree)** | A tree representation of source code structure where each node is a language construct (function, loop, etc.) | Enables precise symbol extraction and code navigation that string search cannot provide |
+| **DAG (Directed Acyclic Graph)** | A graph of tasks with dependency edges and no cycles, showing which tasks must complete before others start | Used to order sub-tasks in the right sequence so a later change does not break an earlier one |
+| **Topological Order** | Processing nodes in a DAG such that every dependency is completed before the node that depends on it | Ensures incremental test runs catch failures at the earliest point without re-running already-passing steps |
+| **Token Budget** | A hard limit on total LLM tokens consumed per task | Acts as a cost and infinite-loop safeguard—terminates the agent if it exceeds $0.50 worth of tokens |
+| **Max Attempt Limit** | A ceiling on the number of retry iterations the self-correction loop may execute | Prevents the agent from spending indefinitely on an unsolvable problem |
+| **Semgrep** | An open-source static analysis tool that detects security vulnerabilities using code pattern rules | Integrated as a test-suite step so security violations are treated as test failures and fed back to the agent |
+| **HITL (Human-in-the-Loop)** | A step where a human must review and approve before the agent's changes are committed | Ensures all autonomous code changes get human sign-off before merging, satisfying the safety constraint |
+| **Diff** | A compact representation of exactly which lines were added, removed, or changed | The artifact shown to the human reviewer before they approve or reject the agent's work |
+| **Pull Request (PR)** | A formal proposal to merge a set of code changes into a repository's main branch | The final deliverable of the autonomous agent; a real, reviewable artifact |
+| **Embedding** | A numerical vector representation of a text chunk that captures its semantic meaning | Used to index file summaries so the agent can find relevant files by meaning rather than filename |
+| **Onboarding (Codebase)** | The one-time process of generating file summaries and building the symbol graph when a new repo is first added | Runs once so that per-query retrieval is fast and cheap thereafter |
+
 *Related chapters: [Tool Use and MCP](../07-agentic-systems/03-tool-use-and-mcp.md), [Error Handling](../07-agentic-systems/07-error-handling-and-recovery.md)*

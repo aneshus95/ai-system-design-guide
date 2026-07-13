@@ -257,4 +257,36 @@ When we move a customer's traffic to a distilled student, we tell them. The cust
 - [DeepSpeed for training](https://www.deepspeed.ai/training/)
 - [Together AI distillation case study](https://www.together.ai/blog/distillation)
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Knowledge Distillation** | Training a small "student" model to mimic the outputs of a large "teacher" model | Achieves frontier-model quality on focused tasks at a fraction of the serving cost |
+| **Teacher Model** | The large, expensive frontier model whose outputs are used as training labels | Provides high-quality labels that the student learns to reproduce |
+| **Student Model** | The smaller, cheaper model trained to replicate the teacher's outputs for specific task patterns | Replaces the teacher in production for high-volume, well-understood tasks |
+| **Frontier Model** | The most capable, state-of-the-art large language model from a major lab | Source of truth for quality; used as the teacher and as a fallback for tail queries |
+| **Rejection Sampling** | Discarding training pairs where the teacher's output was flagged as incorrect by human reviewers | Prevents teacher errors from being baked into the student's learned behavior |
+| **Chain-of-Thought Distillation** | Training the student on both the teacher's final answer and its step-by-step reasoning trace | Gives the student structured reasoning ability on tasks that require multi-step thinking |
+| **Production Traces** | Logs of real user requests and model responses collected from the live system | The highest-fidelity source of training data, capturing real distribution and edge cases |
+| **Stratified Sampling** | Sampling training data to ensure all task categories are proportionally represented | Prevents the student from overfitting to high-frequency tasks and forgetting rare ones |
+| **Canary Rollout** | Directing a small percentage of live traffic to the new model before a full rollout | Catches production regressions that passing an eval set did not reveal |
+| **Shadow Traffic** | Running the student in parallel with the teacher on real requests without exposing its outputs to users | Allows safe comparison of student vs teacher quality before any user impact |
+| **Auto-Rollback** | Automatically reverting to the previous model when a quality or latency metric trips a threshold | Limits user-facing impact if the student underperforms on live traffic |
+| **Distribution Shift** | A change in the statistical properties of incoming requests compared to the training data | Can cause the student to degrade silently; monitored via input embedding histograms |
+| **PII Redaction** | Replacing personally identifiable information in training data with placeholder tokens | Required before using production traces for training to satisfy privacy regulations |
+| **NER (Named Entity Recognition)** | A model that identifies and classifies named entities (person names, emails) in text | Used in the PII redaction pass to detect and mask sensitive spans |
+| **int4 Quantization** | Storing model weights in 4-bit integers to reduce memory and increase throughput | Chosen over int8 for the student because the accuracy hit is negligible and cost savings are large |
+| **GPTQ** | A post-training quantization algorithm that compresses model weights with minimal quality loss | The specific int4 quantization method used for the student model in vLLM |
+| **FP8 KV Cache** | Storing the KV cache values in 8-bit floating point to reduce memory pressure | Pairs with int4 weights to further improve inference throughput on H100s |
+| **vLLM** | A high-throughput LLM inference engine with PagedAttention | Used to serve the student model with the low-latency and high-throughput budget required |
+| **FSDP (Fully Sharded Data Parallel)** | A distributed training technique that shards model parameters across GPUs | Enables training 7B+ parameter models on multi-GPU nodes efficiently |
+| **DeepSpeed** | A deep learning optimization library for distributed training | Provides ZeRO optimizations that reduce GPU memory usage during fine-tuning |
+| **Re-distillation** | Repeating the full distillation pipeline to update the student model after the world has drifted | Keeps the student accurate as user behavior, product features, and the teacher model evolve |
+| **Teacher Fallback** | Routing a request to the expensive frontier model when the student is uncertain or out-of-distribution | Maintains quality for edge cases while keeping the majority of traffic on the cheaper student |
+| **Payback Period** | The time it takes for cumulative cost savings to recover the upfront distillation investment | The key financial metric for justifying the project to finance; estimated at ~3 months |
+| **DistilBERT** | A seminal distilled model that showed BERT's capabilities could be reproduced in a 40% smaller model | Academic foundation for the distillation approach used in this case study |
+| **Alpaca** | Stanford's instruction-following LLaMA model trained on GPT-3.5 distillation outputs | Demonstrated that instruction-following ability could be cheaply distilled from a stronger model |
+
 Related chapters: [Fine-Tuning and Distillation](../03-training-and-adaptation/05-knowledge-distillation.md), [Inference Optimization](../04-inference-optimization/01-inference-fundamentals.md), [Cost Management](../04-inference-optimization/07-cost-optimization-playbook.md).

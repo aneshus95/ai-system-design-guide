@@ -209,4 +209,33 @@ A: Input sanitization plus strict tool-only responses. The AI cannot be prompted
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Intent Classifier** | A model that reads an incoming ticket and labels what the customer wants (track order, request refund, report fraud, etc.) | The entry point for all routing decisions; determines which automated path—if any—is safe to take |
+| **Three-Tier Routing** | Splitting tickets into Auto (AI handles fully), Hybrid (AI drafts, human approves), and Escalate (full human handling) | Matches the automation level to the risk level of each ticket rather than treating all tickets the same |
+| **Auto-Resolution Path** | The pipeline branch where the AI calls tools, drafts a response, passes a safety check, and sends it without human review | Handles simple high-confidence queries at near-zero marginal cost |
+| **Hybrid Path** | The pipeline branch where the AI drafts a response but a human agent must review and optionally edit before it is sent | Balances automation speed with human oversight for medium-risk tickets like refund requests |
+| **Tool Call** | An LLM action that invokes an external function or API (e.g., Order API, FAQ search) to retrieve real data | Prevents hallucination by ensuring the AI retrieves facts from systems of record rather than generating them |
+| **OMS (Order Management System)** | The backend system that tracks real-time order status, shipping dates, and tracking links | The authoritative data source for "Where is my order?" queries; the AI calls it rather than guessing |
+| **Safety Check** | An automated filter that scans the AI's draft response for promises, PII leaks, sentiment mismatches, and competitor mentions | The last gate before a response reaches the customer; catches outputs that could create legal or reputational risk |
+| **Promise Detection** | A safety-check component that flags language like "I guarantee" or "We will refund" that make binding commitments | Prevents the AI from making unauthorized financial or service promises that the company cannot fulfill |
+| **Sentiment Mismatch** | A safety flag triggered when the AI's tone is positive but the customer's message is angry or distressed | Catches tone-deaf responses that would worsen customer satisfaction even if factually correct |
+| **PII Leak** | Accidentally including another customer's data or internal notes in an outbound message | A privacy violation that also erodes customer trust; checked for in every outbound response |
+| **Confidence Score** | A weighted aggregate of intent certainty, customer sentiment, customer tier, and topic risk | The single number that determines which routing path a ticket takes |
+| **Customer Tier** | A classification of a customer's account value or contract level (e.g., VIP, standard) | High-tier customers are routed to Hybrid or Escalate even for simple questions because errors cost more |
+| **Topic Risk** | A severity label for the category of the customer's request (legal, fraud, standard inquiry) | Legal and fraud topics trigger immediate escalation regardless of confidence score |
+| **Escalation** | Handing a conversation to a human agent to resolve | The safety valve that handles everything the AI should not attempt alone—threats, legal claims, VIP issues |
+| **Handoff Package** | The structured summary (issue, prior attempts, sentiment, full transcript) generated when passing to a human | Lets the human agent understand the situation instantly without re-reading every message |
+| **Multilingual Support** | The ability to receive messages in one language, process them in another, and reply in the original language | Enables 12-language support without deploying 12 separate specialized models |
+| **Language Detection** | Automatically identifying which language a message is written in | Routes the message into the translate-in → process-in-English → translate-out pipeline |
+| **Input Sanitization** | Removing or neutralizing malicious instructions embedded in customer messages | Prevents prompt injection attacks where customers try to override the AI's persona or access restricted functions |
+| **Jailbreak** | An attempt by a user to bypass the AI's safety instructions through clever prompt phrasing | Mitigated here by restricting the AI to tool outputs only, so it cannot be prompted into free-form harmful responses |
+| **Resolution Effectiveness** | A metric that marks a ticket as unresolved if the customer replies again within 24 hours on the same issue | Catches cases where the AI sent a response that technically "answered" but did not actually help the customer |
+| **Zendesk / Salesforce** | CRM and ticketing platforms that manage customer communication and case records | The existing systems the AI must integrate with via APIs rather than replacing |
+| **GPT-4o-mini** | OpenAI's fast, low-cost model used for intent classification, response generation, and safety checks | Keeps the blended cost per ticket at $0.018, well within the $0.05 target |
+
 *Related chapters: [Human-in-the-Loop Patterns](../07-agentic-systems/08-human-in-the-loop-patterns.md), [Guardrails Implementation](../13-reliability-and-safety/01-guardrails.md)*

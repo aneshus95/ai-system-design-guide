@@ -607,4 +607,42 @@ class QueryCache:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RAG (Retrieval-Augmented Generation)** | A pattern where an AI first finds relevant documents, then uses them to write an answer | Prevents the model from making up facts by grounding responses in real content |
+| **Vector DB** | A database that stores text as numerical arrays (embeddings) and finds similar items by comparing those numbers | Enables fast semantic search across millions of document chunks |
+| **Qdrant** | An open-source vector database designed for high-performance similarity search | Stores and queries document embeddings; used here in self-hosted mode for compliance |
+| **Elasticsearch** | A full-text search engine that indexes words and lets you search for exact keyword matches | Handles keyword queries that semantic search would miss |
+| **Embedding** | A list of numbers that captures the meaning of a piece of text in a way a computer can compare | The representation that powers semantic similarity search |
+| **text-embedding-3-large** | OpenAI's high-quality embedding model that turns text into 3072-dimensional vectors | Converts document chunks and queries into comparable numerical form |
+| **Hybrid Search** | Combining semantic (vector) search with keyword (BM25) search and merging their results | Catches both meaning-level and exact-match results for better recall |
+| **BM25** | A classic keyword ranking algorithm that scores documents by how often query terms appear | The backbone of Elasticsearch ranking; complements semantic search |
+| **RRF (Reciprocal Rank Fusion)** | A formula that blends ranked lists from multiple retrievers by rewarding documents that rank well in all lists | Merges vector and keyword results without needing score normalization |
+| **Reranker / Cross-Encoder** | A model that re-scores each candidate document by reading the full query and document together | Improves precision by catching relevance mismatches that fast retrieval misses |
+| **BGE-Reranker-v2-X** | An open-source cross-encoder reranking model from the BGE family | Provides state-of-the-art reranking quality without sending data to a third-party API |
+| **Semantic Chunker** | A text splitter that breaks documents at topic boundaries rather than fixed character counts | Keeps related ideas together in one chunk, improving retrieval quality |
+| **Chunk Overlap** | Repeating a small portion of text at the start of each new chunk | Ensures ideas that span chunk boundaries are still fully represented |
+| **Ingestion Pipeline** | The sequence of steps (parse → chunk → embed → index → store) that processes a document so it can be searched | Makes documents findable before any user query arrives |
+| **Metadata DB (Postgres)** | A relational database storing document attributes like department, access level, and timestamps | Enables permission-aware filtering and audit logging alongside vector search |
+| **RBAC (Role-Based Access Control)** | A security model where permissions are granted to roles (e.g., "HR team") rather than individuals | Ensures employees only retrieve documents they are authorized to see |
+| **PII (Personally Identifiable Information)** | Data that can identify a specific person, such as names, emails, or Social Security numbers | Must be detected and handled carefully to meet privacy regulations |
+| **Permission Filter** | A query-time constraint that limits search results to documents the requesting user is allowed to see | Enforces access control at retrieval so restricted content is never surfaced |
+| **Guardrail Pipeline** | A set of checks applied before and after LLM generation to block unsafe or off-policy content | Acts as a safety net around the model to catch harmful inputs and outputs |
+| **Semantic Cache** | A cache that reuses stored answers for queries that are semantically similar, not just identical | Reduces LLM costs and latency by avoiding redundant generation for near-duplicate queries |
+| **Redis** | An in-memory key-value store commonly used for fast caching | Provides sub-millisecond cache lookups for exact-match query results |
+| **P95 Latency** | The response time at the 95th percentile—only 5% of requests are slower than this number | A standard way to set and measure tail-latency targets in production systems |
+| **Sharding** | Splitting a large dataset across multiple nodes so each node handles a fraction of the data | Allows the vector DB to scale beyond the capacity of a single machine |
+| **Replication Factor** | The number of copies of each data shard kept across nodes | Provides redundancy so the system stays available if a node fails |
+| **Context Window** | The maximum amount of text (measured in tokens) a language model can read in one request | Determines how many retrieved document chunks can be included in a single prompt |
+| **Hallucination** | When an LLM confidently states something that is factually wrong or not in the source documents | The core accuracy risk in RAG systems; citations and retrieval grounding are the main defenses |
+| **LLM (Large Language Model)** | An AI model trained on vast amounts of text that can understand and generate natural language | The generation component of a RAG system; turns retrieved context into a human-readable answer |
+| **Gemini 3 Pro** | Google's frontier multimodal language model with a very large context window | Used here as the primary generator that can ingest dozens of retrieved documents at once |
+| **Prompt Engineering** | Crafting the instructions and structure of input text to get better, more consistent LLM outputs | Directly affects answer quality, citation format, and safety behavior |
+| **Audit Logging** | Recording every query, user, and system action in a tamper-evident log | Required for compliance and useful for debugging accuracy issues |
+| **Document Freshness** | How recently the indexed version of a document reflects its latest real-world state | Stale documents can produce wrong answers; streaming ingestion keeps this under one hour here |
+
 *Next: [Case Study: Conversational AI Agent](02-conversational-agent.md)*

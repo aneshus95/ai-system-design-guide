@@ -385,4 +385,37 @@ They address **different communication layers**. MCP is the agent-to-tool protoc
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Tool** | An external function, API, browser, or service that an agent can call to take real-world actions | Extends the agent's capabilities beyond text generation |
+| **Model Context Protocol (MCP)** | An open standard for how AI agents connect to tools and data sources, using JSON-RPC over HTTP or stdio | Provides a portable, vendor-neutral way to integrate any tool with any model |
+| **MCP Client** | The AI application or agent that initiates connections to MCP servers | The consumer side of the MCP connection |
+| **MCP Server** | A standalone process that exposes tools, resources, and prompt templates to an agent via MCP | Encapsulates tool logic in an isolated, reusable service |
+| **JSON-RPC** | A lightweight remote procedure call protocol using JSON for message formatting | The communication format MCP uses for all messages between clients and servers |
+| **Dynamic Manifest** | A runtime-generated list of only the tools relevant to the current user intent, rather than loading all tools upfront | Keeps the model's context window focused and avoids schema overload |
+| **Schema Overload** | Performance degradation caused by loading too many tool schemas into the model's prompt at once | A key MCP problem solved by dynamic resource discovery |
+| **Pydantic** | A Python library for defining and validating data schemas using type annotations | Enforces correct tool argument types before execution |
+| **Zod** | A TypeScript schema validation library similar in purpose to Pydantic | Validates tool inputs in TypeScript/JavaScript agent stacks |
+| **Streamable HTTP** | An MCP 2.0 transport that sends and receives messages over a single long-lived HTTP connection with streaming | Enables cloud-hosted, horizontally scalable MCP servers |
+| **OAuth 2.1** | A modern authorization standard that MCP 2.0 uses for authenticating remote server access | Allows enterprise-grade access control on MCP tool servers |
+| **PKCE (Proof Key for Code Exchange)** | An extension to OAuth that secures token exchanges for browser-based or public clients | Prevents token theft attacks in browser-based agents |
+| **RFC 8707** | An IETF standard that ties OAuth tokens to a specific audience resource, preventing replay across servers | Ensures stolen tokens can't be used against a different MCP server |
+| **Agent-to-Agent (A2A) Protocol** | Google's open protocol for one agent to delegate tasks to another agent from a different vendor or framework | Enables cross-vendor multi-agent orchestration without shared memory |
+| **Agent Card** | A JSON metadata document that describes an agent's capabilities, endpoint, and authentication requirements | Allows orchestrators to discover and connect to specialist agents |
+| **MCP Server Card** | A structured metadata document at a `.well-known` URL describing an MCP server's capabilities | Enables automated discovery of MCP servers in a network |
+| **SSE (Server-Sent Events)** | A one-way streaming protocol where a server pushes updates to a connected client over HTTP | Used by MCP and A2A to stream tool results and status updates |
+| **ACP (Agent Communication Protocol)** | IBM's lightweight async messaging protocol for agent-to-agent communication, now merging with A2A | Provides an alternative to A2A for REST-based agent messaging |
+| **SEP (Specification Enhancement Proposal)** | A formal process for proposing changes to the MCP specification | Governs community-driven evolution of the MCP standard |
+| **Partial Tool Speculation** | Starting to pre-fetch tool results as soon as the tool name is visible in a streaming response, before the full arguments arrive | Reduces perceived latency for tool calls by hundreds of milliseconds |
+| **Computer-Use Tools** | Native Anthropic tools that let Claude control a desktop, run shell commands, and edit files | Enables agents to interact with GUIs and file systems directly |
+| **E2B** | A cloud provider that runs sandboxed code execution environments for AI agents | Prevents agent-executed code from harming the host system |
+| **Context7** | An MCP server that fetches live, up-to-date library documentation at agent runtime | Prevents agents from using outdated or deprecated API patterns |
+| **Prompt Injection** | An attack where malicious text in tool input or web content tricks the model into executing unintended commands | A critical security risk in agents that process untrusted content |
+| **STDIO Transport** | An MCP transport that communicates via standard input/output streams of a local subprocess | Simple for local-only tools but lacks network-level trust boundaries |
+| **Audit Log (Append-Only)** | A write-once log of every tool call, argument, and result in an agent session | Provides traceability for compliance, debugging, and security review |
+
 *Next: [Multi-Agent Orchestration](04-multi-agent-orchestration.md)*

@@ -181,4 +181,33 @@ A Property Graph combines the **Semantic flexibility** of vectors with the **Str
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **LlamaIndex** | A Python framework focused on connecting LLMs to external data through advanced indexing and retrieval. | Provides the fastest path to production-quality RAG and data-centric AI workflows without building retrieval infrastructure from scratch. |
+| **Data-Centric AI** | An approach where improving the quality and structure of data, rather than the model, is the primary lever for better AI output. | Ensures that when a model underperforms, the team looks first at the retrieval and indexing pipeline rather than just the model. |
+| **Node** | LlamaIndex's fundamental data unit; a chunk of text enriched with metadata such as relationships, summaries, and parent references. | Carries context beyond raw text so retrievers can make smarter relevance decisions. |
+| **Retriever** | A component that, given a query, searches an index and returns the most relevant nodes. | Bridges the gap between a user's question and the stored data, determining what context the LLM ultimately sees. |
+| **Workflow** | LlamaIndex's event-driven application framework where steps emit and consume typed `Event` objects. | Replaces linear query-engine chains with a concurrent, composable architecture suited to complex data pipelines. |
+| **Event** | A typed Python object emitted by one workflow step and consumed by another step in LlamaIndex Workflows. | Decouples producers and consumers of data within a workflow, enabling parallel fan-out without a central router. |
+| **StartEvent / StopEvent** | Special built-in event types that mark the beginning and end of a LlamaIndex Workflow execution. | Define the entry and exit points of a workflow, giving the engine clear boundaries for each run. |
+| **Context** | A serializable state container passed through all steps of a LlamaIndex Workflow. | Acts as the workflow's shared memory, accumulating information from each step without global variables. |
+| **Property Graph** | An index that links vector chunks to typed graph nodes (such as people, projects, or timelines) with explicit relationships. | Enables global reasoning across a document collection, answering relational questions that pure vector search would miss. |
+| **Vector RAG** | Retrieval-Augmented Generation where relevant documents are found using embedding similarity in a vector database. | Provides the baseline retrieval approach; fast and general but blind to structural relationships between entities. |
+| **Context-Aware Splitter** | A chunking method that uses a small LLM to identify semantically coherent breakpoints rather than splitting on fixed token counts. | Produces chunks that preserve complete ideas, improving retrieval relevance compared to naïve fixed-size chunking. |
+| **Dynamic Pathing** | A retrieval strategy where the system decides which index or retrieval method to use based on the complexity of the incoming query. | Routes simple keyword lookups to fast keyword indexes and complex questions to more expensive graph or hybrid retrievers. |
+| **LlamaCloud** | LlamaIndex's managed cloud service for document ingestion, parsing, OCR, and embedding at enterprise scale. | Removes the infrastructure burden of building and maintaining a high-throughput document-processing pipeline. |
+| **Vision-LLM** | A multimodal model capable of understanding both text and images, used here to parse document layouts. | Replaces brittle rule-based PDF parsers with a model that comprehends tables, diagrams, and complex layouts. |
+| **OCR (Optical Character Recognition)** | Technology that converts images of text into machine-readable characters. | Enables indexing of scanned documents, photographs of whiteboards, and other non-digital text sources. |
+| **AgentWorkflow** | A LlamaIndex abstraction for creating agents that use function-calling tools within the Workflow framework. | Provides a batteries-included multi-agent pattern without requiring teams to wire the tool-call loop from scratch. |
+| **Fan-out** | A concurrency pattern where one event triggers multiple independent downstream steps to run in parallel. | Speeds up batch workloads (e.g., processing 1,000 PDFs) by parallelizing work across many simultaneous steps. |
+| **ctx.collect_events** | A LlamaIndex Workflow method that gathers multiple events of the same type before proceeding. | Implements the "join" half of fan-out/fan-in, waiting until all parallel branches finish before merging results. |
+| **LlamaParse** | LlamaIndex's document parser that uses multimodal models to extract structured content from complex PDFs and other formats. | Provides higher extraction accuracy than rule-based parsers for documents with tables, charts, and mixed layouts. |
+| **AG-UI Protocol** | A streaming protocol for sending agent state updates to a frontend user interface in real time. | Allows users to watch an agent's progress live rather than waiting for a final answer. |
+| **Human-in-the-Loop (HITL)** | A design pattern where the workflow pauses and waits for a human decision before continuing. | Adds a safety gate at high-stakes steps such as approvals, corrections, or ambiguous data. |
+| **InputRequiredEvent / HumanResponseEvent** | LlamaIndex Workflow event types used to pause execution and resume it after receiving human input. | Implements the HITL pattern in a typed, structured way within the event-driven Workflow model. |
+
 *Next: [DSPy: Programming Language Models](05-dspy.md)*

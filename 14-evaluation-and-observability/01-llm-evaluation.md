@@ -827,4 +827,45 @@ Several known biases and limitations:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **LLM Evaluation** | The practice of systematically measuring how well an LLM-based system performs across quality dimensions | Replaces guesswork with evidence when deciding whether to ship, tune, or roll back a system |
+| **Exact Match** | A metric that gives 1 if the prediction matches the reference character-for-character and 0 otherwise | Suitable for multiple-choice or classification tasks; too strict for open-ended text |
+| **Semantic Similarity** | A score measuring how close two texts are in meaning using embedding vectors | Captures paraphrase and loose equivalence that exact match misses |
+| **Cosine Similarity** | A number between –1 and 1 comparing two vectors by angle; 1 means identical direction | The standard distance function for comparing text embeddings |
+| **ROUGE** | A family of metrics measuring n-gram overlap between a generated summary and a reference | Widely used for summarization evaluation; measures coverage but not meaning or quality |
+| **n-gram** | A contiguous sequence of n words in a text | The unit of measurement in ROUGE; ROUGE-1 counts single-word overlap, ROUGE-2 counts bigrams |
+| **Faithfulness** | Whether every claim in a generated answer is supported by the retrieved context | The primary RAG-specific quality dimension; high faithfulness means no hallucination from the context |
+| **Context Precision** | The fraction of retrieved documents that are actually relevant to the query | Measures retrieval quality; low precision means the context is noisy |
+| **Context Recall** | The fraction of relevant documents that were successfully retrieved | Measures retrieval completeness; low recall means important evidence was missed |
+| **Answer Relevancy** | Whether the generated answer actually addresses the user's question | Distinct from faithfulness—an answer can be grounded but still off-topic |
+| **RAGAS** | An open-source framework providing standard automated metrics for RAG evaluation (faithfulness, relevancy, context precision, context recall) | Enables consistent, reproducible RAG quality measurement without writing metrics from scratch |
+| **LLM-as-Judge** | Using a capable LLM to score or compare another LLM's outputs | Scales subjective quality evaluation beyond what human annotators can review |
+| **Pairwise Comparison** | Presenting two responses to a judge and asking which is better | More sensitive than absolute scoring for detecting small quality differences |
+| **Position Bias** | A judge model's tendency to prefer whichever response appears first in the prompt | Must be counteracted by running both orderings and checking for agreement |
+| **Length Bias** | A judge model's tendency to score longer responses higher regardless of quality | Counteracted by instructing the judge to ignore length and evaluate substance only |
+| **Self-Preference Bias** | A judge model's tendency to prefer outputs from its own model family | Mitigated by using a different model family as the judge |
+| **Judge Calibration** | Validating that an LLM judge's scores correlate with human expert judgments | Ensures the judge is a reliable proxy for the quality signal you actually care about |
+| **Cohen's Kappa** | A statistical measure of inter-annotator agreement that corrects for chance agreement | Scores above 0.6 indicate substantial agreement; used to validate annotation quality |
+| **Inter-Annotator Agreement (IAA)** | The degree to which two or more human annotators give the same rating | Low IAA means the annotation task is ambiguous or the guidelines need revision |
+| **Eval Dataset** | A curated set of inputs with expected outputs used to measure system performance | The foundation of any systematic evaluation; quality and diversity of this set determines what you can measure |
+| **Gold Set** | A small set of examples with human-verified correct answers used as the ground truth | The highest-quality evaluation signal; used to calibrate automated judges |
+| **Drift Detection** | Statistically testing whether current quality scores have shifted significantly from a baseline | Catches quality regressions caused by model updates, prompt changes, or data distribution shifts |
+| **Online Evaluation** | Evaluating a random sample of live production requests in real time | Provides a continuous quality signal without evaluating every request (which is expensive) |
+| **Distilled Judge** | A small, fast model trained to replicate a frontier judge's scoring behavior | Enables inline evaluation at scale with 90%+ lower cost than running a frontier model on every trace |
+| **Galileo Luna-2** | A family of distilled judge models (February 2026) trained on frontier-judge labels covering a fixed taxonomy of failure modes | The leading commercial distilled judge; ~97% cheaper and ~10x faster than frontier judges with 88-92% agreement |
+| **Process Reward Model (PRM)** | A model trained to score each individual step in an agent's reasoning trajectory | Enables trajectory-level evaluation that catches wrong reasoning paths even when the final answer is correct |
+| **Agent-as-Judge** | Using an auditor agent to replay and grade another agent's action trajectory step by step | Catches failure modes invisible to final-answer graders: wrong reasoning, over-retrieval, tool flailing |
+| **tau-bench / tau2-bench** | Sierra's benchmark simulating an agent handling business tasks (retail, airline, etc.) under a domain policy | The most production-relevant tool-use benchmark because it measures consistency via pass^k |
+| **pass^k** | The probability that an agent succeeds on all k repeated runs of the same task | Exposes reliability cliffs: an agent at 60% pass@1 may fall to 25% pass@8, revealing brittleness |
+| **HaluMem** | A benchmark (November 2025) that evaluates hallucination at the memory-operation level: extraction, update, and QA | Reveals that aggregate accuracy hides stage-level failures in memory-equipped agents |
+| **Reasoning-Action Mismatch** | When an agent's chain-of-thought explanation says one thing but the tool call does something different | A trajectory failure mode detectable only by grading the full action sequence |
+| **Precision@K** | The fraction of the top-K retrieved documents that are relevant | Measures retrieval quality; used in RAG evaluation alongside recall |
+| **Recall@K** | The fraction of all relevant documents that appear in the top-K results | Measures retrieval completeness; complements precision |
+| **MRR (Mean Reciprocal Rank)** | The average of 1/rank of the first relevant result across queries | Measures how highly the best document is ranked; high MRR means the right answer is near the top |
+
 *Next: [Observability](02-observability.md)*

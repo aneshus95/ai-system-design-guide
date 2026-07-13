@@ -380,4 +380,38 @@ The right framing: TTT-E2E moves memory governance from the storage layer to the
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Working Memory (L1)** | The agent's active context window — what it can "see" during the current inference call | Holds the current task state and is the fastest but most limited memory tier |
+| **Episodic Memory (L2)** | Storage of past runs, trajectories, and events from previous agent sessions | Lets agents recall "what happened last time" to avoid repeating failures |
+| **Semantic Memory (L3)** | Storage of persistent facts, user preferences, and entity relationships | Provides reliable, queryable knowledge about users and the world |
+| **Procedural Memory (L4)** | Storage of reusable skills, workflows, and step-by-step processes | Allows agents to follow the right sequence for a task type without re-learning it |
+| **KV Cache** | Hardware-level storage of pre-computed attention keys and values from prior tokens | Dramatically speeds up inference for agents with long, repetitive contexts |
+| **Prefix Caching** | Reusing cached computation for the stable beginning of a prompt (system instructions, tools) across multiple calls | Reduces cost and latency for agents that share a common context prefix |
+| **Vector DB** | A database that stores information as numerical embeddings, enabling retrieval by semantic similarity | Powers episodic and semantic memory retrieval in production agent stacks |
+| **Knowledge Graph** | A database that stores entities and their relationships as a graph structure for deterministic lookup | Enables precise, multi-hop fact retrieval — better than fuzzy vector search for relational facts |
+| **Scratchpad** | A private section of the agent's context where it writes intermediate reasoning not shown to the user | Lets the agent "think out loud" without polluting the final response |
+| **Bitemporal Storage** | A storage model where every fact has two time dimensions: when it was true in reality, and when it was recorded | Enables queries like "what did we believe on date X?" versus "what is true now?" |
+| **Memory Poisoning** | An attack where malicious input gets written to an agent's long-term memory and later replays as authoritative fact | A critical security risk for agents with writable long-term stores |
+| **MINJA** | A NeurIPS 2025 research attack demonstrating query-only memory injection with 95% success rates without elevated privileges | Establishes the threat model for production memory poisoning defenses |
+| **MemoryGraft** | A December 2025 attack showing persistent memory compromise via crafted queries | Confirms the need for write-time guardrails, not just access controls |
+| **Provenance Tag** | Metadata attached to every memory write indicating whether the source was user-stated, model-inferred, or tool-output | Enables trust-tiered retrieval and prevents model inferences from being treated as facts |
+| **AGM Belief Revision** | A formal logic framework for handling conflicting beliefs by classifying them as active, superseded, or retracted | Provides principled conflict resolution for memory updates |
+| **Decay Function** | A formula that reduces a memory's retrieval score over time if it hasn't been reinforced | Prevents stale, outdated memories from dominating future retrievals |
+| **Day-30 Problem** | The observed pattern where agent quality degrades roughly 30 days into production as episodic stores fill with noise | Motivates pruning policies and consolidation jobs from day one |
+| **HaluMem** | A November 2025 benchmark measuring memory hallucinations at the write (extraction) stage rather than at output | Shows that most memory errors originate at write time and propagate forward |
+| **Mem0** | An open-source memory framework using a hybrid graph + vector + KV architecture for cross-session personalization | One of the top-performing production memory systems by benchmark |
+| **Letta (MemGPT)** | A memory framework that treats the LLM like an OS, paging data in and out of the context window via tool calls | Best for long-running agents where perfect long-term coherence is critical |
+| **Graphiti** | An open-source temporal knowledge graph with `valid_from` / `valid_to` edges for every stored fact | Enables accurate bitemporal memory queries for time-sensitive facts |
+| **LangMem** | A LangGraph-integrated memory library supporting all four memory tiers, including procedural self-updating | Best for teams already using the LangChain stack who need all memory types |
+| **TTT-E2E (Test-Time Training)** | An approach that compresses session context into the model's weights at inference time, enabling near-zero retrieval cost | Offers huge latency gains but introduces governance and auditability challenges |
+| **Consolidation** | The process of promoting repeated episodic observations into stable semantic or procedural facts after a threshold is met | Prevents raw session data from flooding long-term stores with low-quality entries |
+| **Cross-Tenant Leakage** | When a vector search returns results belonging to a different user or organization's memory store | A critical multi-tenant privacy failure with ~95% organic occurrence in unisolated systems |
+| **Self-Search** | An agent querying its own memory at the start of a new task to find relevant past experiences | Reduces repeated failures by surfacing lessons learned from prior runs |
+| **Trajectory** | The full sequence of steps, tool calls, and observations from a single agent run | The unit of storage for episodic memory and evaluation |
+
 *Next: [Planning and Decomposition](06-planning-and-decomposition.md)*

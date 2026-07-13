@@ -1058,4 +1058,41 @@ Three levels: (a) per-user message rate limiting at the Gateway, (b) per-agent t
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **OpenClaw** | An open-source, self-hosted personal AI agent that connects to messaging apps and can autonomously run commands, manage files, and control devices | The subject of this chapter; represents the category of messaging-native personal AI agents |
+| **Gateway** | The long-running WebSocket server (default port 18789) that routes messages between platforms and agents, managing sessions and authentication | Acts as the central hub of OpenClaw, ensuring every incoming message reaches the correct agent |
+| **Channel Adapter** | A thin wrapper around a platform-specific messaging library that normalizes messages into a common internal format | Allows OpenClaw to support 20+ messaging platforms without changing the core agent logic |
+| **Agent Runtime** | The AI loop that assembles context, calls the LLM, executes tool calls, and persists updated state for each incoming message | The brain of each OpenClaw agent; turns a user message into a series of real-world actions |
+| **SOUL.md** | A plain Markdown file defining the agent's personality, communication style, values, and behavioral guardrails | Loaded at session start so each agent has a consistent identity across all messaging platforms |
+| **AGENTS.md** | An OpenClaw workspace file containing operational instructions and tool configurations | Tells the agent which tools to use and how to behave in a specific deployment context |
+| **HEARTBEAT.md** | An OpenClaw workspace file that defines scheduled autonomous actions similar to cron jobs | Allows agents to run proactive tasks (morning briefings, monitoring checks) without being prompted |
+| **Skills** | Directories containing a SKILL.md file that give the agent new capabilities beyond basic conversation | The plugin system through which OpenClaw is extended without modifying core code |
+| **SKILL.md** | A Markdown file with YAML frontmatter that defines a skill's name, description, trigger keywords, and behavioral instructions | The contract that tells the agent runtime when and how to activate a particular capability |
+| **Selective Injection** | Loading only the skills relevant to the current conversation turn based on trigger keywords | Prevents prompt bloat and keeps model performance high as the skill library grows |
+| **ClawHub** | The community marketplace for OpenClaw skills | Enables the ecosystem to grow through user contributions, though it also introduces supply-chain risk |
+| **Baileys** | An unofficial JavaScript library for connecting to WhatsApp's WebSocket protocol | Powers OpenClaw's WhatsApp integration; unofficial status means it can break with WhatsApp updates |
+| **grammY** | A TypeScript Bot API library for Telegram | Powers OpenClaw's Telegram channel, which is considered the most reliable integration |
+| **Bolt** | Slack's official JavaScript SDK for building workspace apps | Powers OpenClaw's Slack integration, requiring a workspace app installation |
+| **signal-cli** | A command-line interface to the Signal messaging protocol | Powers OpenClaw's Signal integration, requiring a linked device |
+| **BlueBubbles** | A macOS server application that exposes iMessage via a REST API | The bridge OpenClaw uses to send and receive iMessages; macOS only |
+| **JSON5** | A superset of JSON that allows comments and trailing commas | The format of OpenClaw's configuration file, making it easier to annotate and maintain |
+| **Hot reload** | Automatically applying configuration changes without restarting the Gateway process | Allows operators to update skills, model settings, and channel configs without downtime |
+| **Multi-Agent Routing** | Running multiple agents with isolated workspaces and tool configurations inside a single Gateway process | Enables separate work assistant, home assistant, and DevOps bot to run from one deployment |
+| **Unified Memory Pool** | A cross-channel memory system where one agent remembers context regardless of which messaging app the user used | Ensures the agent has consistent context whether a user messages via WhatsApp or Slack |
+| **Supply-chain attack** | Malicious code introduced through a third-party dependency, plugin, or skill | A documented risk in the ClawHub ecosystem where community skills could contain harmful scripts |
+| **Prompt injection** | An attack where malicious instructions embedded in external data (emails, invoices) are interpreted by the agent as its own commands | The primary indirect attack vector against OpenClaw when it processes data from untrusted sources |
+| **NemoClaw** | Nvidia's security add-on for OpenClaw deployments | Provides a safety layer that detects anomalous tool invocations and prompt injection attempts |
+| **Ollama** | A tool for running open-source LLMs locally on your own hardware | Provides a fallback model option for OpenClaw when cloud providers are unavailable or too expensive |
+| **Agent SDK Credit** | Anthropic's metered allowance bundled into Pro and Max plans for programmatic agent use | The policy mechanism Anthropic introduced to allow frameworks like OpenClaw to use subscriptions within a transparent quota |
+| **Context window** | The total number of tokens (words and symbols) an LLM can consider at one time | A key resource to manage in OpenClaw, as each skill and memory entry consumes part of this budget |
+| **RAG (Retrieval-Augmented Generation)** | Storing memories as embeddings in a vector database and retrieving the most relevant ones per conversation turn | A potential upgrade path from OpenClaw's file-based memory to better long-term recall at scale |
+| **Raspberry Pi** | A single-board computer costing around $35-80 that can run OpenClaw with 4 GB RAM | Demonstrates OpenClaw's lightweight footprint and suitability for always-on home deployment |
+| **Vibe coding** | A development philosophy where the human provides intent and the AI produces implementation, often without the human reading every line | Describes Peter Steinberger's approach to building OpenClaw, embodying AI-first development |
+| **Hermes Agent** | An alternative personal agent framework with a self-learning skill system and multi-level memory | A comparison point for OpenClaw, stronger at learning from usage but weaker on platform reach |
+
 *Next: See [Claude Code Deep Dive](../09-frameworks-and-tools/09-claude-code.md) for comparison with Anthropic's coding-focused agent approach.*

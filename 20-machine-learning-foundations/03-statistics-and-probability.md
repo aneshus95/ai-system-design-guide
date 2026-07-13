@@ -527,4 +527,71 @@ The Law of Large Numbers says the sample mean converges to the population mean �
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Mean** | The sum of all values divided by the count | Summarises the centre of a distribution; sensitive to outliers |
+| **Median** | The middle value when data is sorted | A robust measure of centre; preferred over mean when outliers are present |
+| **Mode** | The most frequently occurring value in a dataset | Useful for categorical data and identifying peaks in multi-modal distributions |
+| **Variance** | The average squared deviation of each value from the mean | Quantifies how spread out the data is; used in many statistical tests |
+| **Standard Deviation** | The square root of the variance, expressed in the same units as the data | More interpretable than variance for describing data spread |
+| **IQR (Interquartile Range)** | The difference between the 75th percentile (Q3) and the 25th percentile (Q1) | A robust measure of spread that is unaffected by extreme outliers |
+| **Skewness** | A measure of the asymmetry of a distribution's tails | Positive skew indicates a long right tail; negative skew indicates a long left tail |
+| **Kurtosis** | A measure of how heavy the tails of a distribution are relative to a normal distribution | High kurtosis means extreme values occur more often than a normal distribution would predict |
+| **Conditional Probability** | The probability of event A given that event B has already occurred | Allows updating beliefs when partial information is known |
+| **Independence (Probability)** | Two events are independent if knowing one tells you nothing about the other | A foundational assumption in many statistical models including Naive Bayes |
+| **Expected Value** | The probability-weighted average of all possible outcomes of a random variable | Represents the long-run average result of a random process |
+| **Bayes' Theorem** | A formula for updating the probability of a hypothesis given new evidence: P(H\|E) = P(E\|H) × P(H) / P(E) | The mathematical foundation for probabilistic reasoning and Bayesian inference |
+| **Prior Probability** | Your belief in a hypothesis before seeing any evidence | The starting point in Bayesian reasoning; reflects existing domain knowledge |
+| **Likelihood** | The probability of observing the data assuming a particular hypothesis is true | The bridge between a model's parameters and the observed data in statistical inference |
+| **Posterior Probability** | Your updated belief in a hypothesis after incorporating the evidence | The output of applying Bayes' theorem; combines prior and likelihood |
+| **Base-Rate Fallacy** | Ignoring how rare an event is when interpreting a test result, leading to over-confidence in the result | A common error in medical testing; highlights the importance of priors |
+| **Bernoulli Distribution** | A distribution with two outcomes (success or failure) characterised by probability p | Models a single binary trial; the building block for the Binomial distribution |
+| **Binomial Distribution** | The distribution of the number of successes in n independent Bernoulli trials | Used to model counts of successes across repeated binary experiments |
+| **Poisson Distribution** | The distribution of the number of events occurring in a fixed time or space when events happen at a constant average rate | Models rare event counts such as server errors per hour or customer arrivals per minute |
+| **Normal (Gaussian) Distribution** | A symmetric bell-shaped distribution fully described by its mean and standard deviation | Arises naturally from sums of many random variables; underpins most statistical tests |
+| **Exponential Distribution** | A continuous distribution modelling the time between consecutive Poisson events | Has the memoryless property: past wait time does not affect future wait time |
+| **Central Limit Theorem (CLT)** | The theorem stating that the sample mean of many independent draws approaches a normal distribution regardless of the underlying population shape | Justifies using normal-based tests (z-test, t-test) on non-normal data when samples are large |
+| **Standard Error (SE)** | The standard deviation of the sampling distribution of the mean, equal to σ / √n | Quantifies the precision of a sample mean estimate; shrinks as sample size grows |
+| **Law of Large Numbers (LLN)** | As sample size increases, the sample mean converges to the true population mean | Guarantees that larger experiments produce more reliable estimates |
+| **Selection Bias** | A systematic error arising when the sample is not representative of the population | Leads to models that work on the sample but fail on the real population |
+| **Survivorship Bias** | Analysing only units that "survived" a filter, ignoring those that did not | Produces misleadingly optimistic conclusions; e.g., studying successful companies only |
+| **Null Hypothesis (H₀)** | The default assumption that no effect or difference exists | The claim that hypothesis testing attempts to find evidence against |
+| **Alternative Hypothesis (H₁)** | The claim that an effect or difference does exist | What you are trying to demonstrate with your experiment or test |
+| **P-Value** | The probability of observing data at least as extreme as the actual data, assuming the null hypothesis is true | If p ≤ α, you reject the null; small p-values are evidence against H₀ |
+| **Significance Level (α)** | The pre-set threshold below which the p-value is considered significant, typically 0.05 | Controls the acceptable rate of Type I errors |
+| **Type I Error** | Rejecting a true null hypothesis (a false positive) | Controlled by the significance level α; e.g., concluding a useless drug works |
+| **Type II Error** | Failing to reject a false null hypothesis (a false negative) | Controlled by statistical power; e.g., missing a drug that actually works |
+| **Statistical Power** | The probability of correctly detecting a real effect (1 − β) | Increases with larger sample sizes or larger true effect sizes |
+| **Confidence Interval (CI)** | A range of values that, over many repeated experiments, would contain the true parameter a specified percentage of the time | Conveys both the estimate and its precision; narrower CI = more precise estimate |
+| **z-Test** | A hypothesis test for comparing means when the sample size is large and the population variance is known | Applied when CLT guarantees approximately normal sampling distributions |
+| **t-Test** | A hypothesis test for comparing means with small samples where the population variance is unknown | More conservative than the z-test; uses the t-distribution with heavier tails |
+| **Chi-Square Test** | A test for association between two categorical variables based on comparing observed and expected cell counts | Common test for independence in contingency tables |
+| **ANOVA** | A test comparing the means of three or more groups simultaneously | Avoids inflating the false-positive rate that would result from running multiple t-tests |
+| **Mann-Whitney U Test** | A non-parametric test comparing two independent groups when normality cannot be assumed | Used in place of the t-test for ordinal data or small non-normal samples |
+| **A/B Testing** | A randomised experiment comparing a control group to a treatment group on a single change | The primary method for making data-driven product decisions |
+| **Minimum Detectable Effect (MDE)** | The smallest true effect size an experiment is designed to detect reliably | Determines the required sample size; smaller MDE = larger experiment needed |
+| **Sample Ratio Mismatch (SRM)** | When the observed split between control and treatment groups differs significantly from the planned split | Indicates a logging or bucketing bug; results should not be trusted until resolved |
+| **Peeking** | Stopping an A/B test early because the p-value crossed the significance threshold | Inflates the effective false-positive rate; requires sequential testing methods to do correctly |
+| **Multiple Comparisons Problem** | Testing many hypotheses simultaneously inflates the overall chance of at least one false positive | Addressed with Bonferroni correction (α/m) or the Benjamini-Hochberg FDR procedure |
+| **P-Hacking** | Running many tests and selectively reporting only those with p < α | Leads to false discoveries; defended against through pre-registration and reporting all tests |
+| **Bonferroni Correction** | Dividing the significance threshold α by the number of tests m when testing multiple hypotheses | Keeps the family-wise error rate below α; conservative when tests are correlated |
+| **Pearson Correlation** | A normalised measure of the linear relationship between two variables, ranging from −1 to 1 | Standard correlation metric; sensitive to outliers and captures only linear relationships |
+| **Spearman Correlation** | A correlation metric based on ranks rather than raw values | Robust to outliers and captures monotonic (not just linear) relationships |
+| **Covariance** | A measure of the joint variability of two variables expressed in the product of their units | Foundational to correlation and PCA; harder to interpret than correlation due to units |
+| **Causation** | A relationship where one variable directly produces a change in another | Established through randomised experiments or causal inference methods, not correlation alone |
+| **Confounder** | A variable that is correlated with both the treatment and the outcome, creating a spurious association | Must be controlled for to avoid drawing incorrect causal conclusions |
+| **MLE (Maximum Likelihood Estimation)** | Estimating model parameters by maximising the probability of the observed data under the model | The standard estimation method; equivalent to MAP with a uniform prior |
+| **MAP (Maximum a Posteriori)** | Estimating model parameters by maximising the posterior, which incorporates a prior over parameters | Adding a Gaussian prior is equivalent to L2 regularisation; Laplace prior gives L1 |
+| **Bayesian Inference** | Computing the full posterior distribution over parameters rather than just a point estimate | Provides complete uncertainty quantification; used in small-data and multi-armed bandit settings |
+| **Bootstrapping** | Resampling the dataset with replacement many times and computing a statistic on each resample | Estimates sampling distributions without assuming any parametric form |
+| **Multicollinearity** | High correlation among predictor variables in a regression model, inflating coefficient standard errors | Makes individual coefficients unstable and hard to interpret; detected with VIF |
+| **VIF (Variance Inflation Factor)** | A score measuring how much a predictor's variance is inflated by collinearity with other predictors | VIF > 5–10 signals a collinearity problem requiring action |
+| **R² (R-squared)** | The fraction of variance in the target explained by the model | Always increases with more predictors; use adjusted R² for model comparison |
+| **Adjusted R²** | R² penalised for the number of predictors to avoid rewarding unnecessary complexity | Can decrease when adding a predictor that contributes less than expected by chance |
+| **AIC / BIC** | Information criteria that balance model fit against complexity as an alternative to adjusted R² | Used to compare models; lower values indicate a better trade-off between fit and simplicity |
+
 *Previous: [Deep Learning Fundamentals](02-deep-learning-fundamentals.md) | Next: [ML System Design](04-ml-system-design.md)*

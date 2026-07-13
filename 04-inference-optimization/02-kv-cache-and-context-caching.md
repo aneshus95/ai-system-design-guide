@@ -126,4 +126,34 @@ With cheap context caching (DeepSeek, Gemini, Anthropic), RAG is often "overkill
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **KV Cache** | Memory that stores the Key and Value attention tensors for every token already seen in a conversation | Avoids recomputing past context on every decode step; the single largest VRAM consumer in long-context serving |
+| **Key (K) Tensor** | A vector that "advertises" what a token represents; used in attention to find relevant context | One of the two tensors stored per token in the KV cache |
+| **Value (V) Tensor** | A vector that holds a token's actual contribution to the output blend in attention | Read out of the cache and combined to produce each new token |
+| **Query (Q) Tensor** | A vector representing what the current token is "looking for" in past context | Not cached — only the current token needs one per decode step |
+| **VRAM** | Video RAM — the fixed high-speed memory on a GPU used for weights, activations, and the KV cache | The scarcest resource in LLM serving; the KV cache competes directly with model weights for space |
+| **MHA (Multi-Head Attention)** | The original attention style with one KV head per query head (1:1 ratio) | Baseline for attention; produces the largest KV cache |
+| **GQA (Grouped Query Attention)** | Attention where multiple query heads share one KV head, reducing cache size by up to 8x | The modern standard for efficient serving; under 0.2% quality loss |
+| **MQA (Multi-Query Attention)** | Extreme variant where all query heads share a single KV head, reducing cache 64–128x | Highest memory savings but 2–3% quality loss; used in some mobile or edge models |
+| **External Fragmentation** | Wasted memory caused by free space being split into gaps too small for a new large allocation | Why naive contiguous KV cache allocation leaves VRAM effectively unusable even when "free" |
+| **PagedAttention** | A memory management system that stores KV cache in small non-contiguous pages, like OS virtual memory | Reduces KV cache memory waste from ~60–80% down to under 4%, enabling far more concurrent requests |
+| **Context Caching (Self-hosted)** | Storing the pre-computed KV cache of a common prompt prefix so multiple users can reuse it | Eliminates redundant prefill compute when many users share the same system prompt or knowledge base |
+| **Prompt Caching (API-level)** | A provider feature that discounts or skips charges for input tokens whose KV cache is already stored | Cuts input cost by 50–90% for repeated prefixes like long system prompts or shared documents |
+| **Tiered Caching** | Storing recently used KV data in VRAM, frequently used data in HBM, and occasional data on SSD | Balances fast access with capacity so more cache can be retained without wasting expensive VRAM |
+| **SGLang** | An open-source inference engine with advanced prefix-cache reuse (RadixAttention) and tiered caching | Used for high-throughput text-only workloads where prompt reuse is common |
+| **RAD-O** | Retrieval Augmented Decoding — compresses long-document KV caches into smaller "latent tokens" | Enables 2M+ token contexts on hardware that would otherwise only support 200k |
+| **Latent Tokens** | A compressed representation of a long document's KV cache, much smaller than the full tensors | Allow very long contexts to fit in VRAM by trading some precision for a 10x reduction in cache size |
+| **Prefix Sharing** | A PagedAttention feature where multiple requests that share the same prompt prefix point to the same physical KV blocks | Stores a common 5k-token system prompt once instead of once per user, saving enormous VRAM |
+| **Copy-on-Write** | A memory strategy where shared blocks are only duplicated when one user modifies them | Allows prefix sharing without corrupting other users' caches when unique tokens are generated |
+| **Break-Even (caching)** | The minimum number of times a cached prefix must be reused for caching to be cheaper than re-sending tokens | Guides the decision of whether prompt caching saves money (typically 1.1–5x reuse depending on provider) |
+| **RAG (Retrieval Augmented Generation)** | Fetching relevant document chunks from a vector database and injecting them into the prompt | An alternative to context caching for large document corpora; trades recall accuracy for lower token cost |
+| **Vector Database** | A database that stores and searches embeddings (numeric document representations) by semantic similarity | The retrieval backbone of RAG; not needed if the full document fits in context via caching |
+| **BF16** | Brain Float 16 — a 16-bit floating-point format with a wider exponent range than FP16 | Common precision for KV cache storage; 2 bytes per value in the VRAM formula |
+| **Sequence Length** | The total number of tokens in a request (prompt plus output so far) | Directly multiplies KV cache size; longer conversations consume proportionally more VRAM |
+
 *Next: [Speculative Decoding](03-speculative-decoding.md)*

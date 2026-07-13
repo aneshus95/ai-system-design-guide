@@ -804,4 +804,48 @@ My defense starts with treating all tool outputs as untrusted data. I use a dedi
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Defense-in-Depth** | Layering multiple independent safety mechanisms so that failure of any single layer does not compromise the system | The architectural principle that makes agent security robust against novel attack vectors |
+| **OWASP Top 10 for Agentic AI** | A 2026 framework listing the ten most critical security risks in agentic AI systems, developed with 100+ industry experts | Provides a standard vocabulary and prioritization for structuring agent security designs |
+| **ASI01 – Agent Goal Hijacking** | An attack where malicious inputs manipulate the agent's objectives away from the intended task | The most critical agentic risk; covered by input sanitization and injection detection |
+| **ASI02 – Tool Misuse and Exploitation** | Using legitimate tools in unsafe combinations or being tricked into misusing them via manipulated data | Mitigated by tool allowlists and per-parameter validation |
+| **ASI03 – Identity and Privilege Abuse** | Exploiting delegated credentials or role chains to gain unauthorized access beyond intended scope | Addressed by capability-based access control and scoped, per-tool credentials |
+| **ASI04 – Supply Chain Vulnerabilities** | Compromised third-party agents, plugins, or update channels that introduce malicious behavior | Requires code signing, sandboxing, and security review of all agent extensions |
+| **ASI06 – Memory and Context Poisoning** | Corrupting stored context to bias the agent's future reasoning and decisions | Requires provenance tracking in memory systems and separating verified facts from user-supplied data |
+| **ASI07 – Insecure Inter-Agent Communication** | Spoofing or intercepting messages between agents in a multi-agent pipeline | Addressed by schema validation and message signing on all inter-agent communication |
+| **ASI09 – Human-Agent Trust Exploitation** | An agent presenting polished, confident justifications that mislead human reviewers into approving harmful actions | Mitigated by not showing agent-generated justifications in HITL review UIs |
+| **PropensityBench** | A benchmark with 5,874 scenarios testing whether LLMs use "forbidden" tools when under increasing pressure | Shows that models acknowledge a tool is dangerous and then use it anyway under stress, proving system-level controls are mandatory |
+| **Pressure testing** | Running an agent under simulated stress conditions (deadlines, repeated failures) and verifying it maintains safe behavior | Reveals safety degradation that normal-condition testing misses |
+| **Indirect prompt injection** | An attack where malicious instructions are embedded in data the agent reads (emails, documents, web pages) rather than in direct user input | The most dangerous attack vector against tool-using agents because the attacker does not need direct access |
+| **Cross-tool contamination** | A variant of prompt injection where a malicious MCP server registers a tool with a name similar to a legitimate one, hijacking traffic | Unique to multi-tool environments; requires strict tool name validation and allowlists |
+| **Instruction hierarchy** | A design where system-prompt instructions always override anything found in tool outputs or user messages | The primary model-level defense against indirect prompt injection |
+| **Data/instruction boundary markers** | Explicit delimiters that wrap tool outputs so the model treats them as data rather than commands | A structural defense that physically separates untrusted content from trusted instructions in the prompt |
+| **DLP (Data Loss Prevention)** | A layer that inspects outbound data for sensitive patterns (PII, API keys, credit cards) and blocks exfiltration | Prevents an agent with both read and write tool access from leaking sensitive data externally |
+| **Network segmentation** | Restricting agent containers from direct internet access, routing all external calls through a policy-enforcing proxy | Limits exfiltration paths and ensures all outbound traffic is logged and inspected |
+| **Cascading failure** | A failure in one agent that propagates incorrect data to downstream agents, amplifying the impact | A simulated study found a single poisoned agent corrupted 87% of downstream decisions within 4 hours |
+| **Circuit breaker** | A mechanism that halts a pipeline and raises an alert when consecutive validation failures exceed a threshold | Prevents a poisoned agent from silently degrading an entire multi-agent workflow |
+| **Firecracker microVM** | A lightweight VM technology that gives each session its own isolated guest kernel | The recommended isolation level for agents that execute untrusted code; stronger than Docker alone |
+| **gVisor** | A user-space kernel implementation that intercepts syscalls to provide stronger isolation than standard Docker | Used by Google's Agent Sandbox; offers Linux compatibility with lower overhead than full VMs |
+| **WASM (WebAssembly)** | A binary execution format providing capability-based isolation with microsecond startup times | Ideal for pure-compute sandboxing of agent code that needs no filesystem or network access |
+| **Capability-based access control** | Issuing fine-grained, operation-specific credentials per tool rather than broad system access | Reduces blast radius when an agent is compromised or manipulated |
+| **Allowlist** | An explicit list of permitted actions, tools, or values; everything not on the list is denied | Far more robust than denylists, which can never enumerate every possible harmful action |
+| **Tiered Authorization** | Categorizing agent actions by risk (read = auto-approve, write = HITL, delete = manager approval) | Organizations using this model experience 76% fewer agent safety incidents |
+| **HITL gate** | A checkpoint requiring a human reviewer to approve an agent action before it executes | The last line of defense against harmful actions; must be implemented so reviewers actually review |
+| **Rubber-stamping** | When HITL reviewers approve all actions without scrutiny, rendering the gate ineffective | Detected by monitoring approval rates; 100% approval rate over extended periods is a red flag |
+| **Approval fatigue** | When too many low-risk actions are routed to HITL review, causing reviewers to become desensitized | Prevented by using tiered authorization so only genuinely risky actions require human review |
+| **Kill switch hierarchy** | Four levels of agent shutdown: task abort, agent shutdown, system halt, and credential revocation | Ensures operators can stop agent harm at the appropriate scope with the appropriate speed |
+| **Immutable audit log** | An append-only record of every agent decision, tool call, and HITL action that cannot be modified | Required by SOC 2, HIPAA, and PCI-DSS for compliance; essential for post-incident analysis |
+| **SIEM (Security Information and Event Management)** | A platform that aggregates and analyzes security logs for real-time threat detection | Where immutable agent audit logs are forwarded for anomaly detection and compliance reporting |
+| **Governance Maturity Model** | A five-level ladder from ad-hoc agent deployment (Level 1) to adaptive, self-adjusting governance (Level 5) | Helps organizations self-assess and prioritize improvements to their agent oversight practices |
+| **DASF (Databricks AI Security Framework)** | A security framework v3.0 covering 97 risks across 13 AI system components with 73 mitigation controls | A comprehensive reference mapping agentic risks to MITRE, OWASP, NIST, and ISO standards |
+| **EU AI Act** | European Union regulation classifying AI systems by risk level and imposing transparency and oversight requirements | Agents in high-risk domains (healthcare, finance) face conformity assessment requirements from August 2026 |
+| **Tool sovereignty problem** | The unresolved legal question of who is responsible when an agent autonomously selects and uses a tool that causes harm | An open regulatory gap that organizations must address through contractual and technical accountability frameworks |
+| **Red-teaming** | Dedicated adversarial testing where a team attempts to make the agent misbehave through prompt injection, tool misuse, and pressure | Essential for discovering safety failures that functional testing misses |
+| **Anomaly detection (agent)** | Real-time monitoring that flags unusual patterns in agent behavior such as sudden spikes in tool calls or abnormal data volume | Provides early warning of prompt injection, runaway loops, and compromised agents |
+
 *Previous: [Use Cases and Case Studies](06-use-cases-and-case-studies.md) · Next: [Real-Time Voice Agents](../18-voice-and-audio-agents/01-realtime-voice-agents.md)*

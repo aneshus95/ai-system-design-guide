@@ -607,4 +607,38 @@ deeper into any specific component, or should I move on to evaluation?"
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **SPIDER** | A six-step framework for AI system design interviews: Scope, Prioritize, Initial architecture, Deep dive, Evaluation, Reliability. | Gives candidates a repeatable structure so they hit every high-signal phase in a 45-minute session without going blank. |
+| **ETA framework** | A three-part concept explanation structure: Explain simply, Technical details, Applications and tradeoffs. | Helps candidates give layered answers to "explain X" questions — accessible first, then deep, then practical. |
+| **STAR-L** | A behavioral answer framework: Situation, Task, Action, Result, Learnings. | The standard way to structure stories about past experience so they are clear, quantified, and show growth. |
+| **Scope (SPIDER - S)** | The first phase where you ask clarifying questions to narrow scale, latency, accuracy, compliance, and budget before designing anything. | Prevents wasting interview time designing the wrong system; also signals senior-level thinking. |
+| **Tradeoff analysis** | Comparing options by defining criteria, weighting them, and making an explicit recommendation with reasoning. | Shows interviewers that you can reason about competing constraints rather than picking whatever you know best. |
+| **Latency budget** | Breaking the total allowed response time (e.g. p95 < 3 s) into per-component allocations (embedding, retrieval, rerank, LLM generation). | Makes performance requirements concrete and reveals which components are the critical path. |
+| **p50 / p95 / p99** | Percentile latency metrics: the response time that 50%, 95%, or 99% of requests are faster than. | Better than average latency because they reveal tail behavior that users actually experience. |
+| **Token usage / cost** | The number of input and output tokens consumed per request, multiplied by per-token pricing. | The primary cost driver for LLM systems; must be tracked as a first-class production metric. |
+| **Cache hit rate** | The fraction of requests that are served from a cache rather than calling the LLM or retrieval system. | Higher hit rates directly reduce cost and latency; a key metric for semantic and prefix caches. |
+| **Error rate** | The fraction of requests that result in an error or fallback rather than a successful answer. | Tracks reliability; a spike in error rate is the primary signal that a provider or component has degraded. |
+| **Quality gate** | An automated check that blocks a code change from shipping if it causes a measurable regression in a quality metric. | Prevents silent degradation; the mechanism that makes eval pipelines actionable in CI/CD. |
+| **A/B testing** | Running two versions of a system simultaneously on real traffic and measuring which performs better on outcome metrics. | The gold standard for validating that a system change actually improves user experience in production. |
+| **Observability** | The ability to understand the internal state of a system by examining its outputs (traces, logs, metrics). | Essential for AI systems because failures are often silent (wrong answer, not error); you cannot fix what you cannot see. |
+| **Failure mode** | A specific way a system can break or produce incorrect output (e.g. retrieval returns nothing, LLM hallucinates). | Naming failure modes proactively is a strong interview signal; it shows production experience over prototype thinking. |
+| **Graceful degradation** | Returning a partial or fallback response when a component fails rather than erroring the whole request. | Keeps the user experience working under partial failure conditions; separates production-ready from prototype designs. |
+| **Circuit breaker** | A pattern that stops sending requests to a failing dependency after a threshold of errors and only retries after a cooldown. | Prevents cascading failures and runaway latency when a downstream service (e.g. LLM provider) is degraded. |
+| **Retry with backoff** | Re-attempting a failed request after a delay that grows exponentially, with random jitter to avoid synchronized retries. | Recovers from transient errors (rate limits, brief outages) without overwhelming the failing service. |
+| **Rate limiting** | Capping how many requests a client or tenant can make per time window. | Protects the system from overload and ensures fair resource allocation across users. |
+| **Horizontal scaling** | Adding more copies of a stateless service to handle more load. | The standard way to scale AI inference, embedding, and API-serving components since each request is independent. |
+| **Ingestion pipeline** | The data processing path that takes raw documents and produces indexed embeddings in a vector database. | Data quality here determines retrieval quality; a beautiful query pipeline is useless if ingestion produces bad chunks. |
+| **Reindexing** | Re-running the ingestion pipeline on updated documents to keep the index current. | Required when documents change; must handle deletes and updates, not just new inserts. |
+| **System prompt** | The initial instruction block given to an LLM that sets its behavior, persona, and constraints for a session. | The primary mechanism for controlling model behavior; should be stable and at the front of the prompt for caching. |
+| **Context formatting** | How retrieved chunks, conversation history, and user queries are assembled and ordered before the LLM call. | Directly affects generation quality; clear source labels and strategic ordering reduce "lost in the middle" effects. |
+| **LangChain** | A popular Python/TypeScript framework for building LLM applications with chains, agents, and retrieval components. | Provides reusable building blocks for RAG and agent pipelines, speeding up prototyping. |
+| **Pinecone** | A managed vector database service that handles index hosting, scaling, and SLAs for the user. | Removes the operational burden of running a vector database; popular for teams without dedicated infrastructure engineers. |
+| **Qdrant** | An open-source, high-performance vector database with strong hybrid search support. | Often chosen for self-hosted deployments where operational control and cost matter. |
+| **Elasticsearch** | A distributed search engine that supports full-text (BM25) search, used as the sparse retrieval arm in hybrid RAG. | Provides production-grade keyword search at scale with mature operational tooling. |
+
 *See also: [Question Bank](01-question-bank.md) | [Common Pitfalls](03-common-pitfalls.md) | [Whiteboard Exercises](04-whiteboard-exercises.md)*

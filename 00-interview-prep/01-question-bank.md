@@ -5095,5 +5095,63 @@ Request → Classifier (intent, complexity, risk) → Policy lookup → Provider
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RAG (Retrieval-Augmented Generation)** | A pattern that fetches relevant documents at query time and puts them in the LLM's prompt so the model answers from real data rather than guessing. | Grounds LLM answers in factual, up-to-date sources and reduces hallucination. |
+| **Chunking** | Splitting long documents into smaller pieces before embedding and indexing them. | Improves retrieval precision by making each indexed unit semantically focused. |
+| **Embedding** | A list of numbers (vector) that represents the meaning of a piece of text so computers can compare meanings. | Enables semantic similarity search: chunks with similar meanings end up close together in vector space. |
+| **Vector database** | A specialized database that stores embeddings and retrieves them by similarity rather than exact keyword match. | Retrieves the most semantically relevant chunks for a given query at scale. |
+| **Hybrid search** | Combining dense (embedding-based) search with sparse (keyword-based, e.g. BM25) search and merging the ranked results. | Catches both conceptual matches and exact-term matches that either method alone would miss. |
+| **BM25** | A classic keyword-ranking algorithm that scores documents by how often query terms appear, weighted by document length. | Provides the sparse retrieval arm of hybrid search; excels at exact token and acronym matching. |
+| **Reciprocal Rank Fusion (RRF)** | A formula that merges multiple ranked lists by summing 1/(k + rank) scores across each list. | Combines dense and sparse retrieval results into a single ranked list without needing manual weight tuning. |
+| **Reranking** | A second-pass scoring step that re-scores retrieval candidates with a more accurate but slower model. | Improves precision: cross-encoders understand the query-chunk relationship more deeply than embedding similarity. |
+| **Cross-encoder** | A model that reads the query and a candidate document together to produce a relevance score. | Used for reranking because it captures fine-grained interaction between query and passage. |
+| **HNSW (Hierarchical Navigable Small World)** | A graph-based approximate nearest-neighbor index that navigates a layered graph to find close vectors fast. | Enables high-recall vector search at millisecond latency; the default index type in most vector databases. |
+| **IVF (Inverted File Index)** | A vector index that clusters vectors into groups and only searches the nearest clusters at query time. | Trades a small amount of recall for lower memory usage and higher throughput on large datasets. |
+| **Product Quantization (PQ)** | A compression technique that approximates vectors by quantizing sub-vector segments. | Reduces vector memory by 4-16x at the cost of some accuracy; often combined with IVF as IVF-PQ. |
+| **ANN (Approximate Nearest Neighbor)** | A search method that finds approximately closest vectors, accepting a tiny accuracy trade-off for speed. | Makes billion-scale vector search practical at low latency. |
+| **RAGAS** | A Python evaluation framework for RAG systems that measures faithfulness, answer relevance, context relevance, and context recall. | Provides automated, reference-free quality metrics for every stage of a RAG pipeline. |
+| **Faithfulness** | A RAGAS metric measuring whether every claim in the generated answer is grounded in the retrieved context. | Detects hallucination: a low faithfulness score means the model invented facts. |
+| **LLM-as-judge** | Using one LLM to score or evaluate the outputs of another LLM against a rubric. | Scales quality evaluation to millions of responses where human review is too expensive. |
+| **Precision@K** | The fraction of the top-K retrieved documents that are actually relevant to the query. | Measures retrieval quality; low precision means the model is filling context with noise. |
+| **Recall@K** | The fraction of all truly relevant documents that appear in the top-K retrieved results. | Measures how complete retrieval is; low recall means the model is missing important information. |
+| **MRR (Mean Reciprocal Rank)** | The average of 1/rank where rank is the position of the first relevant result across queries. | Summarizes how high the first correct answer appears in the ranked list. |
+| **NDCG (Normalized Discounted Cumulative Gain)** | A ranking metric that rewards placing highly relevant results near the top of the list. | Evaluates retrieval quality when documents have graded relevance levels, not just binary relevant/not-relevant. |
+| **ReAct** | An agent pattern that interleaves Reasoning (Thought) with Acting (tool call) and Observation in a loop. | The most common agent architecture; the model decides what to do next by reflecting on tool results. |
+| **MCP (Model Context Protocol)** | An open protocol that standardizes how LLM applications connect to external tools and data sources. | Acts like a USB standard for AI tools, enabling interoperability across providers and frameworks. |
+| **Function calling / Tool use** | A model feature that lets the LLM output structured requests to invoke external functions that return results. | Connects LLMs to APIs, databases, and services so they can take real-world actions. |
+| **Multi-agent system** | An architecture where multiple LLM-based agents collaborate, each handling a specialized subtask. | Enables parallelism, specialization, and critique/verification patterns for complex tasks. |
+| **Flow engineering** | Designing agent behavior as explicit state machines rather than leaving all control-flow decisions to the LLM. | Makes agentic systems predictable, testable, and cost-controlled while still allowing LLM flexibility within each state. |
+| **LangGraph** | An open-source framework for building stateful, graph-based multi-agent workflows with built-in checkpointing. | Simplifies building reliable, resumable agent loops with explicit state management. |
+| **KV cache** | A cache of the Key and Value tensors computed for prior tokens during LLM generation so they are not recomputed each step. | Reduces inference compute from O(n²) to O(n) per token, making long-context generation practical. |
+| **Speculative decoding** | A technique where a small draft model generates candidate tokens that a large target model verifies in one parallel pass. | Delivers 2-3x faster generation with mathematically identical output to target-only inference. |
+| **Continuous batching** | A serving strategy that adds new requests to a running batch and removes completed ones dynamically without waiting. | Maximizes GPU utilization and throughput at all traffic levels. |
+| **PagedAttention** | A KV cache management technique borrowed from OS virtual memory that allocates cache in pages on demand. | Eliminates memory fragmentation and increases the number of concurrent requests a GPU can serve. |
+| **vLLM** | An open-source LLM inference engine that pioneered PagedAttention and continuous batching. | The most widely used open inference engine for serving open-weight models at production scale. |
+| **GQA (Grouped Query Attention)** | A transformer variant that shares Key and Value heads across groups of Query heads to reduce KV cache size. | Cuts KV cache memory by 4-8x compared to full multi-head attention, enabling longer contexts or larger batches. |
+| **Prefix caching / Prompt caching** | Storing the KV cache of a shared prompt prefix so subsequent requests reuse it at a fraction of the normal cost. | Reduces cost and latency for workloads with a long shared system prompt or tool schema header. |
+| **TTFT (Time to First Token)** | How long the user waits before seeing the first output token streamed from the model. | The primary latency metric for interactive applications; dominated by prompt processing (prefill) time. |
+| **TPS (Tokens per Second)** | How many output tokens the model generates per second after the first token. | Measures throughput; key for long-form generation tasks. |
+| **Fine-tuning** | Further training a pre-trained model on a smaller task-specific dataset to adjust its behavior or style. | Teaches the model consistent output formats, domain tone, or specialized reasoning patterns. |
+| **SLM (Small Language Model)** | A language model with fewer than roughly 10 billion parameters designed to run on limited hardware. | Used for classification, routing, and on-device inference where cost and latency matter more than peak capability. |
+| **Frontier model** | The most capable publicly available LLMs from top AI labs (e.g. Claude Opus 4.8, GPT-5.5, Gemini 3.1 Pro). | Sets the quality ceiling for tasks requiring complex reasoning, coding, or multimodal understanding. |
+| **MTEB (Massive Text Embedding Benchmark)** | A standardized benchmark suite covering retrieval, classification, clustering, and similarity tasks for embedding models. | The industry standard for comparing embedding models before choosing one for a production system. |
+| **Multi-tenant RAG** | A RAG system serving multiple customers where each customer's documents are strictly isolated from others. | Required for any SaaS product; the key rule is to filter by tenant_id inside the database query, never after retrieval. |
+| **Context window** | The maximum number of tokens an LLM can process in a single inference call (input + output combined). | Sets the upper bound on how much information you can give the model at once. |
+| **Lost in the middle** | The empirical finding that LLMs pay less attention to content in the middle of a long context than to the beginning and end. | Motivates limiting context size, reranking for quality, and placing the most critical chunks at the start and end of context. |
+| **DSPy** | A framework that compiles high-level program specifications into optimized LLM prompts and configurations automatically. | Replaces manual prompt engineering with systematic optimization when you have a scoring function but not ideal prompts. |
+| **Self-consistency** | An ensemble method that samples multiple reasoning chains from the model and takes the majority-vote answer. | Improves accuracy on reasoning tasks at the cost of more LLM calls; the simplest ensemble technique. |
+| **Best-of-N** | Generating N candidate outputs and selecting the best one according to a verifier or scoring function. | Trades compute for quality; useful when correctness can be verified cheaply (e.g. code that passes tests). |
+| **Semantic cache** | A cache that matches incoming queries to previously answered similar queries using embedding similarity, returning cached answers without calling the LLM. | Cuts inference cost and latency for workloads with many paraphrased or repeated questions. |
+| **Hallucination** | When an LLM generates plausible-sounding but factually incorrect or unsupported statements. | The primary failure mode that RAG and faithfulness evaluation are designed to detect and mitigate. |
+| **Parent-child chunking** | Indexing small chunks for retrieval precision but returning the larger parent chunk as context for generation. | Balances the precision of small-chunk retrieval with the richer context that large chunks provide to the LLM. |
+| **Reasoning model** | An LLM that spends extra tokens "thinking" through a problem (chain-of-thought) before producing the final answer, with a controllable compute budget. | Improves accuracy on hard logical, mathematical, or multi-step problems at the cost of higher latency and token usage. |
+| **Adaptive thinking** | A model feature (e.g. Claude Opus 4.8) that lets you set a thinking-token budget the model uses to reason before answering. | Acts as a cost lever for reasoning models: higher budgets improve hard-problem accuracy; lower budgets reduce latency. |
+| **Matryoshka embeddings** | Embedding vectors that can be truncated to smaller dimensions while retaining most of their semantic quality. | Lets you trade index size and search speed against quality by choosing the embedding dimension at query time. |
+
 *See also: [Answer Frameworks](02-answer-frameworks.md) | [Common Pitfalls](03-common-pitfalls.md) | [Whiteboard Exercises](04-whiteboard-exercises.md)*
 

@@ -646,4 +646,75 @@ Stacking trains multiple diverse base models and then trains a meta-learner on t
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Supervised Learning** | Training a model on labelled input-output pairs so it learns to predict outputs for new inputs | The most common ML paradigm for classification and regression tasks |
+| **Unsupervised Learning** | Finding patterns in data that has no labels, such as grouping similar items together | Useful for clustering, compression, and exploratory data analysis |
+| **Semi-supervised Learning** | Combining a small labelled dataset with a large unlabelled one to train better models | Reduces labelling costs while maintaining predictive quality |
+| **Reinforcement Learning** | Training an agent to take actions by rewarding good outcomes and penalising bad ones | Used for game-playing agents, robotics, and recommendation policies |
+| **Bias (ML)** | A systematic error where a model's predictions are consistently off in one direction | High bias means the model is too simple and underfits the data |
+| **Variance (ML)** | How much a model's predictions change when trained on different samples of the same data | High variance means the model overfits and does not generalise |
+| **Overfitting** | A model memorises training data so well it performs poorly on new, unseen data | The central problem regularisation and cross-validation are designed to prevent |
+| **Underfitting** | A model is too simple to capture the underlying pattern, performing poorly even on training data | Signals the need for more features, a more complex model, or less regularisation |
+| **Regularisation** | Adding a penalty to the loss function to shrink model weights and reduce overfitting | Controls the bias–variance tradeoff by limiting model complexity |
+| **L1 Regularisation (Lasso)** | A penalty equal to the sum of absolute weight values; drives some weights exactly to zero | Performs automatic feature selection by producing sparse models |
+| **L2 Regularisation (Ridge)** | A penalty equal to the sum of squared weight values; shrinks all weights but not to zero | Stabilises predictions when features are correlated |
+| **ElasticNet** | A combined L1+L2 penalty that blends sparsity and weight shrinkage | Useful when you want some feature selection alongside stable coefficient estimates |
+| **Linear Regression** | A model that predicts a continuous output as a weighted sum of input features | The go-to baseline for regression tasks; closed-form solution exists |
+| **Logistic Regression** | A classification model that applies a sigmoid function to a linear combination of features to output a probability | Despite its name, it classifies; provides interpretable odds-ratio coefficients |
+| **Sigmoid Function** | A smooth S-shaped function that maps any real number to a value between 0 and 1 | Used to convert raw scores into probabilities in logistic regression and neural networks |
+| **Decision Tree** | A flowchart-like model that repeatedly splits data on feature values to reach a prediction | Highly interpretable; forms the building block for Random Forests and Gradient Boosting |
+| **Gini Impurity** | A measure of how often a randomly chosen item would be mis-labelled if labelled randomly from a node's distribution | Used by CART to choose the best feature split at each tree node |
+| **Entropy (Information)** | A measure of disorder or uncertainty in a set of class labels | Used by ID3/C4.5 decision trees; higher entropy means more mixed classes |
+| **Information Gain** | The reduction in entropy achieved by splitting on a particular feature | Guides decision tree algorithms to choose the most useful splits |
+| **Random Forest** | An ensemble of many decision trees, each trained on a bootstrap sample with random feature subsets | Reduces variance over a single tree; robust and hard to overfit |
+| **Bagging** | Training multiple models on bootstrap samples and averaging their predictions | Reduces variance by decorrelating models; the mechanism behind Random Forest |
+| **Bootstrap Sample** | A random sample drawn with replacement from the original dataset, typically the same size | Allows each tree to see a slightly different version of the data |
+| **Out-of-Bag (OOB) Error** | Validation error estimated using the ~37% of samples not included in each bootstrap | A free internal validation score without needing a separate validation set |
+| **Gradient Boosting** | Building trees sequentially where each tree corrects the residuals (errors) of the previous ensemble | Achieves very low bias; the principle behind XGBoost and LightGBM |
+| **XGBoost** | An optimised gradient boosting library with built-in L1/L2 regularisation and parallelised split-finding | Industry standard for tabular data competitions and production ML |
+| **Learning Rate (η)** | A small multiplier that scales how much each new tree contributes to the ensemble | Controls the speed and stability of gradient boosting; must be balanced with the number of trees |
+| **Support Vector Machine (SVM)** | A classifier that finds the widest possible margin boundary separating two classes | Works well in high-dimensional spaces; can handle non-linear data via the kernel trick |
+| **Kernel Trick** | Computing dot products in a high-dimensional space implicitly without ever transforming the data | Lets SVMs learn non-linear boundaries at the cost of just evaluating a kernel function |
+| **RBF Kernel** | A kernel function that measures similarity by the squared distance between two points | The most popular SVM kernel; effective general-purpose non-linear classifier |
+| **K-Nearest Neighbours (KNN)** | A prediction method that assigns a new point the majority class of its K closest training examples | Simple, non-parametric baseline; expensive at inference time |
+| **Naive Bayes** | A probabilistic classifier that applies Bayes' theorem assuming features are independent given the class | Fast and effective for text classification, especially with small labelled datasets |
+| **K-Means Clustering** | An unsupervised algorithm that partitions data into K groups by iteratively updating cluster centres | Common starting point for clustering tasks; requires specifying K in advance |
+| **Inertia (K-Means)** | The total sum of squared distances from each point to its assigned cluster centroid | Lower inertia = tighter clusters; used in the elbow plot to choose K |
+| **Silhouette Score** | A metric measuring how similar a point is to its own cluster compared to other clusters | Helps evaluate clustering quality when the true labels are unknown |
+| **PCA (Principal Component Analysis)** | A method that finds the directions of maximum variance in data and projects it onto fewer dimensions | Reduces dimensionality while preserving as much information as possible |
+| **t-SNE** | A non-linear dimensionality reduction technique that preserves local neighbourhood structure | Used almost exclusively for 2D/3D visualisations of high-dimensional data |
+| **UMAP** | A faster non-linear technique than t-SNE that preserves both local and some global structure | Preferred for large datasets where t-SNE is too slow |
+| **LDA (Linear Discriminant Analysis)** | A supervised dimensionality reduction method that maximises class separability | Used as a preprocessing step before classification to improve signal-to-noise |
+| **Curse of Dimensionality** | As the number of features grows exponentially, data becomes sparse and distance metrics fail | Motivates feature selection, PCA, and regularisation in high-dimensional settings |
+| **Cross-Validation (k-Fold)** | Splitting data into k equal folds and rotating which fold is used for validation | Gives a more reliable estimate of model performance than a single train/val split |
+| **Stratified k-Fold** | Cross-validation that preserves the class ratio in each fold | Essential when dealing with imbalanced datasets to avoid misleading validation results |
+| **Data Leakage** | When information from the validation or test set accidentally influences model training or preprocessing | Causes optimistically biased metrics that do not hold on truly unseen data |
+| **Confusion Matrix** | A table showing the counts of true positives, false positives, true negatives, and false negatives | The foundation for computing most classification evaluation metrics |
+| **Precision** | The fraction of predicted positives that are actually positive | Matters when the cost of false positives is high, such as spam filters |
+| **Recall (Sensitivity)** | The fraction of actual positives that are correctly identified | Matters when the cost of false negatives is high, such as disease detection |
+| **F1 Score** | The harmonic mean of precision and recall | Balances both metrics; preferred over accuracy for imbalanced datasets |
+| **ROC-AUC** | The area under the curve of true positive rate vs. false positive rate at all thresholds | Measures overall discriminative ability; 1.0 is perfect, 0.5 is random |
+| **PR-AUC** | The area under the precision-recall curve | More informative than ROC-AUC when the negative class vastly outnumbers the positive class |
+| **MAE (Mean Absolute Error)** | The average of the absolute differences between predicted and actual values | A robust, interpretable regression metric that ignores outliers |
+| **RMSE (Root Mean Squared Error)** | The square root of the average squared prediction errors | Penalises large errors more than MAE; in the same units as the target |
+| **R² (Coefficient of Determination)** | The proportion of target variance explained by the model | 1.0 = perfect fit; can be negative if the model is worse than the mean |
+| **SMOTE** | A technique that generates synthetic minority-class samples by interpolating between real ones | Addresses class imbalance without simply duplicating existing points |
+| **Matthews Correlation Coefficient (MCC)** | A balanced metric that accounts for all four cells of the confusion matrix | More reliable than F1 for imbalanced binary classification |
+| **One-Hot Encoding** | Converting a categorical variable into binary columns, one per category | Required for algorithms that cannot handle categorical inputs directly |
+| **Target Encoding** | Replacing a category with the mean target value for that category | Effective for high-cardinality features but must be done inside CV folds to avoid leakage |
+| **MCAR / MAR / MNAR** | Three types of missing data: completely random, dependent on other features, or dependent on the missing value itself | The type of missingness determines the safest imputation or handling strategy |
+| **Bayesian Optimisation** | Using a surrogate model of the objective to intelligently choose the next hyperparameter configuration to try | Much more sample-efficient than grid or random search for expensive model training |
+| **Stacking** | Training a meta-learner on the out-of-fold predictions of multiple base models | Combines diverse models to improve final predictions beyond any single model |
+| **Generative Model** | A model that learns the joint distribution P(x, y) and can generate new samples | Can leverage unlabelled data and naturally handles uncertainty |
+| **Discriminative Model** | A model that directly learns the conditional distribution P(y\|x) to predict labels | Typically achieves better decision boundaries with enough labelled data |
+| **Parametric Model** | A model with a fixed number of parameters regardless of dataset size | Assumes a specific functional form; fast but may underfit complex data |
+| **Non-Parametric Model** | A model whose complexity grows with the training data | Makes fewer assumptions; more flexible but needs more data and compute |
+| **Permutation Importance** | A feature importance method that measures performance drop when a feature's values are randomly shuffled | Model-agnostic and avoids the biases of tree-based importance measures |
+| **Recursive Feature Elimination (RFE)** | A wrapper feature selection method that repeatedly removes the weakest features and retrains | Computationally expensive but gives a ranked feature importance based on the chosen model |
+
 *Previous: [Multimodal Generation](../19-multimodal-generation/01-multimodal-generation.md) | Next: [Deep Learning Fundamentals](02-deep-learning-fundamentals.md)*

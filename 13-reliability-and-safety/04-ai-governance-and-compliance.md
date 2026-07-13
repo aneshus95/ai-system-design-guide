@@ -127,4 +127,41 @@ The EU AI Act is binding law with risk tiers, hard deadlines, and fines up to 7%
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **EU AI Act** | The European Union's binding law (Regulation 2024/1689) that classifies AI systems by risk tier and sets mandatory obligations for each tier | The world's first comprehensive AI law; sets hard compliance deadlines and fines up to 7% of global turnover |
+| **Risk Tier** | A category assigned to an AI system (Prohibited, High-risk, Limited risk, Minimal risk) based on how much harm it can cause | Determines which obligations and conformity requirements apply to a given system |
+| **High-Risk AI** | AI systems listed in Annex III (employment, credit, education) or embedded in Annex I regulated products; carries the full conformity regime | Requires risk management, data governance, human oversight, logging, and conformity assessment |
+| **Limited Risk AI** | AI that interacts with users (chatbots) or generates synthetic media; requires transparency and labeling only | Triggers Article 50 obligations such as disclosing that users are talking to AI |
+| **GPAI (General-Purpose AI)** | Foundation or frontier models that can perform a wide range of tasks; governed under Articles 51–55 | Providers must publish training-data summaries, maintain technical documentation, and honor copyright opt-outs |
+| **Systemic-Risk Model** | A GPAI model trained above 10²⁵ FLOP; carries additional obligations like adversarial testing and incident reporting | Reflects the EU's view that the most powerful models need extra scrutiny |
+| **Article 25** | The provision that makes a downstream developer who substantially modifies or rebrands a high-risk system the legal "provider" | Closes the loophole of using third-party models to avoid provider obligations |
+| **Article 50** | The EU AI Act transparency article requiring AI-interaction disclosure, synthetic-content marking, and deepfake labeling | Applies to limited-risk systems from August 2026 |
+| **Digital Omnibus** | A 2026 EU simplification package that delays high-risk application obligations to approximately December 2027 / August 2028 | Reduces near-term compliance burden for high-risk deployers while leaving prohibitions and GPAI rules intact |
+| **Conformity Assessment** | A formal process where a high-risk AI provider proves its system meets EU AI Act requirements, either by self-assessment or third-party audit | The mechanism that gates a high-risk product's entry to the EU market |
+| **NIST AI RMF** | The US National Institute of Standards and Technology's voluntary AI Risk Management Framework (AI 100-1) built on four functions: Govern, Map, Measure, Manage | The de-facto US baseline for responsible AI; widely used as evidence of due diligence |
+| **Generative AI Profile (NIST AI 600-1)** | A NIST companion document that enumerates 12 GenAI-specific risk categories and maps them to RMF controls | The clearest checklist for "what could go wrong with a GenAI system" from a US regulatory perspective |
+| **Confabulation** | NIST's term for hallucination—when a model states incorrect information confidently | Listed as one of the 12 GenAI risk categories in the NIST 600-1 profile |
+| **ISO/IEC 42001:2023** | The first certifiable AI Management System standard, structured like ISO 27001 with Plan-Do-Check-Act governance | Certifies that an organization has a systematic AI governance process; increasingly used as procurement evidence |
+| **SOC 2** | A US auditing standard that attests to a vendor's security, availability, and confidentiality controls | The dominant US assurance attestation; commonly paired with ISO 42001 for AI vendors selling to regulated buyers |
+| **Model Card** | A structured document describing a model's intended use, training data, evaluation results, and known limitations | A required governance artifact that makes a model's properties transparent to deployers and regulators |
+| **System Card** | A document describing end-to-end risks and mitigations for a deployed AI system (as opposed to just the model) | Goes beyond model-level documentation to cover how the model is used in a specific context |
+| **Data Card** | A document describing a dataset's provenance, licensing, known biases, and preprocessing | Supports data governance and copyright compliance obligations |
+| **Annex IV Technical File** | The detailed technical documentation a high-risk AI provider must maintain under the EU AI Act | The core conformity artifact that regulators can inspect to verify compliance |
+| **C2PA (Coalition for Content Provenance and Authenticity)** | A technical standard for embedding machine-readable provenance metadata into digital content | Used to implement the EU AI Act's synthetic-content watermarking requirement |
+| **OWASP Top 10 for LLM Applications** | A community list of the ten most critical security risks for LLM-powered applications (2025 edition) | Provides a risk vocabulary and control checklist that maps to AI Act and NIST obligations |
+| **OWASP Agentic Applications Top 10** | The 2026 extension of the OWASP list covering risks specific to AI agents (ASI01–ASI10), including memory poisoning | The emerging standard for agent-specific threat modeling and control mapping |
+| **Policy-as-Code** | Expressing governance rules in a machine-readable format that an agent can parse and enforce at runtime | Enables automated compliance checking without manual review of every decision |
+| **Audit Trail** | An immutable, tamper-evident log of prompts, outputs, tool calls, model versions, and decisions | The primary evidence artifact for regulatory inspection and incident investigation |
+| **Human Oversight** | The requirement that a human can interpret, override, or halt an AI system's output or action | A core EU AI Act obligation for high-risk systems; prevents full automation of consequential decisions |
+| **Automation Bias** | The tendency of human reviewers to over-trust AI recommendations and stop applying independent judgment | The failure mode human oversight is designed to prevent |
+| **Incident Reporting** | A process for detecting, triaging, and notifying regulators of serious AI-related incidents | Required for GPAI systemic-risk providers and high-risk deployers under the EU AI Act |
+| **Red-Teaming** | Adversarially probing a system for vulnerabilities, jailbreaks, bias, and unsafe outputs | Produces the evaluation evidence required by the EU AI Act and NIST RMF for high-risk and GPAI systems |
+| **PII Minimization** | Collecting and retaining only the personal data strictly necessary for a system's function | A data governance practice required by privacy law and the EU AI Act's data-quality obligations |
+| **Executive Order 14365** | A December 2025 US executive order directing a DOJ task force to challenge state AI laws on preemption grounds | Reflects the deregulatory federal posture; leaves NIST RMF as the only meaningful federal AI touchstone |
+
 *Previous: [Reliability Patterns](03-reliability-patterns.md)*

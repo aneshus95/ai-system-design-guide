@@ -159,4 +159,43 @@ The trap is that simple n-gram decontamination is not enough. A well-known resul
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Data Pipeline** | A sequence of automated steps (ingest → clean → dedup → govern → embed) that moves raw documents into a form models can use | The shared foundation for both RAG knowledge bases and fine-tuning training sets |
+| **Magic-Byte Detection** | Identifying a file's true type by reading its binary header rather than trusting the file extension | Prevents routing documents to the wrong parser, which would produce silent garbage output |
+| **libmagic** | The Unix library that implements magic-byte file-type detection | The standard tool used by parsers like Unstructured to correctly identify file types |
+| **Unstructured** | A document parsing library that handles 64+ file types and emits typed elements (Title, Table, NarrativeText) | The most common first step in production AI ingestion pipelines |
+| **Docling** | An IBM open-source parser with layout models and table extraction, supporting multiple export formats | Strong choice for complex PDFs and office documents with non-trivial layouts |
+| **LlamaParse** | A tiered API-based document parser with an agentic multimodal mode for hard layouts | Used when standard parsers fail on complex column layouts or image-heavy documents |
+| **OCR (Optical Character Recognition)** | Converting text in scanned images or non-digital PDFs into machine-readable characters | Required for any document that was scanned or photographed rather than exported digitally |
+| **Boilerplate Removal** | Stripping navigation menus, cookie banners, headers, and footers from web-extracted text | Prevents irrelevant repeated text from polluting embeddings and wasting context window space |
+| **Unicode Normalization (NFC/NFKC)** | Converting visually identical Unicode characters to a single canonical byte sequence | Required for exact deduplication and string matching to work reliably |
+| **Deduplication** | Removing duplicate or near-duplicate documents from a corpus before embedding or training | Reduces memorization in trained models, improves RAG context diversity, and prevents eval contamination |
+| **Exact Dedup** | Hashing documents and removing identical copies | Fast and precise but misses documents with the same content in different phrasing |
+| **MinHash + LSH** | A probabilistic technique that estimates Jaccard similarity between documents and buckets near-duplicates for comparison | Scales fuzzy deduplication to billions of documents without all-pairs comparison |
+| **Jaccard Similarity** | A set-overlap metric: the intersection of token n-grams divided by their union | The similarity measure that MinHash approximates for near-duplicate detection |
+| **SemDeDup** | Embedding-based semantic deduplication that clusters documents and drops near-duplicates within clusters by cosine similarity | Catches paraphrased duplicates that lexical MinHash misses |
+| **PII (Personally Identifiable Information)** | Names, email addresses, phone numbers, SSNs, and other data that can identify a specific person | Must be detected and redacted before embedding to prevent memorization and regurgitation |
+| **Microsoft Presidio** | An open-source PII detection and anonymization library supporting text, images, and structured data | The standard open tool for PII redaction at corpus scale |
+| **EU AI Act** | European regulation that requires general-purpose AI providers to log training data sources and respect copyright opt-outs | Drives the need for provenance metadata and consent tracking in every data pipeline |
+| **Provenance Metadata** | A record of where each document came from, when it was ingested, and what license it carries | Enables compliance auditing and source attribution for every piece of training or retrieval data |
+| **Heuristic Quality Filter** | A rule-based check (length, symbol-to-word ratio, repetition) that discards low-quality documents cheaply | A fast first pass, but must be ablated against a downstream eval because aggressive filtering can discard good data |
+| **Model-Based Quality Classifier** | A trained classifier that scores each document's quality or educational value | Higher accuracy than heuristics but adds compute cost and can be miscalibrated |
+| **FineWeb** | A high-quality web dataset whose preparation found that many common heuristics had minimal impact on downstream quality | The source of the key insight that quality filters must be empirically validated, not assumed |
+| **CDC (Change Data Capture)** | A technique that detects row-level or document-level changes in a source system in real time | Enables incremental RAG re-indexing so only changed documents are re-embedded, avoiding costly full re-indexes |
+| **Airflow** | The most widely used workflow orchestrator for batch data pipelines | Schedules and monitors the stages of the data pipeline at scale |
+| **Dagster** | An asset-based orchestrator with native incremental recompute | Well-suited to RAG pipelines where only changed documents need re-processing |
+| **OpenLineage** | A vendor-neutral open standard for tracking data lineage events across pipeline stages | Produces an auditable graph from raw source to trained model or vector store |
+| **DVC (Data Version Control)** | A Git-like version control system for datasets and ML experiments | Tracks which data version was used for each model or index, enabling reproducibility |
+| **lakeFS** | A data versioning platform that adds Git-like branching to object storage | Enables rollback and audit of dataset changes without duplicating data |
+| **Decontamination** | Removing test-set examples (including paraphrases) from training data before fine-tuning | Prevents inflated benchmark scores caused by the model having seen the test data |
+| **Self-Instruct** | A technique that generates new instruction-following examples from a small seed set using a teacher model | A cost-effective way to scale synthetic fine-tuning data |
+| **Synthetic Data** | Training or evaluation examples generated by an LLM rather than human annotators | Scales data cheaply but risks diversity collapse and eval contamination if not carefully filtered |
+| **Feature Store** | A database for storing and serving curated ML features with point-in-time correctness | Serves fine-tuning examples the same way a vector store serves RAG chunks |
+| **fastText Language Classifier** | A fast, lightweight model for detecting the language of a text | Used at ingestion to route multilingual documents and filter below a confidence threshold |
+
 *Next: [Agent Fundamentals](../07-agentic-systems/01-agent-fundamentals.md)*

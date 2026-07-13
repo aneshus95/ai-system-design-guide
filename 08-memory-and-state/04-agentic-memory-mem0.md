@@ -84,4 +84,32 @@ We use **Thresholded Relevance**. Mem0 returns a \"Relevance Score\" for every r
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Mem0** | A managed memory service that converts raw conversations into structured, persistent user-profile facts | Provides a plug-in L3 memory layer without engineering custom extraction and storage pipelines |
+| **Active Memory** | A memory system that automatically observes, extracts, and updates facts rather than passively logging raw text | Delivers higher retrieval precision by storing insights instead of verbatim transcripts |
+| **Digest Loop** | The continuous cycle of Observe → Extract → Compare → Merge that Mem0 runs on each conversation | Keeps the memory store current and deduplicated without manual intervention |
+| **Memory Agent** | A background LLM process that identifies memorable facts from a live conversation and writes them to long-term storage | Decouples the main agent's reasoning from memory management so neither blocks the other |
+| **Entity Linking** | Resolving that "Om" in Slack and "om.bharatiya" in Discord refer to the same real-world person | Prevents duplicate user profiles and ensures memories from different channels are unified |
+| **Cross-Session Synchronisation** | Keeping a user's remembered facts consistent across web, mobile, and other surfaces | Ensures the AI never asks the same qualifying question twice regardless of channel |
+| **Temporal Weighting** | Prioritising recently learned or recently confirmed facts over older ones when there is a conflict | Reflects that a user's preferences evolve and newer data is usually more accurate |
+| **Conflicting Identity Resolution** | Detecting and merging two memory records that refer to the same entity under different identifiers | Prevents the agent from holding contradictory beliefs about the same user |
+| **Deduplication** | Detecting that an incoming fact already exists in memory and merging rather than adding a duplicate | Keeps the memory index clean and prevents retrieval noise from repeated entries |
+| **Periodic Reflection** | A scheduled background job that reviews active goal nodes and generates proactive follow-up reminders | Enables an agent to check in on commitments without the user having to prompt it |
+| **Goal Node** | A memory record representing an outstanding task or commitment the user has mentioned | Feeds the Periodic Reflection process to produce timely, contextual reminders |
+| **Proactive Reminder** | An agent-initiated message reminding the user of a task they previously mentioned | Improves user experience by surfacing relevant commitments at the right time |
+| **LangGraph** | A graph-based orchestration framework for building stateful multi-step agents with LangChain | The standard runtime for wiring Mem0 (or similar) as an external state provider into an agent loop |
+| **AgentState** | A typed dictionary object that carries all live context (messages, plan, tool results) through a LangGraph graph | The single source of truth for an agent session; memory is injected into it at the start of each node |
+| **External State Provider** | A service (like Mem0) that supplies persistent data to an agent framework on demand | Decouples long-term memory from the in-process agent state, enabling cross-session personalisation |
+| **Thresholded Relevance** | Only injecting a recalled memory into the prompt when its relevance score exceeds a set threshold (e.g., 0.85) | Prevents low-signal memories from cluttering the context and confusing the model |
+| **Negative Retrieval** | A retrieval strategy where the agent only surfaces a memory if it directly resolves an unknown or prevents a hallucination | Keeps memory injection targeted rather than indiscriminate |
+| **Memory Fatigue** | A UX problem where the agent references so many past details that responses feel intrusive or irrelevant | Motivates thresholded relevance and memory pruning to keep recalled facts actionable |
+| **Memory Pruning** | Automatically deleting low-value or time-expired memories (e.g., transient weather comments) | Keeps the memory index focused on durable facts that improve future interactions |
+| **Recursive Memory** | A memory design where the agent's own actions and reminders can themselves create new memory entries | Enables self-reinforcing workflows like multi-day task tracking without human re-prompting |
+| **Personalization at Scale** | Maintaining per-user memory profiles consistently across millions of users and multiple platforms | The core value proposition of managed memory services like Mem0 over custom Postgres scripts |
+
 *Next: [Semantic Caching](05-semantic-caching.md)*

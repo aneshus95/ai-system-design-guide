@@ -182,4 +182,35 @@ There is a trade-off between **Schema Complexity** and **Information Integrity**
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Structured Generation** | Forcing an LLM to output only machine-readable formats (JSON, YAML, CSV) with guaranteed validity | Makes LLM output directly consumable by downstream code without fragile parsing heuristics |
+| **JSON Mode** | A provider-level setting that constrains the model to emit only syntactically valid JSON | Eliminates preamble text and malformed output caused by high temperature or instruction drift |
+| **response_format / json_schema** | An API parameter (OpenAI, Gemini) that specifies the exact JSON schema the model must conform to | Enforces field names, types, and structure at the engine level, not just via prompting |
+| **Function Calling / Tool Use** | A structured generation mode where the LLM selects a function name and populates its typed arguments | Bridges LLMs to external APIs and tools in a reliable, schema-validated way |
+| **Parallel Function Calling** | The model issuing multiple tool calls simultaneously in a single response | Reduces round-trip latency when several independent actions are needed before the next reasoning step |
+| **Constrained Decoding** | A decoding technique that restricts which tokens may be sampled at each step to only those valid given a grammar | Makes invalid output mathematically impossible rather than merely unlikely |
+| **Logit Bias / Grammar Mask** | A per-step filter applied to the model's raw token scores that sets illegal token probabilities to −∞ | The mechanism inside constrained decoding that enforces format at the inference level |
+| **Logits** | The raw, unnormalized scores a model assigns to each possible next token before softmax | The values that constrained decoding manipulates to block illegal tokens |
+| **Softmax** | A function that converts raw logit scores into a probability distribution over the vocabulary | Applied after masking so only legal tokens have non-zero probability |
+| **Automaton** | A state machine compiled from a regex or grammar that tracks where you are in a valid output | Provides O(1) valid-token lookup at each step, making constrained decoding fast |
+| **Regex (Regular Expression)** | A pattern language that describes flat string formats like dates, phone numbers, or enums | Used with constrained decoding for simple fixed-shape outputs; cannot handle nesting |
+| **CFG (Context-Free Grammar)** | A formal grammar that can describe nested, recursive structures like full JSON or code using a stack | The right tool when output contains balanced braces, brackets, or arbitrary nesting depth |
+| **FSM (Finite State Machine)** | A computational model with a fixed set of states and transitions, compiled from a regex | Drives token masking for flat patterns; has no memory of nesting depth |
+| **Pushdown Automaton** | An FSM augmented with a stack that can track nesting depth in recursive structures | What a CFG compiles to; necessary for validating full JSON or nested code |
+| **Outlines** | An open-source Python library that implements constrained decoding via regex and CFG for local models | Enables structured generation on self-hosted models with Hugging Face-compatible APIs |
+| **vLLM** | A high-throughput inference server for open-source models that supports guided JSON/regex/grammar generation | Combines fast KV-cache batching with constrained decoding for production self-hosted serving |
+| **XGrammar** | A fast, C++-backed constrained decoding library with Python bindings | Provides lower-latency grammar-guided generation than pure-Python approaches |
+| **llama.cpp / GBNF** | A CPU/GPU inference runtime for GGUF models with GBNF (Grammar-Based Normal Form) support | Runs quantized models locally with constrained decoding without a separate inference server |
+| **Pydantic / Zod** | Python / TypeScript schema validation libraries used to verify model output against expected types and fields | Catch semantic errors (wrong type, missing field) that constrained decoding does not prevent |
+| **Multi-Stage Extraction** | Splitting complex extraction into a free-text pass followed by a schema-conversion pass with a cheaper model | Reduces "hallucination under pressure" when the schema has many fields |
+| **Omission Hallucination** | When the model skips fields or fills them with placeholder data under schema complexity pressure | A failure mode in one-shot structured extraction from long, complex documents |
+| **Chain-of-Density** | A technique that progressively densifies an extraction by refining a coarse pass into a detailed one | Mitigates omission hallucinations in large structured extraction tasks |
+| **Canary Token (structured output context)** | A unique secret string embedded in the prompt to detect if the model ever leaks its own instructions | Used in output filtering to catch model compromise or prompt injection via the output side |
+| **Validate-and-Retry** | A pattern that runs schema validation on the output and sends the error traceback back to the model for self-correction | Recovers from semantic errors in structured output without requiring a re-prompt from scratch |
+
 *Next: [Prompt Optimization (DSPy)](07-prompt-optimization-dspy.md)*

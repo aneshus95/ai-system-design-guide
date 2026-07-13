@@ -211,4 +211,33 @@ A: We never include unauthorized content in the LLM context, even to say "I cann
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RAG (Retrieval-Augmented Generation)** | A pattern where an LLM answers using documents retrieved from a knowledge base, not just its training | Grounds answers in real company documents and avoids hallucination |
+| **SharePoint** | Microsoft's enterprise document management and collaboration platform | One of the three source systems whose documents are indexed |
+| **Confluence** | Atlassian's wiki and knowledge-base platform used for team documentation | A major source of methodology and process documents |
+| **Vector Database** | A database that stores and searches document embeddings by semantic similarity | Enables the system to find relevant documents even when the exact words differ |
+| **Embedding** | A list of numbers that represents the meaning of a piece of text | Makes it possible to compare documents mathematically and find similar ones |
+| **Chunking** | Breaking long documents into smaller, overlapping segments before embedding | Ensures that individual retrieved passages fit in the LLM context window |
+| **Permission Tag** | Metadata attached to each indexed chunk recording who is allowed to read it | Enforces access control at retrieval time so users only see authorized content |
+| **Permission-Aware Retrieval** | Filtering the vector search results to include only documents the requesting user can access | Prevents unauthorized data from ever reaching the LLM context |
+| **Incremental Sync** | Fetching only documents that have changed since the last sync, not re-indexing everything | Keeps the index fresh efficiently without re-processing the entire corpus |
+| **Delta Sync** | A sync strategy using change tokens from the source system to identify modified documents | Used by SharePoint and Confluence to avoid full re-scans |
+| **Change Token** | A cursor or version marker returned by an API that identifies what changed since the last call | Enables efficient incremental sync without scanning the entire document store |
+| **Hash-Based Change Detection** | Detecting file changes by comparing checksums of current files against stored values | Used for file shares that don't support native change-event APIs |
+| **Recency Weighting** | Giving higher scores to newer documents when ranking retrieval results | Prevents outdated practices from overriding current guidance |
+| **Decay Function** | A mathematical formula that reduces a document's relevance score as it ages | Implements recency weighting with a tunable half-life |
+| **Knowledge Gap Detection** | Identifying when retrieved documents are insufficient to answer a query | Ensures the system admits uncertainty rather than fabricating an answer |
+| **SMB/CIFS** | Protocols used to access files on Windows network file shares | Technical method for connecting the file-share source connector |
+| **Graph API** | Microsoft's unified REST API for accessing Microsoft 365 services including SharePoint | Used by the SharePoint connector to retrieve document content and permissions |
+| **Message Queue** | A buffer that decouples document ingestion from processing workers | Smooths out bursts in sync volume without losing updates |
+| **Conflict Detection** | Identifying when two or more documents give contradictory guidance on the same topic | Surfaces disagreements to users rather than arbitrarily picking one answer |
+| **Namespace** | A logical partition in the vector database that separates one organization's data from another | Provides tenant isolation and makes permission enforcement simpler |
+| **Inference Attack** | Probing a system with questions to deduce the existence of confidential information | Prevented by behaving as if unauthorized documents don't exist at all |
+| **Classification Level** | A security label (e.g., confidential, internal) assigned to a document or chunk | Used to enforce the most-restrictive permission when a chunk comes from a mixed document |
+
 *Related chapters: [RAG Fundamentals](../06-retrieval-systems/01-rag-fundamentals.md), [Multi-Tenant Isolation](../12-security-and-access/02-access-control.md)*

@@ -281,4 +281,50 @@ As one signal of general chat preference, never as a measure of correctness or r
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Benchmark** | A standardized test set with an agreed scoring method used to compare AI model capabilities | Provides a shared vocabulary for capability claims across labs and vendors |
+| **Saturation** | The state when frontier models cluster so close to a benchmark's ceiling that score differences are statistical noise | Signals that a benchmark has stopped discriminating between the best models and should be retired |
+| **Contamination** | When benchmark questions appear in a model's training data, inflating scores via memorization | Makes absolute scores unreliable; time-gated and private benchmarks are the main defense |
+| **Harness** | The agent scaffold, tools, effort level, output-token cap, and infrastructure configuration used to run a benchmark | The single biggest source of score variance; scores from different harnesses cannot be compared |
+| **Scaffold** | The code wrapper around a model that manages prompting, tool calls, retries, and output parsing for agentic benchmarks | Dramatically affects agentic benchmark scores independent of the underlying model weights |
+| **MMLU** | A 57-subject multiple-choice knowledge benchmark with ~15,900 questions | The historically most-cited benchmark; now saturated and retired from most model cards |
+| **HLE (Humanity's Last Exam)** | A 2,500-question expert benchmark across 100+ subjects designed to resist retrieval | The current premier frontier knowledge benchmark; wide score separation and not yet saturated |
+| **GPQA-Diamond** | 198 PhD-level biology, physics, and chemistry questions that skilled non-experts cannot answer with web access | Tests deep expert reasoning; compressing toward saturation but still separates mid-tier from frontier |
+| **ARC-AGI-2** | An abstract grid-puzzle reasoning benchmark that resists memorization (~400 tasks) | The headline test for fluid reasoning; self-reported scores must not be quoted as ARC-Prize-Verified scores |
+| **FrontierMath** | A private benchmark of research-level math problems that take expert mathematicians hours to days | Tests genuine mathematical reasoning at a level far beyond competition math benchmarks |
+| **GSM8K** | Grade-school math word problems | Now saturated at 95%+; evidence suggests scores are inflated by memorization |
+| **AIME** | American Invitational Mathematics Examination short-answer problems; fresh each year | Valued for low contamination in the year of publication; only 30 items per year, so high variance |
+| **HumanEval** | Single-function Python synthesis from a docstring, checked by unit tests | Fully saturated and contaminated; no longer useful for ranking frontier coding models |
+| **SWE-bench Verified** | Resolving 500 real GitHub issues so hidden tests pass | The canonical coding benchmark 2024–2026; harness choice alone swings scores 10–20 points |
+| **SWE-bench Pro** | A harder, contamination-resistant issue-resolution benchmark with private and held-out repositories | Scores run 25–35 points below Verified and separate models far better |
+| **LiveCodeBench** | Competitive-programming problems scored only on questions released after the model's training cutoff | The strongest contamination-resistant coding signal; measures algorithmic reasoning, not repo work |
+| **tau2-bench** | Sierra's agentic benchmark simulating business tasks in retail, airline, financial, and other domains | The most production-relevant tool-use benchmark because it uses pass^k to measure reliability |
+| **pass^k** | The probability that an agent succeeds on all k repeated runs of the same task | Exposes reliability cliffs invisible in single-run pass@1 metrics |
+| **BFCL (Berkeley Function Calling Leaderboard)** | A benchmark for tool and function-calling accuracy, with newer versions adding agentic tasks | The standard reference for evaluating an LLM's ability to correctly invoke APIs and tools |
+| **GAIA** | General-assistant tasks requiring multi-step tool use, web browsing, and file handling | Tests orchestration quality; top entries are multi-model ensembles, not base models alone |
+| **OSWorld-Verified** | A computer-use agent benchmark on a real operating system, scored by task execution outcome | Tests whether agents can perform real desktop tasks; vendor numbers consistently exceed public-harness numbers |
+| **METR Time-Horizon** | A measure of the longest task (in human-minutes) a model completes at 50% reliability | Tracks the growth of agent autonomy over time; doubles roughly every 7 months |
+| **NIAH (Needle-in-a-Haystack)** | Single-fact retrieval hidden at varying positions in a long document | Saturated and trivially solved by frontier models; no longer a useful discriminator |
+| **RULER** | NVIDIA's benchmark measuring retrieval, multi-hop tracing, and QA at controlled context lengths | Quantifies the gap between advertised and effective context window size |
+| **Effective Context Length** | The context window length at which a model's accuracy on RULER-style tasks drops below an acceptable threshold | The real usable window, often 25–50% of the advertised context size |
+| **LMArena (Chatbot Arena)** | A crowd-sourced pairwise preference leaderboard where humans vote on blind A/B model comparisons | The dominant human-preference signal; must be read with style-controlled Elo and wide confidence intervals |
+| **Elo Rating** | A numerical score assigned to each model based on its win/loss record in pairwise comparisons | The standard ranking mechanism for preference arenas; differences under ~15–20 points are noise |
+| **Style-Controlled Elo** | An Arena Elo variant that regresses out length and formatting preferences | Corrects the raw Elo bias toward longer, prettier answers regardless of correctness |
+| **Arena-Hard-Auto v2** | An automatic, reproducible proxy for Arena using hard prompts judged by strong LLMs | Three times more separable than MT-Bench with ~98% correlation to human Arena rankings |
+| **The Leaderboard Illusion** | The finding that Arena Elo is distorted by providers privately testing many variants and publishing only the best | Means a fresh top-ranked entry may partly reflect best-of-N luck, not a genuine capability lead |
+| **Composite Index** | A weighted combination of multiple benchmarks that keeps discriminating as individual components saturate | The right tool for "which model is generally best" when no single benchmark separates the frontier |
+| **Artificial Analysis Intelligence Index** | A composite index weighting ~9 evaluations across coding, agents, reasoning, and general knowledge | Maintained as components saturate by dropping retired benchmarks and adding new ones |
+| **Epoch Capability Index (ECI)** | A composite that fits an item-response-theory model over 1,000+ evaluations to infer benchmark difficulty | Rewards doing well on harder benchmarks; more principled than fixed-weight composites |
+| **HAL (Holistic Agent Leaderboard)** | Princeton's cost-aware agent composite that scores accuracy and dollar cost together under a fixed harness | The right tool for comparing agents when efficiency matters, not just best-case accuracy |
+| **SimpleQA** | OpenAI's short-form factual recall benchmark designed to resist hedging and reward calibrated abstention | Shows that more capable models are not necessarily more factual; tops out around mid-50s F1 |
+| **FACTS Grounding** | A benchmark measuring whether long-form answers are fully supported by a provided source | The right benchmark family for evaluating RAG faithfulness at scale |
+| **IFEval** | A benchmark for programmatically verifiable instruction-following (word count, JSON format, no commas) | Tests a narrow, checkable slice of instruction-following; largely saturated and gameable by hedging |
+| **Time-Gating** | Scoring a model only on benchmark problems released after its training cutoff | The most robust contamination defense; used by LiveCodeBench and SWE-rebench |
+| **Canary String** | A unique token planted in a benchmark dataset that flags contamination if the model recites it | A lightweight contamination detection probe |
+
 *Next: [CI/CD for LLM Applications](../11-infrastructure-and-mlops/02-cicd.md). See also [Research Radar](../RESEARCH-RADAR.md) for the frontier topics beyond the leaderboards.*

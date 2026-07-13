@@ -1138,4 +1138,57 @@ Cost: extraction pass on session close is the main LLM cost;
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RAG (Retrieval-Augmented Generation)** | A pattern that fetches relevant document chunks at query time and includes them in the LLM prompt so the model answers from real data. | The most common production pattern for enterprise Q&A, search, and knowledge assistants. |
+| **Ingestion pipeline** | The data processing path from raw documents through parsing, chunking, embedding, and indexing. | The upstream of every RAG system; data quality here determines retrieval quality. |
+| **Chunking** | Splitting documents into smaller pieces before embedding and indexing. | Improves retrieval precision by keeping each indexed unit focused on a single topic or section. |
+| **Adaptive chunking** | Choosing chunking strategy based on document type (e.g. header-split for wikis, layout-aware for PDFs). | Handles mixed document corpora better than a single fixed chunking rule. |
+| **Embedding** | Converting text into a vector (list of numbers) that represents semantic meaning. | Enables similarity-based retrieval: chunks with similar meaning end up near each other in vector space. |
+| **Vector database** | A specialized database that stores and searches embeddings by similarity. | Provides the dense retrieval layer of a RAG system at scale. |
+| **Pinecone** | A managed vector database service with strong SLAs and simple operational model. | Popular for teams without dedicated infrastructure engineers who need reliable hosted vector search. |
+| **Qdrant** | An open-source, high-performance vector database with native hybrid search. | Often chosen for self-hosted deployments requiring fine-grained control over indexing and metadata. |
+| **Weaviate** | An open-source vector database with integrated BM25 + dense hybrid search. | A strong choice when you want hybrid search built into the database rather than managed externally. |
+| **Hybrid search** | Combining dense (embedding) and sparse (BM25 keyword) retrieval and merging ranked results. | Essential for enterprise corpora full of project codenames, acronyms, and technical terms. |
+| **BM25** | A classical keyword ranking algorithm that scores documents by term frequency weighted by document length. | The sparse arm of hybrid search; catches exact tokens that embeddings may not match. |
+| **Reciprocal Rank Fusion (RRF)** | A formula that merges ranked lists from multiple retrieval systems into a single ranked list. | Combines dense and sparse results without requiring manually tuned weights. |
+| **Reranking** | A second-pass step that uses a cross-encoder model to re-score the top retrieval candidates. | Typically improves retrieval precision by 10-20 percentage points at the cost of about 100-150 ms. |
+| **Cross-encoder** | A model that reads the query and a candidate chunk together to produce a relevance score. | More accurate than embedding similarity for ranking because it captures query-document interaction directly. |
+| **bge-reranker** | A family of open-source multilingual cross-encoder models for reranking (e.g. bge-reranker-v2-m3). | A cost-effective self-hostable reranker with strong multilingual performance. |
+| **Permission / ACL filtering** | Including access control metadata with each chunk and filtering at the database query level before similarity scoring. | Enforces document-level security so users never see results they are not authorized to access. |
+| **Multi-tenancy** | Serving multiple customers from a shared system while keeping each tenant's data isolated. | A correctness and security requirement for any SaaS AI product; the filter must happen inside the DB query. |
+| **Agent** | A system where an LLM decides which tool to call next, observes the result, and decides again in a loop. | Enables flexible multi-step task completion without predefined control flow. |
+| **Flow control / agent flow** | Designing agent behavior with explicit states and transitions rather than letting the LLM decide all routing. | Makes agent behavior predictable, testable, and cost-bounded while preserving flexibility within each state. |
+| **Escalation** | Routing a conversation or task to a human agent when the AI cannot resolve it with sufficient confidence. | Required for high-stakes or complex cases; the threshold and criteria must be defined explicitly in the system design. |
+| **Tool / function calling** | A model feature that lets the LLM request execution of a named function and receive the result. | Connects the LLM to APIs, databases, and services so it can act on real data. |
+| **Zendesk** | A popular customer support ticketing platform used for routing, logging, and escalating support conversations. | Often the integration target for AI support bots; all AI interactions are logged to the ticket timeline. |
+| **Document AI (Textract / Azure Doc Intelligence)** | Cloud services that extract structured data from PDFs, scanned images, and forms. | The first-tier extraction method for structured document processing pipelines; faster and cheaper than LLM extraction. |
+| **Vision LLM** | An LLM that can process images as input (e.g. Claude Opus 4.8, GPT-5.5, Gemini 3.1 Pro). | Used as a fallback for complex document layouts or charts that rule-based extraction cannot handle. |
+| **LayoutLMv3 / ViT** | Document understanding models trained on layout-aware data for document classification and extraction. | Fine-tuned classifiers that route documents by type (invoice, contract, form) before the extraction step. |
+| **HIPAA / SOC 2** | US healthcare privacy regulation and cloud security audit framework, respectively. | Define compliance requirements for encryption, audit logging, access controls, and data retention. |
+| **AES-256** | A symmetric encryption standard used to encrypt stored data at rest. | Required by HIPAA and SOC 2 for protecting sensitive document content in storage. |
+| **PHI (Protected Health Information)** | Any individually identifiable health data covered by HIPAA. | Must be detected and masked in document processing pipelines that handle healthcare data. |
+| **Content moderation** | Automatically detecting and filtering harmful content (hate speech, violence, adult content, spam). | Required for any user-generated content platform; uses a cascade from fast filters to ML classifiers to LLMs to humans. |
+| **Multi-stage cascade** | A moderation or classification architecture that applies increasingly accurate but more expensive models in sequence. | Balances latency (fast filters handle most traffic) against accuracy (LLMs handle the difficult edge cases). |
+| **BERT / CLIP / X3D** | Specialized neural models for text classification, image-text similarity, and video understanding respectively. | The ML classifier stage in content moderation; smaller and faster than LLMs for high-volume content scoring. |
+| **PhotoDNA** | A Microsoft technology that identifies known harmful images using perceptual hashing without revealing the content. | Enables fast blocklist matching for known CSAM and other prohibited content without storing the image. |
+| **Kafka** | A distributed event streaming platform used to decouple producers and consumers of high-volume event streams. | Used in content moderation and real-time indexing to handle spiky update traffic without data loss. |
+| **Semantic search** | Finding results that match the meaning of a query rather than just the exact keywords. | Enables queries like "comfortable running shoes for flat feet" to match products without those exact words. |
+| **HNSW** | A graph-based approximate nearest-neighbor index used by most vector databases for fast similarity search. | The default index type for production vector search; tunable for recall vs. latency tradeoffs. |
+| **Roaring bitmaps** | A compressed data structure for storing and filtering large sets of integer IDs efficiently. | Used in vector databases to apply metadata filters (price, category) during ANN search with minimal overhead. |
+| **CDN (Content Delivery Network)** | A network of geographically distributed servers that cache and serve content close to users. | Used to cache popular search query results at the edge, cutting latency and origin load. |
+| **Personalization** | Adjusting ranked search or recommendation results based on individual user history and preferences. | Improves relevance for returning users by boosting products or topics they have engaged with before. |
+| **LLM judge / LLM-as-judge** | Using one LLM to score the outputs of another against a rubric. | Scales quality evaluation to thousands of production samples where human grading is too slow or expensive. |
+| **Golden test set** | A curated dataset of representative inputs with known correct outputs used to measure system quality. | The foundation of offline evaluation; must include hard cases and edge formats, not just easy examples. |
+| **CI/CD gating** | Automatically blocking a code or prompt change from shipping if it causes a quality regression on the golden test set. | Prevents silent degradation from reaching production; makes the eval pipeline actionable. |
+| **Bitemporal records** | Data records that track both when a fact was valid in the real world and when it was recorded in the system. | Enables auditable supersession of stale facts (e.g. "user moved cities") while preserving history. |
+| **Episodic memory** | Stored summaries of past agent sessions or interactions, retrievable by similarity and recency. | Lets an agent remember what happened in prior conversations and avoid repeating past mistakes. |
+| **Semantic memory** | Extracted structured facts about the user or world stored persistently across sessions. | Enables personalization and continuity without replaying full conversation history. |
+| **Mem0 / Zep / Letta** | Production agent memory frameworks providing episodic, semantic, and procedural memory layers. | Build-vs-buy options for agent memory; evaluate based on latency, privacy, and per-user isolation requirements. |
+| **GDPR deletion** | The legal requirement to permanently erase all personal data for a user on request. | Requires per-user partition keys in every memory store so a single deletion call clears all traces. |
+
 *See also: [Question Bank](01-question-bank.md) | [Answer Frameworks](02-answer-frameworks.md) | [Common Pitfalls](03-common-pitfalls.md)*

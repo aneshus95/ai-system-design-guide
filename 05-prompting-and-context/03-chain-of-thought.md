@@ -90,4 +90,29 @@ We use a **Hybrid Reasoning Architecture**:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Chain-of-Thought (CoT)** | A prompting technique that asks the model to write out intermediate reasoning steps before giving a final answer | Improves accuracy on complex math, logic, and multi-step problems by letting the model "show its work" |
+| **Next Token Predictor** | A description of how LLMs work: they generate one token at a time, each conditioned on everything before it | Explains why multi-step reasoning is hard in a single forward pass without CoT |
+| **Working Memory (Scribble Pad)** | The scratchpad-like role that CoT tokens play, letting the model keep track of sub-results | Enables the model to handle complex tasks that exceed the capacity of a single prediction step |
+| **Zero-Shot CoT** | Triggering reasoning by appending a phrase like "Let's think step by step" without any examples | Quick, low-cost way to activate reasoning in capable models for ad-hoc queries |
+| **Few-Shot CoT** | Providing 2–5 examples where each example includes the reasoning chain alongside the answer | Higher-stability version of CoT for production pipelines where output consistency matters |
+| **Programmatic CoT** | Replacing vague phrases with explicit numbered reasoning milestones in the prompt | Gives production agents a deterministic reasoning path and improves reliability |
+| **Thinking Window** | A dedicated internal reasoning space in "thinking" models (e.g., Claude Opus 4.7, OpenAI o3) before the visible answer is generated | Allows longer, deeper reasoning without exposing messy intermediate thoughts to users |
+| **Hidden CoT** | A mode where the model's internal reasoning chain is not shown to the user but may be inspected by the system | Prevents prompt injection via thought leakage while still benefiting from extended reasoning |
+| **Inference Scaling Law** | The empirical finding that giving a model more compute at inference time (longer reasoning) improves performance on hard problems | Drives the design of "thinking" models and search-based reasoning systems like MCTS |
+| **Reinforcement Learning (RL)** | A training paradigm where the model receives reward signals based on outcome correctness to improve its policy | Used to train thinking models so CoT is baked into their weights rather than just prompted |
+| **Self-Verification** | A pipeline step where the model critiques its own CoT output and corrects errors before returning the final answer | Reduces cascading errors in complex reasoning without requiring human review |
+| **Execution-Verified CoT** | A pattern where the model generates code, runs it, and uses the runtime result to self-correct its reasoning | Grounds code generation in actual execution outcomes, catching logic errors early |
+| **Knowledge Distillation** | Training a smaller "student" model to mimic the outputs of a larger "teacher" model | Lets you benefit from CoT-quality reasoning at a fraction of the inference cost |
+| **Hybrid Reasoning Architecture** | A tiered system that routes simple queries to fast non-CoT paths and complex queries to slower CoT/thinking models | Balances latency, cost, and accuracy across diverse request types |
+| **Latency** | The total elapsed time from sending a request to receiving the final response | CoT increases token count, so understanding latency trade-offs is critical for production design |
+| **Auto-regressive** | The property of LLMs where each new token is generated based on all previously generated tokens | Means CoT steps can build on each other, progressively reducing the complexity of remaining sub-problems |
+| **Streaming** | Sending generated tokens to the client as they are produced rather than waiting for the full response | Lets users see CoT reasoning in real time and allows systems to begin pre-processing results early |
+| **IMO Math** | International Mathematical Olympiad problems, used as a benchmark for frontier reasoning model capability | Demonstrates how inference-time scaling (extended thinking) can reach expert human performance |
+
 *Next: [Tree-of-Thought](04-tree-of-thought.md)*

@@ -87,4 +87,31 @@ Instruction Hierarchy ensures that **System Instructions** (The developer's rule
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Agentic Attack Surface** | The set of entry points an adversary can exploit to make an agent take harmful actions | Defines the scope of security threats specific to action-taking AI systems |
+| **Prompt Injection** | An attack where malicious text in user input or tool output tricks the model into executing unintended commands | The primary attack vector against agents — dangerous because it can trigger real-world actions |
+| **Data Exfiltration** | An attack where an agent is manipulated into sending sensitive data to an unauthorized external destination | A high-severity consequence of a successful prompt injection in an agent with outbound tools |
+| **Action Sandboxing** | Running agent-executed code inside an isolated, ephemeral container with no access to the host system | Prevents malicious or buggy code from damaging the production environment |
+| **Micro-VM** | A lightweight virtual machine that starts in milliseconds and is destroyed after each use | Used for per-execution isolation of agent code without the overhead of full VMs |
+| **E2B** | A cloud service that provides fast, disposable sandboxes for AI agent code execution | The leading platform for secure, ephemeral agent execution environments |
+| **Docker** | A containerization platform that packages an application and its dependencies into an isolated, reproducible environment | Used to sandbox MCP servers and agent code in production |
+| **Principle of Least Privilege** | The security rule that every component should have only the minimum access it needs and nothing more | Applied to agents, this means read-only by default, with write access granted only when required |
+| **Token Scoping** | Restricting an API or database token so it can only access the specific resources the agent needs | Limits the blast radius of a compromised token or malicious agent action |
+| **Rate-Limiting** | Capping how many times an agent can perform an action (such as sending emails) per unit of time | Prevents runaway or manipulated agents from causing large-scale harm |
+| **Firewall Model (Proxy)** | A smaller, hardened model or policy engine that sits between the agent and its tools, inspecting every call | Catches malicious or malformed tool calls before they reach the execution layer |
+| **Instruction Hierarchy** | A trust model where system-level instructions always take precedence over user-supplied instructions | Prevents users from jailbreaking an agent by telling it to ignore its safety rules |
+| **Parameterized Tool** | A tool that accepts typed, structured inputs rather than raw strings, handled by prepared statements | Prevents agent-driven SQL injection and other injection-style attacks |
+| **RLS (Row Level Security)** | A database feature that enforces access control at the row level, filtering what each connection can see | Prevents agents from accessing rows belonging to other users even if they try |
+| **OWASP LLM Top 10** | The Open Web Application Security Project's list of the top security risks in LLM applications | A standard reference for evaluating and prioritizing agentic security threats |
+| **Excessive Agency** | An OWASP-listed risk where an agent is given too many permissions, enabling it to take overly impactful actions | Motivates minimal permission scoping and rate-limiting in agent tool design |
+| **SOC2** | A compliance standard for security, availability, and confidentiality controls in service organizations | Requires deterministic audit logs in production agent systems |
+| **HIPAA** | US healthcare data privacy regulation requiring strict access controls and audit trails | Imposes traceability requirements on any agent handling medical data |
+| **Audit Logging** | Recording a complete, tamper-evident trace of every agent action including the thought, call, and result | Enables compliance, debugging, and post-incident forensics |
+| **Deterministic Traceability** | The ability to trace any agent output or action back to the exact prompt and reasoning that caused it | Required for compliance and for explaining agent behavior to regulators or customers |
+
 *Next: [Evaluating Agentic Systems](10-evaluating-agentic-systems.md)*

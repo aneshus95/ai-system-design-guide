@@ -173,4 +173,36 @@ The key is to **Import only Core**. I use `langchain-core` for the abstractions 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **LangChain** | An open-source Python/TypeScript library that provides building blocks for constructing LLM-powered applications. | Provides reusable abstractions so developers do not re-implement common patterns like prompt management, tool calling, and retrieval from scratch. |
+| **LCEL (LangChain Expression Language)** | A syntax using the `|` pipe operator to chain together LangChain components into a processing pipeline. | Enables parallel execution, async streaming, and automatic LangSmith tracing without extra boilerplate. |
+| **Runnable** | The base interface every LangChain component implements, exposing `.invoke`, `.batch`, and `.stream` methods. | Ensures every component can be composed, parallelized, or swapped out with the same calling convention. |
+| **DAG (Directed Acyclic Graph)** | A graph of steps where execution flows in one direction and no step loops back to a previous step. | Models a sequential or parallel pipeline where the order of operations is fixed and free of cycles. |
+| **LangGraph** | LangChain's stateful graph orchestration layer that supports cycles, persistence, and human-in-the-loop pauses. | Enables agent workflows that can loop, retry, remember state across sessions, and pause for human review. |
+| **LangSmith** | A tracing and evaluation platform built alongside LangChain. | Captures every prompt and response in a chain so engineers can debug, measure quality, and run automated evaluations. |
+| **MCP (Model Context Protocol)** | An open standard that lets an LLM agent call external tools through a common interface. | Makes tool integrations portable across different models and frameworks without custom adapters for each combination. |
+| **BaseTool** | LangChain's base class that wraps a callable (function or MCP server) into a form the agent can discover and invoke. | Gives the LLM a consistent way to understand what a tool does and what inputs it expects. |
+| **Output Parser** | A component that converts raw LLM text into a structured format such as a Python object or JSON. | Prevents downstream code from having to parse free-form model output manually. |
+| **with_structured_output()** | A LangChain method that instructs the model to return output matching a given schema and automatically parses the result. | Replaces brittle regex parsing with the model's native JSON or tool-call capability. |
+| **JSON Schema** | A declarative format for describing the shape and constraints of a JSON document. | Serves as the common language between validation libraries (Pydantic, Zod, Valibot) and LLM tool definitions. |
+| **Pydantic v2** | A Python data-validation library that enforces type safety at runtime using Python type hints. | Provides the default schema format for LangChain structured outputs in Python. |
+| **Zod** | A TypeScript schema declaration and validation library. | Allows TypeScript LangChain users to define tool schemas with full type inference. |
+| **Valibot** | A lightweight, tree-shakeable TypeScript validation library. | Lets teams reuse their existing HTTP-layer schemas as LangChain tool definitions, reducing duplication. |
+| **ArkType** | A TypeScript library that treats TypeScript types themselves as runtime schemas. | Enables zero-redundancy schema reuse between TypeScript types and LangChain tool definitions. |
+| **TypedDict** | A Python typing construct that defines a dictionary with specific key names and value types. | Provides a lightweight schema for LangChain tools and structured outputs without requiring Pydantic. |
+| **Partner Package** | A separately published LangChain integration maintained jointly with a provider (e.g., `langchain-openai`). | Offers tighter quality control and smaller dependency footprint than the community catch-all package. |
+| **langchain-community** | The LangChain package containing third-party integrations not maintained by first-party providers. | Provides breadth of integrations for prototyping but is discouraged in production critical paths due to instability. |
+| **langchain-core** | The minimal LangChain package containing only Runnables, prompts, and output parsers. | Acts as the stable, backwards-compatible foundation that all other packages build on. |
+| **langchain-classic** | A LangChain package that preserves legacy chain classes (LLMChain, RetrievalQA) for migration purposes. | Allows existing codebases to keep running while teams incrementally migrate to LCEL and LangGraph. |
+| **RunnablePassthrough** | A LangChain Runnable that forwards its input unchanged to the next step in the chain. | Lets you pass original user input alongside retrieved context into a prompt without modification. |
+| **RunnableBranch** | A LangChain Runnable that routes input to one of several sub-chains based on a condition. | Replaces deeply nested `if/else` logic with a clean, declarative routing construct. |
+| **RunnableParallel** | A LangChain construct that runs multiple Runnables simultaneously and collects their results. | Reduces latency by executing independent steps concurrently instead of sequentially. |
+| **Dependency Hell** | A situation where installing one package forces conflicting version requirements from other packages. | Understanding it motivates using lean partner packages instead of the community monolith in production. |
+| **EOL (End of Life)** | The date after which a software version no longer receives bug fixes or security patches. | Signals that teams must upgrade before that date to avoid running unsupported code in production. |
+
 *Next: [LangGraph Orchestration](02-langgraph-orchestration.md)*

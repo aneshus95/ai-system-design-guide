@@ -67,4 +67,29 @@ SK uses a **Plugin-based model**. Every function (native C# or LLM-based) is reg
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Semantic Kernel (SK)** | Microsoft's open-source AI orchestration SDK that integrates LLMs into enterprise .NET and Python applications. | Provides the primary path for organizations on the Azure/Microsoft stack to add AI capabilities to existing systems. |
+| **Microsoft Agent Framework** | The consolidated successor to both AutoGen and Semantic Kernel, targeting unified .NET and Python agent development. | Merges two previously separate Microsoft AI frameworks into one coherent platform with graph-based workflows. |
+| **Kernel Function** | The basic unit of logic in Semantic Kernel, implemented as either a native code method or an LLM prompt template. | Gives the agent a callable unit of capability that the planner can discover and sequence. |
+| **Plugin** | A named collection of related Kernel Functions grouped by domain, such as a GitHub Plugin or an SQL Plugin. | Organizes capabilities into discoverable, reusable modules the agent can select from based on the task at hand. |
+| **Planner** | A Semantic Kernel component that automatically sequences Kernel Functions to accomplish a user's goal. | Frees developers from hand-coding the order of tool calls, letting the LLM derive the execution plan. |
+| **Hierarchical Planner** | An advanced SK planner that can coordinate multi-step, long-running business processes across time and services. | Enables enterprise automation scenarios that span multiple days, systems, or approval stages. |
+| **Connector** | A Semantic Kernel abstraction that provides a uniform interface to external services such as vector stores or LLM providers. | Makes it possible to swap the underlying provider (e.g., switch from Azure AI Search to Pinecone) without changing business logic. |
+| **Vector Store Abstraction** | SK's unified interface for interacting with different vector databases using the same API. | Prevents vendor lock-in at the retrieval layer and simplifies migration between vector database providers. |
+| **Dependency Injection (DI)** | A design pattern where a component's dependencies are supplied from outside rather than created internally. | Makes SK components independently testable and follows the standard enterprise software architecture patterns that .NET developers already know. |
+| **Strong Typing** | A programming discipline where every variable and function parameter has a declared type enforced at compile time. | Catches entire classes of bugs at development time rather than at runtime, which is especially important in mission-critical financial and healthcare systems. |
+| **Azure Active Directory (Microsoft Entra ID)** | Microsoft's cloud-based identity and access management service. | Provides enterprise-grade authentication and authorization so SK applications can control who can invoke which functions. |
+| **Managed Identity** | An Azure feature that gives a service a cloud-managed credential without requiring the developer to handle secrets manually. | Eliminates the risk of hard-coded API keys or credentials in AI application code. |
+| **ReAct** | A reasoning pattern where the agent alternates between generating a thought and executing an action (tool call). | Provides a principled loop for agents to decompose tasks and verify results before proceeding. |
+| **Automatic Intent Detection** | A Semantic Kernel capability where the system proactively identifies which Plugin a user is likely to need based on context. | Reduces friction by surfacing relevant capabilities before the user has to explicitly ask for them. |
+| **Function Calling** | A model capability where the LLM signals which external function to call and with what arguments, rather than producing free-form text. | Enables reliable, structured tool use without brittle text parsing. |
+| **Universal Connector** | A SK connector that presents a single interface for multiple model providers (OpenAI, Mistral, local models). | Prevents provider lock-in at the model layer and simplifies switching between models for cost or capability reasons. |
+| **App Insights (Application Insights)** | Microsoft Azure's application performance monitoring service. | Provides the observability layer for SK-based applications running in Azure environments. |
+| **CI/CD** | Continuous Integration and Continuous Deployment — the automation pipeline for building, testing, and releasing software. | Ensures AI-enhanced applications are tested and deployed with the same rigor as traditional software. |
+
 *Next: [AutoGen and CrewAI](07-autogen-crewai.md)*

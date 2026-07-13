@@ -101,4 +101,31 @@ This is "Catastrophic Forgetting." Two main mitigations:
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Fine-Tuning** | Further training a pretrained model on a smaller, task-specific dataset to adjust its behavior | Adapts a general model to specific tasks, formats, or domains without rebuilding from scratch |
+| **Supervised Fine-Tuning (SFT)** | Training on labeled (Prompt, Response) pairs where the correct output is known | The foundational alignment step that teaches a model to respond helpfully to user instructions |
+| **RAG (Retrieval-Augmented Generation)** | Fetching relevant documents at query time and including them in the prompt rather than baking facts into weights | A better alternative to fine-tuning when the goal is adding updatable factual knowledge |
+| **Prompt Engineering** | Crafting input text carefully to elicit better outputs without changing model weights | The lowest-cost way to improve model behavior before resorting to fine-tuning |
+| **Continued Pretraining (Domain Adaptation)** | Running the standard pretraining objective on raw domain text after initial pretraining | Teaches a model the vocabulary, style, and statistical patterns of a specialized domain like medicine or law |
+| **Catastrophic Forgetting** | A model losing previously learned general skills when trained too aggressively on new data | The primary risk of fine-tuning that must be managed through low learning rates or PEFT methods |
+| **PEFT (Parameter-Efficient Fine-Tuning)** | A family of techniques that update only a small fraction of model weights during fine-tuning | Dramatically reduces memory, compute, and forgetting risk compared to full fine-tuning |
+| **LoRA (Low-Rank Adaptation)** | A PEFT method that adds small trainable rank-decomposition matrices alongside frozen pretrained weights | Enables fine-tuning of very large models on limited GPU hardware |
+| **QLoRA** | A variant of LoRA that quantizes the base model to 4-bit precision to further reduce memory usage | Makes 70B+ model fine-tuning feasible on a single consumer or research GPU |
+| **Full-Parameter Fine-Tuning** | Updating every weight in the model during training | Achieves maximum adaptation quality but requires enormous GPU resources and risks catastrophic forgetting |
+| **Golden Sets** | A small number of hand-curated, expert-quality training examples | The highest-impact training data — quality beats quantity in SFT |
+| **Negative Constraint Training** | Including examples of behaviors the model should avoid (e.g., never apologize unnecessarily) | Teaches the model what not to do, which prompting alone cannot reliably enforce |
+| **Learning Rate (LR)** | A hyperparameter controlling how large each weight update step is during training | Too high causes instability or collapse; too low causes slow or ineffective learning |
+| **Rank (r)** | In LoRA, the number of dimensions in the low-rank adapter matrices | Higher rank captures more complex adaptations but uses more memory; tuning it balances quality and cost |
+| **Packing (Sequence Packing)** | Concatenating multiple short training examples into one long sequence separated by end-of-sequence tokens | Maximizes GPU utilization by avoiding wasted padding tokens in short-example batches |
+| **EOS Token** | A special token marking the end of a sequence or individual example | Signals the model where one input ends and the next begins, preventing cross-example confusion |
+| **FlashAttention** | An optimized attention algorithm that uses block-wise computation to save memory and increase speed | Enables longer context windows and more efficient training; block masking prevents cross-example attention leakage during packing |
+| **Block-Masking** | Preventing the self-attention mechanism from attending across packed example boundaries | Ensures examples in a packed batch cannot influence each other's loss calculation |
+| **Rehearsal** | Mixing a small fraction of original pretraining data into the fine-tuning set | A simple technique to reduce catastrophic forgetting by reminding the model of its general knowledge |
+| **Instruction Tuning** | Fine-tuning on diverse (instruction, response) pairs covering many task types | Teaches a model to follow natural-language instructions across a broad range of user requests |
+
+---
+
 *Next: [LoRA, QLoRA, and PEFT](03-lora-qlora-peft.md)*

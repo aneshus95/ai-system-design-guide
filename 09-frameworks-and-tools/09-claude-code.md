@@ -461,4 +461,32 @@ I optimize in three ways:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Claude Code** | Anthropic's terminal-native autonomous coding agent that reads codebases, edits files, runs commands, and iterates until a task is complete. | Provides a fully autonomous alternative to completion-based tools like Copilot, handling entire tasks rather than just suggesting lines. |
+| **Autonomous Agent** | A software system that independently plans, executes, and verifies a multi-step task without requiring human input at each step. | Enables batch coding tasks (bug fixes, test generation) to run unattended in CI pipelines. |
+| **CLAUDE.md** | A project-level Markdown file that injects persistent context (architecture, coding standards, forbidden patterns) into every Claude Code session. | Converts a general-purpose agent into a project-specialist that knows the team's conventions without being reminded each time. |
+| **bash tool** | Claude Code's built-in tool for executing shell commands such as running tests, git operations, and build commands. | Allows the agent to verify its own changes by running the real test suite rather than guessing at correctness. |
+| **text_editor tool** | Claude Code's built-in tool for reading and surgically editing files using exact string replacement. | Produces minimal, reviewable diffs rather than full file rewrites, reducing hallucination and preserving context. |
+| **computer tool** | Claude Code's optional tool for full desktop GUI automation including screenshots, mouse, and keyboard input. | Enables browser testing and visual UI verification in sandboxed environments. |
+| **str_replace** | The text_editor sub-command that replaces an exact string in a file with a new string. | Enables surgical, atomic file edits that only touch the lines that need changing. |
+| **Headless Mode** | Running Claude Code non-interactively with a prompt supplied via a flag (`-p`) and output returned as JSON. | Allows Claude Code to be embedded in CI/CD pipelines and automation scripts without a human in the terminal. |
+| **Sub-agent** | A secondary Claude Code instance spawned by the main session to handle an independent portion of a large task in parallel. | Scales autonomous coding to large codebases by distributing module-level work across concurrent agent instances. |
+| **MCP (Model Context Protocol)** | An open standard that allows Claude Code to call external tools such as databases, Jira, and documentation APIs. | Extends the agent's capabilities beyond file editing to any system that exposes an MCP server. |
+| **Permission Model** | Claude Code's layered system for deciding which shell commands and file operations the agent may execute autonomously versus which require user approval. | Prevents the agent from running destructive commands while still allowing routine operations like tests and linting to run unattended. |
+| **Extended Thinking** | A Claude model capability that allocates additional compute to deliberate, step-by-step planning before generating a response. | Improves the quality of plans for complex architectural changes where shallow reasoning would miss edge cases. |
+| **Sandbox** | An isolated execution environment (Docker container or cloud VM) with restricted network and filesystem access. | Ensures a runaway or compromised agent cannot affect production systems or exfiltrate code. |
+| **E2B** | A cloud sandbox provider that offers isolated virtual machines for running autonomous code agents. | Provides an on-demand, disposable environment for Claude Code to execute safely without local Docker setup. |
+| **truffleHog** | A tool that scans git history and code for accidentally committed secrets such as API keys. | Prevents credentials from leaking into repositories via agent-generated commits. |
+| **max_turns** | A Claude Code parameter that caps the number of agent reasoning and tool-call cycles per session. | Limits runaway loops that would otherwise consume unbounded tokens and incur unexpected costs. |
+| **SWE-bench Verified** | A benchmark that measures an agent's ability to resolve real GitHub issues from open-source repositories. | Provides the industry-standard comparison metric for autonomous software engineering agents. |
+| **Feature Branch** | A git branch created for a specific change, isolated from the main codebase until reviewed and merged. | Allows Claude Code changes to be reviewed as a pull request before they affect the production codebase. |
+| **GitHub Actions** | GitHub's built-in CI/CD platform that runs automated workflows triggered by repository events. | Provides the pipeline integration point for running Claude Code headlessly on issue labels or scheduled triggers. |
+| **Model Routing** | Dynamically choosing a cheaper or smaller model for simpler tasks and a larger model for complex ones. | Reduces per-task API cost without sacrificing quality on tasks that genuinely need a more capable model. |
+| **Claude 3.7 Sonnet** | Anthropic's mid-tier high-performance model used as the backbone of Claude Code. | Balances reasoning quality, context window, and cost for typical autonomous coding workloads. |
+
 *Next: [OpenCoder / AI Coding Agents Landscape](10-opencoderguide.md)*

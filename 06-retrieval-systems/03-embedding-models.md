@@ -94,4 +94,32 @@ Scaling to 1 billion vectors with standard `float32` 1536-dim embeddings require
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Embedding Model** | A neural network that converts text (or other content) into a fixed-length numerical vector | Produces the dense representations that enable semantic similarity search |
+| **Dense Vector** | A high-dimensional array of floating-point numbers where most values are non-zero | The core data structure stored in a vector database and compared at query time |
+| **MRL (Matryoshka Representation Learning)** | A training approach where the most important information is packed into the earliest dimensions of a vector, like nested Russian dolls | Enables a two-pass search: fast low-dimension screening followed by high-dimension re-scoring |
+| **Matryoshka Embeddings** | Vectors trained with MRL so any prefix subset of dimensions is still a valid, usable embedding | Reduce memory and index size by 20x with less than 2% accuracy loss |
+| **Bi-Encoder** | An architecture that encodes the query and each document independently into separate vectors | Pre-computes document vectors offline so retrieval is a fast similarity lookup at query time |
+| **ColBERT v2** | A late-interaction retrieval model that stores one vector per token rather than one per document | Achieves higher precision on technical "needle in a haystack" queries by comparing token-level signals |
+| **MaxSim Operation** | ColBERT's scoring function: for each query token, find its most similar document token, then sum those maximum similarities | Captures fine-grained token-level relevance that a single-vector cosine similarity misses |
+| **PLAID Indexing** | A compression scheme for ColBERT that dramatically reduces the storage cost of per-token vectors | Makes ColBERT feasible for production-scale indexes |
+| **Late Interaction** | Delaying the comparison between query and document representations until query time, using token-level vectors | Balances the accuracy of cross-encoders with the scalability of bi-encoders |
+| **Float32** | 32-bit floating-point number; the default precision for embedding vectors | Standard storage format; expensive at large scale, motivating quantization |
+| **Binary Embeddings** | Vectors reduced to a sequence of 1s and 0s | Achieve a 32x memory reduction; distance computed via fast XOR (Hamming distance) operations |
+| **Int8 / Int4 Quantization** | Representing each vector dimension as an 8-bit or 4-bit integer instead of 32-bit float | Reduces index memory by 4-8x with modest accuracy loss |
+| **Hamming Distance** | The number of bit positions where two binary vectors differ | Enables very fast binary vector comparison using CPU XOR instructions |
+| **MTEB (Massive Text Embedding Benchmark)** | A standardized benchmark suite covering retrieval, classification, clustering, and other embedding tasks | The standard leaderboard used to compare embedding models across languages and domains |
+| **Multilingual Embedding Model** | An embedding model trained on text from many languages so queries and documents in different languages can be compared | Enables cross-lingual retrieval without translation |
+| **Multimodal Embeddings** | Vectors that represent both text and images in the same shared space | Allow a single index to support queries that mix text and visual content |
+| **Vocabulary Mismatch** | When a query uses different words than the document for the same concept, causing semantic embeddings to miss the match | The core weakness that makes hybrid search (BM25 + dense) necessary |
+| **Out-of-Distribution Vocabulary** | Terms not seen during the embedding model's training, causing poor vector representations | Motivates hybrid search; BM25 handles novel tokens that embeddings mis-encode |
+| **Cross-Encoder Reranking** | A second-stage model that reads query and document together to produce a precise relevance score | Corrects ranking errors from bi-encoder cosine similarity, especially for out-of-distribution terms |
+| **BGE-M3** | An open-source multilingual embedding model supporting dense, sparse, and late-interaction retrieval in a single model | Versatile choice for multilingual or multi-granularity retrieval without separate models |
+| **Instruction-Tuned Embedding** | An embedding model fine-tuned to follow task-specific instructions prepended to the query | Improves retrieval accuracy when retrieval intent varies across query types |
+
 *Next: [Vector Databases](04-vector-databases.md)*

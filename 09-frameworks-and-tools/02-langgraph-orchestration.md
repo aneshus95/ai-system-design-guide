@@ -86,4 +86,31 @@ We use **State Narrowing**. Instead of passing the entire global state to every 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **LangGraph** | A graph-based orchestration framework built on top of LangChain that supports cyclic, stateful agent workflows. | Provides the runtime for production multi-agent systems that need loops, memory, and human approval steps. |
+| **Node** | A Python function in a LangGraph graph that performs a discrete unit of work such as calling an LLM or running a tool. | Encapsulates a single step in the agent's reasoning or execution pipeline. |
+| **Edge** | A directed connection between two nodes in a LangGraph graph that defines the order of execution. | Determines which node runs next after the current node completes. |
+| **Conditional Edge** | A LangGraph edge whose target node is chosen dynamically based on the current graph state at runtime. | Enables branching logic, letting the agent decide whether to loop, stop, or call a different tool. |
+| **State Schema** | A typed data structure (TypedDict or Pydantic model) that holds all information shared across nodes in a LangGraph graph. | Acts as the agent's shared memory, ensuring every node reads from and writes to a single consistent source of truth. |
+| **Cyclic Graph** | A graph that contains at least one loop, allowing execution to revisit a node more than once. | Powers the "try, observe, retry" pattern that lets agents recover from errors without human intervention. |
+| **Acyclic (DAG)** | A graph where execution flows in one direction only, with no possibility of revisiting a previous step. | Describes simple sequential chains where every step runs exactly once. |
+| **ReAct Pattern** | A reasoning strategy where the agent alternates between generating a thought, calling a tool, and observing the result. | Gives agents a principled way to decompose complex tasks into tool-assisted reasoning steps. |
+| **Thread ID** | A unique identifier assigned to a single user session or workflow run in LangGraph. | Allows the persistence layer to store and retrieve the exact state of a long-running workflow. |
+| **Checkpointing** | Saving the full graph state after each node execution to a durable store (database or file). | Enables a workflow to resume from its last saved step after a crash or after days of inactivity. |
+| **Time-Travel** | A LangGraph feature that lets developers replay a workflow from any previously saved checkpoint. | Makes it possible to reproduce and debug failures by rewinding to the exact state where something went wrong. |
+| **Thread-based Persistence** | A LangGraph storage model where every session's state is keyed by a thread ID. | Allows multiple users to run concurrent, independent workflows without their states interfering. |
+| **Human-in-the-Loop (HITL)** | A workflow design where the agent pauses and waits for a human to approve or correct before continuing. | Adds a safety check at critical steps, ensuring humans stay in control of high-stakes decisions. |
+| **Supervisor Pattern** | A multi-agent architecture where one orchestrator agent delegates tasks to specialized worker agents. | Scales complex tasks by splitting them across specialized agents while keeping overall coordination in one place. |
+| **Peer-to-Peer (P2P) Pattern** | A multi-agent architecture where agents hand tasks directly to each other without a central coordinator. | Reduces bottlenecks for workflows where the next-best expert agent is determined by context, not a fixed plan. |
+| **Hierarchical Pattern** | A multi-agent architecture that nests graphs inside other graphs, creating layers of supervisors and workers. | Handles enterprise-scale complexity by decomposing a large workflow into independently manageable sub-graphs. |
+| **State Narrowing** | A technique of passing only the relevant sub-state to a given node instead of the entire global state. | Prevents nodes from being overwhelmed by irrelevant context and keeps each node's responsibility clear. |
+| **Trim Runnable** | A LangGraph utility that removes older messages from the state before they are sent to the LLM. | Controls token usage and cost by keeping the active context window within the model's effective reasoning range. |
+| **add_messages** | A LangGraph reducer function that appends new messages to the state list instead of overwriting it. | Preserves the full conversation history while avoiding the loss of earlier turns. |
+| **White Box Framework** | A framework where the internal logic, prompts, and decision points are fully visible and controllable by the developer. | Contrasts with black-box APIs like the OpenAI Assistant API, enabling auditing, compliance, and custom validation. |
+
 *Next: [LangSmith Observability](03-langsmith-observability.md)*

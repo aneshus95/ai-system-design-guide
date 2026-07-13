@@ -297,4 +297,60 @@ One task **per partition** per stage. So the number of tasks is driven by the nu
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Apache Spark** | An open-source distributed computing engine for large-scale data processing; keeps data in memory and optimizes whole-job plans | The standard engine for big-data ETL, ML pipelines, and analytics at scale |
+| **Driver** | The single process that runs your application code, builds the execution plan, and coordinates all executors | The "brain" of a Spark job; one per application; failure here ends the job |
+| **SparkSession / SparkContext** | The entry-point object your code uses to interact with Spark; creates the execution environment | Required first step in any Spark program; holds configuration and connects to the cluster manager |
+| **Cluster Manager** | The resource broker (YARN, Kubernetes, or Spark Standalone) that allocates CPU and memory and launches executors | Decouples compute resource management from Spark logic; on AWS Glue it is fully managed |
+| **Executor** | A distributed JVM process running on a worker node that runs tasks and caches data | The "muscle" of Spark; multiple cores per executor allow parallel task execution |
+| **Task** | The smallest unit of work in Spark; processes exactly one partition on exactly one executor core | Parallelism = number of tasks that can run simultaneously = min(partitions, total executor cores) |
+| **Partition** | A horizontal slice of a dataset; the atom of Spark parallelism | More partitions = more parallelism; too few causes under-utilization, too many causes scheduling overhead |
+| **RDD (Resilient Distributed Dataset)** | Spark's low-level abstraction: an immutable, partitioned, distributed collection with lineage recorded for fault tolerance | The foundation everything compiles to; rarely used directly today but essential to understand |
+| **DataFrame** | Spark's high-level, table-like API with named columns; optimized by Catalyst and executed by Tungsten | The recommended API for all new code; you get the optimizer for free, which raw RDDs bypass |
+| **Lazy Evaluation** | Transformations only record a plan (the DAG) and do not execute until an action is called | Enables whole-plan optimization; Spark sees the full recipe before starting to cook |
+| **Transformation** | A lazy operation on a DataFrame (filter, select, map, join, groupBy) that appends to the plan without executing | Building blocks of the DAG; cheap to declare, only paid for when an action triggers execution |
+| **Action** | An eager operation (count, collect, write, show) that triggers the DAG to actually execute | The moment Spark starts running; the driver sends tasks to executors at this point |
+| **DAG (Directed Acyclic Graph)** | The logical execution plan built from your transformations; a graph of steps with no cycles | The plan Spark optimizes before running; enables Catalyst to rewrite and reorder steps globally |
+| **Job** | One unit of Spark work triggered by a single action; may contain multiple stages | Each call to count(), write(), etc. creates one job |
+| **Stage** | A group of tasks that can run without a shuffle; a new stage begins wherever a shuffle is required | Stages are the scheduling units; all tasks in a stage run before the next stage starts |
+| **Narrow Dependency** | A transformation where each parent partition feeds exactly one child partition (map, filter, select) | No data crosses the network; Spark pipelines multiple narrow transforms into one stage for free |
+| **Wide Dependency** | A transformation where a child partition needs data from many parent partitions (groupBy, join, distinct) | Forces a shuffle and a new stage boundary; the primary source of cost in Spark jobs |
+| **Shuffle** | The redistribution of data across executors by key required by wide transformations | The most expensive operation in Spark: writes to local disk, sends over network, reads back; minimizing shuffles is the main performance craft |
+| **Shuffle Write** | The map-side step of a shuffle where each task partitions its output by target key and writes it to local disk | Creates the intermediate files the reduce side will fetch; disk I/O here is a significant cost |
+| **Shuffle Fetch** | The reduce-side step where tasks pull shuffle blocks from every executor over the network | Network bandwidth and serialization overhead here; the reason shuffles hurt latency and cost |
+| **Lineage** | The recorded chain of transformations that produced each RDD/DataFrame, stored in the DAG | Enables fault tolerance without data replication; lost partitions are recomputed by replaying lineage |
+| **Checkpointing** | Persisting a DataFrame to reliable storage to truncate a very long lineage chain | Limits recovery cost for iterative jobs (like ML training) where replaying hundreds of steps would be slow |
+| **Catalyst** | Spark's query optimizer for DataFrames and SQL; runs four phases: Analysis → Logical Optimization → Physical Planning → Code Generation | Turns your high-level DataFrame code into an efficient physical plan; this is why DataFrames beat raw RDDs |
+| **Predicate Pushdown** | A Catalyst optimization that moves filter operations as early as possible in the plan to minimize rows processed | Reads less data from disk or from upstream stages; one of the highest-value automatic rewrites |
+| **Column Pruning** | A Catalyst optimization that drops columns not needed by later steps | Reduces data size and serialization cost throughout the pipeline |
+| **Tungsten** | Spark's execution engine that manages off-heap memory and compiles operator chains into tight JVM bytecode | Eliminates GC pauses and virtual-call overhead; the reason Spark is often 10–100× faster than MapReduce |
+| **Off-Heap Memory Management** | Storing data in native memory outside the JVM heap, bypassing Java garbage collection | Avoids GC pauses that cause latency spikes on large JVM heaps |
+| **Whole-Stage Code Generation** | Tungsten's technique of compiling a chain of operators into one fused JVM function | Eliminates per-row virtual method dispatch; the biggest single reason Spark is CPU-efficient |
+| **AQE (Adaptive Query Execution)** | A Spark 3.0+ feature that re-optimizes the physical plan at runtime using actual shuffle statistics | Fixes the mismatch between the optimizer's estimates and real data shapes; coalesces tiny partitions, switches join strategies, splits skewed partitions |
+| **Broadcast Join** | A join strategy where the small table is copied ("broadcast") to every executor so the large table never shuffles | Eliminates the shuffle on the large side; AQE can switch to this automatically when a side turns out small |
+| **Sort-Merge Join** | A join strategy where both sides are shuffled and sorted by key, then merged | The fallback for large-large joins; more expensive but correct for any size; switched to broadcast join by AQE when possible |
+| **Data Skew** | When one or a few keys contain far more rows than others, creating one overloaded task that stalls the whole stage | The most common Spark performance problem in production |
+| **Straggler Task** | A single slow task that delays the completion of its entire stage because the stage must wait for all tasks | The visible symptom of data skew; one hot key = one giant partition = one straggler |
+| **Salting** | Appending a random suffix to a hot key to spread its rows across multiple partitions before aggregating | The standard fix for data skew; requires a two-phase aggregation to undo the salt afterward |
+| **Repartition** | Explicitly reshuffling data into a new number of partitions using a full shuffle | Used before heavy wide operations to ensure even data distribution; more expensive than coalesce |
+| **Coalesce** | Reducing the number of partitions without a full shuffle by merging local partitions | Used before writing to avoid tiny output files; cheaper than repartition but can create uneven partitions |
+| **Parquet** | A columnar binary file format designed for efficient analytical queries | The standard storage format for Spark; enables column pruning and partition pruning at read time |
+| **ORC** | Optimized Row Columnar format; another columnar binary format similar to Parquet | Alternative to Parquet with good Hive ecosystem support; also enables Spark read-time optimizations |
+| **Partition Pruning** | Spark reading only the file partitions (directories) needed to answer a query, skipping the rest | Dramatically reduces data read for time- or category-partitioned datasets |
+| **reduceByKey** | An aggregation that performs a local map-side combine within each partition before shuffling | Shuffles far less data than groupByKey; the preferred aggregation for large datasets |
+| **groupByKey** | An aggregation that shuffles all values for every key before grouping | Expensive and memory-intensive; almost always replaced by reduceByKey in production |
+| **spark.sql.shuffle.partitions** | A Spark config setting controlling the number of output partitions after a shuffle (default 200) | Must be tuned to match your data volume; 200 is too many for small datasets, too few for very large ones |
+| **AWS Glue** | Amazon's serverless Spark service; provisions and tears down executors automatically per job | Eliminates cluster management; billed per second of compute; ideal for periodic ETL jobs |
+| **Amazon EMR** | Amazon's managed Spark/Hadoop cluster service; you control cluster size and configuration | Better than Glue for long-running or heavily customized workloads with predictable load |
+| **Databricks** | The commercial platform from Spark's creators; adds an optimized runtime, Delta Lake, and collaborative notebooks | Offers the fastest Spark runtime (Photon) and best Delta Lake integration; the enterprise SaaS choice |
+| **Delta Lake** | An open-source storage layer that adds ACID transactions, schema enforcement, and time travel to Parquet files on cloud storage | Enables reliable data lake patterns (upserts, deletes, schema evolution) without a traditional database |
+| **DPU (Data Processing Unit)** | The billing unit for AWS Glue; each DPU provides a fixed amount of CPU and memory | Used to estimate and control Glue job cost |
+| **YARN** | Yet Another Resource Negotiator; the cluster resource manager bundled with Hadoop | The traditional cluster manager for on-premises Spark deployments |
+| **JVM (Java Virtual Machine)** | The runtime environment that executes Spark's Scala/Java code; also runs Python workers via Py4J | Spark's execution environment; JVM GC behavior is a key performance concern at scale |
+
+---
+
 *Previous: [OOP in Python](../21-python-and-coding/02-oop-in-python.md) | Up: [Guide Home](../README.md)*

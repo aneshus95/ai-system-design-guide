@@ -227,4 +227,41 @@ These don't predict a label — they **shape an embedding space** so that distan
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Loss Function** | A function that maps a single prediction and its true label to a non-negative number indicating how wrong the prediction is | The quantity the training algorithm minimises; choosing the right loss shapes what errors the model avoids |
+| **Cost Function** | The average of the loss function over the entire training dataset | The actual scalar the optimiser reduces each training step |
+| **Gradient Descent** | An iterative algorithm that adjusts model parameters in the direction that reduces the cost | The universal training mechanism for differentiable models |
+| **MSE (Mean Squared Error)** | The average of the squared differences between predictions and true values | Standard regression loss; strongly penalises large errors due to squaring |
+| **RMSE (Root Mean Squared Error)** | The square root of MSE, expressed in the same units as the target | More interpretable than MSE because units match the target variable |
+| **MAE (Mean Absolute Error)** | The average of the absolute differences between predictions and true values | Robust regression loss; fits the median rather than the mean |
+| **Huber Loss (Smooth L1)** | A loss that is quadratic for small errors and linear for large errors, switching at a threshold δ | Combines MSE's smooth gradients near zero with MAE's outlier robustness in the tails |
+| **Log-Cosh Loss** | The average of the logarithm of the hyperbolic cosine of the prediction error | Huber-like robustness without a threshold to tune; smooth and twice differentiable everywhere |
+| **Quantile Loss (Pinball Loss)** | An asymmetric loss that penalises under- and over-predictions differently to target a specific percentile τ | Enables probabilistic forecasting; produces prediction intervals by training one model per quantile |
+| **Binary Cross-Entropy (Log Loss)** | The negative log-likelihood of the predicted probability for the true binary class | Standard loss for binary classification; penalises confident wrong predictions harshly |
+| **Categorical Cross-Entropy (Softmax Loss)** | The negative log-likelihood of the predicted probability distribution for the true multi-class label | Standard loss for multi-class classification; combines with softmax for a clean gradient |
+| **Logits** | The raw, unnormalised scores output by a model before a sigmoid or softmax activation | Numerically more stable than feeding probabilities directly into cross-entropy loss functions |
+| **Proper Scoring Rule** | A loss function that is minimised only when the model outputs the true probability, incentivising calibration | Cross-entropy is a proper scoring rule; MSE on probabilities is not |
+| **Calibration** | The degree to which a model's predicted probabilities match the actual observed frequencies | Critical for models whose probability outputs feed downstream decisions like auction pricing |
+| **Hinge Loss** | A loss equal to max(0, 1 − y·ŷ) that is zero when the correct class is predicted with sufficient margin | The loss function used by Support Vector Machines; optimises a max-margin boundary |
+| **Margin** | The distance between the decision boundary and the nearest training points (support vectors) | A larger margin is associated with better generalisation in SVM theory |
+| **Focal Loss** | A modified cross-entropy that down-weights easy, well-classified examples by a factor of (1 − p)^γ | Designed for extreme class imbalance; prevents the majority class from dominating the gradient |
+| **γ (Gamma, Focal Loss)** | The focusing parameter in focal loss controlling how much easy examples are down-weighted | Higher γ = more focus on hard examples; γ = 0 reduces focal loss back to standard cross-entropy |
+| **KL Divergence** | A measure of how much predicted distribution Q differs from reference distribution P: Σ P log(P/Q) | Used in VAEs, knowledge distillation, and label smoothing to align probability distributions |
+| **Entropy** | The expected information content of a distribution; measures uncertainty | Cross-entropy = entropy of P + KL(P‖Q); minimising cross-entropy minimises KL divergence |
+| **Label Smoothing** | Replacing hard one-hot targets with a soft distribution that assigns small probability to wrong classes | Regularises classification models against overconfidence; implemented as a KL-divergence objective |
+| **Knowledge Distillation** | Training a small student model to match the soft probability outputs (soft labels) of a larger teacher model | KL divergence measures how far student and teacher distributions are; distilled models are smaller and faster |
+| **Contrastive Loss** | A metric-learning loss that pulls same-class embeddings together and pushes different-class embeddings apart beyond a margin | Trains an embedding space where distance encodes identity similarity for verification tasks |
+| **Triplet Loss** | A loss using three examples — anchor, positive, negative — requiring the anchor to be closer to the positive than the negative by a margin | Directly optimises relative distances in embedding space; widely used for face and speaker verification |
+| **Hard Negative Mining** | Selecting the most challenging negative examples (those closest to the anchor) for each triplet | Critical for triplet loss convergence; random negatives are too easy to learn from |
+| **Cosine Embedding Loss** | A loss that optimises the angle between two embedding vectors to make same-class embeddings align and different-class embeddings diverge | Scale-invariant; efficient cosine similarity comparison at inference avoids magnitude-normalisation steps |
+| **Metric Learning** | A family of approaches that train a model to learn an embedding space where a chosen distance metric encodes semantic similarity | Enables enrolment of new identities without retraining the model, unlike fixed-class classifiers |
+| **Subgradient** | A generalisation of the derivative to functions that are not differentiable at every point, like hinge or MAE | Allows gradient-based optimisers to minimise non-smooth losses |
+| **Reconstruction Loss** | The component of the VAE loss that measures how accurately the decoder reproduces the input | Balances fidelity of reconstruction against the KL regularisation term in the ELBO |
+| **Prediction Interval** | A range that is expected to contain the true future value with a specified probability | Produced by training models at two complementary quantiles, e.g., τ = 0.05 and τ = 0.95 |
+
 *Previous: [ML System Design](04-ml-system-design.md) | Up: [Guide Home](../README.md)*

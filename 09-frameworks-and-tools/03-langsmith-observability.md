@@ -76,4 +76,31 @@ The cost is offset by **Developer Productivity** and **Token Efficiency**. A sin
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **LangSmith** | A tracing, evaluation, and monitoring platform built by the LangChain team for LLM applications. | Gives engineers visibility into every step of an agent's execution so they can debug failures and measure quality. |
+| **LLMOps** | The practice of applying DevOps principles (monitoring, CI/CD, evaluation) to LLM-based systems. | Ensures LLM applications stay reliable and improve over time, just like traditional software services. |
+| **Trace** | A complete record of a single execution run, including every prompt sent, every response received, and every tool called. | Allows engineers to replay and inspect exactly what the model did during a request without re-running the full application. |
+| **Trajectory** | The ordered sequence of reasoning steps and tool calls an agent took to reach a final answer. | Makes it possible to find which specific step in a multi-step workflow caused an incorrect or unsafe output. |
+| **Trace Attribution** | The ability to link a bad final output back to the specific node or prompt in the chain that caused it. | Enables targeted fixes instead of broad guesswork when a complex agent produces a wrong answer. |
+| **Metadata Tagging** | Attaching structured labels (such as `user_id` or `model_tier`) to each trace at log time. | Allows engineers to filter, group, and compare traces by segment in the LangSmith UI. |
+| **Gold Standard Dataset** | A curated collection of input-output pairs that represent the correct behavior of the system. | Provides a reproducible test suite for catching regressions when prompts, models, or logic change. |
+| **Correction Dataset** | A dataset built from real user feedback that captures cases where the model failed or was rated poorly. | Continuously grows the evaluation suite with realistic failure cases drawn from production traffic. |
+| **LLM-as-Judge** | A technique where a more capable model automatically scores the output of a production model on quality dimensions. | Scales evaluation beyond what humans can manually review at production volume. |
+| **Experiment Branching** | Running two or more prompt or model variants on a fraction of live traffic and comparing their metrics. | Lets teams validate improvements safely before rolling them out to all users. |
+| **A/B Testing** | A controlled experiment that splits traffic between two versions of a system to compare their performance. | Provides statistically grounded evidence that a change improves user outcomes before full deployment. |
+| **Canary Release** | Routing a small percentage of real traffic to a new version before fully deploying it. | Limits the blast radius of a bad change while gathering real-world signal on the new version's behaviour. |
+| **Success Rate** | The percentage of user tasks that the agent completes correctly according to defined acceptance criteria. | Top-level metric for whether the system is delivering business value. |
+| **Token Cost** | The monetary cost incurred from the number of tokens sent to and received from the LLM API. | Directly affects operating margins and motivates prompt and workflow optimisation. |
+| **Latency** | The elapsed time between sending a request and receiving a complete response. | Affects user experience and determines whether an agent can be used in real-time interactions. |
+| **Custom Evaluator** | A Python function registered with LangSmith that checks a specific property of an output, such as JSON validity or toxicity. | Automates quality checks that are too specific or too fast to warrant a full LLM-as-Judge call. |
+| **Langfuse** | An open-source LLM observability platform, a competitor to LangSmith, acquired by ClickHouse in January 2026. | Provides an alternative tracing and evaluation stack, especially for teams that self-host their observability infrastructure. |
+| **Arize Phoenix** | An open-source LLM observability and evaluation toolkit from Arize AI. | Offers trace visualization and evaluation capabilities that can run entirely on-premises. |
+| **Meandering Agent** | An agent that takes far more steps than necessary to complete a task, wasting tokens and time. | Identifying and fixing these agents directly reduces API costs and latency. |
+| **Targeted Optimization** | Making improvements to a specific node or prompt rather than changing the whole system. | Produces faster, lower-risk improvements than broad trial-and-error prompt engineering across the entire pipeline. |
+
 *Next: [LlamaIndex and Data-Centric AI](04-llamaindex.md)*

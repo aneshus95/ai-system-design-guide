@@ -448,4 +448,33 @@ The key is fast detection and action. A bad prompt in production for 10 minutes 
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **CI/CD** | Continuous Integration / Continuous Delivery — the practice of automatically building, testing, and deploying code on every change | Ensures software changes are validated and released safely and frequently |
+| **Prompt Versioning** | Tracking prompt templates under version control, similar to how code is versioned | Allows rollback to a known-good prompt and traceability of quality changes |
+| **Golden Set** | A curated collection of input/output pairs whose correct answers are known and fixed | Provides a fast, deterministic regression check for every pipeline run |
+| **Quality Gate** | A mandatory checkpoint in the pipeline that blocks deployment if metrics fall below defined thresholds | Prevents regressions in LLM quality from reaching production users |
+| **Canary Deployment** | A release strategy that exposes a new version to a small percentage of traffic first, then gradually increases it | Limits blast radius if a bad prompt or model version is deployed |
+| **Shadow Deployment** | Running a new version in parallel with production to compare outputs without serving users from it | Safely evaluates new versions on real traffic with zero user impact |
+| **Rollback** | Reverting a deployment to the previously known-good version when the new version causes problems | Quickly restores quality or stability after a bad release |
+| **Regression Detection** | Automatically identifying when a new change causes quality or behavior to worsen compared to the baseline | Catches subtle prompt regressions before they affect all users |
+| **LLM-as-Judge** | Using a separate LLM to automatically score another model's responses for quality dimensions like relevance and accuracy | Enables scalable automated quality evaluation without human review for every sample |
+| **Static Validation** | Checking prompts and configs for syntax errors and missing fields without calling the LLM | Catches trivial errors instantly and cheaply before running expensive evaluations |
+| **Probabilistic Evaluation** | Assessing LLM outputs by sampling and scoring distributions rather than checking exact matches | Handles the non-deterministic nature of LLM responses in testing |
+| **Non-Determinism** | The property of LLMs where the same input can produce different outputs on different runs | Requires statistical testing approaches instead of exact binary pass/fail checks |
+| **RAG Index** | A pre-built vector database index of documents that a retrieval-augmented system queries at runtime | The retrieval backbone for grounding LLM answers; changes to it need their own testing |
+| **System Prompt** | The fixed instructions prepended to every conversation that define the LLM's behavior and persona | The highest-risk change type because it affects all downstream responses |
+| **Template Rendering** | The process of substituting variables into a prompt template string to produce the final prompt | Ensures the prompt structure is correct before it is sent to the model |
+| **Output Parsing** | Extracting structured data (e.g., JSON fields) from an LLM's free-text response | Makes LLM outputs programmatically usable and validates expected format |
+| **Bake Time** | A waiting period after a canary deployment during which metrics are monitored before widening traffic | Gives time for latency, error rate, and quality issues to surface at small scale |
+| **p99 Latency** | The 99th-percentile response time — 99% of requests complete faster than this value | A key SLA metric; a rollback trigger if it spikes after a new deployment |
+| **Prometheus** | An open-source monitoring and alerting toolkit that scrapes and stores time-series metrics | Commonly used to watch error rates, latency, and quality scores and fire rollback alerts |
+| **Divergence Rate** | The fraction of requests where a shadow version produces a meaningfully different output from the production version | Measures how much a new version's behavior differs before committing to it |
+| **Evaluation Set (Eval Set)** | A larger collection of examples used to statistically measure model quality via sampling | Provides a broader quality signal than the golden set for LLM evaluation stages |
+| **Sample Rate** | The fraction of the evaluation set used in a given pipeline run to control cost | Balances evaluation quality against the time and money spent on LLM calls |
+
+---
+
 *Previous: [LLM Infrastructure](01-llm-infrastructure.md) · Next: [AI Gateways and Model Routing](03-ai-gateways-and-model-routing.md)*

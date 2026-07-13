@@ -95,4 +95,34 @@ Agentic Drift occurs when the sub-steps take the agent so far from the original 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Agent** | An LLM-powered system that autonomously takes actions to achieve a goal, rather than just answering questions | The core unit of autonomous AI work |
+| **LLM (Large Language Model)** | A neural network trained on large amounts of text that can generate and understand language | The reasoning engine inside an agent |
+| **Closed-Loop Reasoning System** | An agent that continuously feeds results back into its own thinking cycle until it reaches a goal | Enables self-correction and multi-step problem solving |
+| **System 1 Thinking** | Fast, intuitive responses generated without deep deliberation — like reflexes | Best for routing, quick UI responses, and simple tasks |
+| **System 2 Thinking** | Slow, deliberate reasoning that works through logic step by step before responding | Best for complex planning and high-stakes decisions |
+| **ReAct** | A loop pattern where the model alternates between Thought, Action, and Observation steps | The foundational pattern for most agent control flows |
+| **Chain-of-Thought (CoT)** | Having the model write out its reasoning steps before producing a final answer | Improves accuracy on multi-step tasks |
+| **Extended Thinking** | A mode where a reasoning model spends extra compute internally working through a problem before responding | Boosts reliability for complex, multi-step agent tasks |
+| **Reasoning Model** | An LLM that uses built-in chain-of-thought during inference rather than only at prompt time | Acts as the high-quality decision-maker inside an agent |
+| **Agency Level (L0–L4)** | A scale from fully scripted chains (L0) to fully autonomous background agents (L4) | Helps designers choose the right autonomy depth for a use case |
+| **Tool Use** | The ability for an agent to call external functions, APIs, or browsers to affect the real world | Extends the agent beyond text generation into real actions |
+| **Model Context Protocol (MCP)** | An industry-standard protocol that defines how agents connect to external tools and data sources | Enables portable, interoperable tool integrations across different LLM providers |
+| **Short-Term Memory** | Information held in the model's active context window for the current session | Lets the agent track what has happened in the current task |
+| **Long-Term Memory** | Information stored in external databases (like vector stores) that persists across sessions | Allows the agent to recall past work and user preferences |
+| **KV Cache** | A hardware-level cache that stores previously computed attention keys and values to speed up inference | Reduces cost and latency for agents with long, repeated context |
+| **Vector DB** | A database that stores data as numerical embeddings, allowing retrieval by semantic similarity | Powers long-term memory and knowledge retrieval in agents |
+| **Agentic Drift** | When an agent's sub-steps gradually move so far from the original goal that it loses track of what it was asked to do | A key failure mode in long-running agents |
+| **Goal Anchoring** | Keeping the original objective pinned in the system prompt and re-checking against it throughout execution | Prevents the agent from drifting off-task over many steps |
+| **Secondary Observer Model** | A smaller, cheaper model that monitors the main agent's actions and scores them against the original goal | A safety net that catches drift without full reprocessing |
+| **Path Reliability** | How consistently an agent follows a valid sequence of steps to reach its goal without looping or hallucinating | A key quality metric for reasoning models in agentic use |
+| **Hallucination** | When a model generates plausible-sounding but factually incorrect or fabricated information | A major failure mode that must be mitigated in production agents |
+| **Decomposition** | Breaking a large goal into smaller, manageable sub-tasks | Enables agents to handle complex, multi-stage work |
+| **Inference-Time Scaling** | Spending more compute during response generation (rather than training) to improve output quality | Allows agents to reason more deeply without retraining |
+
 *Next: [Reasoning Loops: ReAct and Beyond](02-reasoning-loops-react-and-beyond.md)*

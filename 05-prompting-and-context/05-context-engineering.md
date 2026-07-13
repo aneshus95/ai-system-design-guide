@@ -243,4 +243,37 @@ This is **context rot**: the window fills with stale tool output and the model l
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Context Engineering** | The discipline of curating the exact set of tokens the model sees on every inference turn to maximize usefulness | Keeps agents coherent and cost-efficient across long-running, multi-turn tasks |
+| **Context Window** | The maximum number of tokens an LLM can process in one call | Hard cap on how much information the model can attend to at once |
+| **Context Rot** | The accuracy degradation that occurs as the context window fills with stale or redundant tokens | Motivates active curation rather than blindly accumulating conversation history |
+| **Compaction** | Summarizing the message history into a compressed form and reinitializing the agent loop with that summary | Prevents context rot in long sessions by keeping the window small without losing key facts |
+| **Just-in-Time Loading** | Holding lightweight references (file paths, URLs) in context and fetching full content only when needed | Keeps the window lean while allowing access to arbitrarily large corpora |
+| **Structured Note-Taking (Agentic Memory)** | Having an agent write progress notes to an external file and read them back later | Lets agents stay coherent across tasks far longer than their context window |
+| **Sub-Agent Isolation** | Spawning a focused sub-agent with a clean context window for a sub-task that returns only a short summary | Prevents intermediate detail from flooding the coordinator agent's window |
+| **System Prompt Calibration** | Tuning the system prompt to be specific enough to be reliable but general enough not to be brittle | The foundation layer that all other context techniques build on |
+| **In-Context RAG** | Placing an entire small dataset directly in the context window instead of using a vector database | Achieves 100% recall for datasets under ~100k documents without retrieval errors |
+| **RAG (Retrieval-Augmented Generation)** | A technique that retrieves relevant documents at query time and injects them into the prompt | Scales to billions of documents that exceed any context window |
+| **Extended Thinking** | A controllable internal reasoning mode in models like Claude Sonnet 4.6 / Opus 4.7 where the model reasons silently before answering | Improves accuracy on hard problems at the cost of additional compute and latency |
+| **Budget Tokens** | A parameter that caps how many tokens a model may spend on internal reasoning | Lets you tune the accuracy–cost trade-off for each request type |
+| **Reasoning Effort** | OpenAI o3's parameter (low / medium / high) controlling how much internal compute to spend on a query | Provides a simple knob for balancing speed and quality without exposing raw token budgets |
+| **Thinking Tokens** | The tokens consumed by a model's internal reasoning chain before the visible answer | Billed at standard rates; important to account for in cost modeling |
+| **Lost-in-the-Middle** | The tendency for models to pay less attention to information placed in the center of a very long prompt | Informs placement strategy: put critical instructions and key examples first and last |
+| **Attention Gradient** | The uneven distribution of a model's attention across a long prompt, with stronger focus at the ends | Explains why context placement order matters even in frontier models |
+| **TTFT (Time to First Token)** | The elapsed time from sending a request to receiving the first output token | Dominated by the prefill phase; the primary latency concern for long-context prompts |
+| **Prefill Phase** | The stage where the model processes all input tokens before generating any output | Compute-bound and scales with input length; the main reason long prompts are slow |
+| **KV Cache** | Stored key-value attention pairs for prompt tokens that allow repeated prefixes to be processed only once | The mechanism that makes prompt caching dramatically reduce TTFT on reused contexts |
+| **Prompt Caching / Prefix Caching** | Storing the KV cache for a reused prompt prefix so subsequent requests skip the prefill step | Can cut per-request cost by 90–100x for heavy shared prefixes like large codebases |
+| **Cache Hit / Cache Miss** | Whether a requested prompt prefix is already stored in the cache (hit) or must be computed fresh (miss) | The ratio of hits to misses determines actual cost savings from caching |
+| **RAD-L (Reasoning-Aware Deletion)** | A compression technique using a tiny auxiliary model to remove filler text before sending a prompt to a large model | Reduces prompt size 20–50% with under 1% accuracy loss, lowering cost on very long contexts |
+| **Retrieval Gap** | The failure mode where a vector search misses the relevant document chunk, so the model never sees it | The key reason to prefer long context over RAG when 100% recall is critical |
+| **n-squared Attention** | The computational cost of self-attention growing with the square of the number of tokens | Why filling a 1M-token window is slower and less reliable than keeping context tight |
+| **Complexity Classifier** | A lightweight model or heuristic that scores query difficulty to decide whether to enable extended thinking | Gates expensive reasoning modes so they only activate when the problem warrants it |
+| **Hybrid (Long Context + RAG)** | Using RAG to filter a huge corpus down to thousands of relevant pages, then loading those into a long-context window | Combines the scale of RAG with the recall fidelity of long-context reasoning |
+
 *Next: [Structured Generation](06-structured-generation.md)*

@@ -359,4 +359,39 @@ Hidden costs of self-hosting: GPU procurement, engineering time, model updates, 
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Frontier Model** | The most capable AI model available at a given time, representing the current state of the art | Sets the capability ceiling for the hardest reasoning, coding, and agentic tasks |
+| **Agentic Reliability** | How consistently a model correctly selects tools, follows multi-step plans, and recovers from errors autonomously | The primary quality dimension when building agents; benchmark scores alone don't capture it |
+| **Context Recall** | How accurately a model retrieves information from across its full context window | Determines whether a long-context or RAG system actually uses the documents it is given |
+| **Rate Limit** | A provider-imposed cap on requests per minute (RPM) or tokens per minute (TPM) at a given account tier | Must exceed your P99 traffic or your system will return 429 errors under load |
+| **429 Error** | An HTTP "Too Many Requests" error returned when a caller exceeds the provider's rate limit | Handling 429s with exponential backoff and provider fallback is essential for production reliability |
+| **SLA (Service Level Agreement)** | A contractual guarantee of uptime or latency performance | Enterprise criterion for choosing a provider; determines acceptable risk for production systems |
+| **SDK (Software Development Kit)** | A provider-supplied library that wraps API calls in your programming language | Reduces integration effort; maturity and community support matter for long-term maintenance |
+| **Ecosystem Maturity** | The breadth of tooling, third-party integrations, community knowledge, and production track record around a model | Lowers operational risk; mature ecosystems have documented failure modes and proven patterns |
+| **GPQA Diamond** | A graduate-level science benchmark written by domain experts, testing deep scientific reasoning | Used to identify models strongest at scientific and technical multi-step problems |
+| **Deep Think Mode** | An extended-reasoning mode in Gemini that performs sustained chain-of-thought before output | Highest-quality Gemini mode for science and reasoning tasks; incurs latency spikes |
+| **Model Cascade / Cascade Pattern** | A pattern where requests are tried first on a cheap model, and escalated to an expensive model only if quality is insufficient | Maximizes cost efficiency while preserving quality for the fraction of queries that actually need a frontier model |
+| **Semantic Fallback** | Routing a failed or low-confidence request to a different provider or larger model rather than retrying the same one | Avoids correlated failures where the same model fails for the same structural reason on retry |
+| **Abstraction Layer** | A unified code interface that wraps multiple providers so your application doesn't depend on any one vendor's API format | Enables model switching and A/B testing without rewriting application logic |
+| **Multi-Model Strategy** | Using different models for different query types or stages in the same system | The standard production pattern; balances capability, cost, and latency across diverse workloads |
+| **Model Router** | A component that classifies each incoming query and sends it to the best-fit model | Automates cost optimization; replaces hard-coded model assignment with data-driven routing |
+| **QueryClassifier** | A lightweight model or rule set that labels an incoming query by type or complexity | The key sub-component of a model router; must be fast and cheap to not add meaningful latency |
+| **RateLimitError** | An exception raised when a provider rejects a request due to quota exhaustion | Triggers retry logic with backoff or immediate fallback to an alternate provider |
+| **RPM / TPM** | Requests Per Minute and Tokens Per Minute; the two axes on which providers express rate limits | Must be compared against your application's peak load to identify quota gaps before production |
+| **VPC (Virtual Private Cloud)** | An isolated, private cloud network segment that prevents data from flowing to the public internet | Required for zero-data-leakage deployments of self-hosted open-weight models |
+| **SWE-bench Verified** | A benchmark measuring autonomous resolution of real GitHub software engineering issues | Standard metric for comparing coding and agentic model quality at the frontier |
+| **Terminal-Bench 2.1** | A benchmark for long-horizon terminal/coding agent tasks requiring multi-step execution | Differentiates frontier models on complex, sustained agentic coding ability |
+| **Omni Multimodal** | A model that natively processes and generates text, image, audio, and video in a single unified architecture | Enables end-to-end multimodal pipelines without chaining separate specialist models |
+| **On-device / Edge Model** | A small model designed to run locally on a phone or embedded device without a network call | Provides privacy, zero-latency, and offline capability for constrained environments |
+| **TTFT (Time-to-First-Token)** | The latency from sending a request to receiving the first response token | Key metric for streaming UIs; determines how quickly a user sees the response begin |
+| **Speculative Drafting** | A technique where a small fast model proposes tokens and a large model verifies them to increase effective throughput | Reduces TTFT for large models without changing output quality |
+| **Fine-tuning** | Continuing training on a base model with domain-specific data to specialize its behavior | Required when prompt engineering alone cannot achieve the needed accuracy or format consistency |
+| **Hidden-CoT** | Internal chain-of-thought reasoning that the model performs but does not expose in its output | Powers models like o-series and GPT-5.4 Pro; helps complex reasoning without cluttering responses |
+| **Compliance / Data Residency** | Legal requirements to keep data within specific geographic boundaries or isolated infrastructure | The primary forcing function for choosing self-hosted or sovereign-cloud deployments over standard APIs |
+
+---
+
 *Next: [Fine-Tuning Guide](../03-training-and-adaptation/02-fine-tuning-strategies.md)*

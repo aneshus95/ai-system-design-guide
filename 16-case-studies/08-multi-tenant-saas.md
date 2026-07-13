@@ -173,4 +173,33 @@ A: This is a real risk. We mitigate by: (1) Using only retrieval-grounded genera
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Multi-Tenancy** | Serving multiple independent customers from a shared infrastructure where each customer's data is kept separate | Reduces infrastructure cost compared to fully dedicated deployments while maintaining isolation |
+| **Tenant** | A single customer organization using the platform; their data must never be visible to other tenants | The fundamental unit of isolation; every piece of data must be tagged and restricted to its owning tenant |
+| **Tenant ID** | A unique identifier assigned to each customer organization and attached to all their data | The primary key for all isolation logic; tagged at upload and enforced at every downstream layer |
+| **Namespace Isolation** | Storing all tenants in the same database but using tenant_id filters to logically separate their data | Cost-efficient isolation for smaller tenants; vulnerable to filter bugs, so additional layers are required |
+| **Physical Isolation** | Giving a tenant their own dedicated database pod or cluster that no other tenant shares | Eliminates cross-tenant leakage risk entirely; used here for enterprise tenants with >500K documents |
+| **Defense in Depth** | Using multiple independent security controls so a failure in one layer does not expose data | The core isolation philosophy: API gateway + RLS + ORM wrapper + system prompt + output filter all enforce the same boundary |
+| **RLS (Row-Level Security)** | A database feature that enforces tenant_id filtering directly at the query engine level | Ensures that even if application code has a bug and omits the filter, the database itself still restricts results |
+| **JWT (JSON Web Token)** | A compact, signed token carried by the client that proves identity and contains claims like tenant_id | Used by the API gateway to authenticate requests and extract the tenant context without a database lookup |
+| **ORM (Object-Relational Mapper)** | A code library that translates between application objects and database rows | Wrapped here to automatically inject tenant_id filters on every query so developers cannot accidentally omit them |
+| **SOC 2 Type II** | A security compliance certification that verifies a company's controls have operated continuously over time | Required by enterprise buyers to trust the platform with their confidential contracts |
+| **GDPR (General Data Protection Regulation)** | EU privacy law that gives individuals the right to have their data deleted | Drives the need for complete, certified tenant data deletion and audit log anonymization |
+| **Right to Deletion** | A GDPR requirement to erase all personal data belonging to a user or organization on request | Implemented by deleting from vector DB and blob storage and anonymizing audit logs |
+| **Deletion Certificate** | A document generated after tenant data deletion confirming what was deleted and when | Provides evidence of GDPR compliance to the tenant and regulators |
+| **AES-256** | A symmetric encryption standard with a 256-bit key used to encrypt data at rest | Industry-standard encryption for blob storage; makes raw storage files unreadable without the key |
+| **TLS 1.3** | The latest version of the Transport Layer Security protocol that encrypts data in transit | Ensures data is encrypted on every network hop between client, gateway, databases, and LLM APIs |
+| **Blob Storage (S3)** | Object storage (Amazon S3) for large binary files like original contract PDFs | Stores the raw documents cheaply and durably; access is restricted by tenant prefix paths |
+| **Qdrant Collection** | A named grouping within Qdrant that holds vectors for a specific dataset | Used as the unit of isolation for Premium tenants—each gets a dedicated collection with no namespace overlap |
+| **Qdrant Pod** | A fully separate Qdrant server instance dedicated to a single tenant | Used for Enterprise tenants; provides both performance isolation and physical data separation |
+| **Audit Log** | An immutable, timestamped record of every query, action, and access event | Required for SOC 2 compliance and useful for detecting unauthorized cross-tenant access attempts |
+| **Data Portability** | The ability for a customer to export all their data in a standard, usable format | Required by GDPR and good practice; here implemented as a streaming export to the tenant's own S3 bucket |
+| **Retrieval-Grounded Generation** | Constraining the LLM to only answer using retrieved documents rather than its training knowledge | Prevents the model from hallucinating competitor information it may have learned during pre-training |
+| **Cross-Tenant Leakage** | A security failure where one tenant's data appears in another tenant's query results | The worst-case failure mode; prevented here by four independent enforcement layers |
+
 *Related chapters: [LLM Security](../12-security-and-access/01-llm-security.md), [Access Control & Multi-Tenant Isolation](../12-security-and-access/02-access-control.md)*

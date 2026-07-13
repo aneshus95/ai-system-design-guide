@@ -603,4 +603,33 @@ The key insight is that cross-modal questions are inherently multi-hop. The syst
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Multi-Modal RAG** | A RAG system that retrieves and reasons over text, images, tables, charts, and other non-text content | Handles the 40–60% of enterprise document content that is not plain text |
+| **VLM (Vision-Language Model)** | An AI model that can process both images and text as input | Used both to extract structured data at ingestion and to generate answers with visual context |
+| **CLIP** | A dual-encoder model trained on image-text pairs that maps both modalities to a shared vector space | Enables a single query to match both text and images |
+| **SigLIP / SigLIP 2** | An improved CLIP variant that uses a sigmoid loss instead of softmax, trained on 10B+ images | Produces denser, more robust multi-modal embeddings, especially for non-English content |
+| **Unified Embedding Space** | A single vector index where text, images, and tables all coexist and are searched together | Simplifies retrieval architecture at the cost of per-modality embedding quality |
+| **Modality-Specific Retrieval** | Separate indices per content type (text index, image index, table index) merged by fusion | Allows best-in-class embedding models per modality |
+| **Vision-First (Page-as-Image)** | Treating each document page as an image and skipping OCR and parsing entirely | Eliminates complex extraction pipelines for visually rich documents |
+| **ColPali** | A late-interaction retrieval model that encodes document pages as grids of patch vectors | Retrieves visually complex pages (charts, tables, diagrams) without OCR |
+| **Patch Embeddings** | A set of 128-dim vectors, one per image patch in a grid (typically 1024 per page) | Preserves spatial detail for MaxSim matching instead of compressing the page to one vector |
+| **MaxSim** | The scoring operator that matches each query token to its best-matching image patch and sums the peaks | Core mechanism that makes ColPali and ColBERT excel at fine-grained matching |
+| **ColQwen2.5** | A ColPali variant using the Qwen2-VL backbone with stronger multilingual and Asian-language support | Extends vision-first retrieval to non-English documents |
+| **ViDoRe** | A benchmark suite for visually complex document retrieval (infographics, tables, charts) | Used to measure how well vision-first models like ColPali perform on real document types |
+| **OCR (Optical Character Recognition)** | Software that converts text in images or scanned documents into machine-readable characters | Required for traditional text extraction from scanned PDFs; ColPali bypasses the need for it |
+| **Layout Detection** | ML-based identification of regions on a page (headings, paragraphs, tables, figures) | Needed in traditional pipelines to know how to parse each region; ColPali skips this |
+| **Table Transformer** | A DETR-based model that detects table boundaries and cell structure from images | Used for structured extraction of tables in traditional (non-vision-first) pipelines |
+| **Tabula / Camelot** | Rule-based PDF table extraction libraries | Fast but brittle on complex or non-standard table layouts |
+| **Unstructured.io** | A document parsing library combining heuristics and ML for layout-aware text extraction | A common first step in traditional multi-modal ingestion pipelines |
+| **Dual-Representation Strategy** | Storing both a text description and the original image for each chart or diagram | Makes visual content retrievable by text queries and available as visual context for generation |
+| **Cross-Modal Reranker** | A model that scores relevance across text, image, and table results in a unified ranking step | Merges results from separate modality-specific retrievers into one ranked list |
+| **Binary Quantization** | Compressing each float in a vector to a single bit | Reduces ColPali's 1024-vector-per-page index by 32×, making billion-page corpora feasible |
+| **Product Quantization (PQ)** | Splitting each vector into sub-vectors and quantizing each independently | A standard compression technique for large multi-vector indices |
+| **RRF (Reciprocal Rank Fusion)** | Merging ranked lists from multiple retrievers by position rather than score | Combines visual and text retrieval results without needing compatible score scales |
+
 *Previous: [Advanced Retrieval Patterns](09-advanced-retrieval-patterns.md) | Next: [RAG Evaluation Patterns](13-rag-evaluation-patterns.md)*

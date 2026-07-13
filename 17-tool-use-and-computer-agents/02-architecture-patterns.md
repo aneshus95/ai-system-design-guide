@@ -634,5 +634,43 @@ API-based is faster (50-200ms vs. 1-3s per step), cheaper (text vs. image tokens
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Function/Tool Calling** | A pattern where the LLM outputs a structured JSON request to invoke a specific function, and a framework executes it | The most reliable and fastest way to connect an LLM to external systems when APIs exist |
+| **Tool Schema** | A JSON description of a tool's name, purpose, and expected input parameters | Tells the LLM exactly how to call a tool correctly, reducing hallucinated arguments |
+| **Dynamic Manifest** | Fetching only the tool schemas relevant to the user's current intent rather than loading all schemas upfront | Prevents context window bloat and keeps model reasoning focused |
+| **Pydantic / Zod** | Python and TypeScript libraries respectively that validate structured data against a defined schema | Ensure tool arguments match expected types and ranges before execution |
+| **MCP Server** | A standalone process that exposes tools, resources, and prompts to any MCP-compatible client via JSON-RPC | Allows tools to be written once and used by any LLM without custom integration per provider |
+| **Vision-Based Automation** | A pattern where the LLM sees a screenshot, reasons about it, and emits low-level actions like clicks and keystrokes | Enables AI to control any GUI application even when no structured API is available |
+| **Observe-Reason-Act Cycle** | The repeating loop: capture a screenshot, send it to the LLM for analysis, execute the resulting action | The core operating mechanism for computer-use agents interacting with graphical interfaces |
+| **Zoom Action** | A computer-use enhancement that captures a high-resolution crop of a specific UI region before clicking | Reduces misclick errors on small or dense interface elements |
+| **Local Code Execution** | A pattern where the LLM generates code, a permission gate prompts for approval, and the code runs on the local machine | Gives the agent full flexibility to accomplish almost any task expressible in code |
+| **NL-to-Code pipeline** | The process of translating a natural language instruction into executable code (Python, bash, JavaScript) | Bridges the gap between what a user describes and what a computer can execute |
+| **Permission Gate** | A step where the user must approve before agent-generated code is executed | The primary safety mechanism in unsandboxed local-execution environments |
+| **Self-Correcting Loop** | A pattern where the agent observes its own errors, feeds them back to the LLM, and automatically generates a fix | Allows agents to handle failures without human intervention up to a configured retry limit |
+| **Multi-Agent Tool Orchestration** | A pattern with multiple specialized agents, each owning a subset of tools, coordinated by an orchestrator | Improves efficiency, reduces context bloat, and allows cost optimization through model specialization |
+| **Orchestrator** | The top-level agent (usually a frontier model) that analyzes a task and routes subtasks to specialist agents | Acts as the project manager, deciding which agent handles which part of a complex task |
+| **Plan-and-Execute** | An orchestration strategy where a powerful model breaks a task into subtasks and cheaper models execute each one | Reduces LLM costs by 87% or more while maintaining high task completion rates |
+| **Router-Based orchestration** | The simplest orchestration strategy: classify the request and forward the whole task to one specialist agent | Lowest complexity, appropriate when subtasks do not need to share intermediate results |
+| **Hierarchical orchestration** | A multi-agent pattern where high-level agents assign work to lower-level agents that may further delegate | Mirrors organizational structures and scales well for complex, multi-phase projects |
+| **Sandboxed execution** | Running agent-generated code inside an isolated container or VM so it cannot affect the host system | The most consequential security decision in any tool-use agent architecture |
+| **Docker** | A containerization technology that provides process-level and filesystem isolation for agent execution | The default sandbox for most agent frameworks due to its balance of isolation and performance |
+| **Firecracker microVM** | A lightweight virtual machine that gives each session its own guest kernel, fully separate from the host | The strongest practical isolation for untrusted agent-generated code |
+| **gVisor** | A user-space kernel implementation that intercepts syscalls between the container and the host kernel | Provides stronger isolation than Docker while maintaining Linux compatibility |
+| **WebAssembly (WASM)** | A binary format that provides capability-based isolation with near-native performance and microsecond startup | Ideal for pure-compute workloads that do not need filesystem or network access |
+| **E2B** | A cloud sandbox service providing pre-configured isolated environments accessible via API | Allows remote agent execution without the overhead of managing Docker infrastructure |
+| **Conversation State** | Ephemeral state stored in the message array for a single conversation session | The simplest state model, appropriate for single-turn or short-lived agent interactions |
+| **Session State** | State that persists across tool calls within one working session, such as a working directory or open files | Enables the agent to accumulate context and intermediate results across multiple steps |
+| **Persistent State** | State stored across multiple sessions in a database, files, or Markdown documents | Allows the agent to remember past interactions and maintain a consistent understanding over time |
+| **Exponential backoff** | A retry strategy that doubles the wait time between each retry attempt | Prevents overwhelming a temporarily overloaded service while still recovering from transient errors |
+| **MCP Gateway** | A central proxy that handles authentication, rate limiting, and audit logging for multiple agent-to-MCP connections | Enables enterprise-grade governance over tool access without changing individual MCP server code |
+| **Identity Propagation** | Passing the end-user's identity from the agent client through to the MCP server | A 2026 roadmap gap that prevents servers from applying per-user access controls |
+| **Adaptive Tool Budgeting** | Protocol-level support for limiting token or cost consumption per tool call | A planned MCP feature to prevent runaway agent loops from consuming excessive resources |
+| **Structured Error Semantics** | Standardized error codes and categories across MCP servers | Allows agents to handle errors consistently rather than parsing custom error formats from each server |
+
 *Previous: [Tool-Use and Computer Agent Landscape](01-tool-use-landscape.md)*
 *Next Chapter: [Case Studies](../16-case-studies/)*

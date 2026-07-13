@@ -130,4 +130,39 @@ When data cannot leave the box for privacy or residency reasons, when the system
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **On-Device Inference** | Running a language model directly on the user's device (phone, laptop, edge box) without sending data to a server | Enables privacy, offline operation, and eliminates network latency |
+| **Edge Deployment** | Running models on hardware located close to end users (edge boxes, local servers) rather than in a central cloud datacenter | Reduces round-trip latency and keeps data within a geographic or regulatory boundary |
+| **Ollama** | A single-command tool for pulling and running local models with an OpenAI-compatible API, built on llama.cpp | Ideal for solo developer prototyping; not designed for concurrent multi-user serving |
+| **LM Studio** | A desktop GUI application for browsing and running local models | Single-user exploration tool; not suitable as a shared production endpoint |
+| **llama.cpp** | A portable C/C++ inference engine that runs quantized models on CPUs and GPUs across almost any hardware | The core engine that powers Ollama and many other local tools; prioritizes portability over peak throughput |
+| **GGUF** | A binary file format used by llama.cpp and Ollama to store quantized model weights | The standard format for distributing local models at various quantization levels |
+| **MLX** | Apple's array computation framework optimized for Apple Silicon's unified memory architecture | The fastest inference path on Mac; used by Ollama's Apple Silicon backend and the MLX LLM library |
+| **ExecuTorch** | PyTorch's on-device inference runtime for deploying models from phones to microcontrollers; reached 1.0 in late 2025 | The standard runtime for shipping PyTorch models inside mobile apps at production scale |
+| **Core ML** | Apple's on-device inference framework for running models natively on iPhone, iPad, and Mac neural engines | Enables low-power, privacy-preserving inference on Apple hardware with OS-level integration |
+| **ONNX Runtime** | A cross-platform inference engine from Microsoft that runs models exported in the ONNX format | Enables running the same model on Windows, Linux, Android, iOS, and WebGPU with one export |
+| **MLC LLM** | A compiler-based inference engine that deploys LLMs to many targets including WebGPU and mobile browsers | Lets you run a language model in a web browser or compile it once for many device targets |
+| **TGI (Text Generation Inference)** | Hugging Face's high-throughput serving server with continuous batching and tensor parallelism | A production serving alternative to vLLM; tightly integrated with the Hugging Face model hub |
+| **vLLM** | An open-source serving system with PagedAttention and continuous batching for GPU servers | The standard production serving engine; ~19x higher throughput than Ollama under concurrency |
+| **PagedAttention** | KV cache management that stores cache in non-contiguous pages, eliminating memory waste | The architectural reason vLLM handles concurrent users far better than Ollama |
+| **Continuous Batching** | Processing multiple requests simultaneously with requests joining and leaving at every token step | What turns serial Ollama-style throughput into production-scale concurrent serving |
+| **Quantization** | Reducing model weight precision (e.g., from FP16 to 4-bit integers) to shrink model size | What makes large models fit in consumer VRAM or phone RAM; essential for edge deployment |
+| **Q4_K_M** | A 4-bit quantization level with K-means grouping and medium accuracy; the practical sweet spot for local models | Gives roughly 1–3% quality loss versus FP16 at about a quarter of the size |
+| **Q5_K_M** | A 5-bit quantization level; noticeably better than Q4_K_M for code and reasoning tasks | Worth the slightly larger size when code quality or math accuracy matters |
+| **Q8_0** | An 8-bit quantization level that is effectively lossless compared to FP16 | Best quality for local serving when VRAM is sufficient; roughly half the size of FP16 |
+| **VRAM Rule of Thumb** | A formula: `(params in billions × bits per weight) / 8 = VRAM in GB` for weight-only size | A quick way to estimate whether a model fits on a given GPU before downloading it |
+| **Unified Memory (Apple Silicon)** | A single memory pool shared by the CPU and GPU on Apple Silicon chips | Lets Macs use all system RAM as effective VRAM, enabling larger models than discrete GPUs of similar price |
+| **NPU (Neural Processing Unit)** | A specialized chip core in phones and AI PCs designed for low-power neural network inference | Efficient for small, battery-sensitive tasks; TOPS ratings often overstate real LLM speed due to operator and bandwidth limits |
+| **TOPS (Tera Operations Per Second)** | A measure of how many trillion arithmetic operations a chip can perform per second | Headline NPU metric; misleading for LLMs because memory bandwidth, not raw ops, usually bottlenecks on-device inference |
+| **Air-Gapped Operation** | Running a system with no network connection, typically for security or safety-critical environments | One of the strongest reasons to choose on-device or local inference over cloud APIs |
+| **Zero-Data-Retention Tier** | An enterprise API option where the provider commits to not storing or logging request content | A cloud-based alternative to local deployment for privacy-sensitive workloads |
+| **HIPAA / GDPR** | US and EU regulations governing the handling of sensitive personal and health data | Common compliance reasons that drive organizations toward on-device or private-cloud inference |
+| **NVFP4** | NVIDIA's 4-bit floating-point format, reported ~20% faster than Q4_K_M on compatible hardware | A newer quantization format appearing in Ollama's NVIDIA backend for further speed gains |
+| **Tail Latency** | The latency experienced by the slowest requests, typically the 95th or 99th percentile | vLLM's structural advantages (paged memory, continuous batching) reduce tail latency far more than Ollama under load |
+
 *Next: [Prompt Engineering Fundamentals](../05-prompting-and-context/01-prompt-engineering-fundamentals.md)*

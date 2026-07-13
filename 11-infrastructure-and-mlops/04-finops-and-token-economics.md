@@ -139,4 +139,39 @@ Because every request carries a variable token cost, so an AI product behaves li
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **FinOps** | A discipline that combines financial accountability with cloud/AI operations to optimize spend | Brings cost visibility and control to AI infrastructure the same way it does for cloud compute |
+| **Token Economics** | The study of how LLM costs accumulate per token and how to structure systems to minimize spend | Enables engineers to treat AI inference as a cost-of-goods item and optimize accordingly |
+| **Input Tokens** | The tokens sent to the model as part of the prompt, including system instructions, context, and user query | The portion of cost you control through prompt design, caching, and retrieval strategy |
+| **Output Tokens** | The tokens the model generates in its response | Typically cost 3-5x more than input tokens and are driven by verbosity and max_tokens settings |
+| **Prompt Caching** | A provider feature that stores the result of processing a repeated prompt prefix so subsequent calls pay a discounted rate | The single highest-ROI cost lever for most production stacks because the system prompt (~69% of input) is static |
+| **Prefix Caching** | Another name for provider-level prompt caching; the stable leading portion of a prompt is cached and reused | Reduces input token cost by 50-90% on the cached prefix for subsequent calls |
+| **Cache-Hit Rate** | The fraction of requests that successfully reuse a cached prompt prefix or response instead of re-computing | The metric that directly determines how much caching actually saves in practice |
+| **System Prompt** | Fixed instructions prepended to every request defining the model's behavior and persona | Typically the largest single token cost layer (~69% of input); the primary target for prefix caching |
+| **RAG (Retrieval-Augmented Generation)** | A pattern that fetches a small set of relevant documents and injects them into the prompt at query time | Dramatically cheaper per query than stuffing a full document corpus into a long context window |
+| **Long Context** | Using a very large context window to include many documents or a long conversation history in a single prompt | Convenient but expensive; best reserved for small, static document sets with infrequent queries |
+| **Autoregressive Generation** | The way LLMs generate output one token at a time, where each new token depends on all previous ones | Explains why output is compute-bound and costs more per token than the parallel input prefill pass |
+| **Extended Thinking / Reasoning Tokens** | Hidden chain-of-thought tokens some models generate internally before producing the visible response | Billed at the output rate but invisible in the reply; can multiply apparent cost 3-15x on complex tasks |
+| **Agentic Loop / Multi-Step** | An AI agent that repeatedly plans, calls tools, observes results, and plans again to complete a task | Multiplies the entire token stack on every step, making cost per task the right unit of measurement |
+| **Batch API** | An asynchronous API mode where requests are queued and processed with a ~50% discount within ~24 hours | The correct choice for any offline work (evals, backfills, labeling) where latency is not critical |
+| **Provisioned Throughput** | Reserved model capacity billed at an hourly rate regardless of usage (e.g., AWS Bedrock PTUs, Azure PTUs) | Cost-effective at high, predictable utilization; mirrors the economics of reserved cloud compute instances |
+| **Cascade / Routing** | A strategy that sends requests to the cheapest model first and escalates to a stronger model only when needed | Reported to achieve ~95% quality at 45-85% cost reduction (FrugalGPT / RouteLLM benchmarks) |
+| **Right-Sizing** | Choosing the least powerful (cheapest) model that still meets quality requirements for a given task | Often the highest-leverage cost reduction move beyond caching |
+| **Distillation** | Fine-tuning a small, cheap model on outputs from a large frontier model for a specific narrow task | Can reduce per-token cost 5-40x on high-volume, well-defined tasks where a small model can match frontier quality |
+| **max_tokens** | A parameter that caps the maximum length of the model's generated response | Prevents runaway verbose outputs and directly bounds per-request output cost |
+| **Cost per Task** | Total token cost across all steps and retries required to complete one end-to-end agent task | The correct unit of measurement for agentic workloads where cost per call understates true spend |
+| **Unit Economics** | Per-unit cost and revenue metrics such as cost per user, cost per conversation, or cost per resolved ticket | Necessary to determine whether an AI feature is profitable and to set outcome-based prices |
+| **Outcome-Based Pricing** | Charging customers per completed outcome (e.g., per resolved support ticket) rather than per seat or per call | Aligns pricing with value delivered and requires knowing your cost per resolution before setting the price |
+| **Showback** | Reporting AI spend attribution to teams without actually billing them for it | First step toward chargeback; builds trust in cost data before enforcement |
+| **Chargeback** | Billing internal teams or tenants for their actual AI consumption | Drives cost-conscious behavior and enables unit-economics tracking per team or product |
+| **Retry Storm** | A situation where many clients simultaneously retry a failing provider, worsening the outage | A top cost anti-pattern; prevented by bounded retries, exponential backoff, and circuit breakers |
+| **Token Proxy / Gateway** | A service that sits in front of the LLM API to tag, count, and attribute every token call | The technical enabler for spend attribution, budget enforcement, and showback/chargeback |
+| **FrugalGPT** | A 2023 Stanford paper (arXiv:2305.05176) proposing cascade routing to match frontier quality at reduced cost | The canonical academic reference for cost-quality trade-off via model routing and cascades |
+| **Windowing / Summarization** | Truncating or compressing conversation history to keep it within a fixed token budget | Prevents unbounded memory growth that would otherwise make long conversations exponentially expensive |
+
+---
+
 *Previous: [AI Gateways and Model Routing](03-ai-gateways-and-model-routing.md)*

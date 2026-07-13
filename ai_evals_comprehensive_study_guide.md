@@ -2689,6 +2689,23 @@ A plain-language glossary of the technical terms used throughout this guide. Sha
 | **Sampling** | Evaluating a random subset of traces instead of all traces — used to manage cost |
 | **Statistical Significance** | Whether an observed difference is likely real or could be due to random chance |
 
+### Additional Technical Terms
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Arize Phoenix** | An open-source AI observability platform built on OpenTelemetry, self-hosted via Docker | Provides free tracing, evaluation, datasets, and experiments without a cloud dependency |
+| **OpenTelemetry (OTel)** | A vendor-neutral standard for capturing telemetry (traces, metrics, logs) from applications | Allows Phoenix, Langfuse, or any platform to instrument the same code with no lock-in |
+| **Auto-Instrumentation** | Automatically capturing traces from supported libraries (OpenAI, LangChain, etc.) without manual span code | Reduces the engineering effort required to start collecting traces |
+| **Prompt Management** | Storing, versioning, and retrieving prompt templates in a central platform | Tracks which prompt version was active when a trace was captured and enables A/B testing |
+| **Guardrail** | A real-time check that blocks or flags unsafe/policy-violating LLM outputs before they reach the user | Prevents harmful, off-topic, or policy-breaking responses in production |
+| **Regression Testing** | Re-running your eval suite after every code or prompt change to detect regressions | Ensures that fixing one problem doesn't silently break something else |
+| **System Prompt** | The hidden instruction given to the LLM at the start of every conversation, defining its behavior and persona | The primary lever for controlling LLM behavior; must be versioned alongside prompt management |
+| **Token** | The basic unit an LLM reads and generates — roughly a word or sub-word fragment | Token count determines cost and whether a prompt fits within the context window |
+| **Temperature** | A parameter (0–2) controlling output randomness; lower = more deterministic | Set to 0 for evaluation tasks to make judge outputs reproducible |
+| **Multi-Turn Conversation** | An LLM session consisting of multiple back-and-forth exchanges | Requires evaluating cumulative context and consistency across turns, not just single responses |
+| **Agentic Pipeline** | A multi-step system where the LLM autonomously decides which tools to call and in what order | Harder to evaluate than single-turn responses because failures can occur at any step |
+| **Theoretical Saturation** | The point in qualitative analysis where reviewing more examples stops revealing new error types | Signals when to stop error analysis and begin building automated evaluators |
+
 ---
 
 <a name="appendix-b"></a>

@@ -486,4 +486,32 @@ The key insight is that any single reward signal can be gamed. Ensembles make ga
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Ensemble Method** | Running multiple models or multiple samples and combining their outputs | Improves accuracy and reduces variance compared to relying on a single model call |
+| **Panel of LLM Judges (PoLL)** | Having several diverse LLMs each score the same output and averaging the results | Reduces the bias any single judge model introduces into evaluation |
+| **Inter-Judge Agreement** | A measure of how consistently multiple judges give the same score | Low agreement means the question is ambiguous or the judges have conflicting biases |
+| **Pairwise Comparison** | Presenting two responses to a judge and asking which is better | More sensitive than absolute scoring because relative differences are easier to detect |
+| **Positional Bias** | An LLM judge's tendency to favor whichever response appears first in the prompt | Must be counteracted by running comparisons in both orderings and checking consistency |
+| **Self-Consistency (Majority Voting)** | Generating the same prompt multiple times with temperature > 0, then voting on the most common answer | Improves accuracy on tasks with verifiable answers like math and classification |
+| **Temperature** | A parameter that controls how random an LLM's outputs are; higher = more varied | Must be tuned carefully for ensembles—too low gives no diversity, too high adds noise |
+| **Best-of-N (BoN)** | Generating N candidate responses and selecting the one scored highest by a reward model | Improves output quality on open-ended tasks where majority voting cannot apply |
+| **Reward Model** | A model trained to score outputs according to human preferences or a quality rubric | The scoring engine used in Best-of-N to select the best candidate |
+| **Reward Hacking** | When a model learns to exploit weaknesses in the reward model rather than genuinely improving quality | Causes the selected output to look good by the reward metric while being worse in reality |
+| **Conservative Aggregation** | Using the 25th percentile (or minimum) across reward model scores instead of the mean | Makes reward hacking harder because a response must score well on all reward models, not just one |
+| **Diversity Score** | A measure of how different the N candidate responses are from each other | Low diversity means Best-of-N wastes compute because all candidates are nearly identical |
+| **Multi-Agent Debate** | Multiple LLMs independently answer a question, then critique each other's responses over several rounds | Reduces hallucinations by forcing models to defend their reasoning against peer challenges |
+| **Mixture of Agents (MoA)** | A layered architecture where several proposer models generate answers that an aggregator model synthesizes | Combines diverse model strengths into a single, higher-quality response |
+| **Proposer** | A model in MoA that generates an initial answer to be synthesized by the aggregator | Contributes a distinct perspective or capability to the ensemble |
+| **Aggregator** | The model in MoA that reads all proposer outputs and synthesizes a final answer | Responsible for combining the best elements of each proposal |
+| **Model Arbitration** | Selecting a single best model output from several candidates rather than combining all of them | Used when a single clean answer is needed and compositing would be incoherent |
+| **Trimmed Mean** | An average computed after dropping the highest and lowest values | Makes aggregate scores more robust to a single outlier judge score |
+| **Model Distillation** | Training a small model to mimic a large model's outputs | A cost-efficient alternative to ensembles when budget is the primary constraint |
+| **Cosine Similarity** | A number between –1 and 1 that measures how similar two vector embeddings are | Used to compare text semantically—high cosine similarity means similar meaning |
+| **Embedding** | A dense numerical vector representation of text produced by a language model | Enables semantic comparison and clustering of text without keyword matching |
+
 *Next: [Reliability Patterns Extended](03-reliability-patterns.md)*

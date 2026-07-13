@@ -120,4 +120,32 @@ It is overkill when the agent has no irreversible side effects, runs short enoug
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Durable Execution** | A programming model where workflow progress and side effects are recorded in an append-only journal so runs survive crashes, restarts, and deploys | Makes long-running agents production-safe by eliminating data loss and duplicate side effects |
+| **Exactly-Once Semantics** | The guarantee that a side-effecting operation is executed exactly one time, even if the process crashes and retries | Prevents duplicate payments, emails, tickets, or database writes from retried agent runs |
+| **Idempotency Key** | A unique identifier attached to an operation so retrying it with the same key produces the same result as running it once | The mechanism that enables exactly-once semantics for tool calls |
+| **Activity** | In durable-execution frameworks like Temporal, a single retryable unit of side-effecting work (a tool call, API request, etc.) | Isolates nondeterminism and side effects so the rest of the workflow can replay safely |
+| **Workflow** | In durable-execution systems, the deterministic orchestration code that coordinates activities and persists all state | The container for agent logic that survives crashes through journaled replay |
+| **Event History** | The append-only log of every step a workflow has completed, stored externally by the durable execution engine | The source of truth for replay — allows any worker to reconstruct workflow state after a crash |
+| **Deterministic Replay** | Re-executing workflow code from recorded history to reconstruct in-memory state after a crash | The core recovery mechanism in systems like Temporal — enables resumption without re-running side effects |
+| **Nondeterminism** | Operations that may produce different results on different runs, such as current time, random numbers, or LLM calls | Must be pushed into activities so results can be recorded and replayed consistently |
+| **Durable Timer** | A timer that persists through worker restarts and deploys, used to pause a workflow for hours or days | Enables agents to wait for human approvals or scheduled events without holding a process open |
+| **Signal** | An external event pushed into a running workflow (e.g., a human approval, a cancellation) that it can wait on | Enables interrupt-driven human-in-the-loop patterns that survive restarts |
+| **Query** | A read-only inspection of a running workflow's current state without mutating it | Allows monitoring dashboards and status endpoints to check agent progress safely |
+| **Versioning** | The practice of marking workflow code changes so the engine can replay old histories with old code and new runs with new code | The most-cited operational hazard in durable execution systems — mismanaged versioning breaks replay |
+| **Temporal** | The leading open-source durable execution engine using event history and deterministic replay across many languages | The reference implementation for production-grade durable agent workflows |
+| **Restate** | A lightweight durable execution engine using per-step journaling, designed as a sidecar or embedded library | Lower operational overhead than Temporal, with Virtual Objects for stateful session management |
+| **DBOS** | A durable execution library that stores workflow state in Postgres rows, enabling exactly-once execution without a separate cluster | Collapses durability into the application's existing database for minimal new infrastructure |
+| **Inngest** | An event-driven durable workflow platform with AI-native primitives for LLM rate-limit control and throttling | Suited for TypeScript-first, event-driven agent pipelines |
+| **AWS Step Functions** | AWS's managed declarative state machine service for orchestrating workflows | Useful for AWS-native agent stacks, but less flexible than code-based engines for complex logic |
+| **LangGraph Checkpointer** | LangGraph's built-in mechanism for saving graph state to persistent storage between steps | Provides lighter-weight state recovery than full durable execution, sufficient for many read-focused agents |
+| **Framework-Native Durability** | Using a framework's own checkpointing (e.g., LangGraph) instead of a dedicated durable execution engine | Simpler to operate for agents that are mostly reasoning with recoverable, idempotent tools |
+| **Mid-Activity Crash** | A failure that occurs after a side effect has committed but before the acknowledgment is recorded | The specific failure scenario that requires durable execution — a state snapshot alone cannot resolve it |
+| **Virtual Object (Restate)** | A stateful, keyed session in Restate that automatically handles concurrency so two calls to the same key are serialized | Prevents race conditions in multi-agent systems without explicit locking code |
+
 *Next: [Loop Engineering](12-loop-engineering.md)*

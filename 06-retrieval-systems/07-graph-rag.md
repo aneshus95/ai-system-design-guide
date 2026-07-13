@@ -195,4 +195,32 @@ For aggregate questions (e.g., "Summarize the sentiment of 1,000 documents"), a 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **GraphRAG** | Combining a knowledge graph of entities and relationships with RAG so queries can traverse connections across documents | Solves aggregative and multi-hop questions that flat vector retrieval cannot answer |
+| **Knowledge Graph (KG)** | A structured database of entities (nodes) and typed relationships (edges) extracted from source documents | Stores who-knows-what and how things connect, enabling graph traversal at query time |
+| **Entity** | A named real-world object — person, organization, date, concept — extracted from text | The node in a knowledge graph; the anchor point for multi-hop traversal |
+| **Relationship / Edge** | A directional link between two entities with a label describing how they relate | Carries the semantic connection ("works on", "acquired", "cites") that enables graph traversal |
+| **Community** | A cluster of closely related nodes identified by a graph-partitioning algorithm | The unit of pre-summarization in Microsoft GraphRAG; allows answering global questions compactly |
+| **Community Summarization** | Generating a natural-language summary for each cluster of nodes in the graph | Lets the system answer "big picture" questions without reading millions of raw tokens |
+| **Leiden Algorithm** | A graph-partitioning algorithm that finds densely connected communities | Used to cluster knowledge graph nodes into communities for pre-summarization |
+| **Local Search** | Finding a node and its immediate neighbors in the graph | Handles specific, entity-focused queries such as "tell me about Person X" |
+| **Global Search** | Querying pre-generated community summaries rather than raw chunks | Handles aggregate questions such as "summarize the key themes across all 500 documents" |
+| **Hybrid Graph-Vector Search** | Combining dense vector similarity to find seed nodes with graph traversal to expand to connected evidence | Captures both semantic relevance and logical relationships in a single retrieval pass |
+| **Graph-as-Reranker** | Running vector retrieval first, extracting entities from the top-k results, expanding one or two hops, then reranking the expanded set | Delivers most of GraphRAG's multi-hop benefit at a fraction of the full construction cost |
+| **Multi-Hop Reasoning** | Answering a question that requires following a chain of two or more entity relationships | The primary workload GraphRAG is designed for; intractable for flat chunk retrieval |
+| **HippoRAG / HippoRAG 2** | A retrieval system that treats multi-hop retrieval as Personalized PageRank over a memory graph | Achieves strong multi-hop benchmark results at lower index cost than Microsoft GraphRAG |
+| **LightRAG** | An entity-centric GraphRAG variant with a simpler indexing pipeline | Trades some global-question recall for substantially faster construction and updates |
+| **GraLC-RAG** | Graph-aware late chunking with UMLS grounding for biomedical retrieval | Strong performance on multi-hop biomedical QA where domain ontologies add precision |
+| **LazyGraphRAG** | Microsoft's variant that defers community-summarization cost to query time rather than paying it at index time | Reduces upfront indexing cost when global summaries are queried infrequently |
+| **Personalized PageRank** | A graph algorithm that ranks nodes by how much random walks from a seed node visit them | Used by HippoRAG to score which entities and chunks are most relevant given a query |
+| **UMLS (Unified Medical Language System)** | A biomedical ontology linking medical terms, codes, and concepts across many clinical vocabularies | Grounds entity extraction in standardized biomedical terminology, improving graph precision |
+| **SLM-Based Extraction** | Using a small language model for the first pass of entity and relationship extraction, reserving a large model for conflict resolution | Cuts the token cost of building a knowledge graph by 10x or more |
+| **Neo4j / Memgraph** | Graph database systems that store nodes and edges and support traversal queries in Cypher | Provide the persistent store and query engine for a knowledge graph in a production GraphRAG stack |
+| **Aggregative Question** | A question requiring synthesis across many documents — "summarize all risks", "what are common themes" | The defining use case for GraphRAG; impossible for top-k vector retrieval that sees only a few chunks |
+
 *Next: [Agentic RAG](08-agentic-rag.md)*

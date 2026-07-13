@@ -481,4 +481,36 @@ class AdversarialDefense:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Content Moderation** | Automated or human review that detects and acts on policy-violating content before or after it is published | The overall system goal: protect users from harmful material while minimizing false removals |
+| **Tiered Pipeline** | A cascade architecture where cheap fast checks run first and only uncertain cases escalate to more expensive methods | Keeps average cost low—most content is decided in Tier 1/2 without ever needing a human or an LLM |
+| **CSAM (Child Sexual Abuse Material)** | Illegal imagery or content that sexually exploits minors | The highest-severity category; requires immediate block, legal reporting, and zero false negatives |
+| **PhotoDNA** | Microsoft's hash-matching system that detects known CSAM images without revealing their content | Compares image hashes against a known-abuse database; used in Tier 1 for instant, certain detection |
+| **Hash Matching** | Checking a file's fingerprint (hash) against a database of known harmful content fingerprints | Provides zero-false-positive detection for already-catalogued harmful media |
+| **Keyword Blocklist** | A list of prohibited words or phrases that trigger an instant block when found in content | Fastest text filter; covers unambiguous slurs and explicit threats with no ML overhead |
+| **ML Classifier** | A machine learning model trained to predict a probability score for each content category | Tier 2 workhorse—handles the bulk of decisions faster and cheaper than an LLM |
+| **Multimodal Safety Model** | A single model that reads both text and images together to assess safety in context | Catches cases where the harm is in the combination (e.g., benign text on a violent image) |
+| **OCR Pipeline** | Optical character recognition that extracts text from images so it can be analyzed as text | Defeats the evasion tactic of embedding prohibited words inside image files |
+| **Recall (Harmful)** | The fraction of truly harmful content that the system correctly identifies and acts on | Primary accuracy metric; missing harmful content (low recall) causes direct user harm |
+| **Precision** | The fraction of flagged content that is actually policy-violating | Controls false positive rate; low precision means legitimate content gets incorrectly removed |
+| **False Positive** | A piece of benign content incorrectly flagged or removed as harmful | Damages creator trust and free expression; the system targets below 5% false positive rate |
+| **Priority Queue** | A queue where items are processed in order of a calculated urgency score rather than arrival time | Ensures CSAM and violence are reviewed in minutes while lower-severity items wait their turn |
+| **Reach Score** | A measure of how many users have already seen or could see a piece of content | Boosts review priority for viral content because harm spreads faster when reach is high |
+| **Confidence Score** | A 0–1 number indicating how certain the model is about its classification | Determines whether the system acts automatically or escalates to a human reviewer |
+| **Human-in-the-Loop** | Keeping human moderators as the final decision-makers for ambiguous or high-stakes cases | Maintains accuracy and legal accountability for decisions that affect creators and users |
+| **Adversarial Robustness** | The system's ability to correctly classify content that has been deliberately altered to evade detection | Required because bad actors actively probe for filter weaknesses and adapt their tactics |
+| **Homoglyph Mapping** | Replacing characters that look like letters but are not (e.g., "а" Cyrillic vs "a" Latin) with their standard equivalents | Defeats the substitution evasion tactic where users swap visually identical but technically different characters |
+| **Leetspeak** | Replacing letters with visually similar numbers or symbols (h3ll0, @) to obscure prohibited words | A common evasion technique; normalization converts it back to standard spelling before classification |
+| **Unicode Normalization** | Standardizing text encoding so that different byte representations of the same character are treated as identical | Defeats invisible-character and encoding obfuscation evasion techniques |
+| **Appeals Queue** | A separate review path for content creators who contest a moderation decision | Provides due process and corrects false positives; also generates labeled data to improve models |
+| **SLO (Service Level Objective)** | A target for how quickly a metric must be met, e.g., critical queue reviewed within 15 minutes | Makes moderator staffing levels and response-time commitments explicit and measurable |
+| **Feedback Loop** | Using human moderator decisions to retrain or fine-tune the ML classifiers over time | Keeps accuracy high as bad actors adapt their evasion tactics and new slang emerges |
+| **Gemini 3 Flash** | Google's fast, low-cost multimodal model used in Tier 2 for native image+text classification | Handles the bulk of non-trivial moderation decisions cheaply without a separate vision pipeline |
+| **GPT-5.2-mini** | OpenAI's fast mini model used in Tier 3 for nuanced linguistic reasoning | Understands sarcasm, regional slang, and context that simpler classifiers flag incorrectly |
+
 *Next: [LLM Pricing Reference](../02-model-landscape/03-pricing-and-costs.md)*

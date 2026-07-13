@@ -96,4 +96,30 @@ Label bias occurs when the model predicts a specific label more frequently simpl
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **In-Context Learning (ICL)** | An LLM's ability to learn a new task from examples placed inside the prompt, without changing its weights | Enables rapid task adaptation at inference time without expensive fine-tuning |
+| **Few-Shot Prompting** | Providing the model with a small number (2–20) of worked input-output pairs before the real query | Stabilizes output format and improves accuracy on tasks with specific patterns |
+| **Zero-Shot Prompting** | Sending only an instruction with no examples | Lowest latency and cost; works well for capable frontier models on straightforward tasks |
+| **Gold Standard Example** | A hand-verified, high-quality input-output pair used as a demonstration in the prompt | Sets the quality bar the model should match in its outputs |
+| **Fine-tuning** | Updating a model's internal weights on a task-specific dataset | Used when prompt-based approaches can't achieve stable accuracy, especially for small models |
+| **Dynamic Example Selection** | Choosing which few-shot examples to inject at runtime based on semantic similarity to the current query | Boosts accuracy by showing the model cases closely related to what the user asked |
+| **Vector DB (Vector Database)** | A database that stores embeddings and supports similarity search to find related items | Used to retrieve the most relevant few-shot examples for a given query |
+| **Semantic Similarity** | A measure of how close two pieces of text are in meaning rather than exact wording | Drives dynamic example selection so the model sees relevant demonstrations |
+| **Distribution Bias** | When the label proportions in your few-shot examples skew the model's predictions toward the majority label | Must be corrected to prevent the model from ignoring minority classes |
+| **Label Balancing** | Ensuring each label appears roughly the same number of times in the few-shot set | Removes distribution bias and produces fair, representative model outputs |
+| **Label Bias** | The tendency for a model to favor a label because it appeared more often or last in the example list | A key pitfall in ICL that reduces the reliability of classification results |
+| **Permutation Testing** | Running the same prompt with different orderings of examples to detect order-dependent behavior | Confirms the model responds to content, not just the sequence of examples |
+| **Context Window** | The maximum number of tokens an LLM can process in a single call | Limits how many examples and how much data can be crammed into one prompt |
+| **Attention Dilution** | The degradation of a model's focus on specific instructions when the prompt is very long | Motivates keeping prompts lean and using dynamic selection instead of dumping all examples |
+| **Lost-in-the-Middle Effect** | The phenomenon where models pay less attention to information buried in the middle of a long context | Informs placement of critical examples at the start or end of the prompt |
+| **Prefill Time** | The latency cost of the model processing all input tokens before generating the first output token | Longer prompts (more examples) directly increase this cost |
+| **Analogy Prompting** | Framing the task as an analogy (e.g., "translate like a poet, not a dictionary") | Helps the model grasp subtle quality goals that are hard to specify literally |
+| **Few-Shot CoT (Chain-of-Thought)** | Providing examples where each one includes explicit reasoning steps alongside the final answer | Primes the model to reason carefully rather than just pattern-match output strings |
+| **RAG (Retrieval-Augmented Generation)** | Combining a retrieval step (finding relevant documents) with generation so the model answers with grounded facts | Allows dynamic few-shot selection from a large pool of examples without exceeding the context window |
+
 *Next: [Chain-of-Thought](03-chain-of-thought.md)*

@@ -471,4 +471,41 @@ I would run evals on every model version change and every tool schema change. A 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Tool Schema** | A JSON description specifying a tool's name, purpose, and the structure of its expected inputs | The contract between the LLM and your system; a well-designed schema reduces hallucinated calls |
+| **`strict: true`** | An Anthropic option that guarantees the model's tool call output exactly matches the declared schema | Eliminates argument type mismatches in production by making schema conformance mandatory |
+| **Atomic tool** | A tool that does exactly one operation, such as `search_customers` rather than a combined `manage_customer` action | Prevents ambiguity in tool selection and makes argument schemas simpler and more precise |
+| **Negative example in description** | A "do NOT use for X" clause added to a tool description | Tells the model when not to call a tool, which is often more useful than only listing valid uses |
+| **MCP Server** | A standalone process that exposes tools, resources, and prompts via JSON-RPC to any MCP-compatible client | Write tool logic once and any LLM or agent framework can call it without custom integration |
+| **McpServer (TypeScript SDK)** | The class from `@modelcontextprotocol/sdk` used to define and serve MCP tools in TypeScript | The standard entry point for building MCP servers in the Node.js ecosystem |
+| **FastMCP (Python SDK)** | A convenience wrapper around the Python MCP SDK that uses type hints and docstrings to define tools | Minimizes boilerplate when building Python MCP servers |
+| **StdioServerTransport** | An MCP transport that communicates via standard input/output, for local process connections | The default transport for desktop tools and IDE plugins that run in the same process tree |
+| **Streamable HTTP transport** | An MCP transport that uses HTTP with Server-Sent Events for remote, cloud-hosted tool servers | Enables sharing MCP servers across teams and deployments over a network |
+| **Zod** | A TypeScript schema validation library used in the MCP TypeScript SDK | Validates tool input arguments at runtime so type errors are caught before execution |
+| **Tool Registration** | The process of declaring available tools to an MCP client, either statically in config or dynamically at runtime | Determines which tools an agent can discover and call in a given context |
+| **Dynamic Discovery** | Loading only the tool schemas relevant to the current user intent via a search query | Prevents context window saturation when a server exposes hundreds of tools |
+| **Tool Search** | Anthropic's 2025 mechanism for agents to retrieve the 3–5 most relevant tool schemas from a large registry | Keeps context focused on reasoning rather than parsing dozens of irrelevant tool definitions |
+| **Schema Validation layer** | The first validation step, using JSON Schema, Zod, or Pydantic to catch wrong types and out-of-range values | Catches malformed input before it reaches business logic, providing clear feedback to the LLM |
+| **Business Validation layer** | The second validation step in handler code that checks semantic correctness (e.g., does the account exist?) | Catches valid-looking but semantically wrong input that schema validation cannot detect |
+| **Idempotency key** | A unique token supplied with a write operation so the server can safely ignore duplicate requests | Prevents a tool like `create_ticket` from creating duplicate records when the agent retries on network errors |
+| **LLM-Orchestrated Chaining** | Calling multiple tools in sequence where the LLM decides the next tool based on each previous result | Supports complex branching logic but requires one API round-trip per tool call |
+| **Programmatic Tool Calling** | Having the LLM generate code that chains multiple tool calls, executed as a single API call | Reduces latency from N round-trips to 1 for linear, predictable tool chains |
+| **Server-Side Composition** | Implementing multi-step logic inside a single MCP tool so the LLM only makes one call | Best for fixed, well-understood workflows where the LLM does not need to reason between steps |
+| **Agent Skill** | A folder containing SKILL.md instructions, tool implementations, and resources that an agent loads dynamically | Packages a specialized capability so it can be activated on demand without bloating the base agent |
+| **SkillManager** | The runtime component that registers available skills and injects the right one's instructions and tools per turn | Keeps the base agent lightweight while enabling deep specialization when needed |
+| **FastAPI + Pydantic** | A Python web framework and data validation library used to create HTTP endpoints callable as LLM tools | The auto-generated OpenAPI spec from FastAPI can double as a tool schema for function calling |
+| **OpenAPI spec** | A machine-readable description of an HTTP API's endpoints, parameters, and responses | Doubles as a tool schema when exposing REST APIs to LLM function calling |
+| **Eval suite** | A dataset of 100+ realistic queries with expected tool call sequences and outcomes, used to test agent behavior | Measures tool selection accuracy, argument quality, and task completion rate across model and schema changes |
+| **Tool selection accuracy** | The percentage of agent interactions where the correct tool was chosen | The primary quality metric for agent tool use; a drop after a schema change signals the description needs revision |
+| **Hallucinated argument** | An invalid tool argument the model generates despite it not being allowed by the schema | Tracked as a key metric; above 2% indicates the tool schema or description needs improvement |
+| **OpenTelemetry** | An open standard for collecting distributed traces, metrics, and logs across services | The recommended tracing framework for capturing the full tool call chain from agent to backend |
+| **Langfuse** | An open-source observability platform for LLM applications, supporting traces and prompt management | A popular choice for visualizing agent tool call chains and identifying failure patterns |
+| **Tool versioning** | Maintaining backward-compatible tool schemas and deprecating old tools incrementally | Prevents breaking existing agents when tool interfaces evolve |
+| **Deprecated tool** | A tool whose description is marked "DEPRECATED: Use new_tool instead" while the old version keeps running | Gives deployed agents time to migrate to the new schema before the old tool is removed |
+
 *Previous: [Computer-Use Agents](04-computer-use-agents.md)*

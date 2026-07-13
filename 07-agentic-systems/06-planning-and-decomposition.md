@@ -87,4 +87,31 @@ Plan generation is a "Fresh Start." Plan revision requires **Context Re-evaluati
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Planning** | The act of an agent deciding a sequence of steps to achieve a goal before or during execution | Prevents aimless tool use and reduces wasted API calls |
+| **Chain-of-Thought (CoT)** | A technique where the model writes out intermediate reasoning steps before producing a final answer | Improves accuracy on multi-step tasks by making logic explicit |
+| **Recursive Decomposition** | Breaking a large goal into sub-goals, and breaking those sub-goals into even smaller tasks recursively | Enables agents to tackle massive, complex projects like building full applications |
+| **Task DAG (Directed Acyclic Graph)** | A graph representing task dependencies, where each node is a sub-task and edges show which tasks depend on which | Allows the orchestrator to run independent tasks in parallel and sequence dependent ones correctly |
+| **Static Planning (Plan-and-Solve)** | Creating a full plan upfront and executing it in order without mid-run changes | Best for predictable workflows where all steps are known in advance |
+| **Dynamic Planning (Adaptive)** | Generating a plan but re-evaluating and updating it after every tool call based on new observations | Best for unpredictable environments where early results change what needs to happen next |
+| **Checkpointed Planning** | Saving the agent's progress to a state store after each major sub-goal so it can recover without restarting from scratch | Prevents total failure when a late step in a long plan encounters an error |
+| **Backtracking** | Reverting to a previous safe plan state when the current path fails | Allows recovery without re-executing all prior steps |
+| **Sub-Agent Spawning** | A master agent creating specialized child agents to handle individual sub-goals | Scales work across parallel specialized agents for large tasks |
+| **Minimal Context** | Giving each sub-agent only the information it needs for its specific sub-goal | Reduces hallucination and token costs by avoiding irrelevant context |
+| **Monte Carlo Tree Search (MCTS)** | An algorithm that simulates many possible action sequences and scores them to find the best path | Used in high-stakes agent decisions where exploring alternatives before acting is worth the compute |
+| **Reward Model** | A model or scoring function that evaluates how good a simulated action sequence is | Guides MCTS to prefer paths most likely to achieve the goal |
+| **Hierarchical Planning** | Organizing plans as a master plan with nested sub-plans at different levels of granularity | Allows complex software-engineering-scale tasks to be managed systematically |
+| **Inference Scaling** | Using extra compute at response time (rather than at training time) to generate better, more thoughtful plans | Allows a reasoning model to act as a hidden planner without needing a separate planner component |
+| **Mental Draft** | The internal plan a reasoning model generates during its extended thinking phase before outputting actions | Keeps planning lightweight by using the model's own reasoning rather than an external planner |
+| **Decomposition Depth Limit** | A hard cap on how many levels of sub-task nesting an agent is allowed to create | Prevents infinite recursion and runaway API budget consumption |
+| **Granularity Check** | A test the agent runs before spawning a sub-agent to determine if the task is already small enough to execute directly | Ensures sub-agent spawning only happens when genuinely needed |
+| **Global Controller** | A system-level component that tracks total agent count and total cost across all sub-agents | Prevents a runaway "fork bomb" of recursively spawning agents |
+| **Plan Revision** | Updating an existing plan mid-execution after a step fails, while preserving work already done | More expensive than initial planning because it requires understanding what succeeded before deciding what to change |
+| **Context Re-evaluation** | The process of reviewing all prior completed steps before generating a revised plan | Required for plan revision, making it costlier than fresh plan generation |
+
 *Next: [Error Handling and Recovery](07-error-handling-and-recovery.md)*

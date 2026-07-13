@@ -652,4 +652,54 @@ Then verify throughput meets requirements via benchmarking.
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Autoregressive Generation** | Producing one token at a time, feeding each generated token back as input for the next step | The fundamental mechanism of all decoder-only LLMs; enables open-ended text generation |
+| **Inference** | Running a trained model on new inputs to produce outputs (as opposed to training) | The production workload; all serving, cost, and latency concerns stem from inference efficiency |
+| **Prefill Phase** | The one-time parallel processing of all input prompt tokens to populate the KV cache | Compute-bound; determines Time to First Token; scales with prompt length |
+| **Decode Phase** | The sequential per-token generation loop after prefill, loading the KV cache on each step | Memory-bandwidth-bound; determines tokens-per-second throughput |
+| **KV Cache** | Stored Key and Value tensors from all prior positions reused on each decode step without recomputation | Reduces per-step KV projection cost from O(n) to O(1); dominant GPU memory consumer during serving |
+| **HBM (High Bandwidth Memory)** | The main GPU VRAM (~80 GB on H100) where weights and KV cache reside | Loading KV cache from HBM is the bottleneck in decode; motivates GQA, MQA, and PagedAttention |
+| **Logits** | Raw unnormalized scores from the LM head, one per vocabulary token, before probability conversion | Input to all sampling strategies; their distribution shapes which tokens are likely to be sampled |
+| **Greedy Decoding** | Always selecting the single highest-probability token at each step | Deterministic and fast; tends to produce repetitive outputs for long generations |
+| **Temperature Sampling** | Dividing logits by a temperature value before softmax to control randomness | Low temperature → near-deterministic; high temperature → more diverse but potentially incoherent |
+| **Temperature** | A scalar divisor applied to logits before softmax; controls the sharpness of the probability distribution | Key hyperparameter for generation quality; typically 0–1.5 depending on use case |
+| **Top-K Sampling** | Restricting sampling to only the K tokens with the highest probability | Prevents the model from selecting very unlikely tokens while preserving variety |
+| **Top-P (Nucleus) Sampling** | Including only the smallest set of tokens whose cumulative probability exceeds P | Dynamically adjusts candidate set size; fewer tokens when confident, more when uncertain |
+| **Greedy Decoding** | Always picking the argmax token; equivalent to temperature = 0 | Deterministic baseline; best for structured outputs like JSON or code where creativity is unwanted |
+| **Repetition Penalty** | Reducing the logit score of tokens that have already appeared in the generated sequence | Discourages looping or repetitive outputs in long generations |
+| **Presence Penalty** | A flat penalty applied to any token that has appeared at least once in the output | Encourages the model to introduce new topics rather than dwelling on already-mentioned ones |
+| **Frequency Penalty** | A penalty scaled by how many times a token has appeared in the output | Stronger deterrent for very repetitive tokens; proportional to occurrence count |
+| **EOS Token** | End-of-Sequence special token; when generated, signals the model has finished its response | Primary stopping condition for generation; model learns to produce it at natural endpoints |
+| **Stop Sequences** | Custom strings (e.g., "###", "Human:") that halt generation when detected in the output | Enables structured generation; used to prevent the model from generating beyond its intended turn |
+| **Speculative Decoding** | Using a small draft model to propose multiple tokens, then verifying them in parallel with the large model | Achieves 2–3× speedup without changing output distribution; current standard for high-throughput serving |
+| **Draft Model** | The small, fast model in speculative decoding that proposes candidate token sequences | Must be fast enough that verification saves net time; often a 1B model paired with a 70B model |
+| **Target Model** | The large model in speculative decoding that verifies the draft's proposed tokens in one forward pass | Accepts any token the draft proposed that it would have generated itself; rejects divergences |
+| **Medusa Heads** | Multiple auxiliary LM heads attached to the same model that each predict a future token position | Enables speculative decoding without a separate draft model; 1.5–2× speedup |
+| **TTFT (Time to First Token)** | Elapsed time from request submission until the first generated token is received by the client | Primary latency metric for interactive applications; dominated by prefill and queue wait |
+| **TPS (Tokens Per Second)** | Rate of token generation after the first token, measuring decode throughput | Key throughput metric; dominated by GPU memory bandwidth and batch size |
+| **Throughput** | Number of tokens or requests completed per second across all concurrent users | System-level efficiency metric; maximized by batching multiple requests together |
+| **Batching** | Processing multiple inference requests simultaneously in one GPU forward pass | Increases GPU utilization and throughput; trades off slightly higher per-request latency |
+| **Continuous Batching** | Injecting new requests into an in-progress batch as soon as any request finishes (iteration-level scheduling) | Up to 20× throughput improvement over static batching; standard in vLLM and TGI |
+| **Static Batching** | Waiting for a full batch to form before starting computation, then waiting for all requests to finish | Simple but wastes GPU time when requests in a batch have very different lengths |
+| **PagedAttention** | Storing KV cache in non-contiguous virtual memory pages, similar to OS page tables | Cuts VRAM fragmentation from ~60–80% to under 4%; enables much larger effective batch sizes in vLLM |
+| **Prefix Caching** | Caching the KV tensors of common prompt prefixes (e.g., system prompts) across requests using a hash lookup | Reduces TTFT by 90% and cost by 50–90% for requests sharing a long common prefix |
+| **LoRA (Low-Rank Adaptation)** | Fine-tuning technique that adds small trainable low-rank matrices to frozen base model weights | Enables parameter-efficient fine-tuning; adapters are megabytes, not gigabytes |
+| **Multi-LoRA Serving** | Dynamically swapping different LoRA adapters during inference while keeping one base model in VRAM | Serves hundreds of fine-tuned model variants without duplicating the full model in memory |
+| **S-LoRA / LoRAX** | Specialized serving systems that batch multiple different LoRA adapters in the same forward pass | Enables efficient multi-tenant fine-tuned model serving at scale |
+| **Streaming (SSE)** | Sending each generated token to the client immediately via Server-Sent Events rather than buffering the full response | Reduces perceived latency to TTFT; enables the user to start reading before generation completes |
+| **FLOPs per Token** | The number of floating-point operations needed for one inference step; approximately 2 × parameter count | Used to estimate inference latency and choose appropriate hardware |
+| **INT4 Quantization** | Representing model weights in 4-bit integers to reduce memory by 4× versus FP16 | Makes large models like Llama 70B fit on fewer GPUs; enables practical serving with modest quality loss |
+| **Tensor Parallelism** | Splitting weight matrices across multiple GPUs so computation is distributed within a single layer | Required when a single model layer is too large for one GPU's VRAM |
+| **vLLM** | An open-source LLM serving framework implementing PagedAttention and continuous batching | De-facto standard for high-throughput open-source LLM serving |
+| **TGI (Text Generation Inference)** | HuggingFace's serving framework supporting continuous batching and quantization | Alternative to vLLM; widely used in HuggingFace-ecosystem deployments |
+| **TensorRT-LLM** | NVIDIA's optimized inference library for running LLMs on NVIDIA hardware | Highest-performance option for NVIDIA GPUs; supports FP8 and custom CUDA kernels |
+| **Graceful Degradation** | Falling back to a smaller or faster model when the primary model is unavailable or overloaded | Maintains availability during traffic spikes or outages at the cost of lower quality |
+| **Request Prioritization** | Ordering queued requests by customer tier, wait time, or estimated cost before scheduling | Ensures SLA guarantees for high-priority users while fairly serving lower-priority traffic |
+| **Cost per Token** | The dollar price charged per million input or output tokens by an API provider | Primary economic variable in LLM system design; drives model selection and optimization decisions |
+
 *Previous: [Embeddings and Vector Spaces](05-embeddings-and-vector-spaces.md) | Next: [Model Taxonomy](../02-model-landscape/01-model-taxonomy.md)*

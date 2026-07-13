@@ -529,4 +529,43 @@ I also maintain a golden test set of queries with expected behaviors that I run 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Observability** | The ability to understand a system's internal state from its external outputs (logs, metrics, traces) | Enables engineers to diagnose problems, catch regressions, and improve quality in production |
+| **The Three Pillars** | Logs, metrics, and traces—the foundational signal types for any observable system | Together they provide a complete picture: what happened, how often, and where in the pipeline |
+| **Logging** | Recording structured, timestamped events for each request and response | Creates a permanent audit trail for debugging, compliance, and quality review |
+| **Metrics** | Numerical measurements collected over time and aggregated (counts, histograms, gauges) | Enable dashboards, alerts, and trend analysis across large volumes of traffic |
+| **Traces** | End-to-end records of a request's journey through all pipeline components, with timing for each step | Enable root-cause analysis by showing exactly which step caused a latency spike or error |
+| **TTFT (Time to First Token)** | How long the user waits before seeing the first character of a streaming response | The primary latency metric for streaming UX; perceived responsiveness depends on it more than total latency |
+| **Latency p50 / p95 / p99** | The response time that 50%, 95%, or 99% of requests complete within | p99 captures the worst-case user experience; SLOs are typically set on p95 or p99 |
+| **Token Throughput** | The number of tokens generated per second by the LLM | A capacity metric; drops below baseline signal that the model or provider is under stress |
+| **Error Rate** | The fraction of requests that fail with an error rather than returning a response | The primary availability signal; spiking error rate triggers immediate investigation |
+| **Quality Score** | A numerical rating (e.g., 1–5) assigned to a sampled response by an LLM judge or human | Tracks subjective output quality over time, catching degradation that operational metrics cannot see |
+| **Faithfulness Score** | A sampled metric measuring whether RAG responses are grounded in their retrieved context | Detects hallucination trends in production before users report them |
+| **Thumbs Up/Down Rate** | The fraction of user feedback interactions that are positive | Direct user signal for satisfaction; more reliable than implicit signals but requires UI to collect |
+| **Implicit Signal** | Behavioral evidence of satisfaction or dissatisfaction (e.g., copy rate, retry rate, session length) | Collectable without explicit feedback UI; useful proxies when thumbs ratings are unavailable |
+| **Regeneration Rate** | How often users click "regenerate" on a response | A strong signal of dissatisfaction; spikes indicate quality problems |
+| **Cost per Request** | The average dollar amount spent on LLM API calls to handle one user request | Tracks budget efficiency; needed to understand unit economics and detect runaway usage |
+| **Token Efficiency** | The value delivered per token consumed | Identifies prompts or pipelines that use far more tokens than necessary for the quality they produce |
+| **Sampling Rate** | The fraction of production requests selected for quality evaluation | Balances evaluation cost against statistical reliability; 1–5% is typical |
+| **Quality Drift** | A statistically significant shift in average quality scores compared to a baseline period | Signals that a model update, prompt change, or data shift has degraded output quality |
+| **Drift Detection** | A statistical test comparing current score distributions to a baseline to find significant shifts | Automates the catch of quality regressions that are too subtle to trigger error-rate alerts |
+| **Prometheus** | An open-source time-series database and monitoring system used to store and query metrics | The standard metrics backend for cloud-native LLM observability stacks |
+| **Counter** | A Prometheus metric type that only increases; tracks totals like request count or token count | Used for cumulative measurements where absolute totals and rates matter |
+| **Histogram** | A Prometheus metric type that buckets observations and supports percentile queries | Used for latency and token count distributions so p50/p95/p99 can be computed |
+| **Gauge** | A Prometheus metric type that can increase or decrease; tracks current state | Used for sampled quality scores, active connections, and other point-in-time measurements |
+| **OpenTelemetry** | A vendor-neutral standard for emitting and collecting logs, metrics, and traces | Prevents lock-in to a single observability vendor and enables portable instrumentation |
+| **Span** | A named, timed unit of work within a trace (e.g., "embed_query", "vector_search", "generate") | The building block of distributed traces; each pipeline step gets its own span |
+| **LangSmith** | LangChain's hosted tracing and evaluation platform | Provides out-of-the-box observability for LangChain-based LLM applications |
+| **Langfuse** | An open-source LLM tracing and evaluation platform | A self-hostable alternative for teams with privacy requirements or LangChain-agnostic stacks |
+| **Arize Phoenix** | An open-source LLM monitoring tool with distilled judge evals | Combines tracing, quality evaluation, and drift detection in a single platform |
+| **Helicone** | An LLM API proxy that logs all requests and responses with minimal code changes | The fastest way to add logging and cost tracking to any LLM application |
+| **Weights & Biases** | An experiment-tracking platform popular with ML teams | Tracks model training runs, eval results, and hyperparameters alongside production monitoring |
+| **Alert Runbook** | A documented step-by-step procedure for investigating and resolving a specific alert | Reduces mean time to resolution by giving on-call engineers a clear starting point |
+| **Cost Attribution** | Tracking which user, team, or use case generated which portion of the LLM spend | Enables chargeback, budget enforcement, and identifying the most expensive workflows |
+
 *Next: [Benchmarks and Leaderboards](03-benchmarks-and-leaderboards.md)*

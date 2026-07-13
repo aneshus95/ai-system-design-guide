@@ -483,4 +483,36 @@ The key principle: never store raw keys, support rotation, implement least privi
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Authentication** | The process of verifying who is making a request (identity verification) | Ensures only legitimate, identified callers can reach the LLM API |
+| **Authorization** | The process of deciding what an authenticated identity is allowed to do | Enforces least-privilege access so users and services can only perform permitted operations |
+| **RBAC (Role-Based Access Control)** | An authorization model where permissions are assigned to roles (admin, developer, user) and users are assigned to roles | Simplifies permission management by grouping users with similar needs into named roles |
+| **ABAC (Attribute-Based Access Control)** | An authorization model where access decisions are made by evaluating policies against attributes of the subject, action, resource, and context | Enables fine-grained, dynamic access decisions beyond what static roles can express |
+| **JWT (JSON Web Token)** | A signed, self-contained token that encodes identity claims (user ID, tenant ID, scopes, expiration) | Stateless authentication that lets services verify identity without a central lookup on every request |
+| **OAuth 2.0** | An industry-standard protocol for delegated authorization, allowing third-party apps to act on a user's behalf | Foundation for secure user-level authentication flows in web and API products |
+| **API Key** | A long random string issued to a client that proves its identity when included in a request | Simple, widely-supported authentication credential for server-to-server and developer access |
+| **Key Hashing** | Storing only a cryptographic hash of an API key rather than the raw key value | Prevents key theft even if the database is compromised, since the hash cannot be reversed |
+| **Key Rotation** | Replacing an existing API key with a new one while providing a grace period for clients to migrate | Limits the exposure window if a key is leaked, without causing immediate service disruption |
+| **Key Revocation** | Immediately invalidating a key so it can no longer authenticate requests | Emergency control for compromised or suspicious credentials |
+| **Scopes** | Fine-grained permission labels attached to an API key or token (e.g., "generate", "embed", "read_metrics") | Implements least-privilege by ensuring each credential only grants the access its holder needs |
+| **Least Privilege** | The security principle that every entity should be granted only the minimum permissions required to do its job | Limits blast radius when a credential is compromised or misused |
+| **Tenant Isolation** | Ensuring that data, prompts, and cached responses from one customer (tenant) cannot be accessed by another | Prevents cross-customer data leakage in multi-tenant SaaS LLM products |
+| **Tenant ID** | A unique identifier assigned to each customer or organization in a multi-tenant system | The mandatory filter applied to every data access, retrieval, cache lookup, and prompt to enforce isolation |
+| **Vector Store Filtering** | Applying a mandatory metadata filter (e.g., tenant_id) at the database query level before returning results | Ensures retrieval never returns documents belonging to a different tenant |
+| **Cache Scoping** | Prefixing all cache keys with a tenant identifier so no cross-tenant cache hits are possible | Prevents a tenant from accidentally receiving another tenant's cached LLM response |
+| **Context Pollution** | A vulnerability where unauthorized or cross-tenant data enters the LLM's context window | Leads to information leakage or biased responses; prevented by validating all context before injection |
+| **Audit Logging** | Recording every significant action (request, model called, tokens used, cost, user, tenant) with a timestamp | Enables forensic investigation, compliance reporting, and detection of unauthorized access patterns |
+| **Compliance Report** | A generated summary of all data access events and security events for a tenant over a time period | Required for regulatory compliance (GDPR, SOC 2, HIPAA) and enterprise security audits |
+| **RS256** | An asymmetric JWT signing algorithm using RSA public/private key pairs | Allows any service with the public key to verify a JWT without sharing a secret key |
+| **Cryptographic Randomness** | Using a secure random number generator to produce unpredictable key or token values | Ensures generated API keys cannot be guessed or brute-forced |
+| **Rate Limiting** | Capping how many requests a user or key can make in a time window, returning HTTP 429 when exceeded | Prevents abuse, credential stuffing, and runaway cost from a single misconfigured client |
+| **Model-Level Permissions** | Restricting which LLM models each user tier (starter, professional, enterprise) is allowed to call | Controls cost exposure and ensures premium models are only accessible to paying customers |
+| **Grace Period** | A short window after key rotation during which the old key still works alongside the new one | Allows clients to migrate to the new key without experiencing an authentication outage |
+| **Policy Engine** | A component that evaluates ABAC rules against subject, action, resource, and context attributes to produce allow/deny decisions | Centralizes access logic so policies can be updated without changing application code |
+
+---
+
 *Previous: [Security Fundamentals](01-llm-security.md)*

@@ -92,4 +92,55 @@ You give up exact match and test perceptually and statistically. I keep a versio
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **DAG (Directed Acyclic Graph)** | A pipeline of stages where each stage feeds into the next with no cycles; used to model chained generative steps | Formalizes the creative pipeline (prompt → image → video → audio → mux) so any stage can be swapped independently |
+| **Asynchronous Job / Async Queue** | A pattern where a long-running task is submitted and returns an ID immediately; the caller polls or receives a webhook when done | Mandatory for video generation (tens of seconds to minutes per clip) to avoid HTTP timeouts |
+| **Webhook** | An HTTP callback sent by a server to a URL you provide when an event (like job completion) occurs | Replaces polling in async pipelines; client is notified rather than having to ask repeatedly |
+| **Webhook Signature Verification** | Checking a cryptographic signature on an incoming webhook to confirm it came from the expected sender | Prevents malicious actors from spoofing job-completion events and injecting unauthorized content |
+| **Idempotency Key** | A unique ID attached to a request so retries and duplicate deliveries are recognized and not processed twice | Prevents double-billing when a webhook is redelivered or a client retries a failed job |
+| **GPU Worker Pool** | A set of GPU-equipped servers that execute generative model inference jobs pulled from a queue | The compute backbone of any image or video generation service; must autoscale on queue depth, not CPU |
+| **Autoscaling on Queue Depth** | Adding or removing GPU workers based on how many jobs are waiting in the queue | Correct scaling signal for generative pipelines; CPU utilization is misleading for GPU-bound work |
+| **Draft-then-Render** | Generating a cheap low-resolution preview first, then re-rendering only approved drafts at full quality | The single biggest cost lever in video pipelines; avoids paying full price for outputs that get rejected |
+| **Request Fingerprint / Cache Key** | A hash of the full generation request (prompt + all parameters + seed + model version) used as a cache lookup key | Enables exact-hit response caching so identical requests are never billed twice |
+| **Seed** | A number that initializes a random-number generator to make a generation locally reproducible | Makes a run reproducible on pinned hardware; does not guarantee cross-machine or cross-batch reproducibility |
+| **Non-Reproducibility** | The property of hosted generative APIs where the same seed and prompt can yield slightly different outputs | Forces QA to compare distributions and perceptual similarity rather than exact pixel match |
+| **Provenance Manifest** | A structured record of every parameter (prompt, seed, model version, conditioning inputs) stored with each generated asset | Required for debugging, regression testing, and compliance; also serves as the asset's provenance log |
+| **C2PA (Coalition for Content Provenance and Authenticity)** | An open standard that cryptographically binds a creation history ("nutrition label") to a media asset | Enables platforms to display AI labels and lets users verify whether an image or video was AI-generated |
+| **Content Credentials** | A C2PA-standard signed manifest embedded in or linked to a media file recording its creation chain | The practical implementation of C2PA; supported by major image and video generators and some camera makers |
+| **Hard Binding** | A C2PA link based on a cryptographic hash of the media bytes; breaks if the file is re-encoded or resaved | Tamper-evident but fragile; removed by any re-encoding or screenshot |
+| **Soft Binding / Durable Content Credentials** | A C2PA link based on a watermark or fingerprint that survives re-encoding; can recover a stripped manifest from a repository | Resilient fallback when hard bindings are broken by file conversion or social-media compression |
+| **SynthID** | Google DeepMind's watermarking system that embeds an imperceptible signal in generated images, video, and text | Enables platform-level AI labeling and casual misuse detection; not robust against motivated adversaries |
+| **Invisible Watermark** | A signal embedded in media that is imperceptible to humans but detectable by software | Durable against casual distribution but provably removable by regeneration attacks |
+| **Regeneration Attack** | Adding noise to a watermarked image and then denoising it with a diffusion model to remove the watermark | Demonstrates that invisible watermarks alone cannot stop a motivated adversary |
+| **FID (Fréchet Inception Distance)** | An automated metric that compares the statistical distribution of generated images to real images using a neural network | Long-standing benchmark for image quality; unreliable at small sample sizes and contradicts human ratings |
+| **FVD (Fréchet Video Distance)** | The video analogue of FID, comparing generated and real video distributions | Inherits FID's instability; especially problematic at the small sample sizes typical of video evaluation |
+| **CLIPScore** | A metric measuring alignment between a text prompt and a generated image using CLIP embeddings | Gameable; high CLIP similarity does not guarantee human preference |
+| **FAD (Fréchet Audio Distance)** | The FID analogue for audio; compares generated and real audio distributions | Coarse signal for audio quality; subject to the same instability as FID |
+| **MOS (Mean Opinion Score)** | A subjective 1–5 rating of audio quality collected from human listeners | Gold standard for TTS quality; now ceiling-limited as TTS approaches human quality |
+| **Pairwise Arena / Elo** | An evaluation where human raters compare two generated outputs side-by-side; ratings update like chess Elo scores | The most reliable way to rank generative models; public arena standings are a coarse signal, not a substitute for domain evals |
+| **SSIM (Structural Similarity Index)** | A perceptual image quality metric measuring luminance, contrast, and structure similarity | Used for regression testing when exact pixel match is impossible; more human-aligned than raw pixel difference |
+| **Perceptual Hash** | A fingerprint of an image based on its visual content rather than raw bytes; similar images have similar hashes | Detects near-duplicate outputs in regression testing even after minor encoding changes |
+| **VLM-as-Judge** | Using a vision-language model to score generated images or videos against a rubric | Automates quality evaluation at scale for attributes (prompt adherence, artifacts, brand safety) that hashes cannot measure |
+| **CLIP Embedding Distance** | The cosine distance between CLIP embeddings of two images or an image and a text prompt | Measures semantic similarity; used in regression testing to detect distribution drift when providers silently update models |
+| **ControlNet** | A conditioning adapter for diffusion models that guides generation using structural inputs like pose, depth, or edge maps | Enables precise structural control over image composition without modifying the base model |
+| **LoRA (Low-Rank Adaptation)** | A fine-tuning technique that trains only a small set of adapter weights on top of a frozen base model | Default method for personalizing image generation to a specific style or subject |
+| **Inpainting** | Generating new content inside a masked region of an existing image | Enables object replacement, background editing, and localized style changes |
+| **Outpainting** | Extending an image beyond its original borders by generating new surrounding content | Used to reframe images or increase canvas size while maintaining visual coherence |
+| **Rectified Flow Transformer** | A class of generative model architecture used in the FLUX family that learns straight-line flow paths between noise and data | Allows high-quality image generation in fewer inference steps than earlier diffusion models |
+| **FLUX** | A family of open-weight image generation models built on rectified flow transformer architecture | Current open-weight frontier for image quality; `schnell` variant is Apache-2.0 licensed |
+| **Stable Diffusion** | The broad family of open-weight latent diffusion image generation models | Largest ecosystem of fine-tunes, tools, and community resources for image generation |
+| **Sora 2** | OpenAI's video generation model (deprecated March 2026) | Historical reference; illustrates how fast the video model landscape turns over |
+| **Veo** | Google's video generation model with native synchronized audio | Competing with Runway and Sora-class models for highest-quality AI video output |
+| **Lip-Sync** | Animating a face or avatar's mouth movements to match a given audio track | A stage in the narrated-video pipeline; preserves believability when TTS narration is added to video |
+| **Mux (Multiplex)** | Combining separately generated video and audio streams into a single output file | The final stage in a DAG-based video pipeline after narration, music, and lip-sync are complete |
+| **EU AI Act Article 50** | The transparency requirement in EU law mandating that providers mark AI-generated output in machine-readable form | Applies from August 2026; affects any system emitting or distributing synthetic media in the EU |
+| **TAKE IT DOWN Act** | A 2025 US federal law targeting non-consensual intimate imagery including AI deepfakes, with platform takedown duties | Imposes removal obligations on platforms hosting non-consensual synthetic intimate imagery |
+| **NSFW Classifier** | An automated model that detects not-safe-for-work content (adult, violent, or otherwise prohibited) in generated media | Applied at the output stage before returning an asset to the user; part of mandatory safety filtering |
+| **ComfyUI** | A node-graph interface for building and versioning image and video generation pipelines | Codifies the DAG workflow as versioned, shareable graph state rather than UI configuration |
+
+---
+
 *Previous: [Real-Time Voice Agents](../18-voice-and-audio-agents/01-realtime-voice-agents.md)*

@@ -171,4 +171,34 @@ The LLM can't read pixels, so scanned PDFs go through OCR/layout first (e.g., Az
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **PO (Purchase Order)** | A buyer's formal document listing items, quantities, prices, and delivery terms for a vendor | The document being extracted and attached to the matching sales quote |
+| **BERT** | Bidirectional Encoder Representations from Transformers — an encoder-only Transformer pre-trained on masked language modeling | Produces rich contextual text embeddings used for classification after fine-tuning |
+| **Encoder-Only Transformer** | A Transformer architecture that reads the full input in both directions but does not generate text | Ideal for classification and extraction tasks; faster and cheaper than generative models |
+| **[CLS] Token** | A special token prepended to BERT input whose final hidden state summarizes the whole sequence | The representation fed to the classification head for a sentence-level label |
+| **Fine-Tuning** | Continuing to train a pre-trained model on a new, smaller, task-specific labeled dataset | Adapts BERT's general language knowledge to the PO/non-PO classification task |
+| **Binary Classifier** | A model that outputs one of exactly two labels (here: PO email vs not) | Acts as a cheap, fast gate over all incoming emails before the expensive LLM stage |
+| **Two-Stage Architecture** | A pipeline with a fast/cheap first stage (filter) and a slow/expensive second stage (extract) | Applies the costly LLM only to the small subset of emails that pass the first gate |
+| **GPT-3.5** | OpenAI's mid-tier instruction-following generative language model | Used for structured PO field extraction with chain-of-thought prompting |
+| **Chain-of-Thought (CoT) Prompting** | A prompting technique that instructs the model to reason through steps before emitting the final answer | Reduces field-mapping errors on complex multi-line tables by making the model plan first |
+| **Structured Extraction** | Using a model to parse a document and return fields in a defined schema (e.g., JSON) | Converts unstructured PO PDFs into machine-readable data for CRM attachment |
+| **JSON-Mode / Function-Calling** | OpenAI API features that constrain model output to valid JSON or a predefined argument schema | Enforces output structure on GPT-3.5 (strict Structured Outputs require GPT-4o+) |
+| **Pydantic Validation** | Using Python's Pydantic library to validate that extracted JSON matches the expected schema | Catches structurally wrong extractions before they reach downstream systems |
+| **OCR (Optical Character Recognition)** | Technology that reads text from images or scanned PDFs | Required for scanned PO PDFs whose text is not embedded as extractable characters |
+| **Azure AI Document Intelligence** | Microsoft's managed OCR and form-parsing service that returns text, key-value pairs, and table structure | Converts scanned POs into clean structured text fed to the LLM |
+| **F1 Score** | Harmonic mean of precision and recall; 2·P·R / (P+R) | Balanced metric for extraction quality; robust to sparse fields that inflate accuracy |
+| **Precision** | Of the fields we extracted, the fraction that were correct | Measures how often the model invents wrong values |
+| **Recall** | Of all true fields present, the fraction we extracted | Measures how often the model misses real fields |
+| **Micro-F1** | F1 computed by pooling all TP/FP/FN counts across every field type | Dominated by the most common fields; gives an overall extraction score |
+| **Macro-F1** | Average of per-field F1 scores | Treats rare and common fields equally; reveals if rare fields are poorly extracted |
+| **Azure ML** | Microsoft's managed machine learning platform for training, tracking, and deploying models | Hosts the BERT fine-tuning job and serves the classifier as a managed online endpoint |
+| **Managed Online Endpoint** | An Azure ML-managed REST endpoint that serves a registered model with auto-scaling | Provides production-ready inference for the BERT classifier without infrastructure management |
+| **Class Imbalance** | When the minority class (PO emails) is far rarer than the majority class | Requires class weighting or resampling; makes accuracy a misleading metric |
+| **Hallucination (LLM)** | Text the model generates that is not supported by the input document | Mitigated by schema constraints, Pydantic validation, and cross-checking numeric totals |
+
+---
+
 *Previous: [Shipping-Time Forecasting](06-shipping-time-forecasting-catboost.md) | Next: [Seller Behavior Analytics](08-seller-behavior-analytics.md) | Up: [Guide Home](../README.md)*

@@ -87,4 +87,31 @@ A Teleprompter is a programmatic optimizer. Its job is to take a DSPy program (w
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **DSPy (Declarative Self-improving Language Programs)** | A framework that treats prompts as learnable parameters and optimizes them automatically with algorithms | Eliminates brittle hand-tuned prompts by making optimization data-driven and reproducible |
+| **Signature** | A DSPy declaration that names the input fields and output fields of a task without specifying how to do it | Separates the "what" (task definition) from the "how" (prompt formatting), enabling model-agnostic logic |
+| **Module** | A DSPy building block (e.g., ChainOfThought, ReAct) that implements a reasoning strategy for a Signature | Composable units that can be chained into complex multi-step pipelines |
+| **Teleprompter / Optimizer** | A DSPy algorithm that iterates over example-prompt combinations to find the highest-scoring configuration | The automated alternative to manually guessing which prompt phrasing works best |
+| **BootstrapFewShot** | A DSPy optimizer that automatically generates and selects high-quality few-shot examples for a prompt | Replaces the tedious process of hand-curating examples by searching for effective ones programmatically |
+| **MIPROv2** | A Bayesian optimization algorithm in DSPy that tests different instruction phrasings and selects the best-scoring one | Flagship DSPy 3.x optimizer; proves empirically which wording maximizes metric score |
+| **Bayesian Optimizer** | An optimization approach that builds a probabilistic model of the search space to choose experiments efficiently | More sample-efficient than random search, finding good prompts with fewer LLM calls |
+| **Metric** | A function in DSPy that takes a prediction and a ground-truth label and returns a numeric score | The objective the optimizer maximizes; without a good metric, optimization has no signal |
+| **Exact Match** | A metric that scores 1 if the predicted answer is identical to the target and 0 otherwise | Simple and fast; suitable for classification or short factual answers |
+| **LLM-as-Judge** | Using a large capable model to evaluate the quality of a smaller model's output as a metric | Enables nuanced, human-aligned scoring for tasks where exact match is too strict |
+| **Prompt as Weight** | The DSPy analogy that treats a prompt like a neural network weight — something to be learned, not hardcoded | Reframes prompt engineering as an optimization problem, enabling automated improvement |
+| **Re-compile** | In DSPy, re-running the optimizer when the underlying model changes to find new optimal prompts | Eliminates the need to manually re-write prompts every time you swap models |
+| **Programmatic Optimization** | Using algorithms (not human intuition) to search for the best prompt text and examples | Makes LLM pipelines more robust and reproducible than hand-tuned prompts |
+| **Gradient Descent (analogy)** | A classic ML optimization algorithm; Teleprompters are described as "the gradient descent of prompting" | Frames prompt optimization as an iterative, signal-driven improvement process |
+| **ChainOfThought (DSPy Module)** | A DSPy module that instructs the model to reason step-by-step before answering | Applies CoT reasoning to any Signature without manually writing the CoT prompt |
+| **ReAct (DSPy Module)** | A DSPy module that interleaves reasoning steps with tool calls (Reason + Act) | Enables agent-style loops where the model thinks, acts, observes, and thinks again |
+| **Hard-coding (prompt context)** | Writing a fixed prompt string that is specific to one model at one point in time | The fragile baseline that DSPy's compilation approach replaces |
+| **Point-in-Time Tuning** | Optimizing a prompt for a model's behavior at a specific snapshot, which breaks when the model is updated | The core fragility that DSPy's learnable prompt approach overcomes |
+| **Multi-Hop QA** | A question-answering task requiring the model to retrieve and chain together multiple pieces of information | A canonical use case for DSPy pipelines that combine retrieval and reasoning modules |
+| **Async Runtime** | DSPy 3.x's ability to run multiple LLM calls in parallel rather than sequentially | Reduces end-to-end pipeline latency for programs with independent sub-tasks |
+
 *Next: [Prompt Injection and Defense](08-prompt-injection-defense.md)*

@@ -165,4 +165,31 @@ Confirmed the right skew in EDA (histogram/skewness). Options I used/considered:
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **EDA (Exploratory Data Analysis)** | Systematic inspection of a dataset through summary statistics, distributions, and visualizations before modeling | Drives feature engineering and modeling decisions with evidence rather than guesses |
+| **CatBoost** | An open-source gradient-boosted decision tree library from Yandex with native categorical handling and ordered boosting | State-of-the-art on heterogeneous tabular data; removes need for manual categorical encoding |
+| **Gradient Boosting** | An ensemble method that trains trees sequentially, each fitting the residual errors of the previous ensemble | Achieves high accuracy on tabular data by combining many weak learners |
+| **Ordered Boosting** | CatBoost's variant of gradient boosting where each sample's gradient is computed using only earlier samples in a random permutation | Eliminates prediction shift — a subtle target leakage present in standard gradient boosting |
+| **Ordered Target Statistics** | CatBoost's method of encoding a categorical feature as the target mean of only the rows preceding it in a random permutation, with a smoothing prior | Encodes high-cardinality categoricals without leaking the current row's target |
+| **Symmetric (Oblivious) Trees** | Decision trees where every node at the same depth uses the same feature and threshold for splitting | Acts as built-in regularization; enables fast branch-free inference |
+| **Right-Skewed Distribution** | A distribution with a long tail on the right side — the mean is higher than the median | Indicates outliers (e.g., lost parcels) that can distort regression; motivates log-transform |
+| **Log-Transform** | Applying the natural logarithm to the target variable before training | Compresses the right tail so the model optimizes a more symmetric scale |
+| **Outlier** | A data point far from the bulk of the distribution | Can distort regression relationships; must be capped, removed, or modeled separately |
+| **Temporal Leakage** | Using future data during training because of an improper random split | Inflates evaluation scores; predictions in production will be worse than measured |
+| **Walk-Forward (Chronological) Cross-Validation** | A CV strategy where training always precedes validation in time, with an expanding window | Simulates real deployment where future orders must be predicted from past data only |
+| **TimeSeriesSplit** | Scikit-learn's implementation of walk-forward cross-validation | Prevents temporal leakage by ensuring validation always follows training chronologically |
+| **±3-Day Accuracy** | The fraction of predictions where the absolute error is at most 3 days | A business-facing KPI that maps directly to the customer delivery promise |
+| **MAE (Mean Absolute Error)** | Average of absolute prediction errors; each error counts equally | Robust to extreme outliers; reports typical error in the original units (days) |
+| **RMSE (Root Mean Squared Error)** | Square root of the average squared error; large errors are penalized more | Surfaces costly large misses (lost parcels, extreme delays) more visibly than MAE |
+| **R² (Coefficient of Determination)** | Proportion of target variance explained by the model (1 = perfect, 0 = mean-only baseline) | Measures overall model fit on the held-out set |
+| **Feature Engineering** | Creating new input columns (distance/zone, weekday, holiday flags, etc.) from raw data | Provides the model with domain knowledge it cannot learn from raw timestamps alone |
+| **High-Cardinality Categorical** | A categorical feature with many possible values (e.g., carrier codes, postal zones) | One-hot encoding would explode dimensionality; CatBoost handles these natively |
+| **Multicollinearity** | When two or more features are highly correlated with each other | Can destabilize coefficient-based models; identified during EDA via correlation matrix |
+| **IQR (Interquartile Range)** | The range between the 25th and 75th percentiles of a distribution | Used in box-plot outlier rules (e.g., flag values beyond 1.5 × IQR from the quartiles) |
+
+---
+
 *Previous: [Graph RAG over BIAN](05-graph-rag-over-bian.md) | Next: [PO Extraction + BERT Classifier](07-po-extraction-and-bert-classifier.md) | Up: [Guide Home](../README.md)*

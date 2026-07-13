@@ -72,4 +72,29 @@ A "stall" occurs when a massive new request arrives and its Prefill phase (which
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Batching** | Processing multiple requests together in a single GPU forward pass | The primary lever for increasing throughput and lowering cost per token |
+| **Static Batching** | A batching method where all requests must be collected before processing starts and the batch ends only when every request finishes | Simple to implement but wastes GPU cycles waiting for the slowest request in the group |
+| **Continuous Batching** | A batching approach where individual requests join and leave the batch at every single token step | Keeps the GPU constantly saturated, achieving 4–10x higher throughput than static batching |
+| **Iteration-Level Scheduling** | Processing decisions made at every individual token generation step rather than at the request level | Enables continuous batching; pioneered by the Orca research project and adopted by vLLM |
+| **In-Flight Batching** | Mixing prefill-phase and decode-phase requests in the same batch simultaneously | Uses otherwise idle GPU compute units during decode by processing a new prefill at the same time |
+| **Prefill-Decode Fusion** | Running a prefill request and multiple decode requests in the same GPU step | Improves overall GPU utilization by filling compute gaps left by the memory-bound decode phase |
+| **Chunked Prefill** | Breaking a large prompt's prefill into smaller pieces (e.g., 4k tokens each) interleaved with decode steps | Prevents one massive prompt from stalling all other users' decode progress |
+| **Stall** | A period where ongoing decode requests stop receiving tokens because the GPU is monopolized by a heavy prefill | The latency spike Chunked Prefill is designed to eliminate |
+| **TPOT (Time Per Output Token)** | The delay between each successive token in a response | The metric most affected by stalls; a stall causes TPOT to spike for all concurrent users |
+| **Longest-Tail Problem** | The issue in static batching where the entire batch waits idle for the slowest, longest request to finish | Wastes GPU cycles proportional to the gap between shortest and longest output in a batch |
+| **GPU Utilization** | The percentage of time a GPU's compute or memory units are actively doing work | Low utilization means wasted money; continuous batching targets near-100% utilization |
+| **Tokens per Second** | The total number of tokens generated across all users per second on a system | The throughput metric that directly determines cost per query |
+| **Orca** | A research serving system (2022) that pioneered iteration-level scheduling and continuous batching | The foundational paper behind the batching approach used in vLLM and modern serving engines |
+| **TensorRT-LLM** | NVIDIA's inference library that implements in-flight batching for mixed prefill-decode workloads | Achieves highest peak throughput on NVIDIA hardware by fusing prefill and decode operations |
+| **RAD-O** | Retrieval Augmented Decoding — compresses very long prompt KV caches to reduce prefill overhead | Works alongside Chunked Prefill to handle 1M+ token contexts without unbounded stalls |
+| **Variable Response Lengths** | The reality that different users' outputs can be 5 tokens or 5000 tokens, unpredictably | The root reason static batching is inefficient for LLMs and continuous batching is necessary |
+| **Micro-batching** | A technique in pipeline parallelism that subdivides a batch into smaller pieces to reduce GPU idle time | Reduces "bubble time" — the gaps when one GPU waits for another pipeline stage to finish |
+| **KV Cache Slot** | The VRAM space reserved for one request's key-value cache in the batch | A finite resource; when slots fill, new requests must queue; continuous batching frees slots as soon as a request finishes |
+
 *Next: [PagedAttention](05-paged-attention.md)*

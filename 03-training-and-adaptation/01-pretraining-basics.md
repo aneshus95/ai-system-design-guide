@@ -105,4 +105,34 @@ Curriculum refers to the order and mixture of data. A common modern pattern is:
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Pretraining** | The first and most expensive training phase where a model reads massive amounts of text to learn general language patterns | Builds the foundational knowledge and language understanding before any specialization |
+| **LLM (Large Language Model)** | A neural network with billions of parameters trained to predict and generate text | The core model type being trained and deployed in modern AI systems |
+| **Decoder-only** | A transformer architecture that only generates text left-to-right, without a separate encoder component | The dominant architecture for modern LLMs (GPT, Llama, Claude) due to its simplicity and scalability |
+| **Causal Language Modeling (CLM)** | A training objective where the model predicts each next token given only the tokens before it | Teaches the model to generate coherent, sequential text |
+| **Cross-Entropy Loss** | A mathematical measure of how wrong the model's predictions are compared to the correct next token | The signal used to update model weights during training |
+| **Token** | The smallest unit of text a model processes, roughly 3-4 characters or part of a word | The atomic input/output unit for all LLM computation |
+| **Deduplication** | Removing near-identical or repeated documents from the training dataset | Prevents the model from over-fitting on repeated content and wastes compute |
+| **Quality Filtering** | Automated or rule-based removal of low-quality text (spam, gibberish, boilerplate) from training data | Ensures the model learns from well-written, informative text rather than noise |
+| **CommonCrawl** | A publicly available archive of web pages scraped from the internet | The largest single source of raw text for LLM pretraining |
+| **Chinchilla Scaling Laws** | A 2022 research finding stating that model parameters and training tokens should scale together at roughly a 1:20 ratio | Defines the compute-optimal relationship between model size and training data volume |
+| **Inference-Optimal Training** | Training smaller models on far more tokens than Chinchilla recommends, so they are cheaper to serve at scale | Optimizes for the total cost of running a model in production rather than training cost alone |
+| **Total Cost of Ownership (TCO)** | The full cost of a model including training, serving, and infrastructure over its lifetime | The real-world metric that drives decisions to overtrain small models |
+| **TPS (Tokens Per Second)** | How many output tokens a model can generate per second during inference | A key measure of inference efficiency and serving cost |
+| **VRAM** | The high-speed memory on a GPU that holds model weights and activations during training and inference | The primary hardware constraint when running large models |
+| **Loss Spikes** | Sudden large jumps in the training loss that can destabilize or ruin a training run | A major failure mode at large scale that requires checkpointing and rollback strategies |
+| **Checkpointing** | Periodically saving the model's weights during training so you can resume from a safe state if something goes wrong | Insurance against catastrophic loss spikes or hardware failures |
+| **Residual Scaling** | Initializing the residual branch weights near zero so the model starts training in a stable, near-identity configuration | Prevents instability at the start of large-scale training |
+| **BF16 (BFloat16)** | A 16-bit floating-point number format with a wide dynamic range, designed for deep learning | The previous standard precision for stable LLM training |
+| **FP8 (Float8)** | An 8-bit floating-point format natively supported by Nvidia H100/B200 GPUs | Cuts memory usage in half and doubles throughput versus BF16, now the production training standard |
+| **Stochastic Rounding** | A technique that randomly rounds values up or down during low-precision computation to preserve statistical accuracy | Maintains training stability when using aggressive precision formats like FP8 |
+| **Data Curriculum** | The ordered sequence and mixture of data types used across the phases of pretraining | Controls what the model learns and when, improving final quality beyond just adding more data |
+| **Cooling Phase** | The final 1-5% of pretraining tokens, using only the highest-quality curated data | Stabilizes the model and improves instruction-following before fine-tuning begins |
+| **Emergent Reasoning** | Capabilities like multi-step logic that appear in large models without being explicitly trained | A key motivation for scaling pretraining — complex skills arise from simple next-token prediction at scale |
+
+---
+
 *Next: [Fine-Tuning Strategies](02-fine-tuning-strategies.md)*

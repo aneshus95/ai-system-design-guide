@@ -248,4 +248,35 @@ Once per quarter we sample 200 completed tasks across risk tiers and re-execute 
 - [Lakera Guard, prompt-injection patterns](https://www.lakera.ai/blog/prompt-injection)
 - [Langfuse self-hosting docs](https://langfuse.com/docs/self-hosting)
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Computer-Use Agent** | An AI agent that controls a graphical user interface by interpreting screenshots and emitting clicks, keystrokes, and navigation actions | Automates UI workflows in legacy systems that have no API |
+| **Firecracker microVM** | A lightweight virtual machine that starts in milliseconds and provides hardware-level isolation | Gives each task its own isolated environment to prevent data bleed between tenants |
+| **Ephemeral VM** | A virtual machine that is created fresh for one task and destroyed when it finishes | Eliminates persistent state that could carry cookies or history across tasks |
+| **OSWorld Benchmark** | A public benchmark measuring how well AI agents complete multi-step tasks on a desktop OS | Used to compare computer-use model quality; agents scoring 50-65% need human-in-the-loop |
+| **Action Gate** | A classifier that evaluates each proposed agent action and routes it to execute, inline review, or async review | Enforces the two-tier human approval policy and blocks unsafe actions |
+| **Action Allowlist** | A fixed list of permitted action types the agent may emit; anything else is rejected | Reduces attack surface compared to trying to block bad actions reactively |
+| **IPI (Indirect Prompt Injection)** | An attack where malicious text embedded in a webpage or document tricks the agent into performing unintended actions | The primary novel security threat in computer-use deployments |
+| **Trust-Tagged Caption** | A description of on-screen content produced by a separate vision model, with untrusted text flagged with a low-trust label | Prevents injected instructions in receipts or emails from reaching the planning model directly |
+| **Capability Gating by Trust Level** | Blocking high-risk actions when the triggering input came from untrusted content | Limits the damage an attacker can cause even if the agent reads injected instructions |
+| **CaMeL** | Google DeepMind's framework for defending agents against indirect prompt injection via capability gating | Academic reference for the trust-level gating pattern used in production |
+| **Agent-Card JWT** | A short-lived signed token issued per task that identifies the agent and scopes its access to specific systems | Prevents a stolen credential from being replayed against other tenants or endpoints |
+| **Audience Binding (RFC 8707)** | An OAuth mechanism where a token is only valid for the specific resource server named in its audience claim | Ensures a token for Concur cannot be used to access Workday or any other system |
+| **SOX (Sarbanes-Oxley Act)** | A US law requiring verifiable financial controls and audit trails for public companies | Mandates human sign-off on payments over $2,500 and 7-year audit record retention |
+| **Tamper-Evident Audit Log** | A log where each entry is cryptographically chained to the previous one, making retroactive edits detectable | Satisfies SOX audit requirements and enables task replay for dispute resolution |
+| **Playwright** | A browser automation framework used to control Chromium headlessly | Provides the interface between the agent's action commands and the actual browser |
+| **CDP (Chrome DevTools Protocol)** | A protocol for programmatically controlling and inspecting a Chromium browser | Allows the agent to interact with the DOM and capture screenshots |
+| **DOM Accessibility Tree** | A structured summary of a webpage's interactive elements extracted from the browser | More stable than pixel coordinates; used by the agent to identify click targets across UI refreshes |
+| **Honeypot Action** | A deliberately incorrect action proposal injected into the review queue to test whether human reviewers are paying attention | Detects and counteracts reviewer fatigue and rubber-stamping |
+| **Screenshot-Similarity Loop** | A failure mode where the agent keeps taking the same action but the screen doesn't change, wasting budget | Detected by comparing consecutive screenshots; triggers task escalation |
+| **Concur** | A corporate expense and travel management SaaS platform | One of the three legacy systems the agent navigates to process expense reports |
+| **Workday** | An enterprise HR and finance platform used for cost-center mapping | One of the three target systems the agent writes to during expense processing |
+| **Langfuse** | An open-source LLM observability and tracing platform | Used for per-task trace storage and monitoring the agent pipeline |
+| **SLO (Service Level Objective)** | A measurable target for system behavior such as latency or error rate | Defines the operational success criteria for the production deployment |
+| **Unsafe-Action Rate** | The percentage of agent-proposed actions that were harmful or incorrect | Key safety metric; kept at 0.07% through tiered human review |
+
 Related chapters: [Tool Use and Computer Agents](../17-tool-use-and-computer-agents/01-tool-use-landscape.md), [Agentic Systems](../07-agentic-systems/01-agent-fundamentals.md), [Security and Access](../12-security-and-access/01-llm-security.md).

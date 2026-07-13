@@ -627,4 +627,33 @@ Long queries present a "Token Budget" problem for cross-encoders, which often ha
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Reranking** | A second-stage step that re-scores a small set of retrieved candidates using a more expensive, higher-precision model | Converts a rough recall-optimized list into a precision-optimized one before passing to the LLM |
+| **Cross-Encoder** | A model that reads the query and document together as a single input to produce a relevance score | Captures fine-grained query-document interactions that bi-encoders miss because they encode separately |
+| **Bi-Encoder** | A model that encodes query and document independently into separate vectors for fast dot-product comparison | Enables pre-computation of document vectors; the fast first-stage retriever in a two-stage pipeline |
+| **Two-Stage Pipeline** | Retrieve a large candidate set cheaply with a bi-encoder, then rerank with a cross-encoder | Combines the scalability of vector search with the accuracy of joint query-document modeling |
+| **Attention Mechanism** | The transformer component that weighs how much each token should attend to every other token | Allows a cross-encoder to see exactly how words in the query affect the meaning of words in the document |
+| **Late Interaction** | Comparing query and document at the token level at query time rather than as single vectors | Balances cross-encoder accuracy with bi-encoder scalability; exemplified by ColBERT |
+| **BGE-Reranker-v2-m3** | A 568M-parameter open-source multilingual cross-encoder from BAAI | Best open-source reranker for multilingual or high-volume self-hosted deployments |
+| **Cohere Rerank v3** | A managed API-based cross-encoder from Cohere | Highest out-of-the-box quality; easiest to integrate; costs scale with usage volume |
+| **Jina Reranker v2** | A reranker model supporting 8k+ token inputs | Handles long queries or long documents where most rerankers hit their 512-token limit |
+| **MiniLM** | A small, fast distilled transformer (22M parameters) | 4x faster than large rerankers; good for latency-sensitive paths where top accuracy is not required |
+| **Lost-in-the-Middle** | LLMs tending to ignore content in the middle of a long context | Rerankers counter this by reordering retrieved candidates before they enter the prompt |
+| **NDCG (Normalized Discounted Cumulative Gain)** | A ranking quality metric that rewards placing the most relevant document as high as possible | Primary metric for measuring reranker improvement over bi-encoder baseline |
+| **FP16 (Half Precision)** | Representing model weights and activations in 16-bit floating point instead of 32-bit | Roughly doubles reranker throughput on GPU with negligible quality loss |
+| **ONNX** | An open format for exporting ML models to a hardware-agnostic inference runtime | Speeds up reranker inference 1.5-2x by replacing Python-framework overhead |
+| **TensorRT** | NVIDIA's inference optimization library for GPU-based neural network execution | Achieves 2-3x reranker speedup on NVIDIA hardware via layer fusion and quantization |
+| **SLM Distillation** | Training a tiny model to mimic a much larger model's outputs on a large labeled dataset | Produces a reranker with ~95% of LLM-level quality at cross-encoder latency (<10ms) |
+| **Pointwise Reranking** | Scoring each candidate document independently against the query | Simple to implement; LLM scores one document at a time without seeing the others |
+| **Listwise Reranking** | Ranking all candidate documents together in a single LLM call | Usually better than pointwise because the model can directly compare documents against each other |
+| **Sliding Window Reranking** | Applying a listwise ranker to overlapping windows of the candidate list when there are too many documents to rank at once | Enables LLM-quality reranking over large candidate sets without exceeding context limits |
+| **Token Budget** | A hard limit on the total tokens a model can process in one call | The primary constraint that motivates sliding windows and query summarization for long-context reranking |
+| **Candidate Count (K)** | The number of documents passed from first-stage retrieval to the reranker | Larger K improves recall ceiling but increases reranker latency linearly; typical sweet spot is 50 |
+| **ROI (Return on Investment) of Reranking** | The quality gain per millisecond of added latency from adding a reranker | Usually higher than spending the same budget on retrieving more chunks |
+
 *Previous: [Hybrid Search](05-hybrid-search.md) | Next: [GraphRAG](07-graph-rag.md)*

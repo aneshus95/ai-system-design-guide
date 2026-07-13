@@ -91,4 +91,33 @@ The "Crossover Point" usually happens at **constant high throughput.** If your a
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Unit Economics** | The per-unit cost and revenue of a service — here, cost per token or per request | Frames AI spending as a measurable, optimizable metric rather than a vague infrastructure cost |
+| **Tokens per Dollar** | The number of tokens generated for every dollar spent on compute or API fees | The primary cost-efficiency metric for AI systems; higher is better |
+| **Model Cascading** | Routing each query to the cheapest model tier that can handle it, from a tiny classifier up to frontier reasoning models | Reduces total AI spend by 80%+ by avoiding expensive models for simple tasks |
+| **Classifier Model** | A tiny (0.5B) model used to estimate the complexity of an incoming query before routing it | The first stage of a cascade; its job is to sort traffic cheaply, not to answer questions |
+| **SLM (Small Language Model)** | A 3B–8B parameter model that matches older frontier-model quality at a fraction of the cost | Handles the majority of production queries (greetings, simple Q&A) at sub-cent cost |
+| **Frontier Model** | A top-tier large model (e.g., Claude Sonnet 4.6, GPT-5.5, Gemini 3.1 Pro) for complex tasks | Used for the small fraction of queries requiring strong reasoning or knowledge |
+| **Reasoning / Thinking Model** | A model that generates extended internal reasoning steps before answering (e.g., Claude Opus 4.7 with extended thinking) | Reserved for the hardest 1% of queries; most expensive tier in the cascade |
+| **Semantic Caching** | Storing and reusing LLM responses for queries that are semantically similar, not just exact matches | Prevents paying for the same answer twice even when users phrase the same question differently |
+| **Prompt Caching** | A provider feature that stores the KV cache of repeated prompt prefixes and charges a discounted rate for cache hits | Cuts input token cost by 50–90% for long system prompts or shared document prefixes |
+| **System Prompt Caching** | Hard-coding common prefix text (instructions, tool schemas) so its KV cache is reused across requests | The simplest way to capture prompt caching discounts — no application logic changes needed |
+| **Output Truncation** | Setting a strict `max_tokens` limit on responses to prevent unnecessarily long outputs | Directly reduces output token cost; output tokens are typically 3–5x more expensive than input tokens |
+| **Negative Prompting** | Instructing the model to be concise (e.g., "don't be wordy") to reduce output length | A prompt-engineering trick that saves ~15% in output tokens with minimal impact on answer quality |
+| **GPU Spot Instances** | Cloud GPU capacity sold at steep discounts (50–90% off) but subject to reclamation with short notice | Dramatically reduces compute cost for batch, non-real-time workloads that can tolerate interruption |
+| **Live KV-Cache Migration** | Streaming the KV cache of an in-flight request to another GPU node before the current one is reclaimed | Allows spot instance cost savings without losing user sessions when a GPU is preempted |
+| **Reclamation Signal** | The ~30-second warning a cloud provider sends before taking back a spot GPU instance | The trigger for live KV-cache migration to preserve ongoing request state |
+| **Token Tax** | Unnecessary tokens in prompts or outputs that add cost without adding value | The target of output truncation, negative prompting, and system prompt caching optimizations |
+| **Crossover Point** | The usage volume at which self-hosting a GPU becomes cheaper than paying per-token API fees | Typically around 500M tokens/month for a 70B-tier model at constant high throughput |
+| **OpEx (Operational Expenditure)** | Recurring costs of running a service, as opposed to one-time capital purchases | AI cost optimization aims to make AI OpEx predictable and proportional to business value |
+| **Chargeback Model** | Attributing AI compute costs back to the business unit or product that generated them | Creates accountability for usage and surfaces which teams or features consume the most AI spend |
+| **Inference Quota** | A hard or soft limit on how many tokens a team or user can consume per period | Prevents runaway costs from unconstrained experimentation or bugs |
+| **DeepSeek V4 Flash** | A very cheap frontier-class model ($0.14/$0.28 per 1M tokens) with a 1M context window | The lowest-cost option for cache-heavy, high-volume workloads like batch classification and codebase RAG |
+| **Break-Even (self-hosted vs. API)** | The request rate above which owning GPU hardware beats paying per-token API pricing | Typically 5–10 requests per second sustained 24/7, or roughly 500M tokens per month for a 70B model |
+
 *Next: [Diffusion Language Models](08-diffusion-llms.md)*

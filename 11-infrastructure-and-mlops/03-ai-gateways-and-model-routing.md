@@ -139,4 +139,38 @@ For a single provider or a prototype, a gateway is overkill; it adds a network h
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **AI Gateway** | A proxy layer that sits between your application and LLM providers, exposing a single unified API and handling cross-cutting concerns | Centralizes routing, fallback, rate-limit handling, cost tracking, and observability for all LLM traffic |
+| **LLM Proxy** | Another name for an AI gateway; a server that forwards LLM requests on behalf of application services | Decouples application code from provider-specific SDKs and policies |
+| **Control Plane** | The infrastructure layer that manages how requests are routed, secured, and governed, separate from the data path | Applies consistent policy across all model calls without burdening application code |
+| **OpenAI-compatible API** | An API surface that follows the same request/response format as OpenAI's chat completions endpoint | Lets applications switch providers without code changes by normalizing the interface |
+| **Virtual Keys** | Provider-independent API keys issued by the gateway, each mapped to dollar budgets and usage caps | Enables per-team or per-feature spend control without exposing real provider credentials |
+| **Fallback Chain** | An ordered list of providers or models the gateway tries in sequence when the primary returns a retryable error | Converts a single-provider failure into a transparent retry on an alternate backend |
+| **Circuit Breaker** | A mechanism that stops sending requests to a failing or throttled endpoint once its error rate crosses a threshold | Prevents thundering-herd amplification by globally cooling off a dead provider |
+| **Exponential Backoff** | A retry strategy where the wait time between attempts doubles after each failure | Reduces retry storm load on an already-overloaded provider |
+| **Jitter** | Random variation added to backoff wait times so multiple clients do not retry in synchronized lockstep | Smooths out retry bursts that would worsen a provider outage |
+| **Retry-After** | An HTTP header that providers like OpenAI and Anthropic return on 429 errors, specifying how long to wait before retrying | The authoritative signal for when a rate-limited provider is ready to accept traffic again |
+| **429 (Rate Limit Error)** | An HTTP status code returned by a provider when a client has exceeded its allowed request rate | The most common production failure mode for LLM APIs; the primary trigger for fallback logic |
+| **Semantic Routing** | Routing a request by embedding it and matching it to a pre-defined route by similarity, without calling an LLM | Dispatches requests to the right model or handler based on intent at low latency and low cost |
+| **Cascade Routing** | A strategy that sends requests to a cheap model first and escalates to a more capable model only if confidence is low | Achieves near-frontier quality while routing only a fraction of calls to expensive models |
+| **RouteLLM** | An open-source UC Berkeley / LMSYS framework for cascade-based LLM routing | Demonstrated 45-85% cost savings at ~95% quality retention on standard benchmarks |
+| **Load Balancing** | Distributing traffic across multiple API keys, regions, or providers to spread the load evenly | Multiplies effective rate-limit headroom and avoids hot spots on a single endpoint |
+| **SPOF (Single Point of Failure)** | A component whose failure brings down the entire system | The gateway itself must be made highly available to avoid becoming the new SPOF |
+| **OpenTelemetry** | An open-source observability framework for generating, collecting, and exporting traces, metrics, and logs | Provides vendor-neutral distributed tracing of every LLM request through the gateway |
+| **LiteLLM** | A popular open-source self-hosted gateway supporting 100+ providers behind an OpenAI-format API | The de-facto standard for self-hosted LLM routing; supports fallbacks, virtual keys, and native OpenTelemetry |
+| **OpenRouter** | A managed aggregator giving access to 200+ models through a single API with pass-through provider pricing | Fastest way to gain breadth across many models with zero operational overhead |
+| **Portkey** | A managed AI gateway with routing, fallbacks, semantic caching, token-level observability, and guardrails | Full control-plane capabilities without self-hosting infrastructure |
+| **Cloudflare AI Gateway** | A managed, edge-deployed gateway strong on observability and caching with sequential provider fallback | Low-ops option for teams already on Cloudflare's edge network |
+| **Kong AI Gateway** | An LLM routing and fallback layer built into the Kong API management platform | Best choice for teams already running Kong that want LLM routing added to existing gateway infrastructure |
+| **Envoy AI Gateway** | An open-source, CNCF-ecosystem gateway offering Kubernetes-native priority-based fallback and retries | Infrastructure-grade option for teams already using Envoy or Istio service mesh |
+| **Exact-Match Caching** | Caching a full LLM response keyed on the literal request string | Zero false-positive cache hits; highly effective for identical repeated queries |
+| **Semantic Caching** | Caching LLM responses and serving cached answers when a new query is sufficiently similar by embedding distance | Increases cache hit rate for natural-language traffic beyond what exact-match alone achieves |
+| **BYOK (Bring Your Own Key)** | A model where a managed service uses the customer's own provider API key rather than the vendor's key | Keeps rate-limit quota and billing under the customer's own provider account |
+| **Spend Attribution** | Assigning token and dollar costs to the specific team, feature, or tenant that incurred them | Enables per-feature unit economics and chargeback without manual reconciliation |
+
+---
+
 *Previous: [CI/CD for LLM Applications](02-cicd.md) · Next: [FinOps and Token Economics](04-finops-and-token-economics.md)*

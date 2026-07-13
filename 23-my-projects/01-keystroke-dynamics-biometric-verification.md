@@ -230,4 +230,36 @@ This project uses a **learned embedding + distance metric** instead — the same
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Keystroke Dynamics** | A behavioral biometric that identifies people by how they type — the timing of key presses and releases, not the text itself | Enables continuous, invisible identity verification without passwords |
+| **Behavioral Biometric** | A biometric based on how a person does something (typing, walking) rather than a physical trait (fingerprint, face) | Allows passive, non-invasive identity checking from any keyboard |
+| **Biometric Verification (1:1)** | Confirming a single claimed identity by comparing a new sample to one stored profile | Answers "is this the person they claim to be?" rather than "who is this?" |
+| **Biometric Identification (1:N)** | Searching a database of N users to find who matches an unknown sample | More complex than verification; accuracy degrades as N grows |
+| **Digraph** | A pair of consecutive keystrokes plus the timing between them | The atomic unit of keystroke-dynamics features, capturing a person's local typing rhythm |
+| **Dwell Time (HD)** | How long a key is held down from press to release | Captures the individual rhythm of each key press |
+| **Flight Time (UD)** | The gap between releasing one key and pressing the next | Captures the transition speed between successive keys |
+| **Down-Down Time (DD)** | Time from pressing one key to pressing the very next key | Combines dwell and flight into a single inter-key interval |
+| **One-Hot Encoding** | Representing each possible key as a binary vector with a 1 in exactly one position | Avoids inventing false numeric ordering between unrelated keys |
+| **StandardScaler (Z-score)** | Transforms a numeric column so its mean is 0 and standard deviation is 1 | Puts timing features on a comparable scale for stable model training |
+| **Windowing** | Slicing a stream of digraphs into fixed-length chunks (e.g., 50 consecutive digraphs) | Creates fixed-size input samples the model can process |
+| **Siamese Network** | A pair of identical neural networks sharing weights that each embed one input, used to compare two inputs | Lets the model learn similarity rather than class labels |
+| **Metric Learning** | Training an encoder to map inputs to a space where similar items are close and dissimilar items are far | Enables open-set recognition — new users enroll without retraining |
+| **Embedding** | A compact fixed-length vector representing an input in a learned space | Identity vectors are compared at inference time using cosine similarity |
+| **Conv1D (1-D Convolution)** | A convolution that slides a filter along a 1-D time axis to detect local patterns | Learns short local timing motifs across adjacent keystrokes |
+| **GRU (Gated Recurrent Unit)** | A recurrent neural network cell that models sequential dependencies with gating mechanisms | Captures how timing motifs unfold across the full keystroke window |
+| **Cosine Embedding Loss** | A training loss that pulls same-class pairs to have high cosine similarity and pushes different-class pairs apart | Shapes the embedding space so angle equals identity distance |
+| **Cosine Similarity** | A measure of how similar two vectors are based on the angle between them (1 = identical direction, −1 = opposite) | Used at inference to decide if two typing samples belong to the same person |
+| **Mean Pooling** | Averaging multiple embedding vectors into one representative vector | Combines a user's many window embeddings into a single stable identity vector |
+| **L2 Normalization** | Scaling a vector to have length 1 | Makes cosine similarity equivalent to dot product, enabling stable comparison |
+| **Softmax Classifier** | A network head that outputs a probability distribution over a fixed set of N classes | Used by the reference paper; requires retraining when new users are added |
+| **EER (Equal Error Rate)** | The threshold at which false accept rate equals false reject rate for a verification system | Standard metric for biometric systems; lower EER = better performance |
+| **TypeNet** | A published metric-learning keystroke biometric system (Acien et al., 2021) | Demonstrates the superiority of embeddings over fixed classifiers for keystroke identity |
+| **Hard Negative Mining** | Selecting the most confusing negative pairs (near-miss impostors) during training | Improves embedding quality by focusing training on the hardest cases |
+| **Triplet Loss** | A loss that pulls an anchor and a positive sample together while pushing the anchor and a negative sample apart | Alternative contrastive training objective for shared encoders over many identities |
+
+---
+
 *Up: [Guide Home](../README.md)*

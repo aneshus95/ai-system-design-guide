@@ -192,4 +192,35 @@ I look at what the framework is actually buying me. Its original job was smoothi
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Framework Churn** | The rapid pace at which AI orchestration frameworks rename, restructure, or remove APIs between releases. | The core problem this page addresses; understanding it sets realistic expectations for the stability of any framework tutorial. |
+| **Monolith (package)** | A single large Python package that bundles all integrations and abstractions together. | The original design of both LangChain and LlamaIndex before they split into core plus plugin packages. |
+| **llama-index-core** | The minimal LlamaIndex package containing only the base abstractions, with no third-party integrations bundled. | Provides a stable, lightweight foundation that integration packages build on, similar to `langchain-core`. |
+| **langchain-core** | The minimal LangChain package containing Runnables, messages, and base interfaces, with a backwards-compatibility guarantee. | The only LangChain package safe to depend on in library code because it has a stable, versioned public surface. |
+| **ServiceContext** | A deprecated LlamaIndex class (removed in v0.11) that previously wired together the LLM, embeddings, and parser. | Understanding why it was removed (replaced by the global `Settings` object) explains the most common import error in older tutorials. |
+| **Settings (LlamaIndex)** | The global configuration object introduced in LlamaIndex v0.11 to replace `ServiceContext`. | Provides a simpler, module-level way to configure the LLM and embedding model used across an entire application. |
+| **LLMChain** | A deprecated LangChain class (moved to `langchain-classic`) that chained a prompt, an LLM, and an output parser. | The original "chain" abstraction, now replaced by LCEL pipes; recognizing it in code dates the material. |
+| **RetrievalQA** | A deprecated LangChain chain for question answering over a retriever, now replaced by `create_retrieval_chain`. | Another dating signal in tutorials: its presence means the code was written before LangChain v0.3 or v1.0. |
+| **AgentExecutor** | A deprecated LangChain class for running an agent loop, now replaced by `create_agent` on the LangGraph runtime. | Recognizing it indicates legacy code that should be migrated to the current LangGraph-based agent pattern. |
+| **Lockfile** | A file (e.g., `uv.lock`, `poetry.lock`, `pip-compile` output) that records the exact versions of every installed package and its transitive dependencies. | Makes a Python environment fully reproducible so "worked on my machine" failures disappear. |
+| **uv** | A fast Python package installer and environment manager that produces a `uv.lock` lockfile. | The emerging 2026 standard for managing Python dependencies with speed and reproducibility. |
+| **pylock.toml** | The tool-agnostic standard lockfile format defined in PEP 751. | Aims to make lockfiles interoperable between different Python package managers. |
+| **Partial-Upgrade Mismatch** | An error caused by upgrading one package in a tightly coupled set (e.g., `llama-index-core`) while leaving a companion integration package on an older version. | The root cause of the "can't instantiate abstract class" error; the fix is always to upgrade the full set together. |
+| **llamaindex-cli upgrade** | A command-line tool that automatically rewrites old LlamaIndex import paths to the current package layout. | Saves manual effort when migrating a codebase from pre-v0.10 LlamaIndex to the current split-package structure. |
+| **langchain-classic** | A LangChain package that preserves deprecated chain classes for migration compatibility. | Allows existing codebases to keep running on the old API surface while teams incrementally migrate to LCEL and LangGraph. |
+| **llama-index-legacy** | A LlamaIndex compatibility shim for code written against the pre-split package structure. | Provides a bridge so old notebooks can run while teams work through a migration. |
+| **Deprecation Warning** | A runtime message Python emits when code uses an API that is scheduled for removal in a future version. | An early warning system; treating these as actionable tasks prevents an unexpected breaking change on the next upgrade. |
+| **LCEL (LangChain Expression Language)** | A pipe-based composition syntax that replaced the old `Chain` subclass hierarchy in LangChain. | The current idiomatic way to compose LangChain components; its presence in code indicates a post-v0.3 tutorial. |
+| **Pydantic v2** | The current major version of the Pydantic validation library, which broke backwards compatibility with v1. | The migration to v2 caused widespread breakage in LangChain (v0.3) and LlamaIndex (v0.11) tutorials. |
+| **Eval Harness** | A test suite that measures whether a system's outputs meet quality criteria, not just whether the code runs. | The correct way to validate a framework migration: confirms behavior is preserved, not just that imports resolve. |
+| **Thin Layer** | A small, project-specific wrapper around a provider SDK or framework that hides vendor-specific details behind a stable interface. | The recommended production pattern: isolates framework churn to one replaceable module instead of spreading it across the codebase. |
+| **RAG Mechanics** | The underlying concepts of chunking, embedding, similarity search, retrieval, and re-ranking that make retrieval-augmented generation work. | Durable knowledge that transfers across every framework rename, making it worth deep investment. |
+| **Agent Loop** | The fundamental cycle of model call, tool selection, tool execution, and observation that all agent frameworks implement. | Core concept that persists regardless of whether the framework calls it `AgentExecutor`, `create_agent`, or a hand-rolled `while` loop. |
+| **Model-Name Deprecation** | A provider retiring a specific model ID (e.g., `gpt-3.5-turbo-0301`), causing previously working code to fail. | An extra layer of churn below the framework level; always use model aliases or current model IDs, never retired snapshot IDs. |
+
 *Next: [Document Processing](../10-document-processing/01-ocr-and-layout.md)*

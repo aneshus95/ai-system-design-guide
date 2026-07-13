@@ -608,4 +608,37 @@ The key is assuming failures will happen and designing for them rather than hopi
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RAG (Retrieval-Augmented Generation)** | A pattern where relevant documents are retrieved from a knowledge store and injected into the prompt before the LLM generates a response | Lets the model answer questions using external or up-to-date knowledge it was not trained on |
+| **Naive RAG** | The simplest RAG implementation: embed the query, find the top-K nearest chunks, stuff them into the prompt, generate | A fast starting point for prototypes; establishes a retrieval quality baseline before adding complexity |
+| **Advanced RAG** | An enhanced pipeline that adds query rewriting, hybrid search, reranking, and filtering before generation | Delivers significantly higher retrieval precision for production systems where accuracy matters |
+| **Query Rewriting** | Using an LLM to rephrase the user's question into a form that retrieves better results from the vector index | Bridges the vocabulary gap between how users ask questions and how documents are written |
+| **Hybrid Search** | Combining dense vector search (semantic) with sparse keyword search (BM25) and fusing the results | Outperforms either method alone by capturing both meaning and exact keyword matches |
+| **BM25** | A classical keyword-ranking algorithm that scores documents by term frequency and inverse document frequency | The standard sparse retrieval baseline; paired with vector search in hybrid RAG pipelines |
+| **Reciprocal Rank Fusion (RRF)** | A score-fusion algorithm that merges ranked lists from multiple retrievers into a single ranked list | Combines semantic and keyword results without needing to tune score weights |
+| **Reranking** | A second-pass model (cross-encoder) that re-scores the top retrieved chunks for relevance to the query | Improves precision by spending more compute on the shortlist after an initial fast retrieval |
+| **Parent-Child Retrieval** | Indexing small child chunks for precise matching but returning their larger parent chunk for richer context | Balances retrieval precision (small chunks) with generation quality (larger context) |
+| **Self-RAG** | A pattern where the model itself decides whether to retrieve, then critiques whether the retrieved context actually supports its answer | Makes retrieval selective and reduces hallucination by adding a self-check step |
+| **Corrective RAG (CRAG)** | A pattern that grades each retrieved document for relevance and falls back to web search when local results are insufficient | Improves answer reliability when the local corpus may not contain the right information |
+| **ReAct** | An agent pattern that interleaves Thought, Action, and Observation steps in a loop until the answer is found | Makes agent reasoning explainable and auditable, and handles moderate-complexity multi-step tasks |
+| **Plan-and-Execute** | An agent pattern that creates a full step-by-step plan first, then executes each step, re-planning if results warrant it | Improves performance on complex tasks by separating high-level planning from low-level execution |
+| **Critic/Verifier Pattern** | A two-agent design where one agent generates a response and a second agent critiques and rejects or accepts it | Catches errors before they reach the user and iteratively improves output quality |
+| **Hierarchical Agents** | A manager-worker architecture where a manager LLM decomposes a task and delegates subtasks to specialist worker agents | Enables parallel execution and domain specialisation across complex, multi-domain tasks |
+| **Model Cascade** | Routing queries to progressively more capable (and expensive) models based on estimated complexity | Minimises average cost by using cheap models for simple queries and reserving expensive ones for hard ones |
+| **Speculative Execution** | A draft model generates candidate tokens cheaply, which a larger model then verifies and accepts or rejects | Reduces end-to-end latency because the large model only processes a short draft rather than generating from scratch |
+| **Draft Model** | The small, fast model used to generate speculative token drafts in speculative decoding | Must be semantically aligned with the target model to achieve high acceptance rates |
+| **Target Model** | The large, high-quality model that verifies and selects from the draft's proposed tokens | The authoritative model whose output quality is preserved even though it delegates generation to the draft |
+| **Caching Layers** | A multi-level cache (exact match first, then semantic match) in front of the LLM | Reduces cost and latency for repeated or similar queries without any model call |
+| **Circuit Breaker** | A reliability component that stops sending requests to a failing service after N consecutive errors and retries after a timeout | Prevents a degraded provider from consuming all retries and introduces fast-fail behaviour |
+| **Bulkhead** | An isolation pattern that gives different workloads separate concurrency pools (semaphores) | Prevents a slow or failing component from consuming all available threads and cascading to healthy ones |
+| **Retry with Fallback** | Attempting a request against a list of providers in order, catching errors, and moving to the next provider on failure | Provides high availability without manual intervention when one LLM provider is down |
+| **Token Budget** | An explicit upper limit on input and output tokens enforced by trimming the message list before each call | Prevents runaway costs and ensures calls complete within the model's context window |
+| **Cost Tracking Decorator** | A Python decorator that wraps LLM calls to measure token usage and record the monetary cost per call | Enables per-model, per-feature cost attribution so teams can optimise spending |
+| **Parametric Knowledge** | Facts the LLM learned during pre-training and stores in its weights, not retrieved from external sources | Contrasted with retrieved knowledge; Self-RAG decides when to rely on parametric vs. retrieved knowledge |
+
 *Next: [Anti-Patterns to Avoid](02-anti-patterns.md)*

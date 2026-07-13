@@ -209,4 +209,33 @@ We use **Termination Conditions** and **Max Conversational Turns**. We also impl
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **CrewAI** | A Python multi-agent framework organized around role-based agents, explicit tasks, and process orchestration. | Lets teams stand up a structured team of cooperating agents quickly using high-level abstractions. |
+| **Microsoft Agent Framework** | Microsoft's unified agent SDK that merges AutoGen and Semantic Kernel into one framework with graph-based workflows. | Provides a single, enterprise-grade platform for .NET and Python multi-agent development, replacing two fragmented tools. |
+| **AutoGen** | Microsoft's now-retired standalone multi-agent framework focused on conversational agent patterns. | The predecessor to the Microsoft Agent Framework; existing deployments still receive security patches but no new features. |
+| **Process Orchestration** | CrewAI's mechanism for controlling how agents cooperate — sequentially, hierarchically, or by consensus. | Determines the execution order and decision-making model for a crew of agents tackling a shared goal. |
+| **Role-Based Agent** | An agent with a fixed persona (e.g., "Researcher" or "Writer") and a defined set of responsibilities. | Mirrors human team structures, making multi-agent workflows easier to design and reason about. |
+| **CrewAI Flows** | A state-machine layer in CrewAI that connects crews together using event-driven `@start` and `@listen` decorators. | Enables multi-crew pipelines with explicit control flow between stages of a business process. |
+| **State Machine** | A programming model where a system moves through a fixed set of states, with transitions triggered by events. | Provides deterministic, auditable control flow for complex agent workflows. |
+| **RuntimeState RootModel** | A CrewAI v1.13 Pydantic model that provides unified state serialization for workflows. | Ensures complex workflow state can be saved and restored reliably across runs. |
+| **A2A (Agent-to-Agent) Task Execution** | A CrewAI pattern for structured, deterministic delegation of tasks between agents at runtime. | Enables agents to dynamically assign sub-tasks to peers without human intervention. |
+| **SSO (Single Sign-On)** | An authentication mechanism that lets users log in once and gain access to multiple systems. | Enterprise-grade identity management for multi-agent platforms deployed within large organizations. |
+| **RBAC (Role-Based Access Control)** | A security model where permissions are granted to roles rather than individual users. | Controls which agents or users can trigger which capabilities, enforcing least-privilege in agentic systems. |
+| **Handoff** | An agent-to-agent transfer where one agent passes the conversation or task to a more appropriate peer agent. | Implements peer-to-peer routing without a central supervisor, reducing bottlenecks in swarm architectures. |
+| **Swarm Pattern** | A multi-agent design where agents coordinate peer-to-peer through handoffs rather than through a central manager. | Scales agent collaboration without a single point of failure at the orchestration layer. |
+| **Claude Agent SDK** | Anthropic's official library for building autonomous agents using the same tools and loop that power Claude Code. | Provides built-in file, code, and command tools so teams do not need to implement the agent loop from scratch. |
+| **OpenAI Agents SDK** | OpenAI's lightweight Python/TypeScript framework for multi-agent workflows using handoff-based coordination. | Enables quick assembly of multi-agent systems on OpenAI models with built-in guardrails. |
+| **Google ADK (Agent Development Kit)** | Google's multi-language agent framework with native A2A support and Vertex AI deployment. | Provides the idiomatic way to build and deploy agents in the Google Cloud ecosystem. |
+| **OpenAI AgentKit** | OpenAI's higher-level toolset with a visual Agent Builder, ChatKit UI, and Connector Registry. | Lets teams assemble and deploy agents with less custom plumbing than the raw Agents SDK requires. |
+| **MCP (Model Context Protocol)** | An open standard for connecting agents to external tools through a uniform interface. | Makes tool access portable across different agent frameworks and model providers. |
+| **Termination Condition** | A rule that stops a multi-agent conversation after a defined condition is met (e.g., task completed, maximum turns reached). | Prevents agents from looping indefinitely and consuming unbounded tokens and cost. |
+| **Token Velocity** | The rate at which tokens are consumed by an agent pair over a given time window. | A proxy signal for detecting stagnant or circular agent conversations that are not making progress. |
+| **Guardrails** | Built-in safety checks that validate agent inputs and outputs before they are acted upon. | Prevent agents from taking harmful, off-policy, or low-quality actions in production. |
+| **NVIDIA NemoClaw** | NVIDIA's infrastructure-level policy enforcement layer for enterprise AI deployments. | Enforces security and compliance policies at the infrastructure level rather than trusting application-layer checks alone. |
+
 *Next: [Framework Selection Guide](08-framework-selection-guide.md)*

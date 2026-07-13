@@ -288,4 +288,50 @@ Input-token growth from context creep: too-large top-K, ballooning chunk sizes, 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Hybrid Search** | Combining dense vector search and BM25 keyword search, then merging results with RRF | Covers semantic similarity and exact-term matching in a single retrieval pass |
+| **RRF (Reciprocal Rank Fusion)** | Merging ranked lists by position (1/(k+rank)) rather than incompatible raw scores | The standard way to combine keyword and vector results without score normalization |
+| **Reranker (Cross-Encoder)** | A second-stage model that re-reads the query and each candidate document together to produce a precise relevance score | Typically adds +5–15 NDCG@10 on top of first-stage retrieval at the cost of 50–500 ms latency |
+| **HyDE (Hypothetical Document Embeddings)** | Generating a fake answer to the query and embedding that instead of the raw query | Bridges the vocabulary gap between short queries and long documents |
+| **Step-Back Prompting** | Reformulating a specific query into a broader conceptual question before retrieval | Retrieves foundational context that a highly specific query might miss |
+| **GraphRAG** | A retrieval approach that stores knowledge in an entity-relationship graph and traverses edges for multi-hop questions | Outperforms dense RAG on relationship and multi-hop queries but loses to it on single-hop factoids |
+| **CRAG (Corrective RAG)** | A pattern that grades retrieved documents before generation and reformulates the query or supplements with web search if they are weak | Reduces hallucination from retrieval failures by refusing to generate from irrelevant context |
+| **Self-RAG** | A model variant that inserts inline critic tokens to decide whether to retrieve, whether retrieved content is relevant, and whether its own answer is grounded | Embeds retrieval quality control into the generation loop itself |
+| **Adaptive RAG** | Routing each query to the cheapest adequate retrieval strategy based on its estimated complexity | Avoids the cost of heavy retrieval for simple lookups |
+| **Lost-in-the-Middle** | The 20+ percentage-point accuracy drop for information placed in the middle of a long context window | Motivates keeping retrieved context short and placing the best chunk first |
+| **CDC (Change Data Capture)** | Detecting row- or document-level source changes in real time and re-ingesting only the changed content | Keeps the RAG index fresh without paying the cost of a full nightly re-embed |
+| **Tombstone** | An explicit deletion event that marks a document as removed so its vectors are purged from the index | Without tombstones, deleted content lingers and returns "confident wrong answers" |
+| **Temporal Awareness** | Weighting or filtering retrieved documents by recency because vector similarity has no time dimension | Prevents stale or superseded facts from being served to users |
+| **HNSW (Hierarchical Navigable Small World)** | A graph-based ANN index with best recall and lowest latency but highest memory usage | The default ANN index in most vector databases for corpora that fit in RAM |
+| **IVF (Inverted File Index)** | An ANN index that clusters vectors and only searches the nearest clusters at query time | Uses less memory than HNSW and is tunable via the `nprobe` parameter |
+| **PQ (Product Quantization)** | Compressing vectors by splitting them into sub-vectors and quantizing each | Enables billion-scale in-RAM indices with 16–32× memory reduction |
+| **DiskANN** | An ANN index that keeps compressed vectors in RAM and full vectors on NVMe SSD | Achieves 95%+ recall at sub-5 ms latency on billion-scale corpora on a single machine |
+| **ANN (Approximate Nearest Neighbor)** | A search algorithm that finds the closest vectors without checking every entry in the index | The basis of all practical vector database retrieval at scale |
+| **KV Cache (Prompt/KV Caching)** | Provider-side reuse of the processed key-value representations of a repeated prompt prefix | Reduces LLM input token cost by ~90% for repeated context; requires stable prompt prefixes |
+| **Continuous Batching** | Processing multiple in-flight LLM requests in a single GPU forward pass using techniques like vLLM's PagedAttention | 3–4× throughput improvement over request-by-request inference |
+| **Context Compression** | Reducing the length of retrieved context (e.g., LLMLingua) before passing it to the LLM | Cuts input token cost and latency without losing most retrieval value |
+| **Matryoshka Embeddings** | Embedding models trained so that the first N dimensions are already a useful shorter embedding | Allows 4–8× storage/compute savings by truncating dimensions with minimal accuracy loss |
+| **Indirect Prompt Injection** | Malicious instructions hidden in retrieved documents that hijack the LLM's behavior | The #1 RAG-specific security threat; mitigated by treating retrieved content as untrusted data |
+| **Spotlighting / Delimiting** | Wrapping retrieved content in clear structural markers so the LLM distinguishes it from system instructions | A primary defense against indirect prompt injection |
+| **PoisonedRAG** | An attack where a small number of crafted documents injected into the knowledge base manipulate the LLM's answers for all users | Mitigates by hashing docs at ingest, tracking provenance, and restricting index write access |
+| **ACL (Access Control List)** | Metadata on each chunk specifying which users or roles are allowed to see it | Must be enforced at retrieval time (pre-filter) to prevent data leakage to unauthorized users |
+| **GDPR Right-to-be-Forgotten** | A legal requirement to erase all data about a person within ~1 month of their request | Requires cascading deletion from source → vector index → cached embeddings → logs → chat history |
+| **HIPAA** | US healthcare data regulation requiring AES-256 encryption, RBAC, and 6-year immutable audit logs | Sets the security bar for RAG systems handling medical information |
+| **Embedding Inversion** | An attack that recovers the original text from an embedding vector (Vec2Text reaches 50–92% accuracy on short inputs) | Means embeddings themselves are sensitive and require the same access controls as source documents |
+| **Embedding Drift** | The gradual mismatch between new corpus documents and an embedding model trained on older data | Silently degrades retrieval precision without any error or code change |
+| **Blue-Green Deployment** | Running old and new index versions simultaneously, validating the new one, then atomically switching traffic | The safe pattern for embedding model upgrades that require a full re-index |
+| **Circuit Breaker** | A component that stops sending requests to a failing dependency after a threshold of failures and retries after a cooldown | Prevents retries from amplifying outages into cascading failures |
+| **Graceful Degradation** | Serving cached, partial, or stale results rather than returning an error when a component is unavailable | Keeps user-visible quality acceptable during partial outages |
+| **Abstention** | Responding with "I don't have enough information" when retrieved context scores are all below a confidence threshold | A confident wrong answer is worse than an honest "I don't know" |
+| **RAGOps** | The operational discipline of versioning, monitoring, and maintaining a production RAG system | Encompasses embedding model pinning, index drift detection, CI eval gating, and rollback procedures |
+| **LLMOps** | The operational discipline of deploying, versioning, monitoring, and improving LLM-based systems in production | The superset that includes RAGOps plus prompt management, model versioning, and cost governance |
+| **OWASP LLM Top 10** | The Open Worldwide Application Security Project's list of the most critical security risks in LLM applications | Provides the authoritative threat taxonomy for RAG security (prompt injection is LLM01, embedding weaknesses are LLM08) |
+| **Shadow Deployment** | Running the new pipeline version on real traffic with no user-facing impact and comparing outputs via a judge | Validates a new model or index before any percentage of users are exposed to it |
+| **Canary Deployment** | Routing a small percentage of production traffic to the new version | Limits blast radius if the new version has a regression |
+
 *Related: [Production RAG at Scale](14-production-rag-at-scale.md) · [RAG Evaluation Patterns](13-rag-evaluation-patterns.md) · [RAG Fundamentals](01-rag-fundamentals.md)*

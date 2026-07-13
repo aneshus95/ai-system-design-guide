@@ -516,4 +516,30 @@ They solve different sides of the same problem. Contextual Retrieval enriches **
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Contextual Retrieval** | An ingestion-time technique that prepends a short LLM-generated context string to each chunk before embedding | Reduces retrieval failures by giving isolated chunks the surrounding meaning they lost during chunking |
+| **Context Dilution** | The loss of meaning that happens when a chunk is split from the document that gave it context | The core problem Contextual Retrieval solves |
+| **Contextualization** | The step where a full document and a single chunk are sent to an LLM to generate a short explanatory prefix | Produces semantically richer chunks that match more user queries |
+| **Contextual Embeddings** | Embeddings generated from chunks that already include the LLM-generated context prefix | Moves chunk vectors closer to the queries that reference them |
+| **BM25** | A keyword-ranking algorithm that scores documents by how often and how distinctively query terms appear | Handles exact-match lookups for product IDs, names, and rare terms that embedding models struggle with |
+| **Contextual BM25** | A BM25 keyword index built over context-enriched chunks rather than raw chunks | Enables keyword matching on terms (like product names) that only appear in the prepended context |
+| **Hybrid Search** | Running both vector (semantic) search and BM25 (keyword) search and merging the results | Captures both semantic similarity and exact-term matches for higher overall recall |
+| **Retrieval Failure Rate** | The fraction of queries for which the relevant document does not appear in the top-K results | The key metric used to measure the benefit of Contextual Retrieval |
+| **RRF (Reciprocal Rank Fusion)** | A score-free method for merging two ranked lists by using each document's position | Combines BM25 and vector results without needing to normalize incompatible scores |
+| **Smoothing Constant (k)** | The value 60 added to rank positions in the RRF formula to reduce the dominance of top ranks | Prevents a single highly-ranked result from overwhelming the merged list |
+| **Reranker** | A cross-encoder model that re-scores a short candidate list by reading the query and chunk together | Provides a final precision boost after the initial hybrid retrieval step |
+| **Prompt Caching** | Storing the processed representation of a repeated prompt prefix so subsequent calls skip re-processing it | Reduces contextualization cost by up to 90% when the same document is used for many chunks |
+| **Contextual Chunk Headers (CCH)** | Deterministically prepending the document title and section hierarchy to each chunk, with no LLM call | A free, fast alternative to LLM contextualization for well-structured documents |
+| **Late Chunking** | Embedding the full document first and then splitting the resulting token embeddings into chunks | Preserves context through the embedding model's attention rather than explicit text prepending |
+| **Dense Embedding** | A continuous high-dimensional vector representation of text meaning | The basis of semantic vector search; captures meaning but can miss exact terms |
+| **Ingestion Pipeline** | The sequence of steps (chunk → contextualize → embed → index) that prepares documents for retrieval | Determines retrieval quality for all future queries against the knowledge base |
+| **Vector DB** | A database optimized for storing and searching high-dimensional embedding vectors | The storage layer for semantic search in a RAG system |
+| **Naive Chunking** | Splitting documents into fixed-size pieces with no added context | The baseline approach; fast and simple but loses surrounding meaning |
+| **Parent-Child Chunking** | Embedding small child chunks for precise matching but returning the larger parent chunk to the LLM | Balances retrieval precision with providing enough context for answer generation |
+
 *Previous: [Advanced Retrieval Patterns](09-advanced-retrieval-patterns.md) | Next: [Late Interaction & ColBERT](11-late-interaction-colbert.md)*

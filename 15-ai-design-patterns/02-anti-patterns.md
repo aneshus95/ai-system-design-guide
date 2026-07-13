@@ -568,4 +568,37 @@ The key is assuming the agent will try to run forever. Build in hard stops at ev
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **God Prompt** | A single massive system prompt that tries to cover every possible use case and role in one block of text | An anti-pattern; knowing it exists helps engineers recognise when to decompose into specialised handlers instead |
+| **Query Router** | A component that classifies incoming requests by intent and dispatches each to the appropriate specialised handler | The recommended fix for the God Prompt; keeps each handler's system prompt focused and optimisable |
+| **Single Provider Dependency** | Building an application that only works with one LLM vendor, with no failover path | An anti-pattern that creates a single point of failure; multi-provider abstraction is the remedy |
+| **Multi-Provider Fallback** | An LLM client abstraction that tries a list of providers in sequence and moves to the next on error | Achieves high availability without manual intervention during provider outages |
+| **Premature Fine-Tuning** | Training a custom model before exhausting prompt engineering, few-shot examples, and RAG | An expensive anti-pattern; fine-tuning should be the last resort after simpler approaches fail |
+| **Few-Shot Examples** | Including 2-10 example input-output pairs directly in the prompt to guide model behaviour | A cheaper and faster alternative to fine-tuning for improving output format and style |
+| **Retrieve Everything** | A RAG anti-pattern where top_k is set very high, flooding the prompt with loosely relevant documents | Causes "lost in the middle" degradation and wastes tokens; quality reranking to a small final set is preferred |
+| **Lost in the Middle** | A well-documented LLM failure mode where relevant information buried in the middle of a long context is overlooked | Motivates strict top-k limits and reranking to place the most relevant content at the start of the context |
+| **No Chunking Strategy** | Splitting documents by fixed character count without respecting sentence or paragraph boundaries | An anti-pattern that breaks semantic coherence and degrades retrieval quality |
+| **Semantic-Aware Chunking** | Splitting text at natural boundaries (sentences, paragraphs, sections) rather than arbitrary character limits | Keeps related ideas together in each chunk, improving both embedding quality and retrieved context |
+| **Metadata Filtering** | Using structured attributes (date, source, access level) to pre-filter documents before vector search | Enables access control, date-range queries, and recency weighting that pure semantic search cannot provide |
+| **Infinite Loop Risk** | An agent with no maximum step count, cost cap, or timeout that can run indefinitely | The anti-pattern that causes runaway API bills; always pairing an agent loop with hard termination conditions |
+| **Termination Conditions** | Explicit limits on steps, cost, and wall-clock time that force an agent loop to stop | The minimum safety net every production agent must implement to prevent cost disasters |
+| **Unsafe Tool Access** | Giving an agent unrestricted access to destructive or sensitive tools without scope limits | An anti-pattern that risks data deletion, exfiltration, or arbitrary code execution |
+| **Scoped Tool** | A tool implementation that restricts an agent to a subset of operations (e.g., read-only DB, allowed file directories) | The recommended pattern; least-privilege access reduces blast radius if the agent misbehaves |
+| **Stateless Agent** | An agent that receives no memory or session context and starts fresh on every turn | An anti-pattern for multi-turn tasks; requires persistent memory to avoid repeating questions and mistakes |
+| **Vague Instructions** | A system prompt that uses undefined terms ("help the user") with no format, scope, or constraint | Produces inconsistent, unpredictable behaviour; specific structured prompts are the fix |
+| **No Output Format** | Prompting for structured data without specifying the exact format (JSON schema, field names, types) | Makes response parsing unreliable; explicit format instructions or structured-output APIs eliminate the problem |
+| **Vibes-Based Evaluation** | Manually spot-checking a handful of outputs and deciding quality is acceptable without metrics or baselines | An anti-pattern that misses regressions and edge cases; systematic eval datasets with scoring are the alternative |
+| **Training on Test Set** | Using the evaluation dataset to guide prompt or model improvements, then reporting accuracy on that same set | Causes overfitting to the eval set so reported metrics do not reflect real-world performance |
+| **Overfitting** | A model or prompt that performs well on known examples but poorly on unseen inputs | The risk of iterating on a fixed test set; mitigated by using a separate dev set for iteration |
+| **No Rate Limiting** | Allowing unlimited LLM API calls per user, exposing the system to cost abuse and denial-of-service | An anti-pattern that can drain budgets in minutes; per-user request and cost caps are mandatory in production |
+| **Denial of Service (DoS)** | A scenario where one user or attacker exhausts a shared resource (API quota, budget) for all users | Rate limiting and cost caps per user prevent this from affecting the whole system |
+| **Semantic Caching (anti-pattern context)** | Not implementing any form of caching, so identical or equivalent queries always hit the LLM | The "No Caching" anti-pattern highlights that repeated FAQ-style queries waste both money and time |
+| **Graceful Degradation** | Returning a cached response, a fallback message, or queueing for later when all LLM providers fail | Preferred over a hard error; keeps the user experience functional even during complete provider outages |
+| **Exponential Backoff** | A retry strategy where wait time doubles after each failure to avoid hammering a rate-limited API | Reduces the chance of being permanently rate-limited and plays nicely with provider recovery times |
+
 *Previous: [Design Patterns](01-design-patterns.md)*

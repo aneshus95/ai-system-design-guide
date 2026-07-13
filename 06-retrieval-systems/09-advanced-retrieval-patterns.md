@@ -87,4 +87,28 @@ Asymmetric retrieval refers to the fact that user queries are usually short (3-1
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RAG (Retrieval-Augmented Generation)** | A system that fetches relevant documents first, then passes them to an LLM to generate an answer | Grounds LLM responses in real data instead of model memory |
+| **Query Decomposition** | Breaking a complex user question into multiple simpler sub-questions | Ensures each part of a compound query gets its own retrieval pass |
+| **Multi-Query** | Generating several paraphrased or sub-queries from one user query | Increases the chance of retrieving all relevant documents |
+| **HyDE (Hypothetical Document Embeddings)** | Asking the LLM to write a fake answer, then embedding that fake answer instead of the raw query | Bridges the vocabulary gap between short queries and long documents |
+| **Vector Neighborhood** | The region of embedding space where semantically similar items cluster together | Determines which documents a query will retrieve by proximity |
+| **Asymmetric Retrieval** | The mismatch between short user queries and longer document chunks in embedding space | Explains why direct query embeddings can miss relevant documents |
+| **Asymmetric Encoders** | Using separate embedding models — one tuned for queries, one for documents | Reduces the retrieval gap caused by length differences |
+| **Query Expansion** | Adding synonyms, context, or hypothetical answers to the raw query before embedding | Improves recall by making the query resemble the documents |
+| **Context Dilution** | When a chunk loses its meaning because the surrounding context is removed during chunking | The root cause of many RAG retrieval failures |
+| **Contextual Retrieval** | Prepending an LLM-generated summary to each chunk before embedding it | Adds missing context so isolated chunks remain retrievable |
+| **Iterative Document Enrichment** | Storing extra metadata (summaries, generated questions) alongside raw documents | Makes documents more discoverable from diverse query phrasings |
+| **Compound Query** | A user question that spans multiple topics or requires multiple lookups | Signals that decomposition into sub-queries is needed |
+| **In-Context Reranking** | Loading the top-100 retrieved documents into the LLM's context window and asking it to pick the best ones | Uses the LLM's reasoning ability instead of a separate reranker model |
+| **Long Context Reasoning** | An LLM's ability to process and reason over very large inputs (1M+ tokens) | Enables in-context reranking and cross-document synthesis without extra models |
+| **Cross-Encoder** | A model that reads the query and document together to produce a relevance score | Provides the most accurate reranking but is too slow for first-stage retrieval |
+| **RRF (Reciprocal Rank Fusion)** | Combines multiple ranked lists by position rather than raw score | Merges results from keyword and vector search without needing compatible scores |
+| **Hybrid Approach** | Combining keyword (BM25) and vector search results | Covers both exact-match and semantic-match retrieval needs |
+
 *Next: [Agentic Systems](../07-agentic-systems/01-agent-fundamentals.md)*

@@ -632,4 +632,72 @@ The receptive field of a neuron is the region of the original input image that i
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Perceptron** | A single artificial neuron that computes a weighted sum of inputs and passes it through an activation function | The fundamental building block of all neural network architectures |
+| **MLP (Multi-Layer Perceptron)** | A neural network with one or more hidden layers of perceptrons between the input and output | The simplest deep learning model; learns non-linear patterns through stacked layers |
+| **Forward Pass** | Computing predictions layer by layer from input to output without updating any weights | Produces the prediction used to calculate the loss during training |
+| **Backpropagation** | An algorithm that propagates the loss gradient backwards through the network using the chain rule | The mechanism by which all neural network weights are updated during training |
+| **Chain Rule** | A calculus rule that lets you compute the derivative of a composite function as a product of local derivatives | Makes backpropagation tractable by decomposing the full gradient into local factors |
+| **Activation Function** | A non-linear function applied to each neuron's output to allow the network to learn complex patterns | Without it, stacked linear layers collapse into a single linear transformation |
+| **ReLU (Rectified Linear Unit)** | An activation that outputs the input if positive, otherwise zero | Default hidden-layer activation; avoids vanishing gradients in the positive region |
+| **Sigmoid** | An S-shaped activation that squashes any input to the range (0, 1) | Used in binary classification output layers; prone to vanishing gradients in deep networks |
+| **Tanh** | An S-shaped activation similar to sigmoid but centred at zero, outputting values in (−1, 1) | Zero-centred, which can speed up training; still saturates and causes vanishing gradients |
+| **Leaky ReLU** | A variant of ReLU that allows a small gradient for negative inputs instead of zero | Prevents the "dying ReLU" problem where neurons permanently output zero |
+| **GELU** | A smooth activation that gates inputs by the Gaussian cumulative distribution function | Preferred in Transformer models like BERT and GPT for its smooth probabilistic gating |
+| **Softmax** | A function that converts a vector of raw scores (logits) into a probability distribution summing to 1 | Used in the output layer of multi-class classifiers to produce class probabilities |
+| **Universal Approximation Theorem** | A theorem stating that a neural network with a single hidden layer can approximate any continuous function | Provides the theoretical justification for why neural networks are powerful general function approximators |
+| **Loss Function** | A function measuring how far the model's prediction is from the correct answer | The quantity gradient descent minimises to improve the model |
+| **MSE (Mean Squared Error)** | The average of the squared differences between predicted and actual values | Standard regression loss; penalises large errors heavily |
+| **Binary Cross-Entropy** | A loss that penalises a model for assigning low probability to the correct class in binary problems | The standard loss for binary classification; produces well-calibrated probabilities |
+| **Categorical Cross-Entropy** | A loss that extends binary cross-entropy to multi-class problems using softmax probabilities | Standard loss for multi-class classification tasks |
+| **KL Divergence** | A measure of how much one probability distribution differs from another reference distribution | Used in VAEs and knowledge distillation to align learned distributions with target distributions |
+| **Gradient Descent** | An optimisation algorithm that iteratively updates model weights in the direction that reduces the loss | The core training algorithm for nearly all neural networks |
+| **SGD (Stochastic Gradient Descent)** | A variant of gradient descent that updates weights after each single sample or small batch | Introduces noise that can help escape local minima; forms the basis of all modern optimisers |
+| **Momentum** | An extension of SGD that accumulates a velocity vector to smooth out noisy gradient updates | Speeds up convergence and helps navigate saddle points |
+| **Adam** | An optimiser combining momentum and adaptive per-parameter learning rates with bias correction | Default optimiser for most deep learning tasks due to fast convergence |
+| **AdamW** | Adam with weight decay applied correctly as a separate regularisation term, not folded into the gradient | Preferred over Adam for Transformer training; better generalisation |
+| **RMSProp** | An optimiser that divides the learning rate by a running average of recent squared gradients | Adapts the learning rate per parameter; useful for non-stationary objectives like RNNs |
+| **Learning Rate** | A scalar that controls how large a step the optimiser takes in the direction of the gradient | Too large causes divergence; too small causes extremely slow training |
+| **Learning Rate Schedule** | A strategy for changing the learning rate during training, such as warmup then cosine decay | Improves final model quality by starting cautiously and annealing as training matures |
+| **Vanishing Gradient** | A problem where gradients become exponentially small as they propagate back through many layers | Prevents early layers from learning, especially with sigmoid/tanh activations in deep networks |
+| **Exploding Gradient** | A problem where gradients become exponentially large, causing weight updates to destabilise training | Addressed with gradient clipping, which caps the gradient norm at a maximum value |
+| **Gradient Clipping** | Rescaling the gradient vector if its norm exceeds a threshold before applying the update | Prevents exploding gradients from corrupting weights during training |
+| **Residual Connection (Skip Connection)** | A direct additive path that bypasses one or more layers, adding the input directly to the output | Provides a gradient highway that enables very deep networks like ResNets to train effectively |
+| **Weight Initialisation** | Setting the starting values of model weights before training begins | Correct initialisation keeps activation and gradient magnitudes stable across layers |
+| **Xavier / Glorot Initialisation** | Sets weights with standard deviation proportional to the square root of (2 / (fan_in + fan_out)) | Designed for sigmoid/tanh activations; keeps variance stable through the network |
+| **He / Kaiming Initialisation** | Sets weights with standard deviation proportional to the square root of (2 / fan_in) | Designed for ReLU activations; compensates for the half-zeroing effect of ReLU |
+| **Batch Normalisation** | Normalises each feature's activations across the batch dimension during training | Speeds up training and allows higher learning rates; standard in CNNs |
+| **Layer Normalisation** | Normalises each sample's activations across the feature dimension | Batch-size independent; preferred in Transformers and RNNs |
+| **Dropout** | Randomly zeroing a fraction of neuron activations during each training step | Acts as implicit ensemble regularisation; reduces overfitting in large networks |
+| **Epoch** | One complete pass through the entire training dataset | The basic unit for tracking training progress and scheduling learning rate changes |
+| **Mini-Batch** | A small subset of the training data used for one gradient update step | Balances the noise of single-sample SGD with the stability of full-batch gradient descent |
+| **Early Stopping** | Halting training when validation loss stops improving and restoring the best checkpoint | Prevents overfitting without needing to pre-specify the number of epochs |
+| **CNN (Convolutional Neural Network)** | A network architecture that applies learned filters across spatial positions to detect local patterns | The dominant architecture for image recognition, exploiting translation invariance |
+| **Convolution Kernel / Filter** | A small learnable weight matrix that slides over the input to detect a specific local pattern | Shared weights reduce parameters dramatically compared to fully connected layers |
+| **Stride** | The number of pixels a convolution kernel moves between applications | Controls the spatial resolution of the output feature map |
+| **Padding** | Adding zeros around the input border before convolution | Allows control over the output size and avoids shrinking the spatial dimensions |
+| **Pooling** | A downsampling operation (max or average) that reduces the spatial size of feature maps | Introduces translation invariance and reduces computational cost in deeper layers |
+| **Receptive Field** | The region of the input image that influences a particular neuron's activation | Grows with network depth, enabling deep neurons to detect large, complex patterns |
+| **RNN (Recurrent Neural Network)** | A network that maintains a hidden state updated at each step of a sequence | Processes sequential data like text and time series; suffers from vanishing gradients |
+| **LSTM (Long Short-Term Memory)** | An RNN variant with separate cell state and three gates (forget, input, output) to control information flow | Designed to capture long-range dependencies that vanilla RNNs cannot |
+| **GRU (Gated Recurrent Unit)** | A simplified LSTM with only two gates that merges the cell state and hidden state | Similar performance to LSTM but fewer parameters; faster to train |
+| **Encoder-Decoder** | An architecture where an encoder compresses input into a latent vector and a decoder generates output from it | Foundation of sequence-to-sequence models for machine translation and summarisation |
+| **Attention Mechanism** | A method allowing the decoder to look at all encoder hidden states and weight the most relevant ones | Solves the information bottleneck of fixed-length encoder vectors; inspired Transformers |
+| **Embedding** | A dense, low-dimensional vector representation of a discrete token like a word or user ID | Encodes semantic relationships geometrically; learned end-to-end during training |
+| **Transfer Learning** | Reusing weights from a model trained on a large dataset to initialise a model for a new task | Dramatically reduces the data and compute needed to achieve good performance on new tasks |
+| **Fine-Tuning** | Continuing to train a pre-trained model on a new, smaller dataset with a low learning rate | Adapts general knowledge from pre-training to the specific patterns of the target task |
+| **Autoencoder** | A neural network that learns to compress input to a latent code and reconstruct the original | Used for dimensionality reduction, denoising, and anomaly detection |
+| **VAE (Variational Autoencoder)** | An autoencoder that models the latent space as a probability distribution, enabling generation | Allows controlled sampling and interpolation in latent space for generating new data |
+| **ELBO (Evidence Lower Bound)** | The VAE training objective combining reconstruction quality and a regularisation term on the latent space | Maximising ELBO simultaneously trains a good encoder and a structured latent space |
+| **Reparameterisation Trick** | Rewriting a sampled latent variable as a deterministic function of the distribution parameters plus independent noise | Makes sampling differentiable so gradients can flow through the encoder during VAE training |
+| **Posterior Collapse** | A failure mode in VAEs where the encoder ignores the latent code and the decoder reconstructs from context alone | Results in uninformative latent representations; fixed by KL annealing or weaker decoders |
+| **GAN (Generative Adversarial Network)** | A framework where a generator creates fake data and a discriminator learns to tell real from fake | Produces sharp, realistic outputs; prone to mode collapse and training instability |
+| **Mode Collapse** | A GAN failure where the generator produces only a few distinct outputs, ignoring the data's diversity | Caused by the discriminator failing to penalise the generator for lack of variety |
+| **Scaling Laws** | Empirical relationships showing that model performance improves predictably with more data, compute, and parameters | Guide decisions about how to allocate training budgets for large model development |
+
 *Previous: [Classical ML Algorithms](01-classical-ml-algorithms.md) | Next: [Statistics and Probability](03-statistics-and-probability.md)*

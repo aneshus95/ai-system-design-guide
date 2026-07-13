@@ -692,4 +692,37 @@ The goal is to spend evaluation budget where it provides the most signal: on amb
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RAG Triad** | A three-dimensional framework that evaluates Context Relevance, Groundedness, and Answer Relevance independently | Turns the vague complaint "answers are wrong" into a specific, debuggable root cause |
+| **Context Relevance** | The fraction of retrieved chunks that are actually relevant to the user's query | Measures whether the retriever is fetching the right documents |
+| **Groundedness (Faithfulness)** | The fraction of claims in the generated answer that are supported by the retrieved context | Detects hallucination — claims the LLM invented rather than drew from evidence |
+| **Answer Relevance** | How well the final answer addresses the actual question the user asked | Catches tangential answers where retrieval and grounding are fine but the point is missed |
+| **RAGAS** | An open-source evaluation framework providing reference-free metrics for RAG pipelines | Lets teams measure retrieval and generation quality without needing hand-labeled ground truth |
+| **Faithfulness (RAGAS metric)** | Decomposing the answer into atomic claims and checking how many are entailed by the retrieved context | The primary metric for detecting hallucination in generated answers |
+| **Context Precision** | A ranking metric that rewards placing relevant chunks at higher positions in the retrieval list | Measures whether the retriever ranks its best results first |
+| **Context Recall** | The fraction of information from the reference answer that was present in the retrieved context | Requires a ground-truth reference answer; measures how completely retrieval covered the right information |
+| **Recall@K** | The fraction of all relevant documents that appear in the top-K retrieval results | The headline RAG retrieval metric — did the answer chunk even make it into the context? |
+| **Precision@K** | The fraction of the top-K retrieved documents that are actually relevant | Measures how much noise (irrelevant content) is in the retrieved list |
+| **MRR (Mean Reciprocal Rank)** | The average of 1/(rank of first relevant document) across queries | Measures how quickly the first correct result appears — best for single-answer lookups |
+| **NDCG@K** | A ranking metric that rewards placing highly relevant documents at higher positions, normalized to 0–1 | Best metric for graded relevance and for tuning reranker quality |
+| **LLM-as-Judge** | Using an LLM to score another LLM's output against a rubric | Scales evaluation to large volumes where human annotation is too slow or expensive |
+| **Verbosity Bias** | The tendency of LLM judges to rate longer answers higher regardless of quality | A known failure mode of LLM-as-judge that must be mitigated with normalization or conciseness penalties |
+| **Self-Preference Bias** | A model's tendency to rate outputs from the same model family more favorably | Why the judge model should always come from a different provider than the generator |
+| **Position Bias** | LLM judges rating the first option in a comparison higher regardless of content | Mitigated by randomizing presentation order in A/B evaluations |
+| **Cohen's Kappa** | A statistic measuring agreement between two raters beyond chance | Used to calibrate LLM judges against human annotators; target > 0.7 |
+| **Golden Test Set** | A curated, versioned set of (query, expected context, expected answer) triples | The ground truth for regression testing after every pipeline change |
+| **Synthetic Test Generation** | Using an LLM to generate (query, answer) pairs from corpus documents | Bootstraps a test set when no human-labeled data exists |
+| **Regression Testing** | Automatically re-running the golden test set after every code or config change | Prevents silent quality degradation from embedding swaps, prompt edits, or chunking changes |
+| **ROUGE** | An n-gram overlap metric comparing a generated summary to a reference | A fast, cheap baseline for summarization quality; cannot detect hallucination |
+| **BERTScore** | A semantic similarity metric comparing generated and reference text at the embedding level | Better than ROUGE on paraphrase but still cannot catch hallucination |
+| **NLI (Natural Language Inference)** | A model task that determines whether one sentence is entailed by, contradicts, or is neutral to another | Used for faithfulness checking by testing whether each answer claim is entailed by retrieved context |
+| **DataMorgana** | A tool for generating synthetic test data for RAG evaluation | Augments small human-labeled golden sets with diverse question types |
+| **Quality Gate** | A threshold on a metric (e.g., Recall@10 > 0.85) that blocks a code change from merging if not met | Enforces minimum retrieval and generation quality as part of CI/CD |
+| **Noise Sensitivity** | How much irrelevant retrieved context degrades the generator's answer quality | Measures robustness — a high-quality system should ignore noise, not be misled by it |
+
 *Previous: [Multi-Modal RAG](12-multimodal-rag.md) | Next: Coming Soon*

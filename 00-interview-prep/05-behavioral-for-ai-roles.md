@@ -442,4 +442,39 @@ Before your behavioral interviews:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **STAR-L** | A behavioral answer framework: Situation, Task, Action, Result, Learnings. | Structures stories about past experience so they are concise, quantified, and show a growth arc. |
+| **Responsible AI** | A set of practices for building AI systems that are fair, safe, transparent, and respectful of privacy. | Increasingly a formal interview theme at frontier labs; answers must show both awareness and practical mitigation. |
+| **Bias (in ML)** | Systematic errors in a model's outputs that favor or disadvantage certain groups, often inherited from training data. | The root cause of fairness failures (e.g. lower recall for state-school graduates in a resume screener). |
+| **Fairness metrics** | Quantitative measures of how consistently a model performs across demographic subgroups. | Make ethical concerns concrete and actionable; companies screening for bias must track these in evaluation. |
+| **Cold start problem** | When a recommendation or personalization system performs poorly for new users who have no history. | A common failure mode for ML products that perform well in testing (high-engagement users) but poorly on new cohorts. |
+| **Stratified testing** | Ensuring a test or validation set includes representative samples from all relevant subgroups (e.g. user types, demographics). | Prevents the mistake of evaluating only on high-engagement or majority-group users and missing real-world performance gaps. |
+| **A/B testing** | Running two system versions simultaneously on real user traffic and measuring which performs better on outcome metrics. | The production validation standard for ML changes; offline metrics alone are insufficient to confirm user impact. |
+| **Semantic search** | Finding results that match the meaning of a query rather than exact keywords. | The upgrade over keyword search that launched the use case in the behavioral example; enabled by embedding models. |
+| **Embedding** | Converting text into a numerical vector that represents semantic meaning. | The technical mechanism behind semantic search; choosing an embedding model is a key design decision. |
+| **RAG (Retrieval-Augmented Generation)** | Fetching relevant documents at query time and including them in the LLM prompt so the model answers from real data. | A core architecture pattern that AI engineers are expected to have hands-on production experience with. |
+| **Prototype** | A quick working implementation built to demonstrate options and gather feedback before committing to a full build. | Used to resolve ambiguity by showing stakeholders concrete tradeoffs rather than discussing abstract features. |
+| **Recall (in retrieval)** | The fraction of all relevant documents that the retrieval system actually returns. | Measured the gap in the behavioral example: the new search system had 40% lower engagement partly due to poor coverage. |
+| **Retrieval pipeline** | The sequence of steps (query encoding, vector search, optional reranking) used to find relevant chunks for a given query. | A common subject of behavioral stories since retrieval quality is the single biggest determinant of RAG system quality. |
+| **Code-aware chunking** | Splitting code documents at function, class, or logical block boundaries rather than arbitrary token counts. | The fix in the behavioral example: splitting mid-function broke code context and caused poor answers to coding questions. |
+| **Confidence score** | A numerical estimate of how certain the model or retrieval system is about a given output. | Useful as a displayed signal so users know when to verify the answer; also used to route low-confidence responses for review. |
+| **Hallucination** | When an LLM generates confident but factually incorrect or unsupported statements. | The failure mode that AI-specific behavioral questions about retrieval failures, bias, and ethics often trace back to. |
+| **Prompt injection** | An attack where malicious content in user input or retrieved documents overrides the model's system instructions. | Mentioned in security-focused behavioral stories; the key defense is least-privilege tool scopes and audit logging. |
+| **Blast radius** | The scope of damage if a security vulnerability or bug is exploited (e.g. which systems and data are affected). | Used to quantify and communicate risk in security-concern behavioral stories; makes abstract threats concrete. |
+| **Audit log** | A tamper-evident record of all operations, who performed them, and when. | Required for compliance and also the safety net cited in the behavioral story about over-broad agent permissions. |
+| **Least-privilege** | Giving a system or agent only the minimum permissions it needs to perform its task. | The security principle that should have been applied in the permissions behavioral story; limits blast radius. |
+| **Long-context approach** | Loading the entire knowledge base into the LLM's context window instead of using a retrieval pipeline. | Explored in the "being wrong" behavioral example; eliminated RAG overhead but collapsed under high update frequency and cost. |
+| **Cache hit rate** | The fraction of requests served from a cache without re-computation. | The metric that exposed the long-context architecture's failure: the prefix cache stopped hitting when documents updated frequently. |
+| **Kill criteria** | Explicit pre-defined conditions under which a decision or architecture will be reversed. | Recommended practice from the "being wrong" behavioral story: attach them to your own proposals so walking back is a checkpoint, not a confession. |
+| **Bar raiser** | An interviewer (often cross-functional) whose role is to ensure the candidate meets or exceeds the bar of the existing team. | Common at Amazon and Anthropic-style loops; behavioral answers must hold up to probing follow-up questions. |
+| **Leveling** | The process of deciding which job level a candidate maps to, which determines scope, pay band, and equity. | Relevant to the compensation questions section; candidates should ask how the role is leveled and what separates adjacent levels. |
+| **TC (Total Compensation)** | The full value of pay including base salary, annual bonus, and equity grants. | The standard metric for comparing job offers at technology companies; base salary alone is misleading at high-equity firms. |
+| **Mission alignment** | Whether a candidate's personal values and goals are consistent with the company's stated mission. | Explicitly screened at Anthropic in a dedicated behavioral and values round; a surface-level answer is a red flag. |
+| **Cross-functional collaboration** | Working effectively with people from different disciplines (research, product, legal, operations) who have different priorities. | A major behavioral theme for senior AI roles because AI projects inherently span these functions. |
+
 *See also: [Question Bank](01-question-bank.md) | [Answer Frameworks](02-answer-frameworks.md) | [Common Pitfalls](03-common-pitfalls.md)*

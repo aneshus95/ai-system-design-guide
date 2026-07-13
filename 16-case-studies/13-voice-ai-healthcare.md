@@ -202,4 +202,34 @@ A: We have a "completeness check" that verifies the note includes all extracted 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **HIPAA (Health Insurance Portability and Accountability Act)** | US law requiring strict privacy and security protections for patient health information | Drives the on-premise deployment decision to keep data inside the hospital network |
+| **PHI (Protected Health Information)** | Any patient data that can identify an individual, such as name, diagnosis, or visit date | Must never leave the hospital network unencrypted; governs the entire architecture |
+| **BAA (Business Associate Agreement)** | A contract between a healthcare provider and a vendor ensuring HIPAA-compliant data handling | Required before any cloud vendor can process PHI |
+| **EHR (Electronic Health Record)** | A digital system that stores a patient's medical history, notes, orders, and test results | The destination where the AI-generated clinical notes must be stored |
+| **Epic / Cerner** | Two dominant EHR software platforms used by hospitals | The specific systems this voice assistant must integrate with |
+| **VAD (Voice Activity Detection)** | Software that detects when someone is speaking versus when there is silence or noise | Reduces wasted ASR processing by only transcribing real speech |
+| **ASR (Automatic Speech Recognition)** | Software that converts spoken audio into written text | The first processing step that turns a nurse's spoken words into a transcript |
+| **Whisper Large v3** | An open-source ASR model developed by OpenAI, notable for accuracy in noisy environments | Chosen for on-premise deployment because it handles hospital background noise well |
+| **Speaker Diarization** | The process of identifying and labeling which speaker said each segment of audio | Essential for distinguishing nurse observations from patient-reported symptoms |
+| **Pyannote** | An open-source Python library for speaker diarization | Tool used to segment the audio by speaker before role identification |
+| **Voiceprint** | A mathematical representation of a person's unique vocal characteristics | Used to map audio segments to the "nurse" or "patient" role |
+| **NER (Named Entity Recognition)** | A model that identifies and classifies specific terms (like drug names or symptoms) in text | Extracts structured medical data from free-form speech before the LLM runs |
+| **BioBERT** | A BERT-based language model fine-tuned on biomedical text | Chosen for medical NER because it understands clinical terminology accurately |
+| **SOAP Note** | A structured clinical documentation format: Subjective, Objective, Assessment, Plan | Standard note format used by clinicians; the output format of the AI assistant |
+| **FHIR (Fast Healthcare Interoperability Resources)** | A standard for representing and exchanging electronic health information | Allows the AI-generated note to be imported into Epic/Cerner as a proper record |
+| **Confidence Threshold** | A minimum quality score below which the ASR output is flagged for nurse review rather than accepted | Prevents low-quality transcriptions from silently entering the clinical record |
+| **Keyword Spotting** | Detecting specific important words (like medical terms) in an audio stream with high accuracy | Improves ASR accuracy for medical terminology that standard models may misrecognize |
+| **On-Premise Deployment** | Running software on servers physically located within the hospital rather than in the cloud | Required by HIPAA to ensure PHI never leaves the controlled network |
+| **PRN / BID** | Latin abbreviations for medication schedules: "as needed" and "twice daily" | Common clinical shorthand that must be correctly expanded in notes |
+| **Custom Vocabulary** | A list of domain-specific terms added to an ASR or LLM model to improve recognition | Ensures medical abbreviations and drug names are transcribed and rendered correctly |
+| **Completeness Check** | A validation step confirming every entity extracted by NER appears in the final SOAP note | Catches cases where the LLM inadvertently omits a clinically important detail |
+| **Mandatory Reporting Trigger** | A safety-critical detector that flags legal obligations such as abuse or suicidal ideation | Ensures the AI does not silently process legally required interventions |
+| **Latency Budget** | The total allowable response time broken into per-stage targets | Drives every technical choice to meet the 500ms real-time transcription goal |
+
 *Related chapters: [Model Taxonomy](../02-model-landscape/01-model-taxonomy.md), [Reliability Patterns](../13-reliability-and-safety/03-reliability-patterns.md)*

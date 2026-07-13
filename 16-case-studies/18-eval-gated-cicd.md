@@ -251,4 +251,34 @@ The temptation is to roll all axes into one number and gate on it. We do not. A 
 - [Argilla annotation platform](https://docs.argilla.io/)
 - [pytest-html report integration](https://pytest-html.readthedocs.io/)
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Eval-Gated CI/CD** | A continuous integration pipeline that requires AI quality evaluations to pass before a code change can be merged | Catches prompt or logic regressions before they reach production users |
+| **Golden Set** | A fixed, curated collection of test cases with known expected outputs used to evaluate model quality | Provides a stable benchmark for detecting regressions across code changes |
+| **LLM-as-Judge** | Using a language model to score the quality of another model's outputs on subjective dimensions | Scales evaluation to thousands of cases without equivalent human annotation cost |
+| **Code-Based Evaluator** | A deterministic assertion (e.g., JSON schema check, regex match) that scores an output without an LLM | Fast, cheap, and unambiguous for checking structural or factual correctness |
+| **Statistical Correction** | Adjusting a raw judge score using the judge's known error rate to produce an unbiased quality estimate | Prevents gating decisions from being driven by judge noise rather than real regressions |
+| **judgy** | An open-source library that applies statistical correction to LLM-as-judge scores and returns confidence intervals | The tool used to convert biased judge scores into actionable, statistically sound estimates |
+| **Confidence Interval (CI)** | A range of values within which the true quality score is likely to fall at a given probability level | Used to gate merges: block only when the lower bound of the CI falls below tolerance |
+| **Failure-Mode Taxonomy** | A structured set of categories describing the ways an AI system can fail (hallucination, retrieval-miss, format error, etc.) | Enables per-axis gating so a hallucination regression cannot be hidden by format improvements |
+| **Stratified Sampling** | Sampling test cases so that every failure-mode category is proportionally represented in each PR run | Ensures partial eval runs still cover all known failure patterns |
+| **Cohen's Kappa** | A statistical measure of agreement between two raters that corrects for chance agreement | Used to verify that human annotators and the LLM judge agree reliably |
+| **Train/Dev/Test Split for the Judge** | Dividing human-labeled cases into sets for tuning, selecting, and validating the judge prompt | Prevents the judge prompt from overfitting to the same examples used to measure it |
+| **Judge-Prompt Drift** | Gradual degradation in a judge prompt's accuracy, often caused by updates to the underlying judge model | Must be monitored monthly; if unchecked it leads to false passes or false blocks |
+| **Held-Out Set** | A subset of test cases kept completely hidden from engineers and used only for final validation | Prevents implicit prompt tuning toward known test cases, preserving eval integrity |
+| **Inter-Judge Agreement** | A measure of whether two different judge prompts give the same score to the same outputs | Signals drift when the two prompts start diverging over time |
+| **Block Rate** | The percentage of PRs that are rejected by the eval gate | An SLI in its own right; too high causes developers to ignore the gate, too low means real regressions slip through |
+| **Open-Coding** | An analysis technique where reviewers label individual production failures with descriptive tags before grouping them | First step in building a failure-mode taxonomy from real errors |
+| **Axial Coding** | Grouping open-coded failure labels into structured categories and relationships | Produces the formal taxonomy used as the axis list in the eval pipeline |
+| **RAG Pipeline** | A Retrieval-Augmented Generation pipeline that retrieves relevant documents then generates answers | The core AI system whose quality the eval pipeline guards |
+| **Agent Loop** | An autonomous reasoning cycle where an LLM plans, calls tools, and iterates until a task is complete | Part of the product under evaluation; subject to multi-step failure modes not covered by single-turn evals |
+| **PR (Pull Request)** | A proposed code change submitted for review before merging into the main branch | The unit of work that triggers the eval gate |
+| **Nightly Cron** | A scheduled job that runs the full eval set against the main branch every night | Catches any drift that per-PR partial sampling may have missed |
+| **Eval Cost Budget** | A per-PR spending cap on model inference used to run evaluations | Forces stratified sampling instead of full runs on every PR to keep costs viable |
+| **Argilla** | An open-source data annotation platform | Used for human re-labeling sessions that calibrate the LLM judge |
+
 Related chapters: [Evaluation and Observability](../14-evaluation-and-observability/01-llm-evaluation.md), [Reliability and Safety](../13-reliability-and-safety/01-guardrails.md), [AI Evals Comprehensive Guide](../ai_evals_comprehensive_study_guide.md).

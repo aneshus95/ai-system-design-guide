@@ -138,4 +138,30 @@ The key is to **separate the orchestration layer from the model layer**. I use a
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Decision Matrix** | A structured table that maps requirements to framework choices based on explicit criteria. | Removes subjective guesswork from framework selection by anchoring the decision to concrete production requirements. |
+| **Framework Bloat** | The tendency for frameworks to add unnecessary abstractions, dependencies, and complexity over time. | Understanding this risk helps teams choose the leanest tool that solves their actual problem. |
+| **Framework Tunnelling** | The anti-pattern of forcing a use case into a framework that is a poor fit for it. | Highlights the importance of matching the tool's strength to the problem shape before committing to a framework. |
+| **Golden Hammer** | The anti-pattern of using a familiar tool for every problem regardless of fit. | Warns against defaulting to a popular framework like LangChain when a simpler solution would be faster and cheaper. |
+| **LLOps Layer** | The observability and evaluation infrastructure for LLM systems, analogous to MLOps for traditional ML. | Provides the monitoring, tracing, and evaluation capabilities needed to operate a production AI system safely. |
+| **MCP (Model Context Protocol)** | An open standard interface for connecting agents to external tools. | Enables portability: the same MCP server works with any agent SDK, avoiding vendor lock-in at the tool layer. |
+| **A2A Protocol (Agent-to-Agent)** | An open standard for communication between agents from different vendors or frameworks. | Provides vendor-neutral agent coordination across organizational boundaries. |
+| **LiteLLM** | A proxy library that translates calls to many different LLM provider APIs into a single unified interface. | Allows teams to switch between OpenAI, Anthropic, Gemini, and local models without rewriting call sites. |
+| **Universal Model Gateway** | A service that sits in front of multiple LLM providers and exposes a single API to the application. | Decouples the application from specific model providers, enabling cost-driven or capability-driven model routing. |
+| **Vendor Lock-in** | A situation where a system is so dependent on a specific provider's tools that switching to another is prohibitively costly. | Understanding this risk motivates using open standards (MCP, A2A) and abstraction layers at provider boundaries. |
+| **State Persistence** | The ability to save and restore the current state of a workflow so it can resume after an interruption. | Required for long-running agent workflows that span multiple sessions or days. |
+| **Bayesian Prompt Optimization** | A statistical search method used by DSPy to find optimal prompt text by sampling candidate prompts intelligently. | Produces reliable prompts with fewer LLM calls than exhaustive search, lowering compilation cost. |
+| **Vector-Graph Linking** | An indexing approach that connects embedding-based vector chunks to structured graph nodes. | Enables retrieval that combines semantic similarity with structured relational reasoning. |
+| **CI/CD Pipeline** | The automated sequence of steps that build, test, and deploy software changes. | Provides the infrastructure into which autonomous coding agents (Claude Code, OpenHands) can be embedded. |
+| **Autonomous Coding Agent** | A software agent that can read a codebase, write code, run tests, and iterate until a task is complete without human assistance at each step. | Represents a new category of tool that operates at the file-system level above the LLM API. |
+| **OpenHands** | An open-source autonomous coding agent that runs in a Docker sandbox and supports any LLM backend. | Provides a self-hostable alternative to Claude Code for teams with open-source or data-privacy requirements. |
+| **Cline** | An open-source VS Code extension that acts as an autonomous coding agent with full MCP support. | Gives developers a free, model-flexible coding agent embedded directly in their editor. |
+| **Pure RAG** | A system architecture where the only AI workflow is retrieving relevant documents and generating a response. | The simplest agentic pattern; when this is the full scope, LlamaIndex is typically the best fit. |
+| **DSPy Signature** | A declarative class that defines a task's inputs and outputs without specifying the prompt text. | Provides the model-agnostic task definition that DSPy compiles into optimized prompts for any LLM. |
+
 *Next: [Navigating Framework Churn](12-navigating-framework-churn.md)*

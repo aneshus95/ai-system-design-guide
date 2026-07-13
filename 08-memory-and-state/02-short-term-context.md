@@ -79,4 +79,31 @@ It forces me to move **Static content to the front** and **Dynamic content to th
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **KV Cache** | Pre-computed key-value attention matrices stored on GPU memory so unchanged tokens are not reprocessed on each call | The primary mechanism for reducing latency and compute cost in repeated or shared-prefix requests |
+| **Dynamic Context Allocation** | Adjusting how many tokens are reserved for different parts of the prompt (history, tools, system prompt) based on real-time conditions | Maximises useful information within a fixed token budget |
+| **PagedAttention** | An inference technique (used in vLLM) that stores KV cache in non-contiguous memory pages like an OS pager | Cuts GPU memory fragmentation by 60-80%, enabling larger batches and longer contexts on the same hardware |
+| **vLLM** | An open-source LLM inference server that implements PagedAttention for efficient GPU memory use | The most widely used high-throughput inference engine for self-hosted models |
+| **TensorRT-LLM** | NVIDIA's optimised inference library that compiles LLM models into highly efficient GPU kernels | Used in production for maximum throughput and minimum latency on NVIDIA hardware |
+| **Prefix Caching** | Storing and reusing the KV cache for the static leading portion of every prompt (e.g., system prompt and tool schemas) | Eliminates redundant compute on tokens that are identical across requests |
+| **Static Prefix** | The part of a prompt that never changes between requests, such as rules or tool definitions | Should always appear first in the prompt so its KV cache can be shared across all users |
+| **Dynamic Content** | The part of the prompt that differs per request or user, such as recent message history | Should be placed at the end of the prompt to avoid invalidating the cached prefix |
+| **Sliding Window** | Keeping only the last N tokens of conversation history and discarding older tokens | Maintains a constant context size with zero compression overhead, at the cost of forgetting early turns |
+| **Summarisation** | Compressing older conversation turns into a concise text block using an LLM | Preserves key facts from early turns while freeing tokens for new content |
+| **Hybrid Context Strategy** | Combining a sliding window for recent turns with a summarised block for older history | Balances fidelity of recent content with retention of important earlier facts |
+| **Contextual Compression** | Automatically removing low-value content (e.g., agent thought traces) from the context before each call | Frees tokens for content that actually affects the model's response quality |
+| **Token Pruning** | Using a smaller model to rewrite a long user message into a shorter semantically equivalent version before sending it to the main model | Cuts input token cost while preserving the user's intent |
+| **Prompt Hardening** | Structuring prompts so they resist token bloat and cache invalidation as conversations grow | Keeps latency and cost stable across long sessions |
+| **Model Context Window** | The hard architectural limit on how many tokens an LLM can process in one call (e.g., 128K for GPT-4o) | Sets the absolute ceiling; engineers must manage usage within this limit |
+| **Application Context Window** | The engineer-configured token budget, typically smaller than the model limit, used in production | Controls latency and cost by preventing over-large prompts even when the model could handle more |
+| **Buffer Zone** | A portion of the context window deliberately left empty to accommodate the model's output tokens | Prevents the model from being cut off mid-response due to a full context |
+| **Attention Overhead** | The compute cost of self-attention, which grows quadratically with context length | The core reason that using fewer tokens is almost always faster and cheaper |
+| **Eviction** | Removing older tokens from the active context to make room for new ones | The mechanism that enforces context window limits during long conversations |
+| **Memory Fragmentation** | Wasted GPU memory gaps that arise when attention tensors are allocated as contiguous blocks | PagedAttention was invented to eliminate this and increase effective memory utilisation |
+
 *Next: [Long-Term Memory](03-long-term-memory.md)*

@@ -250,4 +250,35 @@ We hold SOC 2 Type II and are certified for ISO 27001. Customer audit packs incl
 - [SGLang adapter swapping](https://github.com/sgl-project/sglang)
 - [Kubernetes Multi-Tenancy WG patterns](https://github.com/kubernetes-sigs/multi-tenancy)
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **LoRA (Low-Rank Adaptation)** | A fine-tuning technique that trains only a small set of additional weight matrices instead of the full model | Produces tiny per-tenant adapters (~120 MB) that share a single large base model |
+| **QLoRA** | LoRA applied to a quantized (compressed) base model, further reducing memory requirements | Enables fine-tuning on fewer GPUs by combining quantization and low-rank adaptation |
+| **LoRA Rank (r)** | A hyperparameter controlling how many parameters the adapter learns; higher rank = more capacity | Tuned to r=16 as the sweet spot between accuracy gain and artifact size |
+| **Adapter** | The small set of weight matrices trained per tenant that are applied on top of the shared base model | Personalizes model behavior for each tenant without duplicating the full model |
+| **Base Model** | The large pre-trained model (e.g., Llama 4 70B) shared across all tenants | Reduces serving cost by amortizing the large model across hundreds of tenants |
+| **vLLM** | A high-throughput LLM inference engine with multi-LoRA support and PagedAttention | Serves one base model with many adapters simultaneously on shared GPU hardware |
+| **PagedAttention** | A memory management technique in vLLM that allocates KV cache in fixed-size blocks per request | Prevents KV cache cross-contamination between tenants sharing the same GPU |
+| **KV Cache** | The stored key-value pairs from the attention layers, reused to avoid recomputing them on each token | Must be request-scoped (not adapter-scoped) to be safely shared across tenants |
+| **Multi-LoRA Serving** | Running inference on a single base model while swapping different LoRA adapters per request | Makes it economical to serve hundreds of per-tenant models from shared GPU hardware |
+| **Adapter Hot-Swap** | Loading a LoRA adapter from storage into GPU memory on demand when a request arrives | Required when the adapter is not already resident in the LRU cache |
+| **LRU Cache (Least Recently Used)** | A cache eviction policy that removes the adapter that was accessed least recently when space is needed | Keeps frequently used adapters in GPU memory to minimize cold-start latency |
+| **Noisy-Neighbor Problem** | When one tenant's traffic spike causes other tenants' adapters to be evicted from cache, hurting their latency | A core multi-tenancy risk mitigated by rate limits, pinning, and eviction protection |
+| **Tail-Tenant Pinning** | Permanently keeping the highest-SLA tenants' adapters in GPU memory so they are never evicted | Guarantees latency for priority tenants regardless of traffic from other tenants |
+| **Token Bucket** | A rate-limiting mechanism that allows bursts up to a fixed size but enforces an average request rate | Prevents a single bursty tenant from monopolizing GPU resources |
+| **DeepSpeed ZeRO-3** | A distributed training optimization that shards model weights, gradients, and optimizer states across GPUs | Makes it feasible to fine-tune 70B models across 8 H100s with limited per-GPU memory |
+| **Eval-as-PRD** | Treating a tenant's golden evaluation set as the product requirements document that a new adapter must pass | Ensures each adapter meets tenant-specific quality standards before going to production |
+| **Golden Set** | A curated set of input-output pairs labeled by domain experts used to measure model quality | The authoritative quality gate for adapter promotion and regression detection |
+| **int8 Quantization** | Storing model weights using 8-bit integers instead of 32-bit floats, roughly halving memory use | Allows the 70B base model to fit in ~40 GB of GPU memory on an H100 |
+| **H100** | NVIDIA's flagship data-center GPU commonly used for large-model training and inference | The hardware on which training jobs and the serving plane run |
+| **KMS Key (Key Management Service)** | A cloud-managed cryptographic key used to encrypt data at rest | Per-tenant KMS keys ensure a data breach of one tenant's artifacts does not expose others |
+| **Kubernetes Namespace** | A logical partition within a Kubernetes cluster that isolates workloads from each other | Ensures per-tenant training jobs cannot access another tenant's data or compute |
+| **Network Policy** | A Kubernetes rule that controls which pods can communicate with each other | Prevents a training job from exfiltrating data to unauthorized destinations |
+| **Base-Model Refresh** | The process of re-training all tenant adapters against a new base model version | Required when the base model is upgraded to keep adapters compatible |
+| **SHA-256 Checksum** | A cryptographic hash of a file used to verify its integrity | Detects adapter corruption during S3 download before it reaches the serving plane |
+
 Related chapters: [LoRA and Fine-Tuning](../03-training-and-adaptation/03-lora-qlora-peft.md), [Multi-Tenant Isolation](../12-security-and-access/02-access-control.md), [Inference Optimization](../04-inference-optimization/01-inference-fundamentals.md).

@@ -493,4 +493,38 @@ The main risk is incorrect amount extraction leading to wrong payments. I would 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Straight-through processing rate** | The percentage of tasks completed by the agent without any human intervention | The primary efficiency metric for automation; 85–90% is a strong production benchmark |
+| **HITL (Human-in-the-Loop)** | A design pattern requiring a human to review and approve an agent's action before it executes | The essential safety gate for high-risk or regulated actions that the agent must not take autonomously |
+| **Planner + Coder + Tester loop** | A multi-agent workflow where one agent designs a solution, another implements it, and a third validates it | A proven pattern for autonomous code generation that mirrors how software teams work |
+| **AST (Abstract Syntax Tree)** | A tree representation of source code structure used by tools for analysis and transformation | Enables agents to understand and refactor code structurally rather than treating it as plain text |
+| **CI/CD pipeline** | Continuous Integration / Continuous Deployment; automated systems that build, test, and deploy code | The environment where developer-productivity agents (build failure triage, canary monitoring) operate |
+| **Canary deployment** | Releasing a new software version to a small percentage of users first to catch problems before full rollout | A deployment risk management pattern; agents can monitor metrics and trigger automatic rollback |
+| **Infrastructure-as-code (Terraform/Pulumi)** | Defining cloud infrastructure in configuration files rather than manual console clicks | Agents can generate and apply these files to provision or modify infrastructure autonomously |
+| **OCR (Optical Character Recognition)** | Software that converts scanned images or PDFs into machine-readable text | The first stage in document processing pipelines; agents use it to extract structured data from invoices and forms |
+| **ERP (Enterprise Resource Planning)** | A category of business software (e.g., SAP, Oracle) that manages finance, inventory, and operations | A common target for computer-use and API-based agents doing data entry and reconciliation |
+| **SAP Business One** | A popular ERP platform for small and mid-sized businesses | Referenced in the logistics case study as the enterprise system OpenClaw agents connected to |
+| **Prompt injection** | An attack where malicious instructions embedded in external data (emails, invoices) hijack the agent's behavior | A real incident in the logistics case study caused by crafted text in a supplier invoice description |
+| **NemoClaw** | Nvidia's security add-on for OpenClaw that flags anomalous tool invocations and prompt injection attempts | Caught the prompt injection attack in the logistics case study before it resulted in an unauthorized purchase order |
+| **SOUL.md** | An OpenClaw configuration file defining the agent's personality, boundaries, and behavioral guidelines | Must include explicit capability limits to prevent agents from promising or attempting actions outside their toolset |
+| **COBOL** | A legacy programming language from the 1960s still used in financial and insurance mainframe systems | A major target for AI-assisted modernization due to the shortage of COBOL developers and volume of existing code |
+| **COMP-3 packed decimal** | A COBOL data type for storing decimal numbers in a compact binary format | A frequent source of subtle bugs when AI agents translate COBOL financial logic to modern languages |
+| **Parallel-run validation** | Running the old and new system simultaneously on identical data and comparing outputs | Non-negotiable for financial system migrations to catch translation errors before cutover |
+| **VSAM (Virtual Storage Access Method)** | IBM's file storage system used in legacy mainframe environments | The data format that needed to be migrated to PostgreSQL in the insurance legacy migration case study |
+| **Dodd-Frank / MiFID II / EMIR** | US and EU financial regulations that require specific trade reporting obligations | The regulatory frameworks the compliance multi-agent system needed to classify and report against |
+| **Dead-letter queue** | A message queue where failed items are routed after exhausting retries, for later human review | An essential reliability pattern for high-volume document processing pipelines |
+| **Inter-agent message schema** | A strict data format contract that all messages between agents in a multi-agent system must conform to | The absence of this was the root cause of the jurisdiction code corruption failure in the compliance case study |
+| **Rubber-stamping** | When human reviewers approve agent actions without actually reviewing them, making HITL gates ineffective | A critical failure mode discovered in the compliance case study after six months of operation |
+| **CAGR (Compound Annual Growth Rate)** | The year-over-year growth rate of a market expressed as a percentage | Used to characterize the 45% growth rate of the AI agents market in 2025–2026 |
+| **Replit database deletion incident** | A July 2025 incident where an AI coding agent erased a production database because it lacked a development/production separation | A widely cited cautionary tale demonstrating why agents must never have production write access during development |
+| **Memory injection attack** | An attack that corrupts an agent's long-term memory with false beliefs, causing it to make wrong future decisions | Demonstrated by Lakera AI in 2025; requires agents to track provenance of stored facts |
+| **Supply-chain attack (skills)** | Malicious code introduced through a third-party agent skill or plugin | A documented vector in the OpenClaw ecosystem; Cisco found data exfiltration in a community skill |
+| **Dual extraction** | Running two separate model calls on the same data and comparing results before accepting the value | A high-reliability technique for critical fields like invoice amounts where a single error has financial consequences |
+| **Tier 0 / Tier 1 / Tier 2 support** | A support escalation ladder from fully automated (Tier 0) through agent-assisted (Tier 1) to human-with-agent-copilot (Tier 2) | The standard pattern for deploying customer support agents while managing reputational risk |
+
 *Next: [Safety and Governance](07-safety-and-governance.md)*

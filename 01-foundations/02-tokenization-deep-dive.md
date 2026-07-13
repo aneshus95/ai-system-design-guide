@@ -611,4 +611,44 @@ for chunk in ranked_chunks:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Token** | The basic unit a language model processes — can be a word, part of a word, or a single character | Every LLM input and output is measured in tokens; they determine cost and context usage |
+| **Tokenizer** | The program that converts raw text into a sequence of token IDs the model can read | Must be run on every input before calling a model and on every output to decode results |
+| **Byte Pair Encoding (BPE)** | A bottom-up algorithm that repeatedly merges the most frequent adjacent token pair until a target vocabulary size is reached | Produces compact, frequency-driven subword vocabularies; used by GPT, Llama, and Claude |
+| **WordPiece** | A bottom-up algorithm like BPE but merges pairs based on likelihood gain rather than raw frequency | Captures linguistically meaningful units more reliably than pure frequency; used in BERT |
+| **Unigram (SentencePiece)** | A top-down algorithm that starts with all possible substrings and prunes the least useful ones | Can produce multiple valid segmentations of the same word; used in T5 and multilingual models |
+| **Subword Tokenization** | Splitting text into units smaller than words but larger than characters based on learned merge rules | Balances vocabulary size against sequence length; handles rare and OOV words gracefully |
+| **Byte-Level BPE** | BPE that operates on raw bytes (256 base tokens) instead of characters | Eliminates UNK tokens entirely; any text is representable; introduced in GPT-2 |
+| **Vocabulary** | The fixed set of all tokens a model recognizes, each assigned a unique integer ID | Determines what text the model can represent and influences compression efficiency |
+| **Vocabulary Size** | The total number of distinct tokens in a tokenizer (e.g., 32K, 128K, 200K) | Larger vocabularies compress text more efficiently but require larger embedding tables |
+| **Merge Rules** | The ordered list of pair-merging operations learned during BPE or WordPiece training | Applied at inference time to reproduce the exact same segmentation as during training |
+| **Subword Regularization** | Randomly sampling alternative valid segmentations of words during training | Improves model robustness to different ways the same word might be tokenized |
+| **OOV (Out-of-Vocabulary)** | A word or character the tokenizer has never seen and cannot represent with a known token | Handled by splitting into smaller subwords or bytes; byte-level BPE eliminates OOV entirely |
+| **UNK Token** | A special token used as a catch-all fallback for characters or words not in the vocabulary | Common in character and word tokenizers; rare or absent in modern byte-level tokenizers |
+| **BOS Token** | Beginning-of-Sequence special token that signals the start of a text | Tells the model where a new input begins; required by most modern chat models |
+| **EOS Token** | End-of-Sequence special token that signals the model to stop generating | Primary stopping condition during autoregressive generation |
+| **PAD Token** | Padding token used to fill sequences to equal length within a batch | Required for efficient batched computation on GPUs where all sequences must be the same length |
+| **SEP Token** | Separator token used to divide distinct segments within a single input | Structural token in BERT-style models to separate question from context, for example |
+| **Chat Template** | A model-specific formatting pattern that wraps system prompts, user messages, and assistant turns with special tokens | Without correct formatting, models produce degraded outputs; templates vary across model families |
+| **ChatML** | OpenAI's conversation formatting standard using `<|im_start|>` and `<|im_end|>` markers | Widely adopted chat template format; used by many open-source models |
+| **Context Window** | The maximum number of tokens a model can process at once (input + output combined) | Hard limit on how much text a model can "see"; exceeding it truncates input |
+| **Token Count** | The number of tokens in a given piece of text after tokenization | Determines API cost and whether the text fits within the model's context window |
+| **tiktoken** | OpenAI's open-source tokenizer library for GPT model families | Used for accurate token counting when building cost estimates and context management |
+| **Compression Ratio** | The ratio of bytes (or words) to tokens for a given text and tokenizer | Higher compression means fewer tokens per word; better for cost and fitting more text in context |
+| **Multilingual Tokenization** | Tokenizing text in languages other than the training-majority language | Non-English text often uses 2–6× more tokens than equivalent English, increasing API cost |
+| **Image Tokenization** | Converting image patches into a sequence of visual tokens via a vision encoder | Enables multimodal models to process images and text in a unified token sequence |
+| **SigLIP** | A vision encoder model architecture used to convert image patches into visual token embeddings | Common component in native multimodal models for producing high-quality visual tokens |
+| **EnCodec** | A neural audio codec that compresses audio into discrete token sequences | Used for audio tokenization in multimodal models; enables text-like processing of sound |
+| **Token Boundary** | The exact character position where one token ends and the next begins | Splitting text mid-token corrupts decoding; chunking must respect token boundaries |
+| **Token Budget** | A planned allocation of context-window tokens across system prompt, history, retrieved context, and output | Prevents context overflow and helps predict cost before making an API call |
+| **Chunking** | Splitting long documents into smaller segments before embedding or sending to a model | Required when documents exceed model context limits; overlap preserves cross-chunk context |
+| **Context Caching** | Pre-computing and storing KV tensors for a fixed long prefix across multiple requests | Reduces TTFT and cost by 50–90% for repeated system prompts or documents |
+| **Perplexity** | A measure of how well a language model predicts a test corpus; lower is better | Standard metric for comparing tokenizer and model quality on held-out text |
+| **mT5 / XLM-R** | Multilingual transformer models trained on 100+ languages simultaneously | Reference models for evaluating multilingual tokenization quality and coverage |
+
 *Previous: [LLM Internals](01-llm-internals.md) | Next: [Attention Mechanisms](03-attention-mechanisms.md)*

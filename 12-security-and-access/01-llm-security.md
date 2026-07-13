@@ -765,4 +765,42 @@ Tenant isolation at every layer:
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Prompt Injection** | An attack where malicious text in the user's input (or retrieved content) is interpreted as instructions by the model, overriding the system prompt | The OWASP #1 LLM vulnerability; exploited to hijack model behavior, leak data, or escalate privileges |
+| **Direct Injection** | A prompt injection where the attacker directly supplies the malicious instructions in their own user message | The simplest injection type; caught by input sanitization and instruction hierarchy |
+| **Indirect Injection (IPI)** | A prompt injection where malicious instructions are embedded in external content the model reads (web pages, documents, emails) | Harder to defend than direct injection because the attacker controls the data, not the prompt |
+| **Jailbreaking** | Techniques that manipulate an LLM into ignoring its safety guardrails and producing restricted content | Exploits weaknesses in training-time alignment; mitigated by constitutional classifiers and output filters |
+| **Payload Smuggling** | Hiding malicious instructions inside what appears to be legitimate data for the model to process | Bypasses simple keyword filters by disguising the attack as normal content |
+| **Model Poisoning** | Corrupting or backdooring a model during fine-tuning by injecting malicious training examples | Undermines model trustworthiness at the weight level; mitigated by data auditing and supply-chain controls |
+| **Data Extraction** | An attack that causes the model to reveal training data, context documents, or the system prompt | Can expose PII, trade secrets, or security-relevant instructions embedded in the system |
+| **OWASP Top 10 for LLMs** | A ranked list of the ten most critical security vulnerabilities specific to large language model applications | Industry standard threat taxonomy for LLM security; used to prioritize mitigations |
+| **Insecure Output Handling** | The practice of directly executing, rendering, or inserting LLM-generated content without validation | Leads to code injection, SQL injection, or XSS when model outputs are trusted blindly |
+| **Excessive Agency** | Giving an LLM agent broader permissions or capabilities than it needs to complete its task | Amplifies the blast radius of a prompt injection by allowing the hijacked agent to take destructive real-world actions |
+| **PII (Personally Identifiable Information)** | Data that can identify a specific individual, such as names, email addresses, phone numbers, or SSNs | Must be detected and redacted from both training data and model outputs to meet privacy regulations |
+| **Input Sanitization** | Cleaning or filtering user input to remove or neutralize known injection patterns before the prompt is built | First-line defense against direct prompt injection |
+| **Instruction Hierarchy** | A prompt design where system-level rules are declared paramount and explicitly cannot be overridden by user input | Reduces the risk of user instructions hijacking the model's behavior |
+| **Output Filtering** | Scanning the model's response before returning it to detect harmful content, PII, or system prompt leakage | Catches what the system prompt and input defenses missed |
+| **Defense in Depth** | A security strategy that layers multiple independent defenses so no single bypass compromises the whole system | Each layer (input, classification, retrieval, generation, output) catches a different class of attack |
+| **Multi-Tenant Security** | Isolating data and context between different customers (tenants) sharing the same LLM application | Prevents one tenant's queries or documents from leaking to another tenant |
+| **RAG Context Leakage** | Returning documents in the LLM response that the requesting user is not authorized to see | Occurs when retrieval lacks permission filtering; mitigated by always filtering at the database level |
+| **System Prompt Leakage** | The model revealing the contents of its hidden system instructions in its response | Exposes proprietary logic, security rules, and architectural details to end users |
+| **Content Filtering** | Automated detection and blocking of harmful, offensive, or policy-violating content in inputs or outputs | Prevents the LLM from being used to generate illegal or abusive material |
+| **Guardrail Classifier** | A fast, specialized model or classifier that scans prompts and responses for policy violations before they reach the main LLM | Provides a low-latency safety check that reduces load on more expensive defenses |
+| **PromptArmor** | A guardrail classifier (ICLR 2026) with under 1% false-positive and false-negative rates on the AgentDojo benchmark | The most-cited reference implementation for production prompt-injection detection in 2026 |
+| **Constitutional Classifiers** | Anthropic's classifier ensemble trained against a written safety constitution to block jailbreaks | Reduced jailbreak success rates from 86% to 4.4% on Anthropic's internal red-team suite |
+| **Red Team Testing** | Deliberately attacking an LLM system with adversarial inputs to discover vulnerabilities before real attackers do | Validates that security defenses work under realistic attack conditions |
+| **Sandboxed Execution** | Running LLM-generated code inside an isolated environment with no network, filesystem, or system access | Prevents malicious generated code from affecting the host system |
+| **XSS (Cross-Site Scripting)** | An attack where malicious scripts are injected into web content and executed in another user's browser | The traditional web equivalent of indirect prompt injection; both involve injecting instructions through data |
+| **SIEM (Security Information and Event Management)** | A platform that collects, correlates, and alerts on security events across systems in real time | Central hub for detecting attack patterns and feeding signals back to guardrail systems |
+| **Capability Gating** | Restricting which tools or actions an AI agent can take based on the trust level of content currently in its context | Structurally limits damage from indirect injection by disabling write-capable tools when processing untrusted content |
+| **Trust Tagging** | Labeling every piece of text entering the model pipeline with its trust level (system, user, retrieved-untrusted, etc.) | Enables the model and guardrails to apply appropriate skepticism based on the source of the content |
+| **Sigstore / Model Signing** | Cryptographic signing of model artifacts using the Sigstore infrastructure to attest their provenance | Provides supply-chain trust for model weights, the same way container images are signed |
+| **Big Sleep** | Google's autonomous AI agent for discovering zero-day vulnerabilities, also offered for defensive use | Represents the shift to AI-speed vulnerability discovery, making AI-driven defense equally necessary |
+| **MDASH (Multi-Model Agentic Security Harness)** | Microsoft's fleet of 100+ specialized security agents that perform coordinated code and system review | Sets the state-of-the-art bar for AI-driven defensive security scanning |
+
+---
+
 *Next: [Access Control](02-access-control.md)*

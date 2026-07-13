@@ -182,4 +182,38 @@ We handle noisy neighbors through **Tiered Iteration-Level Scheduling**. Each te
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Inference Gateway** | A routing layer that sits in front of model servers and handles auth, rate limiting, routing, and output filtering | The traffic controller for an AI serving fleet; decouples clients from backend model servers |
+| **Rate Limiting** | Enforcing maximum request or token quotas per user or tenant over a time window | Prevents any single user from monopolizing GPU capacity and ensures fair multi-tenant access |
+| **Canary / A-B Routing** | Sending a small percentage of traffic to a new model version to test it before full rollout | Reduces risk of regressions when deploying updated models or engine versions |
+| **Sticky Sessions** | Routing a user's requests to the same backend node so their prompt cache remains valid | Critical for context caching — sending a user to a different node loses the cached KV prefix |
+| **Tensor Parallelism (TP)** | Splitting individual weight matrices across multiple GPUs so each GPU computes a fraction of every layer simultaneously | Reduces per-layer latency; the standard approach for multi-GPU serving within one node |
+| **Pipeline Parallelism (PP)** | Splitting model layers across GPUs so each GPU handles a different depth range of the network | Enables models too large for one node; adds latency from sequential stage dependencies |
+| **Bubble Time** | The idle gaps in pipeline parallelism where a GPU waits for the previous stage to finish | A throughput loss inherent to pipeline parallelism; minimized with deep batching pipelines |
+| **NVLink** | NVIDIA's high-bandwidth inter-GPU interconnect used within a node | Required for Tensor Parallelism to exchange partial results between GPUs without bottlenecking |
+| **Kube-Ray / Gloo** | Kubernetes operators used to manage GPU pools and orchestrate multi-GPU inference clusters | Provides autoscaling, scheduling, and resource management for inference fleets |
+| **Heterogeneous Cluster** | A GPU cluster that mixes different GPU types (e.g., H100s for large models, L4s for small models) | Allows cost-efficient allocation — use expensive GPUs only where they add value |
+| **Autoscaling** | Automatically adding or removing GPU replicas based on demand metrics | Prevents over-provisioning during off-peak hours and ensures capacity during traffic spikes |
+| **KV Cache Utilization** | The fraction of allocated KV cache memory actively in use across the cluster | A better autoscaling signal for LLM workloads than CPU usage or standard memory metrics |
+| **Cold Boot Time** | How long a GPU node takes to start serving after being spun up from idle | Minimized using pre-built base images and fast weight loading from NFS/Lustre mounts |
+| **Lustre** | A high-speed parallel distributed filesystem often used to store model weights for fast loading | Reduces cold-boot time from minutes to ~15–20 seconds when loading large model weights |
+| **SSE (Server-Sent Events)** | A one-way HTTP streaming protocol where the server pushes token-by-token output to the client | The standard transport for streaming LLM responses; simpler than WebSockets for one-direction flow |
+| **WebSocket** | A bidirectional persistent connection protocol used for real-time two-way communication | An alternative to SSE for interactive streaming; handles both client messages and server tokens |
+| **Layer 4 Load Balancer** | A network load balancer that routes based on IP and port, unaware of application-level content | Struggles with long-lived LLM streaming connections; cannot route based on conversation state |
+| **Layer 7 Load Balancer** | An application-aware load balancer (e.g., Envoy, Istio) that understands HTTP, SSE, and content | Can route AI traffic intelligently — re-balancing between turns rather than breaking active streams |
+| **MoE (Mixture of Experts)** | A model architecture where only a subset of "expert" sub-networks activate for each token | Allows very large parameter counts while keeping per-token compute manageable |
+| **Expert Residency** | Keeping "hot" expert weights loaded in VRAM to avoid streaming them from slower storage | Critical for MoE serving — cold expert loading per token adds significant latency |
+| **Disaggregated Prefill/Decode** | Running prefill-phase requests on separate GPU pools from decode-phase requests | Prevents the compute-heavy prefill from competing with the memory-bound decode for the same GPU |
+| **vLLM** | The leading open-source LLM serving engine with continuous batching and PagedAttention | Default choice for most open-model deployments; best security patch cadence in mid-2026 |
+| **SGLang** | An open-source engine with async constrained decoding and RadixAttention prefix caching | Throughput leader (~29% over vLLM) for JSON/function-calling workloads on the text-only path |
+| **TensorRT-LLM** | NVIDIA's proprietary inference library with custom FP4/FP8 kernels for Blackwell GPUs | Highest tokens/sec on NVIDIA hardware; requires a multi-hour engine build per model and GPU |
+| **NVIDIA Triton** | NVIDIA's inference server for serving TensorRT-LLM engines with batching and multi-model support | The standard serving layer for TensorRT-LLM in production NVIDIA deployments |
+| **CVE / RCE** | Common Vulnerabilities and Exposures / Remote Code Execution — security flaws that let attackers run arbitrary code | Actively relevant to LLM engines in 2026; multimodal preprocessors have been real exploit vectors |
+| **Groq LPU** | A specialized Language Processing Unit chip from Groq designed for very-low-latency inference | Can achieve sub-50ms TTFT on large models, impossible for GPUs at similar concurrency levels |
+
 *Next: [Cost Optimization Playbook](07-cost-optimization-playbook.md)*

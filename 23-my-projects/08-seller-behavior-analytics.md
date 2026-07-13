@@ -156,4 +156,37 @@ Split the workstreams (clustering / hypothesis testing / predictive modeling), s
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Clustering** | An unsupervised algorithm that groups data points into clusters based on similarity | Groups sellers into behavioral personas without requiring pre-labeled performance data |
+| **k-Means** | A clustering algorithm that partitions N points into K clusters by minimizing within-cluster sum-of-squares | Standard baseline for behavioral segmentation; fast and interpretable |
+| **k-Means++** | An improved k-means initialization that spreads starting centroids apart | Reduces the chance of bad local minima and produces more stable clusters |
+| **Inertia (Within-Cluster SS)** | Sum of squared distances from each point to its cluster centroid | The objective k-means minimizes; lower means tighter clusters |
+| **Elbow Method** | Plotting inertia vs. K and choosing K at the "elbow" where improvement flattens | A heuristic for selecting the number of clusters |
+| **Silhouette Score** | A per-point measure `(b−a)/max(a,b)` where a = mean intra-cluster distance and b = mean nearest-cluster distance | Measures how well separated clusters are; ranges −1 (bad) to +1 (excellent) |
+| **DBSCAN** | A density-based clustering algorithm that groups points in dense regions and marks sparse points as outliers | Finds arbitrarily shaped clusters without a preset K |
+| **GMM (Gaussian Mixture Model)** | A probabilistic clustering model that assigns soft (probabilistic) membership to each cluster | Less scale-sensitive than k-means; models per-cluster covariance |
+| **Hypothesis Testing** | A statistical procedure to decide whether an observed difference between groups is likely real or due to chance | Confirms that top-performer behaviors are genuinely different, not just noise |
+| **Null Hypothesis (H₀)** | The default assumption that there is no difference between groups | Rejected when the p-value falls below the significance threshold |
+| **p-Value** | The probability of observing a result as extreme as the data if H₀ were true | Not the probability H₀ is false; only meaningful relative to a pre-set α |
+| **Two-Sample t-Test** | A test comparing the means of two independent groups | Tests whether top and low performers differ significantly on a behavioral metric |
+| **Welch's t-Test** | A variant of the t-test that does not assume equal variances in the two groups | Preferred when group sizes or variances differ |
+| **Type I Error (α)** | Rejecting a true H₀ — a false positive | Controlled by setting α (commonly 0.05); inflated by testing many behaviors |
+| **Type II Error (β)** | Failing to reject a false H₀ — a false negative | Reduced by increasing sample size; power = 1−β |
+| **Multiple-Comparison Correction** | Adjusting significance thresholds when running many simultaneous tests | Prevents false discoveries from accumulating across many behavior comparisons |
+| **Bonferroni Correction** | Testing each hypothesis at α/m (where m = number of tests) | Conservative but simple; controls family-wise error rate |
+| **FDR / Benjamini-Hochberg** | A less conservative correction that controls the expected fraction of false discoveries | Preferred when power is important and some false positives are acceptable |
+| **Cohen's d** | A standardized effect size measuring how many standard deviations apart two group means are | Distinguishes practically meaningful differences from trivially small ones that are statistically significant |
+| **SHAP (SHapley Additive exPlanations)** | A game-theoretic framework that assigns each feature a contribution to each individual prediction | Gives magnitude and direction of feature influence; enables both global and per-seller explanations |
+| **TreeExplainer** | SHAP's fast, exact algorithm for tree-based models (random forest, gradient boosting) | Computes exact Shapley values efficiently without sampling |
+| **Feature Importance** | A ranking of input features by how much they affect model predictions | Points to candidate coaching behaviors; must be verified as controllable and causal |
+| **Revenue Attainment** | Actual revenue achieved divided by quota, expressed as a percentage | The primary outcome metric for measuring coaching effectiveness |
+| **Regression to the Mean (RTM)** | The statistical tendency for extreme scores to move closer to the average on re-measurement | Makes low performers appear to improve even without any intervention; requires a control group |
+| **Difference-in-Differences (DiD)** | A quasi-experimental design that compares the pre-to-post change in a treatment group to the same change in a control group | Removes shared time trends and RTM by measuring the treatment-minus-control delta |
+| **Parallel-Trends Assumption** | The DiD requirement that treatment and control groups would have followed the same trend without the intervention | The key condition that must be checked before interpreting a DiD result causally |
+
+---
+
 *Previous: [PO Extraction + BERT Classifier](07-po-extraction-and-bert-classifier.md) | Up: [Guide Home](../README.md)*

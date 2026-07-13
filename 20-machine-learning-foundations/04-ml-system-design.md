@@ -658,4 +658,55 @@ This is one of the most common production ML failure modes. Start by checking fo
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **ML Objective** | The specific, measurable prediction task the model solves, mapped from a business goal | Translates vague goals like "increase retention" into concrete labels and loss functions |
+| **Latency SLA** | The maximum acceptable response time for a system, such as under 150 ms | Sets the hard engineering constraint that determines whether batch or online serving is feasible |
+| **QPS (Queries Per Second)** | The number of prediction requests a system must handle every second | Drives infrastructure decisions about model size, serving hardware, and caching |
+| **Feature Store** | A centralised system that stores, versions, and serves pre-computed features to both training pipelines and inference endpoints | Prevents training/serving skew by ensuring both sides use identical transformation logic |
+| **Training/Serving Skew** | A mismatch between how features are computed at training time versus at inference time | The most common silent cause of models that perform well offline but poorly in production |
+| **Data Leakage** | Any feature that contains information about the future or about the target variable that would not be available at inference | Causes inflated offline metrics that do not hold on real-world data |
+| **Cold Start Problem** | The challenge of making predictions for new users or new items that have no historical interaction data | Addressed with popularity-based fallbacks, content features, or onboarding surveys |
+| **Candidate Retrieval** | The first stage of a two-stage ranking system that quickly narrows millions of items to a few thousand candidates | Optimises for recall rather than precision; must be fast enough to run on every request |
+| **Ranking Model** | The second stage of a two-stage system that scores a small candidate set with rich features | Optimises for precision; can afford higher computational cost since only a small set is scored |
+| **Two-Tower Network** | A neural architecture with one tower for users and one for items, both mapping to a shared embedding space | Enables approximate nearest-neighbour retrieval at scale by pre-computing item embeddings |
+| **Collaborative Filtering** | A recommendation approach that predicts a user's preferences based on the preferences of similar users | Captures latent taste patterns without needing explicit item content descriptions |
+| **Matrix Factorisation** | A collaborative filtering technique that decomposes a user-item interaction matrix into low-rank user and item embeddings | The classic baseline for recommendation systems; simple and interpretable |
+| **ANN (Approximate Nearest Neighbour)** | An algorithm that finds vectors close to a query vector without scanning every item in the index | Enables fast embedding-based retrieval over millions or billions of items |
+| **FAISS** | A library from Meta for fast approximate nearest-neighbour search on dense vectors | The most widely used tool for embedding retrieval in recommendation and search systems |
+| **Implicit Feedback** | User behaviour signals like clicks, plays, or dwell time that reveal preferences without explicit ratings | More abundant than explicit ratings but noisier; requires careful negative sampling |
+| **NDCG (Normalised Discounted Cumulative Gain)** | A ranking metric that rewards placing relevant items higher in the list | Primary offline metric for ranking systems; accounts for both relevance and position |
+| **MAP (Mean Average Precision)** | The mean of the average precision scores across all queries in a ranking evaluation | Summarises ranking quality across many queries; sensitive to both precision and recall |
+| **MRR (Mean Reciprocal Rank)** | The mean of one-over-the-rank of the first relevant result across all queries | Used when only the position of the first relevant result matters |
+| **CTR (Click-Through Rate)** | The fraction of shown items or ads that were clicked | A primary online metric for ranking, recommendation, and ad systems |
+| **eCPM (Effective Cost Per Mille)** | The expected revenue per thousand ad impressions, computed as P(click) × bid × 1000 | The quantity an ad auction maximises to decide which ad to show |
+| **Factorisation Machine (FM)** | A model that efficiently learns pairwise feature interactions through low-rank embedding matrices | Effective for sparse categorical features in CTR and recommendation tasks |
+| **DeepFM** | A model combining a factorisation machine and a deep neural network for joint low-order and high-order feature interaction learning | Improves CTR prediction by capturing both simple and complex feature interactions |
+| **LambdaMART** | A gradient boosted tree model trained with a ranking-specific loss function that directly optimises NDCG | The industry-standard learning-to-rank algorithm for search and recommendation systems |
+| **LTR (Learning to Rank)** | A family of supervised ML methods that train on relative orderings rather than absolute labels | Frames search ranking as a ML problem; sub-types include pointwise, pairwise, and listwise |
+| **BM25** | A classical text-relevance scoring function based on term frequency and inverse document frequency | Fast lexical retrieval baseline; combined with dense retrieval in modern search systems |
+| **Position Bias** | The tendency for items shown in higher positions to receive more clicks regardless of actual relevance | Must be corrected via inverse propensity scoring or randomisation experiments for fair ranking training |
+| **Inverse Propensity Scoring (IPS)** | Weighting each training example by the inverse probability it was shown at that position | Produces an unbiased estimate of item relevance from position-biased click data |
+| **Uplift Modelling** | Estimating the incremental effect of an intervention on a specific individual rather than predicting the outcome directly | Targets only users who respond to outreach, improving ROI of marketing or retention campaigns |
+| **RFM Features** | Recency, Frequency, and Monetary features derived from transaction history | Classic customer behaviour features for churn prediction and customer segmentation |
+| **SHAP (SHapley Additive exPlanations)** | A method that fairly distributes the model's prediction among input features using game theory | Provides consistent, model-agnostic feature importance and individual prediction explanations |
+| **MAPE (Mean Absolute Percentage Error)** | The average percentage error between predicted and actual values | Interpretable forecasting metric; undefined when actuals are zero |
+| **WAPE (Weighted Absolute Percentage Error)** | A variant of MAPE weighted by actual values to handle zero-sales periods | More robust than MAPE for intermittent demand forecasting |
+| **DeepAR** | Amazon's RNN-based probabilistic forecasting model that trains a global model across many related time series | Produces calibrated prediction intervals and handles cold-start for new series |
+| **Temporal Fusion Transformer (TFT)** | A Transformer-based forecasting model that handles multivariate time series with interpretable attention | Captures complex temporal patterns and external signals for demand forecasting |
+| **Data Drift** | A shift in the distribution of input features over time relative to the training distribution | Detected by comparing feature distributions with PSI or KS tests; an early warning before accuracy degrades |
+| **Concept Drift** | A shift in the relationship between features and the target variable over time | Requires retraining even if input distributions look normal; common in fraud and financial markets |
+| **PSI (Population Stability Index)** | A metric quantifying the shift in a feature's distribution between two time periods | PSI > 0.2 conventionally triggers model review or retraining |
+| **Canary Deployment** | Rolling a new model out to a small fraction of traffic before full rollout | Limits the blast radius of model regressions; enables data-driven promotion decisions |
+| **Champion/Challenger** | Running a new model in shadow or low-traffic mode alongside the current production model | Allows safe comparison without full risk; the challenger replaces champion only after winning an A/B test |
+| **Platt Scaling** | Fitting a logistic regression on top of raw model scores to produce calibrated probabilities | Required after negative downsampling in CTR models to restore accurate probability outputs |
+| **Weight of Evidence (WoE)** | A feature transformation that encodes categories by their log-odds ratio relative to the target | Makes logistic regression work well on categorical features; widely used in credit scoring |
+| **Gini Coefficient (Credit)** | A ranking metric for credit models equal to 2 × AUC − 1 | Industry-standard measure of a credit model's ability to separate good and bad borrowers |
+| **Reject Inference** | Statistical techniques to estimate the credit outcomes of applicants who were rejected and have no observed labels | Corrects the survivorship bias inherent in credit datasets where only approved loans have outcomes |
+| **Feedback Loop** | A cycle where model predictions influence future training data, potentially amplifying biases | Must be monitored to prevent the model from reinforcing its own errors over time |
+
 *Previous: [Statistics and Probability](03-statistics-and-probability.md)*

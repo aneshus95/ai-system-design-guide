@@ -194,4 +194,34 @@ A: We detect cross-references ("as defined in Exhibit A") and resolve them. The 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Document Intelligence** | Using AI to automatically extract structured information (names, dates, clauses) from unstructured documents | Replaces manual contract review; turns PDFs into queryable database records at scale |
+| **OCR (Optical Character Recognition)** | Technology that converts scanned images of text into machine-readable characters | Required for any scanned or photographed contract where the text is not already digital |
+| **Vision-LLM OCR** | Using a multimodal large language model to extract text from images instead of traditional OCR software | Handles complex layouts, tables, stamps, and handwritten annotations that traditional OCR garbles |
+| **Tesseract** | An open-source traditional OCR engine | Baseline comparison; achieves ~60% accuracy on complex scanned contracts due to layout sensitivity |
+| **AWS Textract** | Amazon's managed OCR and document analysis service | Better than Tesseract but still struggles with non-standard layouts; ~75% accuracy at moderate cost |
+| **PyMuPDF** | A Python library for parsing native digital PDF files | Fast, free text extraction for digital PDFs that does not require any model inference |
+| **Markdown Conversion** | Transforming the extracted document content into Markdown format with headers, tables, and lists | Produces a clean, structured text representation that downstream extractors can reliably parse |
+| **Section Detection** | Identifying logical sections (Recitals, Definitions, Obligations, Exhibits) within a document | Allows selective processing—only relevant sections are sent to extractors, reducing cost and noise |
+| **Parallel Extractors** | Running separate specialized extraction calls simultaneously for each field type (parties, dates, obligations) | Outperforms single-pass extraction by giving each extractor a focused schema and prompt |
+| **Parties Extractor** | A specialized model call that extracts only the contracting parties from a document | Avoids the distraction of other fields and produces cleaner output with a focused schema |
+| **Cross-Field Validation** | Checking extracted fields against each other for logical consistency (e.g., effective date must precede termination date) | Catches extraction errors that look plausible in isolation but contradict other fields in the same document |
+| **Confidence Score** | A 0–1 value the model attaches to each extracted field indicating how certain it is | Fields below 0.8 are flagged for human review, reducing human effort to checking only uncertain fields |
+| **JSON Schema** | A formal specification describing the expected structure, types, and fields of a JSON output | Constrains the LLM to produce machine-parseable output instead of free-form text |
+| **Context Window** | The maximum text length a model can read in one request (measured in tokens) | Limits how much of a 200-page document can be processed at once; drives the need for section-based chunking |
+| **Smart Chunking** | Splitting a document at logical section boundaries rather than fixed character counts | Keeps related clauses together and prevents sections from being arbitrarily split across extraction calls |
+| **Exhibit** | An attachment to the main contract body (e.g., a schedule, appendix, or original referenced document) | Often bulk of document pages but rarely contains primary key fields; stored as reference rather than processed |
+| **Cross-Reference Resolution** | Detecting "as defined in Exhibit A" style references and including the referenced content in the extraction context | Prevents null extractions when the answer to a query is located in an attachment rather than the main body |
+| **Layout Library** | A database of known contract templates used by the section detector to match documents to a familiar structure | Speeds up section detection for common contract types and improves accuracy over pure heuristic detection |
+| **Heuristic Detection** | Falling back to pattern-based rules (numbered sections, ALL CAPS headers) when no template matches | Handles non-standard layouts gracefully without failing completely |
+| **Multilingual Extractor** | A language-specific extraction model tuned to that language's structural conventions and terminology | Handles German GmbH/AG entity patterns, DD.MM.YYYY date formats, and "Kündigung" termination clauses correctly |
+| **Field Extraction** | The act of identifying and isolating the value of a specific field (e.g., effective date) from document text | The core task of the pipeline; each extractor specializes in one field type for maximum accuracy |
+| **Native PDF** | A PDF where the text is embedded digitally rather than scanned as an image | Processed cheaply with PyMuPDF; no OCR step required, reducing per-document cost from $0.35 to $0.17 |
+| **Review Queue** | An interface where human reviewers validate only the low-confidence extracted fields | Focuses human effort on uncertain extractions rather than full document re-reads, averaging 30 seconds per doc |
+
 *Related chapters: [OCR and Layout](../10-document-processing/01-ocr-and-layout.md), [Structured Generation](../05-prompting-and-context/06-structured-generation.md)*

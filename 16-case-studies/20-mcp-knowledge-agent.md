@@ -252,4 +252,36 @@ As of May 2026, our migration plan: Snowflake, Confluence, and Jira have shipped
 - [Snowflake MCP server reference](https://github.com/modelcontextprotocol/servers)
 - [Atlassian MCP servers](https://github.com/modelcontextprotocol/servers)
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **MCP (Model Context Protocol)** | An open standard that defines a common interface for AI agents to call external tools and data sources | Standardizes the tool boundary so the same agent can call Snowflake, Confluence, Jira, and Slack uniformly |
+| **STDIO MCP** | An MCP server that communicates with the client through standard input/output streams on the same host | Legacy transport method; vulnerable to filesystem race conditions per the May 2026 STDIO CVE |
+| **HTTP MCP** | An MCP server that communicates over a standard HTTP/HTTPS connection | More secure transport; eliminates the shared-filesystem attack surface of STDIO servers |
+| **MCP Resource Server** | An MCP server that acts as an OAuth 2.1 Resource Server, validating tokens before serving tool calls | Ensures each tool call is authorized for the requesting user's identity and scope |
+| **OAuth 2.1** | The latest version of the OAuth authorization framework, tightening security requirements over OAuth 2.0 | The authentication standard each MCP server uses to verify agent identities |
+| **Audience Binding (RFC 8707)** | An OAuth mechanism where a JWT token is only valid for the specific resource server named in its `aud` claim | Prevents a token issued for Snowflake from being replayed against Confluence or Jira |
+| **Agent-Card JWT** | A short-lived signed token minted per user call that identifies the agent and scopes it to specific MCP servers | Prevents credential re-use across tenants and ensures minimal-privilege per call |
+| **Okta** | A cloud identity provider used to authenticate employees and issue identity tokens | The source-of-truth for user identities that flow into every MCP call |
+| **OPA (Open Policy Agent)** | A policy engine that evaluates authorization rules expressed as code | Used in the Envoy gateway to enforce access control decisions at the call layer |
+| **Envoy** | A high-performance proxy/gateway widely used for service mesh and API gateway patterns | Sits at the entry point to enforce auth, rate limiting, and routing |
+| **IPI (Indirect Prompt Injection)** | An attack where malicious instructions embedded in a tool's output attempt to hijack the agent's next actions | The primary security threat; defended against by trust-tagging and capability gating |
+| **Trust-Tagging** | Marking sections of a tool result as untrusted (low confidence) when they contain instruction-like text | Signals to the agent and action gate that downstream actions triggered by this content should be restricted |
+| **Capability Gating** | Blocking state-changing actions (write, notify) when the most recent tool result is dominated by untrusted content | Limits the blast radius of a successful IPI attack to read-only operations |
+| **CaMeL** | Google DeepMind's framework for defending agents against IPI by separating trusted and untrusted data flows | Academic foundation for the capability-gating pattern used in this production system |
+| **Tool-Argument Filter** | A pre-execution check that inspects tool call arguments for SQL injection, shell metacharacters, and path traversal | Prevents the agent from becoming a proxy for attacks against downstream data systems |
+| **Output Validator** | A post-execution component that parses tool results, runs the trust classifier, and wraps untrusted spans | Sanitizes external data before it re-enters the agent's reasoning context |
+| **Snowflake** | A cloud data warehouse platform used to store and query business metrics | One of the four data sources the agent queries, accessed via its MCP server |
+| **Unix Domain Socket (UDS)** | A mechanism for inter-process communication on the same host scoped to a file path | Used as per-call IPC for the sandboxed Slack STDIO server, preventing cross-call contamination |
+| **STDIO CVE (May 2026)** | A publicly disclosed vulnerability showing that STDIO MCP servers on shared hosts can be compromised via filesystem race conditions | Drove the architectural decision to sandbox STDIO servers in isolated containers |
+| **Splunk** | An enterprise log aggregation and search platform | Used for operational monitoring and querying of audit log data |
+| **Object-Lock (S3)** | An S3 storage feature that prevents objects from being deleted or modified for a defined retention period | Ensures audit logs cannot be tampered with or deleted, satisfying 7-year legal retention |
+| **SHA-256 Chain** | A tamper-detection scheme where each log entry's hash includes the hash of the previous entry | Makes it cryptographically detectable if any historical log entry is altered |
+| **Scope** | A named permission label in OAuth (e.g., `read:metrics`) that limits what a token allows the agent to do | Enforces least-privilege access so the agent can only read what the user is authorized to see |
+| **Aggregation-Risk Classifier** | A small model that flags responses combining information from multiple permission domains | Detects when individually permitted data items might reveal confidential information in combination |
+| **Token Bucket** | A rate-limiting mechanism that allows short bursts but enforces an average rate over time | Prevents a single user from consuming disproportionate agent compute or budget |
+
 Related chapters: [Tool Use and MCP](../07-agentic-systems/03-tool-use-and-mcp.md), [Security and Access](../12-security-and-access/01-llm-security.md), [Multi-Tenant RAG Isolation](../12-security-and-access/02-access-control.md).

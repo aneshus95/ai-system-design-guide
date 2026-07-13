@@ -334,4 +334,35 @@ Contextual Retrieval involves prepending a 1-sentence global context to every ch
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Chunking** | Splitting a document into smaller segments before embedding and indexing them | Makes individual pieces of text small and focused enough to be retrieved precisely |
+| **Fixed-Size Chunking** | Splitting text every N tokens regardless of sentence or paragraph boundaries | Simplest baseline; fast and cheap but often cuts mid-sentence |
+| **Chunk Overlap** | Repeating a percentage of tokens from the end of one chunk at the start of the next | Prevents facts that straddle a chunk boundary from being split and lost |
+| **Recursive Structure Splitting** | Splitting on progressively smaller delimiters (paragraph → line → sentence → word) until pieces fit the size limit | Preserves the most natural boundary available, producing more coherent chunks than fixed splitting |
+| **Semantic Chunking** | Using embedding similarity between consecutive sentences to detect topic shifts and cut there | Ensures each chunk represents one complete idea, improving retrieval precision |
+| **Cross-Encoder Segmenter** | A small model that predicts break-point tokens directly in the text | More accurate than cosine-threshold semantic chunking; learns natural segment boundaries end-to-end |
+| **Hierarchical (Parent-Child) Chunking** | Indexing small child chunks for retrieval but returning their larger parent chunk to the LLM | Decouples the match unit (small = precise) from the context unit (large = complete), resolving the retrieval-context tension |
+| **Retrieval-Context Tension** | The trade-off where smaller chunks retrieve more precisely but provide less context, and vice versa | The core design problem that all advanced chunking strategies try to solve |
+| **AST (Abstract Syntax Tree) Parsing** | Parsing source code into its logical tree structure (functions, classes, imports) to set chunk boundaries | Prevents splitting a function mid-body, keeping code chunks meaningful and executable |
+| **Summarized Tables** | Storing a natural-language description of a table for embedding, while returning the full table to the LLM | Fixes the problem that raw table markdown embeds poorly against natural-language queries |
+| **VLM (Vision-Language Model)** | A model that can process both images and text, used to caption figures or parse page layouts | Enables retrieval over visual content such as charts, diagrams, and scanned PDFs |
+| **ColPali / ColQwen2** | Vision-language retrievers that embed rendered page images directly using multi-vector (ColBERT-style) representations | Bypasses fragile OCR pipelines; excels on layout-heavy or visually complex documents |
+| **Late Chunking** | Embedding the whole document first with a long-context model, then splitting the resulting token embeddings into chunks | Gives every chunk access to full-document context without a per-chunk LLM call |
+| **Contextual Retrieval** | Prepending a short LLM-generated context blurb to each chunk before embedding it | Anthropic reported a ~49% reduction in retrieval failures; makes ambiguous chunks self-contained |
+| **Recall@k** | The fraction of relevant documents that appear in the top-k retrieved results | The primary metric for evaluating whether chunking is producing retrievable segments |
+| **Faithfulness** | Whether the LLM's answer is actually supported by the retrieved context | Measures whether the returned chunk is complete enough for correct generation |
+| **Index-Small / Return-Rich** | The pattern of indexing a small, precise representation for retrieval but returning a larger, richer payload to the LLM | The unifying principle behind hierarchical chunking, summarized tables, and dual-representation pipelines |
+| **Dual Representation** | Storing two versions of content: a compact form for retrieval and the full original for generation | Separates the needs of the retriever (precision) from the needs of the generator (completeness) |
+| **Text-to-SQL (NL2SQL)** | A technique where an LLM writes a SQL query from a natural-language question, then runs it against a database | The correct tool for aggregation or analytics questions over structured tables; vector RAG cannot sum or filter |
+| **Layout-Aware Parsing** | Using a model (Docling, Marker, Unstructured) that understands 2-D page structure to separate text, tables, figures, and captions | Prevents OCR noise and reading-order errors from corrupting chunks in complex PDFs |
+| **Sentence-Window Retrieval** | Matching on a single sentence but returning the N neighboring sentences as context | A lightweight alternative to full hierarchical chunking for capturing local context |
+| **Auto-Merging** | Automatically promoting sibling child chunks to their shared parent if enough of them match the query | Avoids returning redundant duplicate parents while still delivering full context |
+| **CLIP / SigLIP** | Vision-language embedding models that map images and text into a shared vector space | Enable image-to-text retrieval in multimodal RAG pipelines |
+| **Cohere Embed v4** | A multimodal embedding model supporting text and images with Matryoshka and binary quantization | Allows a single unified index over mixed text-and-image corpora |
+
 *Next: [Embedding Models](03-embedding-models.md)*

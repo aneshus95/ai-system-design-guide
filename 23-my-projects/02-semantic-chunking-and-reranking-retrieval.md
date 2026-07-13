@@ -172,4 +172,30 @@ Source: [NAACL 2025 — "Is Semantic Chunking Worth the Computational Cost?" (ar
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **RAG (Retrieval-Augmented Generation)** | An architecture that retrieves relevant text chunks from a corpus and injects them into an LLM prompt before generating an answer | Grounds LLM responses in actual documents, reducing hallucination |
+| **Chunking** | Splitting a document into smaller pieces before indexing so they fit within a retrieval unit | Controls the granularity of evidence the retriever can return |
+| **Fixed-Size Chunking** | Splitting text by a fixed character or token count | Cheapest method; often cuts sentences and topics mid-thought |
+| **Recursive Character Splitting** | Splitting at structural separators (paragraph → sentence → word) in order of preference | Respects document structure but is topic-blind |
+| **Semantic Chunking** | Splitting by detecting drops in cosine similarity between adjacent sentence embeddings | Topic-aware; can over-fragment short paragraphs |
+| **Cluster Semantic Chunking** | Grouping sentence embeddings globally via clustering so sentences about the same topic end up in one chunk even if non-adjacent | Improves context recall by keeping related evidence together |
+| **BM25** | A lexical (keyword) search algorithm that scores documents by term frequency and inverse document frequency with length normalization | Nails exact matches (codes, IDs, rare names) that dense embeddings smooth over |
+| **Dense (Vector) Retrieval** | Finding documents by comparing embedding vectors in a high-dimensional space | Handles paraphrase and synonymy but under-weights rare exact tokens |
+| **Hybrid Search** | Combining keyword (BM25) and dense vector retrieval results | Recovers matches each method would miss alone |
+| **Reciprocal Rank Fusion (RRF)** | A rank-based score fusion formula `score(d) = Σ 1/(k+rank)` that merges two ranked lists without needing compatible score scales | Fuses BM25 and dense rankings fairly; widely used in hybrid retrieval |
+| **Bi-Encoder** | A retrieval model that embeds query and documents independently with the same encoder | Enables fast pre-computed document vectors and approximate nearest-neighbor search |
+| **Cross-Encoder (Reranker)** | A model that takes a query-document pair as a single joint input and outputs a relevance score | Produces far more accurate scores than a bi-encoder; used in the second retrieval stage |
+| **Two-Stage Retrieval** | First stage casts a wide net (high recall) with a bi-encoder; second stage re-scores the top-K with a cross-encoder (high precision) | Balances retrieval recall against the latency cost of exact scoring |
+| **Context Recall** | The fraction of claims in a reference answer that are supported by the retrieved chunks | Measures whether the retrieved set covers everything the answer needs |
+| **Context Precision** | A rank-weighted average precision over retrieved chunks — how much signal versus noise is at the top | Measures whether the most relevant chunks rank highest |
+| **RAGAS** | An open-source framework for evaluating RAG pipelines with LLM-based metrics including context recall and context precision | Provides reproducible, automated RAG quality scores |
+| **ANN (Approximate Nearest Neighbor)** | A fast algorithm for finding near-matches in a vector space without exhaustive search | Makes dense retrieval practical over large corpora |
+| **Embedding** | A fixed-length float vector encoding the meaning of a text chunk | Enables similarity search in a vector index |
+| **Top-K** | The K highest-scoring documents returned by stage 1 before reranking | Controls the recall ceiling and the latency cost of the reranking stage |
+
+---
+
 *Previous: [Keystroke Dynamics](01-keystroke-dynamics-biometric-verification.md) | Next: [LangGraph Coding Agent](03-langgraph-coding-agent-with-rag.md) | Up: [Guide Home](../README.md)*

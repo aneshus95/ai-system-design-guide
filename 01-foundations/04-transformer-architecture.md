@@ -488,4 +488,47 @@ These changes enable training larger models more stably and serving them more ef
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Decoder-Only Transformer** | A transformer that uses only causal (left-to-right) self-attention blocks, with no separate encoder | Dominant architecture for text generation; used by GPT, Claude, and Llama families |
+| **Token Embedding** | A learned lookup table that converts integer token IDs into dense floating-point vectors | The first step of every transformer forward pass; maps discrete tokens into continuous space |
+| **Embedding Table** | The matrix of shape [vocab_size × d_model] storing one vector per vocabulary token | Shared parameter between input embedding and LM head in weight-tied models |
+| **d_model** | The hidden dimension of the transformer (e.g., 4096 for Llama 7B, 8192 for Llama 70B) | Central hyperparameter; determines width of every attention and FFN computation |
+| **Transformer Block** | One layer of the transformer: RMSNorm → Attention → Residual → RMSNorm → FFN → Residual | The repeating unit stacked N times to form the full model |
+| **Pre-Normalization (Pre-LN)** | Applying layer normalization before each sublayer rather than after the residual add | Enables stable training of very deep models without careful warmup; modern default |
+| **Post-Normalization (Post-LN)** | Applying layer normalization after adding the residual, as in the original 2017 transformer | Harder to train at depth; requires careful initialization; used in original papers only |
+| **Residual Connection** | Adding the sublayer's input directly to its output before the next step | Lets gradients bypass sublayers during backpropagation; prevents vanishing gradients in deep networks |
+| **RMSNorm** | Root Mean Square normalization: normalizes by RMS of activations, skipping mean-centering | 10–15% faster than LayerNorm; equally effective; used in Llama and Mistral |
+| **GroupedQueryAttention (GQA)** | Sharing fewer Key/Value heads across groups of Query heads to reduce KV cache size | 8× KV cache reduction for Llama 2 70B with minimal quality loss; critical for serving throughput |
+| **Rotary Position Embedding (RoPE)** | Encoding position by rotating Q and K vectors by position-dependent angles at attention time | Better length generalization than absolute embeddings; used in Llama, Mistral, GPT-4 |
+| **SwiGLU** | Gated FFN activation: gate = SiLU(x·W_gate), output = (gate * x·W_up) · W_down | State-of-the-art activation giving ~1% benchmark improvement over GELU; standard in Llama and PaLM |
+| **SiLU (Swish)** | Smooth activation function x·σ(x) used as the gating component in SwiGLU | Smoother than ReLU with self-gating behavior; outperforms GELU in gated variants |
+| **GELU** | Gaussian Error Linear Unit activation, a smooth alternative to ReLU | Standard activation in BERT and GPT-2; replaced by SwiGLU in most modern models |
+| **FFN Hidden Dimension (d_ff)** | The expanded width inside the feed-forward network, typically 4× d_model for standard FFN or 2.7× for SwiGLU | Larger d_ff increases model capacity; SwiGLU uses a smaller ratio to offset its three-projection cost |
+| **LM Head** | A linear layer projecting hidden states from d_model to vocab_size to produce token logits | Converts transformer output into a probability distribution over the vocabulary for sampling |
+| **Logits** | Raw unnormalized scores from the LM head, one per vocabulary token | Converted to probabilities via softmax; used for sampling the next token or computing training loss |
+| **Weight Tying** | Sharing the same parameter matrix between the input embedding table and the LM head | Saves memory (vocab_size × d_model parameters); standard in GPT-3 and Llama 2 |
+| **Untied Embeddings** | Using separate parameter matrices for input embedding and LM head output projection | Allows each to specialize; improves perplexity for large vocabularies in Llama 3/4 and GPT-5.2 |
+| **Masked Multi-Head Attention** | Multi-head attention with a causal mask preventing each token from attending to future positions | Enables parallel training on next-token prediction while preserving autoregressive generation |
+| **KV Cache** | Stored Key and Value tensors from all previous positions reused on each decode step | Eliminates redundant recomputation during autoregressive generation; dominant memory cost in serving |
+| **Flash Attention** | IO-aware attention implementation avoiding materialization of the n×n score matrix | Achieves exact attention with O(n) memory; 2–4× speedup on modern hardware |
+| **Sliding Window Attention (SWA)** | Restricting each layer to attend only to the most recent W tokens | Used in Mistral to cap KV cache growth while still achieving long effective context by stacking layers |
+| **MoE (Mixture of Experts)** | FFN replaced by multiple expert MLPs and a router that picks two per token | Scales total parameters (memory) independently of active parameters (compute) |
+| **Expert Parallelism** | Assigning different MoE experts to different GPUs so tokens are routed across devices | Enables very large MoE models at the cost of high inter-GPU communication bandwidth |
+| **Hybrid MoE/Dense** | Architecture that alternates MoE layers with periodic dense layers | Dense layers ensure all experts share global knowledge; reduces routing-induced information isolation |
+| **Multi-head Latent Attention (MLA)** | Compresses K and V into a low-rank latent vector before caching, projecting back at query time | Reduces KV cache to ~5% of MHA; introduced by DeepSeek-V2/V3; superior to GQA |
+| **Decoupled RoPE** | RoPE applied after the latent is decompressed rather than before compression in MLA | Allows the compressed latent to be reused without decoding positional information at every step |
+| **Chinchilla Scaling Law** | The empirical rule that compute-optimal training requires ~20 tokens per parameter | Guides decisions about model size vs. dataset size for a fixed training budget |
+| **Cross-Entropy Loss** | Measures how well predicted token probabilities match the true next token during training | Standard training objective for language models; minimized during pretraining |
+| **Temperature / Top-P** | Sampling hyperparameters that control randomness when selecting the next token from logits | Tuned per use case: low temperature for factual tasks, higher for creative generation |
+| **Perplexity** | Exponential of average cross-entropy loss; measures how "surprised" a model is by held-out text | Standard metric to compare language model quality; lower is better |
+| **Tensor Parallelism** | Splitting individual weight matrices across multiple GPUs so each GPU holds a shard | Enables single-layer computation to span multiple GPUs; reduces per-GPU memory footprint |
+| **NVLink / InfiniBand** | High-bandwidth GPU interconnects enabling fast communication between GPUs within or across nodes | Bottleneck for expert parallelism in MoE models; bandwidth determines routing overhead |
+| **Forward Pass FLOPs** | Computational cost of one inference pass, approximately 2 × parameter count per token | Used to estimate inference latency and hardware requirements |
+| **INT4 Quantization** | Representing model weights in 4-bit integers instead of 16-bit floats | Reduces weight memory by 4× with small quality loss; enables larger models on the same hardware |
+
 *Previous: [Attention Mechanisms](03-attention-mechanisms.md) | Next: [Embeddings and Vector Spaces](05-embeddings-and-vector-spaces.md)*

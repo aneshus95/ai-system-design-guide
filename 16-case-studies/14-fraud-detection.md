@@ -190,4 +190,32 @@ A: We track the "insult rate": percentage of legitimate customers blocked. Each 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **ML Ensemble** | A combination of multiple machine-learning models whose outputs are merged for a stronger prediction | Improves fraud-score accuracy and robustness compared to any single model |
+| **XGBoost** | A high-performance gradient-boosting algorithm widely used for structured/tabular data | Handles the pre-computed feature matrix fast enough for real-time scoring |
+| **Neural Net (Neural Network)** | A machine-learning model loosely inspired by the brain, good at learning complex patterns | Captures non-linear fraud patterns that rule-based or tree models may miss |
+| **Fraud Score** | A number between 0 and 1 estimating the probability that a transaction is fraudulent | The single output of the ML ensemble used to route each transaction |
+| **Feature Engineering** | Transforming raw transaction data into numeric signals that a model can learn from | Determines what patterns the model can detect; quality drives accuracy |
+| **Velocity Features** | Real-time counters measuring how many transactions occurred in a recent time window | Detects burst patterns like 5 transactions in 3 different countries within an hour |
+| **Device Fingerprint** | A unique identifier derived from device characteristics (browser, OS, screen size) | Detects when a known card is used from an unfamiliar device |
+| **Geolocation** | Mapping an IP address or GPS signal to a physical location | Flags transactions in countries the cardholder has never visited |
+| **Redis** | An in-memory data store used for real-time counter lookups | Provides sub-millisecond access to velocity counters within the 100ms latency budget |
+| **Business Rules** | Explicit, human-readable logic encoding known fraud patterns (e.g., velocity limits) | Provide explainability and fast deployment of new fraud mitigations |
+| **SHAP Values** | A method from game theory that assigns each input feature a numerical contribution to a model's output | Quantifies which features drove a fraud score but produces jargon, not plain language |
+| **LIME (Local Interpretable Model-Agnostic Explanations)** | A technique that approximates a complex model locally with a simple interpretable one | Another way to explain ML decisions, similar in role to SHAP |
+| **Three-Way Decision** | Routing transactions to Approve, Reject, or Escalate rather than a binary approve/reject | Reduces false positives by giving ambiguous cases additional scrutiny |
+| **Gray Zone** | Transactions scoring between 0.3 and 0.7 where the ML model is uncertain | Routed to rule-based escalation rather than automatic rejection |
+| **Insult Rate** | The percentage of legitimate customers who are incorrectly blocked | Key metric for balancing fraud prevention against customer experience |
+| **Fallback Stack** | A tiered set of backup scoring methods that activate when the primary ML model is too slow | Keeps the payment system running and safe even during model latency spikes |
+| **Global Velocity Counter** | A counter tracking transaction volume to a specific merchant or account across all users | Detects coordinated fraud attacks that look clean at the individual card level |
+| **Model Drift** | Gradual degradation in model accuracy as fraud patterns evolve away from the training data | Requires continuous monitoring and periodic model retraining |
+| **Continuous Retraining** | Regularly updating the fraud model with newly labeled data as fraud patterns change | Keeps the model effective as fraudsters adapt their techniques |
+| **Audit Trail** | A tamper-evident log of every fraud decision and its reasoning | Required by financial regulations for dispute resolution and reporting |
+| **p95 Latency** | The response time that 95 percent of requests complete within | Defines the 100ms budget that governs every architecture choice |
+
 *Related chapters: [Evaluation and Observability](../14-evaluation-and-observability/), [Reliability Patterns](../13-reliability-and-safety/03-reliability-patterns.md)*

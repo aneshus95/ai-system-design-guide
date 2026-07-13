@@ -491,4 +491,38 @@ The best production systems use both: Playwright handles the predictable steps (
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Computer-Use Agent** | An LLM that controls a graphical interface by interpreting screenshots and issuing mouse and keyboard commands | Enables AI to automate any application with a visual interface, even with no API |
+| **Screenshot-Reason-Act Loop** | The repeating cycle of capturing a screenshot, sending it to the LLM, and executing the resulting action | The core operating mechanism all computer-use agents share |
+| **Vision-Action Loop** | Same as the screenshot-reason-act loop; the name emphasizes that the model's only input is visual pixels | Highlights the key difference from API-based automation, which uses structured data instead |
+| **`computer` tool** | The Anthropic-defined tool that gives Claude the ability to take screenshots and move the mouse and keyboard | The primary interface through which Claude interacts with the virtual desktop |
+| **`bash` tool** | The Anthropic-defined tool that runs shell commands in a persistent session | Lets Claude complement GUI interactions with direct command-line execution |
+| **`text_editor` tool** | The Anthropic-defined tool for structured file operations including view, create, str_replace, and insert | Provides a reliable, precise way to read and modify files without relying on GUI file dialogs |
+| **base64 PNG** | A way of encoding a screenshot image as a text string so it can be embedded in an API request | How screenshots are transmitted to the Claude API; each one adds significant token cost |
+| **Xvfb** | A virtual X11 display server that creates a framebuffer without requiring a physical monitor | The foundation of the sandboxed desktop environment for computer-use agents |
+| **Mutter / Xfwm** | Linux window managers that handle window positioning and resizing inside the virtual display | Required for GUI applications to render and behave correctly in the virtual environment |
+| **xdotool** | A command-line tool for injecting mouse movements, clicks, and keystrokes into an X11 display | The mechanism by which the agent runtime physically executes the LLM's action commands |
+| **scrot / maim** | Command-line screenshot capture utilities for X11 | Used by the agent runtime to take the screenshots that become the LLM's visual input |
+| **Tint2** | A lightweight task panel that shows running applications inside the virtual desktop | Helps the agent visually identify open windows and switch between applications |
+| **Docker + VNC** | The standard architecture for sandboxed computer-use: a Docker container running a virtual desktop accessible via VNC | Provides safe isolation so the agent cannot affect the operator's real machine |
+| **E2B** | A cloud service offering pre-configured sandboxed virtual environments with screenshot capture and input injection | Removes the need to build and maintain Docker-based desktop environments for agent testing |
+| **OSWorld benchmark** | A benchmark suite that measures how accurately a computer-use agent completes real desktop tasks | The standard measure of computer-use agent capability; Claude improved from 14.9% to 72.5% between 2024 and 2026 |
+| **WebArena benchmark** | A benchmark suite that measures how accurately a web agent completes realistic web browsing tasks | Complements OSWorld by focusing specifically on browser-based workflows |
+| **Selenium / Playwright** | Browser automation frameworks that interact directly with the DOM rather than with screenshots | Faster and cheaper than computer-use agents, but brittle when selectors change or on sites with anti-bot measures |
+| **DOM (Document Object Model)** | The tree structure that represents all elements of a web page in memory | What Selenium and Playwright manipulate directly; computer-use agents see only the rendered pixels, not the DOM |
+| **Headless browser** | A web browser that runs without a visible window, controlled entirely via code | A lighter-weight alternative to a full virtual desktop when the agent only needs to automate web pages |
+| **Anti-bot detection** | Techniques websites use to identify and block automated browser scripts | A major limitation of Selenium; computer-use agents mimic human interaction patterns and are harder to block |
+| **Zoom Action** | A 2026 enhancement that captures a high-resolution crop of a small UI region before acting | Reduces misclicks on dense interfaces where standard-resolution screenshots do not show enough detail |
+| **Stale screenshot** | A screenshot captured before a page animation or loading event has finished | A common failure mode; mitigated by adding a short wait before captures and re-taking screenshots when in doubt |
+| **Infinite loop (agent)** | When the agent repeats the same action without making progress toward the goal | Prevented by setting a maximum iteration count and detecting repeated identical actions |
+| **Prompt injection via UI** | An attack where a malicious website displays text designed to override the agent's instructions | A security risk unique to computer-use agents; mitigated by system-prompt warnings and sandboxed environments |
+| **HITL (Human-in-the-Loop)** | A design pattern that requires a human to approve the agent's action before it is executed | Required before any destructive operation such as form submission, file deletion, or financial transaction |
+| **Parallel sessions** | Running multiple Docker containers simultaneously, each processing a different task | The primary way to increase computer-use agent throughput since each action is inherently sequential |
+| **Resolution / display scaling** | The pixel dimensions and zoom level of the virtual display | Must match the values declared in the API request; mismatches cause coordinate errors and misclicks |
+
 *Next: [Building Tool-Use Agents](05-building-tool-agents.md)*

@@ -494,4 +494,30 @@ The one area I would supplement ColBERT is with a parallel BM25 index for exact-
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Late Interaction** | A retrieval approach where query and document are encoded independently but scored at the token level at query time | Achieves cross-encoder accuracy while still allowing document pre-computation |
+| **Bi-Encoder** | A model that encodes the query and document separately into single vectors and scores them with a dot product | Fast and scalable for first-stage retrieval across billions of documents |
+| **Cross-Encoder** | A model that reads the query and document together through full self-attention to produce a relevance score | Most accurate reranker but too slow for first-stage retrieval |
+| **ColBERT** | A late-interaction model that stores one 128-dim vector per token for both query and document | Delivers near-cross-encoder accuracy at near-bi-encoder speed |
+| **MaxSim** | The scoring operator that, for each query token, finds the document token with the highest similarity and sums those peaks | Preserves token-level signal that gets diluted in single-vector bi-encoders |
+| **Token-Level Embeddings** | A set of vectors — one per token — rather than one vector for the whole text | Allows fine-grained matching between individual query words and document words |
+| **ColBERTv2** | An improved ColBERT that adds residual compression and denoised supervision | Reduces storage by 16–32× while maintaining retrieval accuracy |
+| **Residual Compression** | Clustering token vectors into centroids and storing only the centroid ID plus a quantized residual | Cuts ColBERT's per-token storage from 512 bytes to ~32 bytes |
+| **PLAID** | The indexing engine for ColBERT that uses multi-stage centroid pruning to skip 99%+ of the corpus | Keeps ColBERT latency at 50–100 ms on 10M+ documents |
+| **Centroid Pruning** | Discarding document clusters whose centroids are far from the query tokens before doing exact scoring | Makes PLAID fast by avoiding full decompression of irrelevant candidates |
+| **RAGatouille** | A Python library that wraps the Stanford ColBERT codebase with a simple high-level API | The easiest way to add ColBERT retrieval or reranking to a Python RAG pipeline |
+| **NDCG@10** | A ranking metric that rewards placing the most relevant documents at the top of the first 10 results | Standard benchmark for comparing retrieval architectures |
+| **mAP (mean Average Precision)** | The average of precision scores computed at each relevant document's rank, then averaged over queries | A comprehensive single-number retrieval quality metric |
+| **Domain Transfer** | How well a retrieval model generalizes to a domain it was not specifically trained on | ColBERT's token-level matching gives it stronger domain transfer than single-vector bi-encoders |
+| **Multi-Vector Index** | A vector store that holds multiple vectors per document (one per token or patch) | Required for late-interaction models like ColBERT and ColPali |
+| **Vespa** | A production-scale search engine with native support for ColBERT multi-vector retrieval | Used for deploying ColBERT at larger scale than RAGatouille supports |
+| **PyLate** | A library built on Sentence Transformers for training and fine-tuning late-interaction models | Enables custom ColBERT model training for specialized domains |
+| **Hard Negatives** | Training examples that are semantically close to the correct answer but actually wrong | Used to train ColBERTv2's embeddings to distinguish subtle differences |
+| **Quantization** | Reducing vector values from 32-bit floats to fewer bits (e.g., 1–2 bits per dimension) | Cuts storage and memory requirements at the cost of minor accuracy loss |
+
 *Previous: [Contextual Retrieval](10-contextual-retrieval.md)*

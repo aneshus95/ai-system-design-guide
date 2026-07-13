@@ -695,4 +695,38 @@ results = index.query(vector=query, namespace=tenant_id)
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Vector Database** | A storage system purpose-built for persisting high-dimensional embedding vectors and searching them by similarity | Provides the indexing and query infrastructure that makes semantic retrieval fast at scale |
+| **ANN (Approximate Nearest Neighbor)** | A search strategy that finds results very close to the true nearest neighbors without checking every vector | Trades a small accuracy loss (typically 1-5%) for orders-of-magnitude faster query times |
+| **HNSW (Hierarchical Navigable Small World)** | A multi-layer graph index where higher layers act as highways for quickly navigating to the right neighborhood | The most popular in-memory ANN algorithm; excellent recall/latency tradeoff with no training required |
+| **DiskANN / Vamana** | A graph-based ANN index that stores most data on NVMe SSDs and keeps only a tiny routing structure in RAM | Cuts RAM requirements by 90-95% vs HNSW; the industry standard for billion-scale cost-efficient search |
+| **IVF (Inverted File Index)** | Partitions vectors into k-means clusters; at query time only the nearest clusters are searched | Lower memory than HNSW; requires training and periodic re-clustering as data changes |
+| **IVF-PQ** | IVF combined with Product Quantization to compress stored vectors | Achieves very low memory at the cost of some recall; common for extremely large datasets |
+| **Product Quantization (PQ)** | Splits each vector into sub-vectors and quantizes each sub-vector to a learned codebook | Reduces memory 4-32x; introduces quantization loss that lowers recall slightly |
+| **Flat Index** | Brute-force exact search comparing the query against every stored vector | Perfect accuracy; only practical below ~100k vectors where latency constraints allow O(n·d) cost |
+| **Cosine Similarity** | Measures the angle between two vectors; 1 = identical direction, 0 = orthogonal | Standard distance metric for text embeddings; insensitive to vector magnitude |
+| **Euclidean (L2) Distance** | Straight-line distance between two vectors in high-dimensional space | Preferred for image embeddings where magnitude carries information |
+| **Dot Product** | The sum of element-wise products of two vectors | Equivalent to cosine similarity when vectors are pre-normalized; the fastest metric |
+| **Metadata Filtering** | Restricting a vector search to documents matching boolean conditions on stored attributes | Enables multi-tenant search, date ranges, category filters, and access control |
+| **Pre-Filtering with HNSW** | Traversing the HNSW graph while skipping nodes that fail a metadata predicate | Avoids the problem of retrieving Top-K and then finding zero pass the filter |
+| **SIMD (Single Instruction, Multiple Data)** | CPU instruction sets that apply one operation to many data elements simultaneously | Accelerates distance calculations and bitmask filtering in vector databases |
+| **Pinecone** | A fully managed serverless vector database | Minimizes operational burden; best for teams without Kubernetes/SRE capacity |
+| **Qdrant** | An open-source, Rust-based vector database available self-hosted or as a cloud service | High performance with excellent metadata filtering; disk-mapped metadata keeps RAM usage low |
+| **Weaviate** | An open-source vector database with native hybrid BM25+dense search and multimodal support | Good choice when hybrid search needs to run in a single query without a separate keyword engine |
+| **Milvus / Zilliz** | An open-source distributed vector database designed for 50M+ vectors with heterogeneous node types | Best for organizations needing self-hosted control at very large scale |
+| **pgvector** | A PostgreSQL extension adding vector storage and HNSW/IVFFlat search to Postgres | Ideal when a team already operates Postgres and vector count stays below ~10M |
+| **Chroma** | A lightweight open-source vector store designed for local development and prototyping | Zero-config embeddable store; not designed for production scale |
+| **TCO (Total Cost of Ownership)** | The complete cost including compute, storage, operations staff, and licensing | Framework for comparing managed vs self-hosted options beyond just the per-query price |
+| **P99 Latency** | The query latency at the 99th percentile — the worst-case experience for 1 in 100 queries | Key SLA metric; a high P99 signals tail-latency problems even if median is fine |
+| **Multi-Tenancy** | Serving multiple isolated customers or teams from a single index | Requires metadata filtering, namespace isolation, or per-tenant collections to prevent data leakage |
+| **Upsert** | An insert operation that updates an existing record if the ID already exists | Needed for keeping embeddings fresh as source documents change |
+| **ef_construction / ef_search** | HNSW tuning parameters controlling how extensively the graph is explored during build and query | Higher values improve recall at the cost of index build time and query latency |
+| **nlist / nprobe** | IVF parameters setting the number of clusters and how many are searched per query | Trade recall against query speed; nprobe is the main lever for tuning post-build |
+| **Read Replica** | A copy of the database that serves read (query) traffic only | Enables horizontal scaling of query throughput without overloading the primary write node |
+
 *Previous: [Embedding Models](03-embedding-models.md) | Next: [Hybrid Search](05-hybrid-search.md)*

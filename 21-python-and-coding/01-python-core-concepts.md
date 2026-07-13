@@ -670,4 +670,50 @@ Use `*args` when you want to accept a variable number of **positional** argument
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Immutable Object** | An object whose value cannot be changed after creation; any modification creates a new object | Guarantees that values cannot be accidentally altered by other parts of the code |
+| **Mutable Object** | An object that can be modified in place without creating a new one | Enables efficient in-place updates; requires care to avoid unintended shared-state bugs |
+| **`id()` Function** | Returns the unique integer memory address of an object in CPython | Used with `is` to check whether two variable names refer to the exact same object |
+| **`is` Operator** | Tests whether two names point to the same object in memory (identity check) | Appropriate only for checking `None` or singleton comparisons; use `==` for value equality |
+| **`==` Operator** | Tests whether two objects have the same value by calling `__eq__` | The correct way to compare values; distinct from identity checking with `is` |
+| **LEGB Rule** | The order Python searches for a variable name: Local → Enclosing → Global → Built-in | Determines which variable a name refers to in any given scope |
+| **`global` Keyword** | Declares that a variable assignment inside a function refers to the module-level global variable | Allows functions to read and modify module-level state instead of creating a local shadow |
+| **`nonlocal` Keyword** | Declares that a variable assignment refers to the nearest enclosing (non-global) scope | Enables nested functions to modify a variable defined in an outer function |
+| **`*args`** | Syntax that collects any number of extra positional arguments into a tuple inside a function | Makes functions accept a flexible number of positional inputs |
+| **`**kwargs`** | Syntax that collects any number of extra keyword arguments into a dictionary inside a function | Makes functions accept a flexible number of named inputs |
+| **List Comprehension** | A concise one-line expression that builds a new list by iterating and optionally filtering an iterable | More readable and typically faster than an equivalent for-loop when building lists |
+| **Dict Comprehension** | A concise expression that builds a dictionary from an iterable in a single line | Replaces verbose loop-based dictionary construction with readable declarative syntax |
+| **Generator Expression** | A lazy comprehension using parentheses that produces values one at a time instead of building a full list | Constant memory usage regardless of input size; ideal for large or streaming data |
+| **`lambda` Function** | An anonymous single-expression function defined inline | Used as throwaway callbacks in `map`, `filter`, `sorted`, and similar higher-order functions |
+| **`map()` Function** | Applies a function to every element of an iterable and returns an iterator of results | Transforms each element without writing an explicit for-loop |
+| **`filter()` Function** | Returns an iterator containing only elements of an iterable for which a function returns True | Selects a subset of elements without an explicit loop |
+| **Closure** | A nested function that remembers and can access variables from its enclosing scope after the outer function has returned | Used to create stateful function factories without requiring a full class |
+| **Decorator** | A function that wraps another function to add behaviour without modifying the original function's code | Enables cross-cutting concerns like logging, timing, authentication, and caching to be applied cleanly |
+| **`functools.wraps`** | A decorator that copies the wrapped function's `__name__`, `__doc__`, and other metadata onto the wrapper | Preserves introspection, logging, and debugging information when applying decorators |
+| **Generator Function** | A function that uses `yield` to produce values lazily, one at a time, suspending execution between calls | Enables memory-efficient processing of large datasets or infinite sequences |
+| **`yield` Keyword** | Pauses a generator function and sends a value to the caller; resumes from the same point on the next call | The mechanism that makes generator functions lazy; replaces return in sequential data-producing functions |
+| **Iterator** | An object that implements `__iter__` and `__next__`, maintaining position and returning the next item on demand | The underlying protocol that enables for-loops and `next()` calls on any data source |
+| **Iterable** | Any object that implements `__iter__` and returns an iterator | The broader category; lists, strings, and generators are all iterables |
+| **`StopIteration`** | The exception an iterator raises when it has no more items to yield | The signal that a for-loop or `next()` call uses to know when iteration is complete |
+| **Context Manager** | An object that defines setup (`__enter__`) and teardown (`__exit__`) logic for use with the `with` statement | Guarantees cleanup code runs even if an exception occurs inside the `with` block |
+| **`with` Statement** | A block that automatically calls `__enter__` on entry and `__exit__` on exit of a context manager | The standard way to handle resources like files, locks, and database connections safely |
+| **`contextlib.contextmanager`** | A decorator that turns a generator function into a context manager | Avoids writing a full `__enter__`/`__exit__` class for simple resource-management patterns |
+| **`try / except / else / finally`** | Python's exception handling structure for catching errors, running code on success, and always running cleanup | Enables robust error handling and guaranteed resource cleanup |
+| **Custom Exception** | A user-defined exception class inheriting from `Exception` for domain-specific error conditions | Makes error types descriptive and allows callers to catch specific error categories |
+| **Shallow Copy** | A copy that creates a new container object but leaves nested objects pointing to the same memory | Faster than deep copy; sufficient when nested objects will not be mutated |
+| **Deep Copy** | A recursive copy that duplicates all nested objects, producing a fully independent clone | Required when nested mutable objects must be modified without affecting the original |
+| **Type Hints (PEP 484)** | Optional annotations on function parameters and return values declaring expected types | Enables static analysis tools and IDEs to catch type errors without running the code |
+| **`mypy`** | A static type-checker that reads Python type hints and reports type errors before runtime | Catches classes of bugs (wrong argument types, missing returns) that tests might miss |
+| **GIL (Global Interpreter Lock)** | A mutex in CPython that allows only one thread to execute Python bytecode at a time | Simplifies CPython's memory management but prevents true CPU parallelism with threads |
+| **`threading`** | Python's module for running multiple threads in the same process | Effective for I/O-bound tasks because the GIL is released while waiting on I/O |
+| **`multiprocessing`** | Python's module for spawning separate processes, each with its own Python interpreter and GIL | The correct approach for CPU-bound parallelism; avoids the GIL entirely |
+| **`asyncio`** | Python's cooperative concurrency framework using a single-threaded event loop and `async/await` | Efficient for many concurrent I/O tasks without the overhead of creating threads or processes |
+| **CPU-Bound Task** | A task limited by processor speed, such as numerical computation or model training | Requires `multiprocessing` to achieve parallelism in Python due to the GIL |
+| **I/O-Bound Task** | A task limited by waiting on external resources such as network, disk, or databases | Can benefit from threading or asyncio since the GIL is released during I/O waits |
+
 *Previous: [ML System Design](../20-machine-learning-foundations/04-ml-system-design.md) | Next: [OOP in Python](02-oop-in-python.md)*

@@ -485,4 +485,35 @@ class HumanReviewQueue:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Ensemble Methods** | Using multiple models or runs and combining their outputs rather than trusting a single result | Core strategy here for achieving the 99.5%+ accuracy that financial analysis requires |
+| **Self-Consistency (k=5)** | Running the same extraction prompt five times independently and taking the answer all five agree on | Removes random model errors from numerical data extraction; unanimous agreement is required for numbers |
+| **MoA (Mixture of Agents)** | Using several specialized models in parallel, each focused on a different aspect, then synthesizing results | Produces richer analysis by combining quantitative, qualitative, and risk perspectives |
+| **Multi-Agent Debate** | Having multiple independent models each verify the same factual claim and checking whether they agree | Catches subtle hallucinations that a single-model check misses |
+| **Panel of Judges** | A set of models that each score the final report on quality dimensions and produce an aggregate score | Provides an automated quality gate before deciding whether to auto-publish or route to human review |
+| **Claim Extractor** | A component that parses a report and isolates every individual factual assertion for independent verification | Makes fact-checking systematic—each claim is verified rather than the report being read as a whole |
+| **Hallucination** | A confident but incorrect or fabricated statement produced by an LLM | The primary risk in financial report generation; a wrong number can mislead million-dollar investment decisions |
+| **10-K / 10-Q** | Annual (10-K) and quarterly (10-Q) financial disclosure filings that public companies submit to the SEC | Primary source documents for financial analysis; contain balance sheets, income statements, and risk factors |
+| **EPS (Earnings Per Share)** | A company's profit divided by the number of outstanding shares | One of the most-watched financial metrics; extracted and verified with zero-error tolerance in this pipeline |
+| **P/E Ratio (PE)** | Stock price divided by earnings per share; indicates how much investors pay per dollar of earnings | Common valuation metric; must be precisely extracted from filings without any rounding errors |
+| **Audit Trail** | A complete, timestamped log of every step taken to produce an output | Required for regulatory compliance so reviewers can trace exactly how any claim was generated |
+| **Confidence-Based Routing** | Sending high-confidence outputs directly to publication and low-confidence ones to human reviewers | Manages cost and reviewer workload without sacrificing accuracy on uncertain reports |
+| **Quality Gate** | An automated check with numerical thresholds that a report must pass before moving to the next stage | Acts as a checkpoint to catch low-quality outputs before they reach users or regulators |
+| **Claim Verification Rate** | The percentage of factual claims in a report that can be traced back to a source document | Measures how well the pipeline grounds assertions in evidence; target here is 95%+ |
+| **Data Extraction Accuracy** | The fraction of financial metrics pulled from documents that exactly match the source figures | The strictest accuracy dimension—any extraction error in numbers is treated as a critical failure |
+| **o3 (OpenAI Reasoning Model)** | OpenAI's model designed for deep logical inference with an adjustable reasoning effort budget | Used here for auditing claims because its extended reasoning catches subtle accounting contradictions |
+| **Reasoning Effort** | A parameter on o3 that controls how many thinking steps it takes before answering (low / medium / high) | Set to "high" for financial auditing to maximize error detection at the cost of higher latency and tokens |
+| **Source Attribution** | Linking every claim in the output to the specific document and passage it came from | Required for both compliance (SEC audit) and accuracy (enables humans to verify any statement) |
+| **Consensus Logic** | The rule that determines which verdict wins when multiple debating models disagree | Decides whether a claim is verified, flagged for human review, or marked low-confidence |
+| **Forward-Looking Statement** | A prediction or forecast about future performance (e.g., "we expect revenue to grow 20%") | Legally requires a disclaimer under securities law; the pipeline must detect and flag these automatically |
+| **SEC (Securities and Exchange Commission)** | The U.S. regulatory body that oversees public company disclosures and investment analysis | Sets the compliance rules that the pipeline's audit trail and disclosure requirements must satisfy |
+| **Human Review Queue** | A prioritized list of reports that failed quality gates and need analyst sign-off before publication | The safety valve that ensures no report with disputed claims reaches investors without human oversight |
+| **Multimodal Extraction** | Using a model that can read both text and images (charts, tables) in the same pass | Needed because financial filings often embed data in visual tables that text-only parsers misread |
+| **Verdict** | One model's judgment on a single claim: supported, inferred, unsupported, or contradicted | The atomic output of each debater; consensus across verdicts determines the claim's final status |
+
 *Next: [Code Assistant Case Study](04-code-assistant.md)*

@@ -402,4 +402,47 @@ This chapter is sourced from 100+ public job listings, hiring reports, and recru
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **AI Engineer** | A software engineer who builds production systems on top of large language models via APIs rather than training models from scratch. | The dominant job title in 2026 into which most other AI-adjacent titles are collapsing. |
+| **LLM Engineer** | A role focused on fine-tuning, RAG, and agentic patterns with transformer-based models. | Distinguished from traditional ML Engineer by its emphasis on pre-trained model usage rather than training pipelines. |
+| **Forward Deployed Engineer (FDE)** | An engineer embedded on-site at a customer to deliver AI solutions specific to that client's environment. | The highest-comp breakout role of 2026; requires deep technical skills plus strong customer-facing communication. |
+| **AI Evaluation Engineer** | A specialist who designs, maintains, and improves the systems that measure AI output quality. | Emerged as eval work matured into a discrete engineering discipline separate from the product engineers whose output it measures. |
+| **Agentic Systems Engineer** | An engineer who designs, builds, and debugs multi-step agent loops, tool integrations, and orchestration layers. | A first-class systems engineering surface distinct from general AI engineering; demand driven by agent adoption. |
+| **AI Reliability Engineer** | An SRE-style role specialized in production AI systems: runaway-loop containment, cost anomaly detection, non-deterministic incident response. | The role you need before your first agent runaway loop burns $50K overnight. |
+| **AI Security Engineer / LLM Red Team Specialist** | An engineer focused on prompt injection defense, jailbreak research, and adversarial testing of LLM systems. | A discrete discipline since the May 2026 AI security inflection; required at any company with high-stakes agentic deployments. |
+| **MCP Engineer** | An engineer who designs and builds MCP servers that expose tools and data to LLM applications via the Model Context Protocol. | Emerged as MCP adoption became near-universal; server design is its own specialty. |
+| **Member of Technical Staff (MTS)** | A deliberately broad title used at frontier labs (OpenAI, Anthropic) that blurs the research/engineering boundary. | Often used to hire research engineers without committing to a research or engineering track. |
+| **AI Product Manager (AI PM)** | A product manager who owns AI-powered features, balancing technical feasibility with user and business value. | Now a requirement at most B2B SaaS companies; demands technical fluency in LLM capabilities and limitations. |
+| **RAG (Retrieval-Augmented Generation)** | Fetching relevant documents at query time and including them in the LLM's prompt so the model grounds its answer in real data. | The most commonly required hands-on skill in AI engineering job postings; foundational to enterprise AI products. |
+| **Fine-tuning** | Further training a pre-trained model on task-specific data to adapt its behavior without retraining from scratch. | Required for baking consistent output formats, domain style, or specialized reasoning into a model. |
+| **LoRA / QLoRA** | Efficient fine-tuning techniques that train small adapter weights rather than the full model, drastically reducing memory and compute requirements. | Makes fine-tuning accessible on a single GPU; the default approach for most applied fine-tuning work. |
+| **RLHF (Reinforcement Learning from Human Feedback)** | Training a model using human preference judgments to align its outputs with desired behavior. | The technique behind most frontier model safety and helpfulness improvements; a senior-level skill requirement. |
+| **LangChain / LangGraph** | A popular Python/TypeScript framework (and its graph-based stateful agent extension) for building LLM applications. | The most-listed orchestration framework in agentic AI job postings (34.3% as of 2026). |
+| **LlamaIndex** | A data framework for connecting LLMs to external data sources, especially for RAG pipelines. | Co-occurs in 38% of LangChain job listings; specializes in the ingestion and retrieval layer of RAG systems. |
+| **MCP (Model Context Protocol)** | An open protocol standardizing how LLM applications connect to tools and data sources; governed by the Linux Foundation's Agentic AI Foundation. | Described as "a fundamental requirement" by cutting-edge teams in 2026; MCP server design is a dedicated specialty. |
+| **Vector database** | A specialized database that stores embeddings and retrieves them by similarity. | Required in nearly every RAG system; Pinecone, Qdrant, Weaviate, Milvus, and pgvector are the common options. |
+| **vLLM / SGLang / TensorRT-LLM** | Open-source inference engines that serve LLMs efficiently using techniques like continuous batching and PagedAttention. | Required at frontier labs and performance-sensitive deployments; signals infrastructure depth. |
+| **Observability** | The practice of understanding system behavior by collecting and analyzing traces, metrics, and logs. | Required for all production AI systems; tools include LangSmith, Langfuse, Braintrust, and Arize Phoenix. |
+| **LangSmith / Langfuse / Braintrust / Arize** | LLM observability and evaluation platforms for tracing, monitoring, and CI/CD-gated eval pipelines. | The standard tooling for production LLM monitoring; each has a different strength (LangChain-native, open-source, eval CI, OTel-native). |
+| **Eval-gated CI/CD** | A continuous deployment pipeline that blocks code or prompt changes from shipping if they cause a quality regression on an evaluation suite. | The production discipline that separates teams that ship reliably from teams that discover regressions in production. |
+| **Kubernetes (K8s)** | An open-source container orchestration system for deploying, scaling, and managing containerized applications. | Listed in 17.6% of AI engineering job postings; required for managing AI microservices at production scale. |
+| **IaC (Infrastructure as Code)** | Managing infrastructure through code (e.g. Terraform, Helm) rather than manual configuration. | Required for reproducible, version-controlled AI infrastructure deployments. |
+| **SOC 2** | A security audit framework that certifies a company's controls for data security, availability, and confidentiality. | A hard requirement for enterprise AI products; drives how data isolation and audit logging must be designed. |
+| **HIPAA** | US healthcare privacy law that governs how protected health information (PHI) must be handled. | Mandates encryption, audit logs, access controls, and data retention rules for any AI system touching healthcare data. |
+| **EU AI Act** | European regulation that classifies AI systems by risk level and imposes requirements including FRIA (Fundamental Rights Impact Assessment) and DPIA (Data Protection Impact Assessment). | Compliance triggers at L8+ roles building high-risk AI systems; knowing Article 27 obligations is a differentiator. |
+| **DPIA / FRIA** | Data Protection Impact Assessment and Fundamental Rights Impact Assessment — required EU AI Act compliance documents for high-risk AI systems. | Senior AI engineers at EU-facing companies must understand when these are triggered and how to complete them. |
+| **FedRAMP** | A US government security authorization program for cloud services used by federal agencies. | Required for any AI product sold to US federal government; a hiring differentiator for government-adjacent roles. |
+| **Prompt injection** | An attack where malicious content in user input or retrieved documents overrides the model's system instructions. | A primary concern for AI Security Engineers and a known risk for any agentic system with tool access. |
+| **Jailbreak** | A technique that bypasses a model's safety guardrails to produce content it is designed to refuse. | A core research area for LLM Red Team Specialists; also a compliance risk for customer-facing AI products. |
+| **OpenAI Agents SDK / Claude SDK / Vercel AI SDK** | Provider-specific SDKs for building agentic and streaming LLM applications. | Commonly listed as tech-stack requirements; familiarity with at least one is expected for most applied AI roles. |
+| **PyTorch / JAX** | Deep learning frameworks used for model training and research; PyTorch is the industry standard, JAX is common at frontier labs. | Required at frontier labs for model research and custom inference work. |
+| **TC (Total Compensation)** | The full value of a job offer: base salary + annual bonus + equity grants (RSUs or options). | The only meaningful way to compare tech job offers; base salary alone can be misleading at equity-heavy companies. |
+| **IC (Individual Contributor)** | An engineer who contributes directly through technical work rather than managing others. | Contrasted with Manager track; many frontier labs have parallel IC ladders reaching L8+ with comp matching management. |
+| **OSS (Open-Source Software) contributions** | Publicly visible work on open-source projects, listed by Anthropic at the top of its hiring criteria for applied roles. | A working portfolio of 3-5 projects with evals and observability beats a publication for most applied AI roles. |
+
 *See also: [Question Bank](01-question-bank.md) | [Answer Frameworks](02-answer-frameworks.md) | [Behavioral for AI Roles](05-behavioral-for-ai-roles.md) | [Role Transition Guide](../TRANSITION_GUIDE.md)*

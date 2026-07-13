@@ -147,4 +147,38 @@ To optimize **TPOT**, you must optimize the Memory Bandwidth during Decode: use 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Inference** | Running a trained model on new inputs to get predictions or generated text | The production phase of AI — what actually serves users |
+| **Prefill Phase** | The step where the model reads and processes the entire input prompt at once | Sets up the KV cache before token generation begins |
+| **Decode Phase** | The step where the model generates output tokens one at a time, each depending on the last | The sequential loop that produces the model's response |
+| **Compute-Bound** | A situation where the GPU's math units are the bottleneck, not memory speed | Describes the prefill phase; fix it by making math faster (FP8, FlashAttention) |
+| **Memory-Bound** | A situation where the speed of reading data from memory is the bottleneck, not the math | Describes the decode phase; fix it by reducing data moved per token |
+| **TFLOPS** | Trillions of floating-point math operations a GPU can do per second | Measures a GPU's raw arithmetic capability |
+| **HBM3 / HBM3e** | High Bandwidth Memory, the fast but limited on-chip memory on modern GPUs | Determines how quickly weights and caches can be read during inference |
+| **Memory Wall** | The widening gap between how fast GPUs can compute versus how fast they can read memory | Explains why the decode phase is the primary bottleneck in LLM production |
+| **KV Cache** | The stored Key and Value tensors for all previously seen tokens, kept in VRAM | Avoids recomputing past tokens on every decode step; major VRAM consumer |
+| **TTFT** | Time To First Token — how long until the user sees the first word of a response | Measures perceived responsiveness; target under ~200 ms |
+| **TPOT** | Time Per Output Token — the delay between each successive token in a response | Determines how smooth and fast the response feels; target under ~30 ms |
+| **Throughput** | Total tokens (or requests) generated per second across all users on a system | Sets the cost per query; doubling throughput roughly halves cost per token |
+| **Goodput** | Throughput that still meets latency SLOs (e.g., TTFT < 200 ms and TPOT < 30 ms) | The real optimization target — high token counts that violate SLAs don't count |
+| **Auto-regressive** | A generation style where each new token is conditioned on all previous ones, one at a time | The standard LLM decoding method; inherently sequential and memory-bound |
+| **FlashAttention** | An optimized attention algorithm that reduces memory reads/writes during the prefill phase | Speeds up and reduces the memory footprint of the compute-heavy prefill step |
+| **FP8** | 8-bit floating-point precision, native on H100 and B200 GPUs | Delivers 2x speed over FP16 with negligible accuracy loss for inference |
+| **FP16 / BF16** | 16-bit floating-point formats commonly used for model weights and activations | Standard precision for inference; FP8 is faster but FP16 is more broadly supported |
+| **Dynamic FP8 Scaling** | Per-layer adjustment of quantization scale factors to prevent accuracy loss from outliers | Lets FP8 be used safely across all layers of a large model |
+| **Quantization** | Reducing numerical precision of weights (e.g., from FP16 to 4-bit) to cut memory usage | Shrinks model size and reduces bytes moved per token, improving decode speed |
+| **GQA (Grouped Query Attention)** | An attention variant where multiple query heads share a single KV head, reducing cache size | Cuts KV cache VRAM by up to 8x with under 0.2% quality loss |
+| **Speculative Decoding** | Using a small fast model to draft several tokens, then verifying them in one pass of the large model | Generates multiple tokens per weight-load, bypassing the memory-bound serial bottleneck |
+| **Continuous Batching** | Allowing new requests to join and finished ones to leave a running batch at every token step | Keeps the GPU fully utilized and raises aggregate throughput by 4–10x over static batching |
+| **Tensor Parallelism** | Splitting individual weight matrices across multiple GPUs so one layer runs simultaneously on all | Reduces per-layer latency; the standard approach for multi-GPU serving on one node |
+| **Disaggregated Serving** | Running prefill and decode on separate GPU pools because each phase has different resource needs | Prevents decode-bound and compute-bound phases from competing for the same hardware |
+| **H100 / B200 (Hopper / Blackwell)** | NVIDIA GPU generations that introduced FP8 hardware support and very high memory bandwidth | The reference hardware class for modern high-performance LLM inference |
+| **Matrix-Vector Multiply** | A math operation where a 2D weight matrix is multiplied by a single 1D token vector | What happens in each decode step — inefficient because weights are loaded for just one token |
+| **Matrix-Matrix Multiply** | A math operation that processes many tokens against a weight matrix simultaneously | What happens in the prefill phase — efficient because one weight-load serves all prompt tokens |
+
 *Next: [KV Cache and Context Caching](02-kv-cache-and-context-caching.md)*

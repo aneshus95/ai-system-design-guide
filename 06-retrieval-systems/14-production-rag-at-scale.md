@@ -1531,6 +1531,23 @@ Quick definitions for the terms used throughout this chapter.
 - **Multi-tenant / tenant isolation** — many customers ("tenants") share the system; isolation guarantees Tenant A can never retrieve Tenant B's data. **Noisy neighbor** = one tenant's heavy usage degrading others (fixed with per-tenant rate limits).
 - **Tiered models** — route easy queries to a small/cheap model and hard ones to a big/expensive model, instead of using the big model for everything.
 - **CRAG (Corrective RAG)** — grades retrieved docs *before* generating; supplements (e.g., web search) or re-retrieves if they're weak.
+- **Semantic caching** — storing the embedded query and its answer so semantically similar future queries get served the cached result instead of re-running the full pipeline.
+- **Query routing** — classifying each incoming query (direct LLM, simple RAG, complex RAG, agentic) and sending it down the cheapest adequate pipeline path.
+- **Adaptive retrieval** — deciding dynamically whether to retrieve at all, how many documents to fetch, and which indices to query, based on the query's characteristics.
+- **Lost-in-the-middle** — the LLM accuracy drop (~30%+) for information placed in the middle of a long context window; RAG avoids it by keeping contexts short and focused.
+- **Self-RAG** — a variant where the model inserts inline "critic tokens" to decide whether to retrieve, whether the retrieved content is relevant, and whether its own answer is supported.
+- **Context window overflow** — when the accumulated retrieved chunks exceed the model's maximum input length, causing truncation and lost information.
+- **Retrieval thrash** — an agentic RAG failure where the agent repeatedly issues near-duplicate queries without converging on an answer; fixed by limiting iterations and tracking query uniqueness.
+- **Tool storm** — an agentic RAG failure where the agent calls tools excessively within a single turn; fixed with per-query tool-call limits.
+- **Noisy neighbor** — one tenant's high query volume degrading response latency for other tenants in a shared-pool multi-tenant system; fixed with per-tenant rate limits.
+- **Silo model** — giving each tenant a fully separate index, cache, and compute allocation; strongest isolation but highest cost.
+- **Pool model** — all tenants share a single index and every query includes a mandatory `tenant_id` filter; lowest cost but weakest isolation.
+- **Bridge model** — enterprise tenants get dedicated silos while smaller tenants share a pool; balances cost and isolation for mixed customer bases.
+- **Ingestion queue** — a message broker (Kafka, SQS) that buffers documents before they reach the embedding workers; enables parallel, fault-tolerant indexing at scale.
+- **Dead-letter queue (DLQ)** — a queue where failed ingestion jobs are routed after retries are exhausted; used for debugging and manual reprocessing.
+- **Speculative retrieval** — triggering retrieval on a detected typing pause before the user submits the query, so results are ready faster.
+- **Progressive RAG** — answering first with minimal retrieval and a cheap model, then escalating to deeper retrieval and larger models only if confidence is low.
+- **Token-budget-aware retrieval** — scaling top-K and context size based on the estimated complexity of the query to avoid wasting tokens on simple lookups.
 
 ---
 

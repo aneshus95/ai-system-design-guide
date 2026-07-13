@@ -606,4 +606,42 @@ Decision depends on multiple factors:
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Token** | The basic unit an LLM reads and writes; roughly 0.75 English words on average | All API pricing is expressed per million tokens; understanding tokens is essential to cost math |
+| **Input Tokens** | Tokens in the request sent to the model (system prompt + user message + retrieved context) | Charged at the input rate; usually cheaper than output tokens |
+| **Output Tokens** | Tokens in the model's generated response | Charged at the output rate, typically 2–5× the input rate; long responses are the main cost driver |
+| **Thinking Tokens** | Internal reasoning tokens a model generates before its visible output in extended-thinking mode | Billed even though not shown to the user; can multiply request cost by 2–10× |
+| **Prompt Caching / Context Caching** | A provider feature that stores a reused prompt prefix so cache-hit requests pay a fraction of the normal input price | Can cut input costs 60–90% when the same long system prompt or document is used repeatedly |
+| **Cache Write Fee** | The one-time cost to store a prefix in the provider's cache (typically 1.25–2× normal input rate) | Paid once; breaks even after roughly 2 reuses, then saves money on every subsequent hit |
+| **Cache Hit** | A request where the prefix is found in the cache, charged at the discounted cache-hit rate | The economics of context caching: hit rate determines actual savings |
+| **Batch API** | An asynchronous endpoint that accepts many requests at once and returns results hours later at a 50% discount | Suitable for non-time-sensitive work such as document processing, overnight evaluations, or bulk embeddings |
+| **Tiered Pricing** | Volume discounts applied when monthly spend crosses certain thresholds | Negotiated by large enterprises to reduce per-token cost at scale |
+| **Commitment-Based Pricing** | Pre-purchasing a token volume for a year in exchange for a lower per-token rate | Saves roughly 20% versus pay-as-you-go when consumption is predictable |
+| **Token-Based Pricing** | The standard API billing model: `cost = (input_tokens × input_rate) + (output_tokens × output_rate)` | The fundamental formula for all LLM cost projections |
+| **Model Routing** | Classifying each incoming request and sending it to the cheapest model that can handle it adequately | The highest-leverage cost optimization; can cut spend 50–70% with minimal quality impact |
+| **Semantic Cache** | A cache that uses embedding similarity to recognize paraphrased versions of previously answered queries | Extends response caching beyond exact duplicates to semantically equivalent questions |
+| **TTL (Time-to-Live)** | How long a cached item is kept before expiring; in context caching, typically 5 minutes or 1 hour | Determines the window during which a prefix stays hot in the cache |
+| **Batch Processing** | Grouping many requests and sending them together instead of individually | Enables batch API discounts and reduces per-request overhead |
+| **Self-Hosting** | Running an open-weight model on your own GPU infrastructure instead of calling a provider API | Trades per-token savings for upfront GPU cost and engineering overhead; profitable above ~500K requests/month |
+| **GPU Cloud Arbitrage** | Automatically moving workloads to whichever GPU cloud region has the lowest spot-instance price at a given moment | Tools like Skypilot automate this to cut self-hosting costs by up to 60% |
+| **Spot Instance** | A cloud GPU rented at a steep discount in exchange for the risk that the cloud provider can reclaim it with short notice | Cheap but interruptible; best for fault-tolerant batch jobs, not latency-sensitive inference |
+| **Serverless Compute** | Cloud infrastructure that scales from zero and charges only for actual execution time, with no idle cost | Used by AWS Glue and similar services; ideal for bursty or periodic workloads |
+| **MoE (Mixture-of-Experts)** | An architecture where only a subset of the model's parameters are active per token, reducing compute per inference | Allows trillion-parameter models to run on much less hardware than a dense model of similar quality |
+| **DPU (Data Processing Unit)** | The billing unit for AWS Glue compute capacity; each DPU represents a fixed amount of CPU and memory | Used when estimating AWS Glue job costs |
+| **H100** | NVIDIA's latest flagship data-center GPU; the standard hardware reference for frontier model inference | Determines self-hosting cost benchmarks; a single H100 can run models like Llama 4 Scout or Gemma 4 |
+| **A100** | The previous-generation NVIDIA data-center GPU, still widely used for medium-size model inference | Cost reference for 7B–70B self-hosted models |
+| **TCO (Total Cost of Ownership)** | All costs associated with running an AI system: compute, storage, networking, engineering time, monitoring, and downtime risk | The correct comparison unit when evaluating API versus self-hosting decisions |
+| **Break-even Analysis** | Calculating at what usage volume (or number of cache hits) a more expensive option becomes cheaper | Required before switching from API to self-hosting or enabling a cache write |
+| **Vector DB** | A database that stores embedding vectors and supports fast approximate-nearest-neighbor search | Infrastructure cost component in RAG systems; typically $70–500/month depending on scale |
+| **INT4 / FP16** | Numerical precisions for storing model weights; INT4 uses 4 bits per weight (quantized), FP16 uses 16 bits | Lower precision reduces VRAM requirements and cost; INT4 allows a 70B model to fit on 2× A100 instead of 4× |
+| **Prompt Optimization** | Rewriting system prompts to convey the same instructions in fewer tokens | Low-effort cost reduction; cutting a 2,500-token prompt to 800 tokens saves money on every single call |
+| **Output Length Control** | Using `max_tokens` and stop sequences to cap how long the model's response can be | Eliminates unnecessary verbosity; cutting average output from 500 to 250 tokens halves output cost |
+| **Idempotency Key** | A unique ID attached to a request so that a retry or duplicate call is recognized and not processed twice | Critical for cost control in async job pipelines where the same job might be submitted more than once |
+| **Fast Mode** | A model operating mode that sacrifices some reasoning depth for roughly 2.5× faster throughput at a separate price tier | Useful for latency-sensitive agentic loops that don't need maximum reasoning quality |
+
+---
+
 *Previous: [Capability Assessment](02-capability-assessment.md) | Next: [Model Selection Guide](04-model-selection-guide.md)*

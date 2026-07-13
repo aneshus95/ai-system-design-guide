@@ -129,4 +129,31 @@ A: We implement backpressure with consumer lag monitoring. If lag exceeds 2 minu
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Real-Time Search** | A search system that indexes and serves new content within minutes of it appearing | Satisfies the 5-minute freshness requirement for live market intelligence queries |
+| **Kafka** | A distributed message streaming platform that ingests high-volume event streams with durable, ordered delivery | Acts as the backbone of the ingestion layer; decouples data producers from consumers and handles news spikes |
+| **Stream Processor** | A service that reads events from Kafka in real time and transforms them before writing to the indexes | Normalizes data from different sources (news, filings, social) into a common schema before indexing |
+| **Dual-Write Pattern** | Writing each new document to two separate indexes simultaneously (vector DB and full-text search) | Provides resilience—if vector indexing falls behind, keyword search continues to serve queries |
+| **Vector DB (Qdrant)** | A database that stores document embeddings and finds semantically similar documents by comparing their vectors | Serves semantic queries like "sentiment around Tesla" that keyword search cannot handle |
+| **Elasticsearch** | A full-text search engine that indexes words and finds exact matches with ranking based on term frequency | Handles precise keyword queries like exact ticker symbols or legal filing numbers |
+| **RRF (Reciprocal Rank Fusion)** | An algorithm that merges ranked result lists from multiple retrievers by rewarding consistent high ranks | Combines semantic and keyword results into one ranked list without needing score normalization |
+| **Cross-Encoder Rerank** | A model that scores each candidate by reading the full query and document together | Improves result precision after retrieval by catching relevance mismatches from the fast first-pass rankers |
+| **Hybrid Search** | Running semantic (vector) and keyword search in parallel and fusing their results | Outperforms either method alone for financial queries that mix conceptual meaning and exact terms |
+| **TTL (Time-to-Live)** | A field on a document that tells the database to automatically delete it after a set duration | Manages index size by expiring old news without manual cleanup jobs |
+| **Freshness Filter** | A query-time constraint that limits results to documents indexed after a certain timestamp | Enforces the 5-minute data freshness requirement at the index level rather than in the prompt |
+| **Semantic Search** | Finding documents by meaning similarity rather than exact word overlap | Handles natural language questions like "What is the sentiment around Tesla?" |
+| **GPT-4o-mini** | OpenAI's fast, lightweight model used here for the final answer synthesis step | Achieves 100+ tokens/second needed to meet the 3-second p95 latency target at high query volume |
+| **MSK (Amazon Managed Streaming for Kafka)** | AWS's fully managed Kafka service | Removes the operational overhead of running Kafka clusters while providing the same streaming guarantees |
+| **Consumer Lag** | How far behind a Kafka consumer is from the latest messages in the queue | Monitored as a freshness proxy; if lag exceeds 2 minutes the system sheds load to protect latency |
+| **Backpressure** | A mechanism that slows or samples incoming data when a downstream system cannot keep up | Prevents the indexing pipeline from falling dangerously behind during high-volume news spikes |
+| **Post-Generation Validator** | A check that scans the LLM's output to confirm every number or specific claim appears verbatim in a source | Prevents the model from synthesizing plausible-sounding but fabricated financial figures |
+| **SEC Filings** | Official financial disclosure documents (10-K, 10-Q, 8-K) that public companies submit to regulators | A primary high-trust source for financial data; ingested in real time as the company files them |
+| **p95 Latency** | The response time at the 95th percentile—only 5% of requests are slower than this | The contractual latency target (3 seconds) that drives model and architecture selection decisions |
+| **Batch ETL** | A periodic process that extracts, transforms, and loads data in large chunks on a schedule | Insufficient for this use case because it cannot meet the 5-minute freshness requirement |
+
 *Related chapters: [Hybrid Search](../06-retrieval-systems/05-hybrid-search.md), [Serving Infrastructure](../04-inference-optimization/06-serving-infrastructure.md)*

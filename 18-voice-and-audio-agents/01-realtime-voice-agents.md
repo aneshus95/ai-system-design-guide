@@ -137,4 +137,47 @@ Cascaded for anything needing auditability, compliance, provider flexibility, de
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **VAD (Voice Activity Detection)** | Software that classifies each audio frame in real time as either speech or silence | The first stage in any voice pipeline; gates all downstream processing so the system only acts when the user is talking |
+| **Silero VAD** | A popular open-source neural VAD model that runs on CPU with roughly 10–50ms latency | De-facto open standard in voice agent frameworks; adds negligible delay and integrates natively with LiveKit and Pipecat |
+| **Endpointing** | Deciding when a speaker has truly finished their turn, as opposed to pausing mid-sentence | The crux of voice agent timing; getting it wrong causes the agent to interrupt or wait too long on every turn |
+| **Silence-Threshold Endpointing** | Triggering end-of-turn after N milliseconds of detected silence | Simple to implement but adds a per-turn tax of 600–800ms; the worst-case option for natural conversation feel |
+| **Learned Turn Detection** | Using a small trained model to predict end-of-turn from the partial transcript before silence occurs | Cuts per-turn latency to ~300ms without cutting users off; the modern production approach |
+| **Barge-in / Interruption** | The ability of the user to start speaking while the agent is still talking, causing the agent to stop immediately | Critical for natural conversation; requires VAD to run continuously even while TTS is playing |
+| **STT (Speech-to-Text)** | Software that converts audio from a microphone into a text transcript | Produces the text input the LLM reasons over; word-error rate and endpointing latency are the key quality metrics |
+| **Streaming STT** | An STT system that emits partial transcripts every ~50ms while the user is still speaking | Allows transcription to run in parallel with speech, so the LLM sees the text almost immediately after the user stops |
+| **TTS (Text-to-Speech)** | Software that converts the model's text output into spoken audio | The last mile of the voice pipeline; TTFA is its headline latency metric |
+| **TTFA (Time-to-First-Audio)** | The delay from when TTS receives the first text until the first audio byte is played to the user | The voice equivalent of TTFT; targeting 100–200ms is the modern standard for streaming TTS engines |
+| **Cascaded Pipeline** | A voice architecture that chains separate components: VAD → STT → LLM → TTS, each swappable | Enterprise default for auditability, compliance, provider flexibility, and deep tool use |
+| **Speech-to-Speech (S2S)** | A single multimodal model that ingests raw audio and emits raw audio without converting to text in between | Lowest structural latency and most natural prosody; less controllable and harder to debug than cascaded |
+| **WebRTC** | A browser and server protocol for real-time audio/video transport over UDP | Preferred for client-to-agent media; UDP avoids head-of-line blocking that plagues WebSocket during packet loss |
+| **WebSocket** | A persistent TCP connection used for bidirectional streaming communication | Simpler than WebRTC for server-to-model connections; suffers head-of-line blocking on packet loss |
+| **UDP** | User Datagram Protocol; a fast, connectionless network protocol that allows some packet loss | Preferred for real-time media because late packets are more harmful than dropped packets |
+| **SIP (Session Initiation Protocol)** | The standard signaling protocol for telephony and VoIP calls | Bridges voice agents to the phone network (PSTN); each SIP hop adds 20–50ms of latency |
+| **PSTN (Public Switched Telephone Network)** | The traditional telephone network; delivers 8kHz mu-law audio | Imposes audio quality and sample-rate constraints that can break VAD and turn detection if not handled |
+| **Opus Codec** | An open audio codec optimized for low-latency voice over the internet | Standard codec in WebRTC; good quality at low bit rates and minimal encoding/decoding delay |
+| **Jitter** | Variation in packet arrival time across a network connection | Must stay under ~20ms for voice to feel natural; high jitter causes choppy audio |
+| **Full-Duplex** | Both parties can speak and hear simultaneously, like a real phone call | S2S models handle this more naturally; cascaded pipelines require explicit interruption management |
+| **Backchanneling** | Short verbal acknowledgments ("uh-huh", "yeah") that signal active listening without taking a turn | Still unreliable in 2026 voice agents; a known gap between AI voice and human conversation naturalness |
+| **Code-Switching** | Flipping between two languages mid-sentence, common in multilingual speakers | S2S handles it more naturally than cascaded pipelines constrained by per-component language models |
+| **ASR (Automatic Speech Recognition)** | Synonym for STT; the process of transcribing spoken audio to text | ASR errors—especially on names, codes, and numbers—are the dominant failure mode in production voice agents |
+| **Keyword Boosting** | Raising the recognition probability of specific words (product names, SKUs, codes) in the STT model | Reduces authentication failures caused by the model mishearing critical alphanumeric identifiers |
+| **Verbal Filler** | A phrase like "let me check that" spoken by the agent while a tool call executes in the background | Prevents dead air during tool latency, which callers interpret as a dropped call |
+| **LLM TTFT (Time-to-First-Token)** | How long the LLM takes to produce its first output token after receiving the transcribed input | Usually the single largest controllable latency in a voice pipeline; dictates which LLM tier is viable |
+| **LiveKit Agents** | An open-source WebRTC-native voice agent framework that integrates VAD, turn detection, STT, LLM, and TTS | One of two open-source orchestration leaders (alongside Pipecat) for building production voice agents |
+| **Pipecat** | An open-source Python framework for building real-time voice and multimodal AI pipelines | The other major open-source orchestration option; component-swappable architecture with built-in VAD |
+| **Deepgram** | A commercial real-time STT provider with built-in endpointing and ~6–7% word-error rate | Leading streaming STT vendor for production voice agents; offers keyword boosting and custom vocabulary |
+| **AssemblyAI** | A commercial STT provider with streaming transcription and turn-detection features | Alternative to Deepgram with similar latency profile and built-in endpointing |
+| **ElevenLabs** | A commercial TTS provider specializing in low-latency streaming synthesis and voice cloning | Leading TTS vendor by voice quality and cloning capability |
+| **Cartesia** | A commercial TTS provider targeting ultra-low TTFA streaming synthesis | Competing with ElevenLabs on first-audio latency |
+| **tau-Voice** | A benchmark (Sierra, arXiv:2603.13686) evaluating voice agents on full-duplex conversations with noise, accents, and interruptions | Reveals the gap between voice agent and text agent capability; frontier voice agents score ~30–45% of equivalent text agents |
+| **AWS Nova Sonic** | Amazon's S2S real-time voice model available via AWS | One of three major 2026 S2S options alongside OpenAI Realtime API and Google Gemini Live |
+| **MCP (Model Context Protocol)** | An open protocol for connecting models to external tools and data sources via a standardized interface | Enables OpenAI's Realtime API to call remote tools mid-voice-session without leaving the audio pipeline |
+| **Head-of-Line Blocking** | A TCP behavior where a lost packet stalls all subsequent packets until it is retransmitted | Why WebSocket performs worse than WebRTC for real-time audio under any packet loss |
+
+---
+
 *Previous: [Safety and Governance](../17-tool-use-and-computer-agents/07-safety-and-governance.md) · Next: [Multimodal Generation](../19-multimodal-generation/01-multimodal-generation.md)*

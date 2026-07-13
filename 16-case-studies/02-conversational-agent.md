@@ -477,4 +477,39 @@ class QualityMonitor:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Conversational Agent** | An AI system that holds multi-turn dialogue with a user, maintaining context across messages | The core product here—handles support queries without requiring one-shot answers |
+| **Intent Classifier** | A model that reads a message and labels what the user wants (billing, technical, escalation, etc.) | Routes each message to the right knowledge source and tools before generating a response |
+| **Query Router** | Logic that decides which combination of knowledge bases, APIs, and tools to call based on intent | Keeps irrelevant data out of the context and speeds up retrieval |
+| **Orchestration Layer** | The coordination code that sequences intent classification, routing, retrieval, generation, and safety checks | Glues all components together into a coherent, controllable pipeline |
+| **RAG (Retrieval-Augmented Generation)** | Fetching relevant documents first and feeding them to the LLM before it generates an answer | Grounds support answers in accurate product documentation rather than model memory |
+| **Knowledge Base** | A searchable store of product docs, FAQs, and past ticket resolutions | The authoritative source the agent retrieves from to answer factual questions |
+| **Account Context Service** | A backend service that fetches a specific customer's subscription, history, and account state | Personalizes answers by telling the agent what plan the customer is on, their recent orders, etc. |
+| **Action Tools** | Functions the agent can call to perform real-world operations like creating a ticket or issuing a refund | Enables the agent to resolve issues rather than just answer questions |
+| **Workflow Engine** | A system that executes multi-step business processes triggered by the agent's decisions | Automates downstream actions (e.g., opening a ticket in Zendesk) after the agent completes a turn |
+| **TTFT (Time to First Token)** | The delay between sending a request and receiving the very first character of the response | Key latency metric for chat UX; users notice pauses above ~1 second |
+| **CSAT (Customer Satisfaction Score)** | A survey-based score measuring how satisfied customers are with a support interaction | The primary business metric for support quality; drives hiring and automation investment decisions |
+| **Tenant Isolation** | Ensuring one customer's data is never visible to another customer's session | Critical for B2B SaaS where multiple enterprise customers share infrastructure |
+| **SOC 2 Compliance** | A security audit standard that verifies a company controls data access, availability, and confidentiality | Required by enterprise buyers to trust a vendor with their business data |
+| **Confidence Score** | A number (0–1) the model produces alongside a response indicating how certain it is | Drives escalation logic—low-confidence answers go to a human rather than the customer |
+| **Escalation Handler** | Code that decides whether to pass a conversation to a human agent based on confidence and topic signals | Maintains quality and legal safety by catching situations the AI should not handle alone |
+| **Sensitive Topic Detection** | A keyword or classifier check that flags legally or reputationally risky subjects | Triggers automatic escalation for topics like lawsuits, data breaches, or cancellation threats |
+| **Multi-Turn Memory** | Storing previous messages in a session so each new reply can reference what was said before | Prevents users from having to repeat themselves and enables follow-up questions |
+| **Session ID** | A unique identifier for one continuous conversation between a user and the agent | Used as the key to look up conversation history from the cache |
+| **Redis (TTL)** | An in-memory store with a time-to-live expiry that auto-deletes old data | Holds conversation history for the duration of a session without permanent storage overhead |
+| **LLM Judge** | A language model used to automatically score another model's output for quality dimensions | Enables scalable quality monitoring without reading every conversation manually |
+| **Sample Rate** | The fraction of conversations evaluated by the quality monitor | Balances monitoring cost against statistical confidence in quality metrics |
+| **Resolution Rate** | The percentage of tickets fully resolved by the AI without any human intervention | The main automation efficiency metric—here the target is 60% of all tickets |
+| **Escalation Rate** | The fraction of conversations handed off to a human agent | Tracks automation coverage and flags when the agent is underperforming |
+| **Temperature** | A parameter controlling how random or deterministic the LLM's output is (0 = deterministic, 1 = creative) | Set low (0.3) for support responses to improve consistency and reduce off-brand phrasing |
+| **Thinking Mode** | An extended reasoning mode where Claude generates internal reasoning steps before its final answer | Used for complex billing disputes where step-by-step logical reasoning improves accuracy |
+| **Hybrid Reasoning** | A model capability that lets you toggle between fast standard generation and slower deliberate reasoning | Lets the agent optimize cost by reasoning deeply only when the query complexity justifies it |
+| **PII (Personally Identifiable Information)** | Data that can identify a specific person such as name, email, or payment details | Must be stripped from logs and prevented from leaking into responses to meet privacy requirements |
+| **Self-Consistency** | Running the same query multiple times and selecting the most common answer | Increases reliability for high-stakes responses by cross-checking model outputs |
+
 *Next: [Code Assistant Case Study](04-code-assistant.md)*

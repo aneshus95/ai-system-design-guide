@@ -160,4 +160,35 @@ I keep agents in a single framework when the team owns all agents, they share th
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Multi-Agent System** | An architecture where multiple specialized agents collaborate to complete a task that one agent alone cannot handle well | Enables parallelism, specialization, and independent evaluation of sub-tasks |
+| **Orchestration** | The process of coordinating multiple agents — directing who does what and when | Ensures agents work together in a coherent, goal-directed way |
+| **Supervisor Pattern** | A hierarchical design where one high-reasoning model decomposes tasks and delegates to worker agents | The most common enterprise multi-agent architecture |
+| **Supervisor Agent** | A powerful model that plans, decomposes a goal, and assigns sub-tasks to worker agents | Acts as the "manager" that ensures work is done correctly |
+| **Worker Agent** | A smaller, cheaper model assigned a specific sub-task by the supervisor | Executes the actual work efficiently within its specialty |
+| **Reviewer Agent** | A dedicated agent that validates consolidated output against the supervisor's original plan | Catches errors or inconsistencies before final results are returned |
+| **Swarm** | A multi-agent pattern (popularized by OpenAI) where agents hand off tasks to each other without a central manager | Eliminates bottlenecks by allowing organic conversation flow between agents |
+| **Handoff** | The act of one agent transferring control and context to another agent to continue the task | Enables decentralized, peer-to-peer agent collaboration |
+| **Graph-Based Orchestration** | Modeling an agent workflow as a directed graph where nodes are agents and edges are transitions | Makes control flow explicit, visualizable, and state-aware |
+| **DAG (Directed Acyclic Graph)** | A graph where edges have direction and there are no cycles, used to model task dependencies | Ensures tasks execute in the right order without circular dependencies |
+| **LangGraph** | A Python framework for building stateful, graph-based agent workflows | The dominant framework for complex multi-agent orchestration |
+| **Google ADK** | Google's Agent Development Kit, a framework supporting graph-based agents with native A2A protocol support | Enables Google Cloud-native multi-agent systems |
+| **CrewAI** | A framework for building role-based "crews" of collaborating agents | Popular for business-process automations with clearly defined agent roles |
+| **Agent-to-Agent (A2A) Protocol** | An open protocol for one agent to delegate tasks to another agent from a different vendor or runtime | Enables cross-vendor multi-agent coordination without shared code |
+| **Agent Cards** | JSON metadata documents describing an agent's capabilities, endpoint, and authentication for discovery | Allow orchestrators to find and integrate specialist agents from other vendors |
+| **Cross-Vendor Orchestration** | Coordinating agents built on different frameworks or by different organizations in a single workflow | Breaks down silo boundaries between AI systems from different vendors |
+| **Cognitive Load** | The degradation in performance when a single agent has too many tools or responsibilities at once | Motivates splitting work across specialized agents |
+| **Shared Blackboard** | A global state store that all agents in a system can read from and write to | Enables information sharing between agents but introduces write conflict risks |
+| **Transactional Handoff** | A pattern where only one agent can hold the write lock on global state at a time | Prevents data corruption from two agents modifying the same state simultaneously |
+| **Agentic Debate (P2P)** | A pattern where two agents argue — one proposes, one critiques — until they converge on a high-quality answer | Improves accuracy for high-stakes decisions like legal or medical reasoning |
+| **Decomposition Failure** | When the supervisor breaks a task into sub-tasks with hidden dependencies or logical conflicts | Causes workers to produce correct answers to the wrong questions |
+| **Context Dilution** | When the shared global state grows so large the supervisor loses track of the overall goal | A failure mode in long-running hierarchical agent systems |
+| **Paperclip Pattern** | A deeply hierarchical agent architecture (CEO → manager → worker) for handling large, complex goals | Demonstrates how multi-level delegation can tackle real-world scale tasks |
+| **RAG (Retrieval-Augmented Generation)** | A technique where an agent queries an external knowledge base to ground its responses in retrieved facts | Used in research and search agents to reduce hallucination |
+
 *Next: [Agent Memory and State](05-agent-memory-and-state.md)*

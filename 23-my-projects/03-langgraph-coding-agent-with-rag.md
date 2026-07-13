@@ -312,4 +312,40 @@ Verify against your real implementation before an interview: the exact **state s
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **LangGraph** | A Python library for building stateful, cyclic agent workflows as directed graphs that can loop | Enables "reason → call tool → observe → decide again" loops that a linear chain cannot do |
+| **StateGraph** | LangGraph's core graph type where nodes read and write a shared typed state dict | The blueprint for defining all nodes, edges, and the shared state schema |
+| **Node** | A Python function `(state) → partial update` in a LangGraph graph (LLM call, tool run, retrieval, etc.) | One discrete unit of work the agent can perform |
+| **Conditional Edge** | An edge whose destination is chosen at runtime by a router function that inspects state | Enables branching (e.g., "call tool vs end") based on what the model decided |
+| **Pregel** | Google's message-passing graph-computation model; the execution engine LangGraph compiles to | Provides the runtime loop, persistence hooks, and human-in-the-loop mechanics |
+| **Checkpointer** | A component that snapshots full agent state after each step, keyed by thread_id | Enables cross-turn memory, fault-tolerant resume, and human-in-the-loop pause |
+| **thread_id** | A unique identifier for one conversation; used to load/save checkpoints | Ties all turns of the same conversation to the same persistent state |
+| **ReAct Loop** | The reason-act pattern: LLM reasons → emits tool call → tool runs → result fed back → LLM reasons again | The core agentic loop enabling multi-step problem solving |
+| **ToolNode** | LangGraph's prebuilt executor that reads the last message's tool calls, runs them, and returns ToolMessages | Runs all requested tools (possibly in parallel) without custom wiring per tool |
+| **tools_condition** | LangGraph's prebuilt conditional-edge router that sends to tools if tool calls exist, otherwise to END | Implements the ReAct loop routing with one line |
+| **Human-in-the-Loop (HITL)** | A pattern where the agent pauses and waits for a human to approve before continuing | Prevents irreversible or destructive actions without human confirmation |
+| **interrupt() / Command** | LangGraph primitives for pausing a graph at a node and resuming it later with a human decision | Serializes state, halts the graph, and resumes when the human approves |
+| **RAG (Retrieval-Augmented Generation)** | Injecting retrieved, authoritative passages into the LLM prompt so it answers from real content | Reduces hallucination on proprietary knowledge the base model never saw |
+| **Grounding** | Constraining the LLM to answer from provided retrieved context rather than parametric memory | Makes answers verifiable and reduces fabrication |
+| **Azure AI Search** | Microsoft's managed search service supporting BM25 + vector hybrid retrieval plus a semantic reranker | The RAG retrieval backend; handles ingestion, indexing, and two-stage retrieval in one service |
+| **HNSW** | Hierarchical Navigable Small World — an approximate nearest-neighbor index structure | Enables fast vector search over large document collections |
+| **OpenAI Embeddings** | Dense float vectors encoding text meaning, produced by OpenAI's embedding models | Represent document chunks for similarity search in the vector index |
+| **Matryoshka Representation Learning** | A training technique that allows embedding vectors to be truncated while retaining most semantic quality | Lets you shrink vector dimensions to reduce storage and latency with minimal accuracy loss |
+| **Azure Container Apps** | A serverless container hosting service that auto-scales based on load | Runs the backend without managing VMs or Kubernetes clusters |
+| **CosmosDB** | Azure's globally distributed NoSQL database | Stores LangGraph checkpoints durably; its ETag enables atomic compare-and-swap for thread locking |
+| **Azure Key Vault** | A managed secrets store for API keys and connection strings | Keeps secrets out of code and Git; accessed via Managed Identity |
+| **Managed Identity** | An Azure-managed credential that authenticates to other Azure services without a stored password | Eliminates secret rotation and credential leakage risk |
+| **On-Behalf-Of (OBO) Flow** | An OAuth2 flow where the backend exchanges the user's token for a downstream token scoped to another service | Ensures the agent can only access resources the specific user is authorized for |
+| **Azure Dynamic Sessions (ACADS)** | A Hyper-V-isolated per-session sandbox for running untrusted code | Safe execution environment for LLM-generated code; destroyed after use |
+| **Entra ID / MSAL / JWT** | Microsoft's identity platform, its client library, and the token format it issues | Authenticates users and delegates permissions to the backend securely |
+| **Azure Bicep (IaC)** | A declarative language for defining Azure infrastructure as code | Reproducible, version-controlled infrastructure that can be audited and recreated |
+| **CAS (Compare-and-Swap)** | An atomic operation that updates a value only if it currently matches an expected value | Prevents two container replicas from running the same conversation concurrently |
+| **SSE (Server-Sent Events)** | A protocol for streaming text chunks from server to browser over a single HTTP connection | Delivers agent output token-by-token to the UI without polling |
+| **add_messages Reducer** | A LangGraph state reducer that appends new messages instead of overwriting | Accumulates conversation history automatically across turns |
+
+---
+
 *Previous: [Retrieval Optimization](02-semantic-chunking-and-reranking-retrieval.md) | Next: [Distributed ML Pipeline](04-distributed-ml-pipeline-pyspark-ray.md) | Up: [Guide Home](../README.md)*

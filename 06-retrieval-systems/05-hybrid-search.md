@@ -650,4 +650,32 @@ The alpha parameter controls the balance (typically alpha for dense weight):
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Hybrid Search** | Combining dense (semantic) and sparse (keyword) retrieval results into a single ranked list | Gets the benefits of both retrieval methods; the production baseline for most RAG systems |
+| **Dense Retrieval** | Finding documents by comparing neural embedding vectors | Handles paraphrases, synonyms, and conceptual similarity that keyword search misses |
+| **Sparse Retrieval** | Finding documents by matching exact query tokens weighted by frequency statistics | Excels at rare terms, product codes, acronyms, and exact phrases |
+| **BM25 (Best Match 25)** | A classical keyword ranking formula that scores by term frequency relative to document length | The standard sparse-retrieval baseline; fast, interpretable, and requires no training |
+| **TF-IDF (Term Frequency–Inverse Document Frequency)** | Scores words by how often they appear in a document relative to how common they are across all documents | Earlier sparse ranking method; largely superseded by BM25 in modern retrieval |
+| **RRF (Reciprocal Rank Fusion)** | Merges multiple ranked lists by summing each document's reciprocal rank position across all lists | Robust fusion that ignores incomparable raw scores; the default method for hybrid search |
+| **Alpha (α)** | A weight parameter controlling how much the final score comes from dense vs sparse retrieval | Lets teams tune the dense/sparse balance empirically for their specific query distribution |
+| **Weighted Score Fusion** | Combining normalized dense and sparse scores as a weighted sum | Alternative to RRF when absolute scores carry meaningful information after normalization |
+| **Relative Score Fusion** | Using z-score normalization before combining dense and sparse scores | Accounts for score distribution differences between engines |
+| **SPLADE (Sparse Lexical and Expansion Model)** | A neural model that produces sparse vectors with importance weights for every vocabulary term | Adds query expansion to sparse retrieval, blending exact-match precision with semantic coverage |
+| **Query Expansion** | Automatically adding related terms to a query before or during retrieval | Improves recall by covering vocabulary variants the user did not type |
+| **Parallel Retrieval** | Running dense and sparse searches simultaneously rather than sequentially | Reduces total hybrid search latency to roughly the time of the slower single engine |
+| **Staged Retrieval** | Running a fast broad retrieval first (e.g., BM25 → top 1000) then a more expensive narrow one | Balances breadth of recall with the cost of expensive reranking models |
+| **NDCG (Normalized Discounted Cumulative Gain)** | A ranking quality metric that rewards placing the most relevant document as high as possible | Used to measure and tune the alpha parameter in hybrid search |
+| **MRR (Mean Reciprocal Rank)** | Average reciprocal of the rank at which the first relevant document appears | Quick scalar measure of whether the best result is near the top of the fused list |
+| **Vocabulary Mismatch** | When a query and a relevant document use different words for the same concept | The chief failure mode for dense-only retrieval; solved by adding a sparse leg to the search |
+| **Named Entity** | A real-world proper noun — person, organization, product, location, code | Often retrieves poorly via dense search alone because embeddings blur rare proper nouns into generic vectors |
+| **k (RRF constant)** | The dampener added to rank positions in the RRF formula, typically 60 | Controls how much being ranked #1 vs #2 matters; higher k rewards cross-list agreement over top-rank dominance |
+| **TTL Cache** | A key-value cache that automatically evicts entries after a time-to-live period | Stores fusion results for repeated queries to save latency without serving stale data indefinitely |
+| **Zero-Shot Retrieval** | Retrieving from a domain the embedding model was not explicitly trained on | Sparse (BM25) provides a robust fallback when dense embeddings generalize poorly to a new domain |
+| **Query-Adaptive Alpha** | Adjusting the dense/sparse weight per query based on detected query type | Improves retrieval quality across mixed workloads without sacrificing either semantic or exact-match strength |
+
 *Previous: [Vector Databases](04-vector-databases.md) | Next: [Reranking Strategies](06-reranking-strategies.md)*

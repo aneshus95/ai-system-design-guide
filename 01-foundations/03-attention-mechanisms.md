@@ -512,4 +512,57 @@ The result is exact attention (not an approximation) with O(n) memory and 2-4x s
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Attention** | A mechanism that lets each position in a sequence gather weighted information from all other positions | Core innovation of the transformer; replaces sequential recurrence with parallel direct connections |
+| **Scaled Dot-Product Attention** | The fundamental attention operation: compute Q·Kᵀ, scale by √d_k, apply softmax, multiply by V | The mathematical primitive that every attention variant is built upon |
+| **Query (Q)** | A linear projection of a token representing what it is searching for | Drives matching in attention; paired with keys to produce relevance scores |
+| **Key (K)** | A linear projection of a token representing what it contains or advertises | Acts as the index that other tokens' queries are matched against |
+| **Value (V)** | A linear projection of a token representing the content it contributes once attended to | Carries the actual information transferred to the attending token after matching |
+| **√d_k Scaling** | Dividing raw dot-product scores by the square root of the key dimension | Keeps score variance at 1 regardless of head size; prevents softmax saturation and vanishing gradients |
+| **Softmax** | Function that converts a row of scores into a probability distribution summing to 1 | Turns raw similarity scores into attention weights used to blend values |
+| **Causal Masking** | Setting upper-triangle scores to −∞ before softmax so future positions get zero weight | Enforces autoregressive (left-to-right) generation; required for decoder-only models |
+| **Multi-Head Attention (MHA)** | Running h independent attention operations in parallel, then concatenating outputs | Different heads specialize in different patterns (syntax, semantics, coreference) |
+| **Attention Head** | A single scaled dot-product attention operation operating on a d_k-dimensional subspace | One of h parallel attention functions; each learns different relational patterns |
+| **d_k (Head Dimension)** | The dimension of query and key vectors within a single attention head | Remarkably consistent at 64–128 across model sizes; determines scaling factor √d_k |
+| **W_O (Output Projection)** | A learned linear matrix that projects concatenated multi-head outputs back to d_model | Mixes information across heads after concatenation; final step of multi-head attention |
+| **Attention Pattern** | The distribution of attention weights showing which positions a token focuses on | Visualized as a heatmap; reveals what linguistic structures a head has learned |
+| **Positional Attention** | Attention heads that primarily attend to adjacent or nearby tokens | Captures local context like n-gram relationships |
+| **Syntactic Attention** | Attention heads that capture grammatical relationships such as subject-verb pairs | Enables models to understand sentence structure without explicit parse trees |
+| **Coreference Attention** | Attention heads that link pronouns to their referents across the sequence | Example: "it" → "animal" in "The animal was tired because it…" |
+| **Sparse Attention** | Attention computed only for a subset of position pairs rather than all n² pairs | Reduces complexity to O(n) for long documents; used in Longformer and BigBird |
+| **Local (Windowed) Attention** | Attending only to tokens within a fixed-size window around each position | O(n·w) complexity; effective for tasks where relevant context is nearby |
+| **Global Tokens** | Special tokens that attend to and are attended by all positions in sparse attention models | Provide long-range information flow within otherwise local attention patterns |
+| **Strided Attention** | Attending to every k-th position rather than every adjacent position | Captures periodic structure with O(n²/k) complexity |
+| **Block Attention** | Dividing the sequence into blocks and only computing attention within each block | Simple form of sparse attention; O(n·b) where b is block size |
+| **Longformer** | A transformer using local window plus global token sparse attention for long documents | Extends BERT to handle documents of 4K–16K tokens at linear cost |
+| **BigBird** | A transformer combining local, global, and random attention for very long sequences | Provably Turing-complete sparse attention used for genomics and long documents |
+| **Linear Attention** | Approximates softmax attention using kernel feature maps to reduce O(n²) to O(n) | Suitable for extremely long sequences but trades off quality compared to exact attention |
+| **Performer** | A linear attention model using random Fourier features to approximate the softmax kernel | Achieves O(n) complexity while approximating standard attention |
+| **Flash Attention** | An IO-aware attention implementation that tiles computation in fast SRAM to avoid reading/writing the n×n matrix to HBM | Exact attention with O(n) memory; 2–4× speedup from reducing slow memory accesses |
+| **SRAM (Static RAM)** | Fast on-chip memory in each GPU streaming multiprocessor (~20 MB per SM) | Flash Attention keeps intermediate results here to avoid slow HBM round-trips |
+| **HBM (High Bandwidth Memory)** | The main GPU VRAM where model weights and KV cache are stored (~80 GB on H100) | Much larger than SRAM but ~10× slower; minimizing HBM reads is key to Flash Attention's speed |
+| **Tiling** | Breaking large matrix operations into smaller blocks that fit in SRAM | Core technique of Flash Attention; enables memory-efficient computation of large matrices |
+| **Online Softmax** | Computing softmax incrementally over tiles without needing all scores at once | Allows Flash Attention to produce exact softmax results without materializing the full n×n matrix |
+| **FlashAttention-2** | Improved Flash Attention with better work partitioning across thread blocks and warps | Optimized for A100/H100; ~2× faster than v1 through better GPU parallelism |
+| **FlashAttention-3** | Further improved Flash Attention adding FP8 support and asynchronous GEMM/softmax overlap | Current standard for H100/B200 clusters; 1.5–2× faster than v2 for long-context prefill |
+| **FP8** | 8-bit floating-point precision for matrix multiplications | Doubles compute throughput versus FP16 on H100; used in FlashAttention-3 |
+| **TMA (Tensor Memory Accelerator)** | An H100 hardware unit that handles asynchronous memory transfers between HBM and SRAM | Enables FlashAttention-3 to overlap memory loads with computation for higher utilization |
+| **Multi-head Latent Attention (MLA)** | DeepSeek's attention variant that compresses KV projections into a low-dimensional latent vector before caching | Reduces KV cache to ~5% of MHA with quality superior to GQA; introduced in DeepSeek-V2/V3 |
+| **Grouped-Query Attention (GQA)** | Sharing Key/Value heads across groups of Query heads to shrink the KV cache | 8× smaller KV cache than MHA with near-identical quality; current production standard |
+| **Multi-Query Attention (MQA)** | All query heads share a single Key and Value head | Maximum memory savings but measurable quality loss; used by PaLM and Falcon |
+| **KV Cache** | Stored Key and Value tensors from all prior positions to avoid recomputation during generation | Reduces per-step compute from O(n) to O(1) for KV projections; trades memory for speed |
+| **Context Caching** | API-level feature that pre-computes and stores KV tensors for a fixed long prefix | Cuts TTFT by 90% and cost by 50–90% for requests sharing a common prefix like a system prompt |
+| **Sliding Window Attention (SWA)** | Limiting attention depth to a fixed window of past tokens so KV cache does not grow unboundedly | Used in Mistral/Gemma; enables practical long-context at controlled memory cost |
+| **TTFT (Time to First Token)** | The elapsed time from sending a request until receiving the first generated token | Key user-experience latency; dominated by prompt length and prefill compute speed |
+| **TPS (Tokens Per Second)** | The rate of token generation after the first token appears | Measures decode throughput; dominated by memory bandwidth and batch size |
+| **Prefill** | The parallel processing of all input prompt tokens to populate the KV cache | Compute-bound; scales with prompt length; determines TTFT |
+| **Decode** | The sequential one-token-at-a-time generation phase after prefill | Memory-bandwidth-bound; each step loads the full KV cache; determines TPS |
+| **O(n²) Complexity** | Attention cost growing as the square of sequence length due to all-pair interactions | Fundamental bottleneck for long contexts; doubling sequence length quadruples attention cost |
+| **Model Parallelism** | Distributing model layers or tensors across multiple GPUs to handle models that do not fit on one GPU | Required for serving very large models (70B+) or very long contexts |
+
 *Previous: [Tokenization Deep Dive](02-tokenization-deep-dive.md) | Next: [Transformer Architecture](04-transformer-architecture.md)*

@@ -556,4 +556,46 @@ passes through a content filter before reaching the user."
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Ingestion pipeline** | The data processing path that takes raw documents through parsing, chunking, embedding, and indexing into a vector database. | Data quality here determines retrieval quality; designing it is as important as the query pipeline. |
+| **RAG (Retrieval-Augmented Generation)** | A pattern that fetches relevant document chunks at query time and includes them in the LLM prompt so the model grounds its answer in real data. | Reduces hallucination and enables factual, citable answers on domain-specific knowledge. |
+| **Embedding model** | A model that converts text into a dense vector (list of numbers) capturing semantic meaning. | Used for similarity search in retrieval; distinct from generation models, which produce text. |
+| **Generation model** | An LLM that takes a prompt and produces text output; in RAG it is the component that writes the final answer. | The component that synthesizes retrieved context into a coherent response. |
+| **Context window** | The maximum number of tokens (input + output) an LLM can process in a single call. | Sets a hard limit on how much retrieved context plus conversation history you can send; useful context is much smaller than the advertised limit. |
+| **Lost in the middle** | The finding that LLMs pay less attention to content in the middle of a long context window than to content at the start and end. | Motivates limiting context size and placing the most important chunks first and last. |
+| **Token economics** | The cost and count implications of every token consumed, given that input and output tokens are priced differently. | Determines the running cost of a system; output tokens are typically 2-4x the price of input tokens. |
+| **Prompt caching / prefix caching** | Reusing the computed KV cache for a shared prompt prefix so subsequent requests pay only 10-25% of the usual cost for those tokens. | Can cut per-request cost by 30%+ on workloads with a long static system prompt or tool schema. |
+| **Faithfulness** | The degree to which a generated answer is supported by the retrieved context rather than invented by the model. | The primary quality signal for RAG; a faithfulness score below 0.85 indicates the model is hallucinating. |
+| **Answer relevance** | A RAGAS metric measuring whether the generated answer actually addresses the user's question. | Catches responses that are faithful to context but still off-topic or incomplete. |
+| **Precision@K** | The fraction of the top-K retrieved chunks that are actually relevant. | Measures retrieval signal-to-noise; low precision means the LLM is given mostly irrelevant context. |
+| **Recall@K** | The fraction of all relevant chunks that appear in the top-K retrieved results. | Measures retrieval completeness; low recall means the system missed important information. |
+| **RAGAS** | A Python framework providing automated reference-free metrics for RAG evaluation (faithfulness, answer relevance, context relevance, context recall). | The de facto standard eval toolkit for RAG pipelines. |
+| **LLM-as-judge** | Using an LLM to score another LLM's outputs against a rubric. | Scales quality evaluation affordably; must be calibrated against human judgments to avoid systematic bias. |
+| **Multi-tenancy** | Serving multiple customers from a shared system while keeping each customer's data strictly isolated. | Critical for SaaS products; the key constraint is filtering by tenant_id at the database query level, not after retrieval. |
+| **Post-retrieval filtering** | Filtering retrieved results by tenant or permission after the vector search returns them — the wrong pattern. | A data-leakage bug: documents from other tenants are loaded into memory before being discarded. |
+| **Noisy neighbor** | When one tenant's high usage degrades performance for other tenants sharing the same infrastructure. | A fairness and reliability risk in multi-tenant systems; mitigated by per-tenant rate limits and resource quotas. |
+| **Hallucination** | When an LLM generates confident but factually incorrect or unsupported statements. | The most damaging failure mode for factual AI systems; mitigated by retrieval grounding, citation enforcement, and abstention. |
+| **Prompt injection** | An attack where malicious content in user input or retrieved documents overrides the system instructions. | The top LLM security risk (OWASP LLM #1); requires defense-in-depth since it cannot be fully escaped. |
+| **Graceful degradation** | Returning a partial or fallback response when a component fails rather than returning an error to the user. | Keeps the product working under partial failure; e.g. returning raw chunks when the LLM is unavailable. |
+| **Circuit breaker** | A pattern that stops forwarding requests to a degraded dependency after repeated failures and retries after a cooldown. | Prevents cascading latency failures when an LLM provider or retrieval service is slow or erroring. |
+| **Fallback provider** | A secondary LLM provider that receives traffic when the primary provider is unavailable or rate-limited. | Improves reliability; requires provider-specific prompt variants since prompts tuned for one provider underperform on another. |
+| **TTFT (Time to First Token)** | How long the user waits before the first output token appears when streaming. | The perceived latency for interactive applications; affected most by context size and batch queue depth. |
+| **Prefill / decode phases** | The two stages of LLM inference: prefill processes the entire input prompt in parallel; decode generates one token at a time. | Understanding these phases explains why long prompts increase TTFT and why batching affects throughput differently at each stage. |
+| **Batching** | Processing multiple requests together in a single model forward pass to amortize GPU overhead. | Increases throughput but adds queuing latency; key to efficient LLM serving at scale. |
+| **KV cache** | A stored set of Key and Value tensors for prior tokens so they are not recomputed on each generation step. | Reduces per-token compute from O(n²) to O(n) and enables practical long-context generation. |
+| **GQA (Grouped Query Attention)** | A transformer variant that shares KV heads across groups of query heads to shrink the KV cache. | Reduces the memory footprint of serving long contexts, enabling larger batch sizes. |
+| **Few-shot examples** | A small set of input-output examples included in a prompt to show the model the expected behavior or format. | Guides the model more reliably than instructions alone, especially for structured output or niche tasks. |
+| **Instruction hierarchy** | Using structural prompt separators (e.g. XML tags, delimiters) so the model can distinguish trusted instructions from untrusted retrieved content. | Defends against prompt injection where retrieved documents try to override system instructions. |
+| **Structured output** | Using an LLM provider's schema enforcement (json_schema, tool schema) to guarantee the response matches a defined format. | More reliable than "please return JSON in your instructions"; prevents format-slipping bugs in production. |
+| **Chunking strategy** | The approach used to split documents into indexed pieces (fixed-size, sentence, semantic, recursive, parent-child). | Directly determines retrieval precision and context quality; one of the highest-leverage RAG design decisions. |
+| **Chunk overlap** | The number of tokens shared between adjacent chunks to prevent losing context at chunk boundaries. | Ensures that information near a split point appears in at least one chunk and is retrievable. |
+| **Semantic chunking** | Splitting documents based on meaning similarity between sentences rather than fixed token counts. | Produces coherent thematic chunks; useful for documents with variable section lengths. |
+| **Hybrid search** | Combining dense vector search with sparse keyword search and fusing the ranked lists. | Catches both semantic synonyms (dense) and exact technical terms and product codes (sparse). |
+| **Reranking** | A second-pass step that re-scores the top retrieval candidates with a more accurate cross-encoder model. | Typically improves precision by 10-20 percentage points at the cost of 50-150 ms additional latency. |
+
 *See also: [Question Bank](01-question-bank.md) | [Answer Frameworks](02-answer-frameworks.md) | [Whiteboard Exercises](04-whiteboard-exercises.md)*

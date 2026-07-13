@@ -103,4 +103,30 @@ In 2022, "Think step by step" was a magic phrase to trigger Chain-of-Thought (Co
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Prompt Engineering** | The practice of carefully designing the text you give an LLM to steer its behavior | Improves reliability, accuracy, and safety of LLM outputs |
+| **LLM (Large Language Model)** | A neural network trained on massive text corpora that generates human-like text | The core AI component being instructed via prompts |
+| **Intent Disclosure** | Making the desired task crystal-clear in the prompt so the model has no ambiguity about what to do | Maximizes the chance the model does exactly what you want |
+| **Output Variance** | How much the model's response fluctuates across repeated calls for the same input | Minimizing it produces predictable, stable production outputs |
+| **Instruction Hierarchy** | A tiered system of roles (System → Developer → User → Assistant) that defines which instructions carry the most authority | Enforces safety and behavioral constraints even when users try to override them |
+| **System Prompt** | The top-level message that sets rules, persona, and safety constraints before the conversation begins | Acts as the "constitution" the model tries to obey throughout the interaction |
+| **Developer Role** | A mid-tier instruction layer for technical overrides such as output formatting | Lets engineers adjust model behavior without exposing controls to end users |
+| **H-Rank** | A model training property that makes system-level instructions "stickier" than user-level ones | Prevents user messages from overriding critical safety or behavior rules |
+| **Role Prompting** | Assigning the model a specific persona or expert identity (e.g., "You are a Staff Rust engineer") | Focuses the model's attention on the relevant subset of its training, reducing hallucinations |
+| **Capabilities Anchor** | A detailed, high-specificity role description that locks the model into expert behavior | Produces more consistent, domain-appropriate outputs than vague role labels |
+| **Delimiter** | A clear marker (XML tag, Markdown header, triple quotes) that separates instructions from raw data in the prompt | Prevents the model from confusing untrusted user data with trusted instructions |
+| **PII (Personally Identifiable Information)** | Data that can identify a real person, such as names, emails, or SSNs | Important to detect and redact to protect user privacy |
+| **Zero-Shot** | Prompting the model with only an instruction and no examples | Fast and low-cost; works well when the task is simple or the model is very capable |
+| **Few-Shot** | Providing 2–10 worked examples inside the prompt alongside the instruction | Anchors the model to a specific output format or reasoning style |
+| **Chain-of-Thought (CoT)** | Asking the model to show its intermediate reasoning steps before giving a final answer | Dramatically improves accuracy on math, logic, and multi-step problems |
+| **Programmatic CoT** | Providing explicit numbered reasoning milestones instead of the vague phrase "think step by step" | Gives the model a deterministic reasoning path, improving reliability in production agents |
+| **RLHF (Reinforcement Learning from Human Feedback)** | A training technique where human raters score model outputs to guide learning | Teaches the model to follow instructions and stay aligned with user and safety expectations |
+| **Frontier Model** | A state-of-the-art LLM at the cutting edge of capability (e.g., Claude Opus 4.7, GPT-5.5) | Requires fewer examples and simpler prompts than smaller models |
+| **DSPy** | A framework that treats prompt engineering as a compilation problem, automatically optimizing prompts | Removes the need for hand-tuning prompts when switching models or tasks |
+
 *Next: [Few-Shot and In-Context Learning](02-few-shot-and-icl.md)*

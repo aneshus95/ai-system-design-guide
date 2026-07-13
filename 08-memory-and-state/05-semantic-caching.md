@@ -73,4 +73,32 @@ Because a semantic cache requires its own **Embedding API call** and **Vector Se
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Semantic Cache** | A cache that stores LLM responses keyed by query meaning (embedding vector) rather than exact text | Allows cache hits even when two queries are worded differently but ask the same thing |
+| **Exact Cache** | A traditional cache (Redis, Memcached) that matches queries by exact string or hash equality | Fast and simple but misses semantically equivalent queries that differ by even one character |
+| **Embedding Vector** | A numerical representation of text in high-dimensional space produced by an embedding model | The key used in a semantic cache; similar queries produce vectors that are geometrically close |
+| **Cosine Similarity** | A measure of the angle between two vectors; a score of 1.0 means identical direction (same meaning) | The distance metric used to decide whether an incoming query is close enough to a cached entry |
+| **Similarity Threshold** | A minimum cosine similarity score (e.g., 0.95) required before a cached response is returned | Controls the trade-off between cache hit rate and the risk of returning a wrong answer |
+| **Semantic Drift** | Returning a cached answer to a query that is similar but not semantically equivalent, producing a wrong result | The primary risk of semantic caching; prevented by tight thresholds and multi-stage validation |
+| **RedisVL** | A Python client that adds vector search capabilities directly to Redis | Enables low-latency semantic cache lookups without a separate vector database |
+| **GPTCache** | An open-source library for building semantic caches in front of LLM APIs | Simplifies wiring up embedding, search, and cache storage in a single pipeline |
+| **TTL (Time-To-Live)** | A setting that automatically expires a cache entry after a fixed duration | Prevents stale cached answers from being served when underlying facts have changed |
+| **Dynamic TTL** | A caching strategy where frequently accessed entries get longer TTLs and rarely accessed entries expire sooner | Balances freshness against cache efficiency by keeping popular answers alive longer |
+| **Nearest Neighbour Search** | Finding the vector in the cache that is geometrically closest to the incoming query vector | The core retrieval operation of a semantic cache |
+| **Embedding Tax** | The extra API cost and latency of calling an embedding model on every incoming query before cache lookup | The overhead that makes semantic caching unprofitable at low request volumes |
+| **Cache Hit Rate** | The fraction of incoming requests served from the cache rather than the LLM | The key metric that determines whether a semantic cache actually saves money |
+| **Verifier Model** | A small, cheap LLM called after a cache hit to confirm the cached answer actually addresses the new query | Adds a safety check for high-stakes queries where semantic drift would be costly |
+| **Multi-Stage Validation** | A pipeline of checks (vector similarity → entity match → threshold tightening) before returning a cached result | Reduces semantic drift risk while keeping the cache useful for clearly equivalent queries |
+| **Entity-Match Check** | Verifying that both the cached query and the incoming query reference the same key entities (nouns, verbs) | Catches cases where two queries are geometrically close but involve different subjects |
+| **Multimodal Semantic Caching** | Extending semantic caching to image and audio queries, not just text | Reduces redundant LLM calls when users submit visually or acoustically similar inputs |
+| **Audio Fingerprinting** | Creating a compact representation of an audio clip to detect similar voice commands | Used in multimodal caches to match semantically identical spoken queries |
+| **Visual Similarity** | Detecting that two images are semantically equivalent (e.g., photos of the same object) using embedding distance | Enables caching of image-processing LLM responses for similar images |
+| **Cache Miss** | A lookup that finds no sufficiently similar entry, requiring a fresh LLM call | The case where the cache provides no benefit; the response is then stored for future reuse |
+| **text-embedding-3-small** | OpenAI's lightweight embedding model used to convert queries into vectors cheaply | A common choice for the embedding step in a semantic cache pipeline due to low cost per token |
+
 *Next: [State Management Patterns](06-state-management-patterns.md)*

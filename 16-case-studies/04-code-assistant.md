@@ -522,4 +522,35 @@ class CompletionCache:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Inline Completion** | A suggestion that appears as the developer types, filling in the rest of the current line or block | The most latency-sensitive feature; must respond in under 200ms to avoid disrupting the typing flow |
+| **Speculative Decoding** | A technique where a small fast model drafts tokens and a larger model verifies them in parallel | Cuts generation latency by 40% without sacrificing the accuracy of the larger model |
+| **Draft Model** | The small, fast model that generates candidate tokens for speculative decoding verification | Runs locally on-device to keep the hot path latency low and avoid network round-trips |
+| **Debounce** | Waiting a short delay after the last keystroke before sending a completion request | Prevents flooding the backend with requests on every character and shaves 50ms off perceived latency |
+| **Context Assembly** | Building the prompt by selecting the most relevant code from the current file and related files within a token budget | Determines what the model sees—poor context selection is the most common cause of irrelevant suggestions |
+| **Cursor Position** | The exact line and column where the developer is typing | Used as the center of the context window; code before the cursor is weighted more heavily than code after |
+| **Token Budget** | The maximum number of tokens allocated to context before the model's input is full | Forces prioritization: immediate code first, then imports, then other open files |
+| **Acceptance Rate** | The percentage of AI suggestions that the developer actually uses without deleting them | The primary product-quality metric for a code assistant; target here is above 30% |
+| **Syntax Check** | Verifying that generated code parses successfully according to the language grammar | The fastest and cheapest quality gate; blocks syntactically broken code before it reaches the developer |
+| **SAST (Static Application Security Testing)** | Automated analysis of source code to detect security vulnerabilities without running it | Catches issues like SQL injection or hardcoded credentials before they reach production |
+| **Security Scan** | Running a static analysis tool (Bandit for Python, ESLint security plugin for JS) on generated code | Ensures the assistant never introduces known vulnerability patterns into the codebase |
+| **Type Check** | Verifying that variables and function calls match their declared types in statically typed languages | Catches a class of runtime errors at generation time, especially for TypeScript and Python with type hints |
+| **Best-of-N** | Generating N candidate completions and selecting the best one by a scoring heuristic | Improves quality for slower generation tasks where a few extra seconds can be spent on selection |
+| **Feature Flags** | Configuration switches that enable or disable features for specific users or environments | Used in the gateway to roll out new models or capabilities gradually without a full deployment |
+| **Connection Pooling** | Reusing existing HTTP connections instead of opening a new one for each request | Removes TCP handshake overhead and saves 30ms per request at high request rates |
+| **Model Warm-Up** | Keeping model processes pre-loaded so the first request does not pay the cold-start penalty | Eliminates 100ms+ startup delays that would otherwise appear as random latency spikes |
+| **LRU Cache (Least Recently Used)** | An in-memory cache that evicts the least-recently-accessed entries when full | Provides sub-millisecond lookup for previously seen code contexts without growing unboundedly |
+| **Edge Caching** | Caching common completions at servers geographically close to the user (CDN nodes) | Saves 80ms+ for popular patterns like import statements by serving from a nearby cache |
+| **o4-mini** | OpenAI's lightweight code-optimized model designed for very fast inference | The completion model of choice for sub-150ms latency at high volume |
+| **Agentic Generation** | A mode where the model autonomously reads files, plans edits, and applies changes across a codebase | Handles complex multi-file refactors that a single-completion model cannot perform |
+| **Extended Thinking** | A reasoning mode where the model works through a problem step-by-step before producing its final answer | Enabled selectively for debugging hard issues where slow deep reasoning outweighs latency cost |
+| **Semgrep** | An open-source static analysis tool that matches code patterns using language-aware rules | Used as the security scanner in the verification pipeline; treated as a test failure for policy violations |
+| **p50 / p99 Latency** | The median latency (p50) and the latency that 99% of requests fall below (p99) | Standard percentile metrics for tracking typical performance and tail behavior separately |
+| **Hybrid Reasoning** | A model mode that switches between fast standard generation and slow extended thinking per request | Allows the IDE to use cheap fast mode for boilerplate and expensive deep mode for tricky bugs |
+
 *Next: [Content Moderation Case Study](05-content-moderation.md)*

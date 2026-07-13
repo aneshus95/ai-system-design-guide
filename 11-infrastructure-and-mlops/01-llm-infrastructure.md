@@ -659,4 +659,46 @@ The hidden costs of self-hosting: GPU procurement/rental, engineering time for o
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **vLLM** | An open-source Python library that serves LLMs with high throughput using a technique called PagedAttention | Efficient self-hosted LLM serving in production |
+| **TGI (Text Generation Inference)** | HuggingFace's server for deploying transformer-based models at scale | Fast, production-ready model hosting in the HuggingFace ecosystem |
+| **TensorRT-LLM** | NVIDIA's optimized library that compiles and accelerates LLM inference on NVIDIA GPUs | Maximum inference performance on NVIDIA hardware |
+| **Ollama** | A lightweight tool for running LLMs locally with minimal setup | Development and small-scale model experimentation |
+| **llama.cpp** | A C++ library that runs LLM inference on CPUs and low-power hardware | Edge deployment and CPU-based inference without a GPU |
+| **HPA (HorizontalPodAutoscaler)** | A Kubernetes resource that automatically adds or removes pod replicas based on load metrics | Scales LLM services up and down in response to traffic changes |
+| **Kubernetes** | An open-source platform for automating deployment, scaling, and management of containerized applications | Orchestrates LLM server pods across a cluster |
+| **Tensor Parallelism** | A technique that splits a model's weight matrices across multiple GPUs so they compute in parallel | Allows large models that don't fit on a single GPU to run efficiently |
+| **Pipeline Parallelism** | A technique that splits a model's layers across multiple GPUs or nodes | Enables training and inference of extremely large models across many machines |
+| **KV Cache** | A memory structure that stores intermediate attention computation results so they are not recomputed for repeated tokens | Dramatically speeds up LLM inference by reusing prior computation |
+| **TTFT (Time to First Token)** | The elapsed time from sending a request until the model outputs its very first token | Key latency metric for how quickly an LLM feels responsive to users |
+| **GPU Utilization** | The percentage of time a GPU's compute cores are actively doing work | Measures how efficiently hardware is being used |
+| **Redis** | An in-memory data store commonly used as a cache, queue, or message broker | Provides fast shared state for queues, result stores, and rate-limit counters |
+| **Queue-Based Architecture** | A design pattern where requests are placed into a queue and processed asynchronously by worker processes | Handles traffic spikes and async LLM workloads without dropping requests |
+| **Semantic Caching** | A cache that stores LLM responses and retrieves them when a new query is semantically similar (not just identical) | Reduces cost and latency by reusing responses for near-duplicate questions |
+| **Batch API** | An asynchronous API mode offered by providers where requests are grouped and processed at a discount | Cuts LLM costs by roughly 50% for offline or non-urgent workloads |
+| **Model Router** | A component that inspects each incoming request and selects the most appropriate model to serve it | Optimizes cost and quality by sending easy tasks to cheap models and hard tasks to powerful ones |
+| **Graceful Degradation** | A design where a system falls back to a simpler or cached response instead of failing completely during an outage | Keeps the user experience acceptable even when the primary LLM is unavailable |
+| **Failover** | The automatic switch from a failing primary provider or service to a standby backup | Maintains availability when one LLM provider is down or rate-limited |
+| **Rate Limiting** | A control that caps how many requests a user or service can make in a given time window | Prevents abuse and uncontrolled cost spikes |
+| **p99 Latency** | The 99th-percentile response time — 99% of requests complete faster than this value | Captures worst-case user experience; SLAs are often written against p99 |
+| **LLM-as-Judge** | Using a second LLM to automatically score the quality of another model's outputs | Scalable quality evaluation without requiring human reviewers for every response |
+| **RAG (Retrieval-Augmented Generation)** | A pattern that fetches relevant documents from a knowledge base and injects them into the prompt before generation | Grounds LLM answers in up-to-date, domain-specific information |
+| **Blackwell Ultra (B300 / GB300 NVL72)** | NVIDIA's 2026 flagship GPU and rack system with 288 GB HBM3e memory and NVLink interconnect | The highest-performance hardware for frontier model training and heavy inference |
+| **HBM (High Bandwidth Memory)** | A type of stacked DRAM mounted directly on a GPU package with very high data transfer rates | Provides the memory bandwidth needed for large model inference |
+| **NVLink** | NVIDIA's proprietary high-speed interconnect that directly links GPUs within a server or rack | Enables fast GPU-to-GPU communication for tensor and pipeline parallelism |
+| **ROCm** | AMD's open-source software platform for GPU compute, analogous to NVIDIA's CUDA | Enables running AI workloads on AMD GPUs |
+| **Trainium3** | AWS's third-generation custom AI training chip, integrated into its EC2 and Bedrock services | Provides cost-competitive inference for Anthropic and other AWS AI workloads |
+| **Neuron SDK** | AWS's compiler and runtime for running models on Trainium and Inferentia chips | Required to port and execute ML workloads on AWS custom silicon |
+| **Cerebras CS-3** | A wafer-scale AI chip from Cerebras Systems offering very low latency single-chip inference | Enables ultra-low-latency serving of large models on a single chip replica |
+| **Tenstorrent Galaxy Blackhole** | An open RISC-V inference server with 32 Blackhole chips, available from April 2026 | Cost-effective inference hardware with fully open firmware and compiler stack |
+| **CUDA** | NVIDIA's proprietary parallel computing platform and programming model for GPU workloads | The dominant software layer for AI training and inference on NVIDIA GPUs |
+| **MoE (Mixture of Experts)** | A model architecture where only a subset of specialist sub-networks (experts) are activated for each token | Scales model capacity without proportionally increasing per-token compute cost |
+| **Stargate** | A joint AI infrastructure venture by OpenAI, Oracle, and SoftBank committing trillions in cloud capacity | Represents the scale of dedicated AI compute investment driving down inference costs |
+| **Cost per Token** | The dollar amount charged or incurred for generating or processing one token through an LLM | The fundamental unit of LLM economics used to compare providers and architectures |
+
+---
+
 *Next: [CI/CD for LLM Applications](02-cicd.md)*

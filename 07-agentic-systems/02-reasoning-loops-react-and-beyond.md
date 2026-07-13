@@ -98,4 +98,34 @@ Inference-Time Scaling (often associated with OpenAI's o1) refers to spending mo
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Reasoning Loop** | The repeating cycle of thinking, acting, and observing that drives an agent forward step by step | The fundamental control structure of any agent |
+| **ReAct** | A loop pattern that interleaves Thought, Action, and Observation in sequence | The baseline agent architecture used in most production systems |
+| **Thought** | The model's internal reasoning step before it decides what action to take | Allows the agent to plan before acting, reducing errors |
+| **Action** | A concrete tool call or command the agent executes based on its thinking | Translates reasoning into real-world effect |
+| **Observation** | The result returned from a tool or environment after an action | Feeds new information back into the loop for the next step |
+| **Reflexion** | An extended loop pattern that adds a Critic step to evaluate results and store "lessons learned" | Enables agents to improve within a session by learning from failures |
+| **Critic / Evaluator** | A model or logic step that judges whether an action's result was successful | Provides explicit feedback signal to guide self-correction |
+| **Plan-and-Solve** | A strategy where the agent writes a full plan before executing any steps | Reduces mid-run drift and enables better parallelization |
+| **Static Plan** | A plan created upfront and followed in order without mid-run changes | Suits well-defined workflows where steps are known in advance |
+| **Greedy Approach** | Making decisions one step at a time based only on current information, without look-ahead | Simpler but more prone to getting stuck in bad paths |
+| **Stochastic Errors** | Mistakes that arise from randomness or unpredictable tool results during execution | Reduced by planning ahead before execution begins |
+| **Negative Constraints** | Explicit instructions added to a loop telling the agent what NOT to do (e.g., don't repeat a failed search) | Prevents common looping failures like retrying the same broken action |
+| **Flow Engineering** | Modeling an agent's workflow as a state machine with nodes and conditional edges rather than a linear chain | Enables complex, conditional, and self-correcting agent behavior |
+| **Cyclic Graph** | A workflow graph where the execution can loop back to earlier nodes rather than proceeding only forward | Allows agents to revisit steps for validation or error recovery |
+| **State Machine** | A system where the agent moves between defined states based on events and transitions | Makes agent behavior explicit, debuggable, and visualizable |
+| **LangGraph** | A Python framework for building agent workflows as typed stateful graphs | The dominant tool for implementing graph-based agentic systems |
+| **Micro-Agent** | A small, specialized prompt or tool assigned to a single node in a workflow graph | Keeps each step focused and independently testable |
+| **Inference-Time Scaling** | Spending more compute during the model's response generation to simulate multiple paths before committing | Reduces real-world tool calls by picking better actions upfront |
+| **Search Tree** | A tree structure the model internally explores to simulate different action sequences before choosing one | Enables strategic look-ahead in high-stakes or complex decisions |
+| **Monte Carlo Tree Search (MCTS)** | An algorithm that samples many possible paths through a decision tree and scores them to find the best one | Used in high-accuracy agentic loops to pick optimal actions |
+| **System 2 Loop** | A reasoning loop powered by a model that does extended chain-of-thought internally before each action | More robust than ReAct for complex, multi-step tasks |
+| **Context Window** | The maximum amount of text a model can hold in memory at once during a single inference call | Constrains how much history and context an agent can reason over |
+| **Mental Map** | An agent's accumulated record of what has failed or succeeded in the current session, stored in short-term memory | Helps the agent avoid repeating mistakes within a run |
+
 *Next: [Tool Use and the Model Context Protocol (MCP)](03-tool-use-and-mcp.md)*

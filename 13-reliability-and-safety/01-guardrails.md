@@ -1116,4 +1116,48 @@ The balance is: enough guardrails to be safe, not so many that the bot is useles
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Guardrail** | A rule or system that constrains what an LLM can receive as input or produce as output | Keeps AI behavior safe, predictable, and within allowed boundaries |
+| **Input Guardrail** | A check applied to user input before it reaches the LLM | Blocks harmful, off-topic, or malicious requests before generation begins |
+| **Output Guardrail** | A check applied to the LLM's response before it reaches the user | Catches harmful, irrelevant, or factually wrong content after generation |
+| **Action Guardrail** | A check applied before an AI agent executes a tool call or side-effecting action | Prevents agents from performing dangerous or unauthorized operations |
+| **Defense in Depth** | Stacking multiple independent safety layers so an attacker must bypass all of them | Reduces the chance that any single failure causes a harmful outcome |
+| **Fail-Closed** | Blocking a request when the guardrail itself errors or times out | Ensures safety is preserved even when the guardrail infrastructure breaks |
+| **Fail-Open** | Allowing a request through when the guardrail errors | Preserves availability for low-risk paths where blocking is worse than missing |
+| **False Positive** | A safe, legitimate request that a guardrail incorrectly blocks | Over-blocking frustrates users and can cause teams to disable guardrails entirely |
+| **False Negative** | A harmful request that slips past a guardrail undetected | Means unsafe content reaches the user or unsafe actions are taken |
+| **Shadow Mode** | Running a guardrail in log-only mode without actually blocking anything | Lets teams measure how often a guardrail would fire before enforcing it in production |
+| **PII (Personally Identifiable Information)** | Data that can identify a specific person, such as email, phone, or SSN | Must be detected and redacted to protect user privacy and avoid fines |
+| **PII Detection** | Scanning text for patterns that match personal data | Prevents private information from leaking into LLM inputs or outputs |
+| **Prompt Injection** | An attack where malicious text in user input or retrieved data tries to override the LLM's instructions | Can cause an agent to ignore its guidelines, leak secrets, or take harmful actions |
+| **Direct Injection** | The user themselves types the attack instruction into the chat | The simpler variant; easier to detect with pattern matching |
+| **Indirect Injection** | The attack is hidden inside content the agent reads, such as a web page or document | Harder to detect because the user never types it; the main threat for RAG and browsing agents |
+| **Jailbreak** | An attempt to trick an LLM into ignoring its safety constraints | Used to extract harmful content or system prompt details the model is instructed to withhold |
+| **Sandwich Defense** | Wrapping user input between two reminder blocks that restate the model's instructions | Makes it harder for injected text to override the original system prompt |
+| **Delimiter Defense** | Wrapping user content in unique tags so the model treats it as data, not instructions | Creates a syntactic boundary between instructions and user-provided text |
+| **Dual-LLM Pattern** | Using a privileged LLM for tool calls and a quarantined LLM for processing untrusted content | Prevents injected instructions in external content from reaching the tool-calling model |
+| **CaMeL** | A research system that adds capability and information-flow policies on top of dual-LLM isolation | Near-eliminates prompt injection attacks on agent benchmarks by design |
+| **Least Privilege** | Giving an agent only the permissions it absolutely needs to do its job | Limits the damage if an injection or other attack succeeds |
+| **Hallucination** | When an LLM states something false as if it were fact | Erodes user trust and can cause real harm in medical, legal, or financial contexts |
+| **NLI Model (Natural Language Inference)** | A model that checks whether one piece of text logically follows from another | Used in factuality guardrails to catch claims that contradict or are unsupported by the context |
+| **Abstention** | Training or prompting a model to say "I don't know" when it lacks information | Reduces hallucination by encouraging the model to acknowledge uncertainty |
+| **Self-Consistency** | Generating multiple responses to the same query and checking if they agree | A signal that the model's answer is reliable; high variance suggests hallucination risk |
+| **JSON Schema Validation** | Checking LLM output against a defined structural contract | Ensures structured outputs are parseable and contain required fields before downstream code uses them |
+| **Content Safety Filter** | A classifier that scores output for categories like hate, violence, or self-harm | Blocks responses containing harmful content before they reach the user |
+| **Relevance Check** | Measuring the semantic similarity between a user query and the LLM response | Catches off-topic responses that technically pass content filters but do not answer the question |
+| **Sandbox Execution** | Running agent code or commands inside an isolated environment with resource limits | Prevents malicious or buggy code from harming the host system |
+| **Rate Limiting** | Capping how many requests a user can make per time window | Prevents abuse and protects quota budgets |
+| **Fallback Chain** | A sequence of increasingly degraded strategies tried in order when the primary approach fails | Keeps the system responding gracefully even when the best model or path is unavailable |
+| **Human Escalation** | Routing a low-confidence or sensitive request to a human agent | Provides a safety net when the AI cannot reliably handle a case |
+| **NeMo Guardrails** | NVIDIA's open-source framework for defining LLM behavior rules in a language called Colang | Provides a declarative way to add topic controls, dialogue flows, and safety checks to LLM apps |
+| **Guardrails AI** | An open-source Python library that validates LLM outputs against rules and retries on failure | Simplifies adding structured-output validation and content checks to any LLM pipeline |
+| **Llama Guard** | Meta's purpose-built safety classifier trained to detect unsafe content in LLM interactions | A faster and more evasion-resistant alternative to asking a general LLM to judge toxicity |
+| **OpenAI Moderation API** | OpenAI's hosted endpoint for classifying text into harmful content categories | A ready-made output guardrail that does not require training a custom classifier |
+| **OWASP LLM Top 10** | A community list of the ten most critical security risks for LLM applications | Provides a standard vocabulary for LLM threats and a checklist of controls to implement |
+
 *Next: [Ensemble Methods](02-ensemble-methods.md)*

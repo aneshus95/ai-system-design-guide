@@ -163,4 +163,34 @@ A: We hash user_id to consistently assign users to experiment buckets. Each buck
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Collaborative Filtering** | A recommendation technique that finds users with similar taste and suggests what they liked | Core algorithm for recommending content at scale |
+| **Matrix Factorization** | A math technique that decomposes a user-item rating matrix into compact vector representations | Converts raw watch history into numerical user and item embeddings |
+| **Embedding** | A list of numbers that captures the meaning or characteristics of a user or piece of content | Enables fast similarity comparisons between users and items |
+| **ANN (Approximate Nearest Neighbor)** | A search algorithm that quickly finds the most similar vectors without checking every single one | Retrieves candidate items in milliseconds from millions of options |
+| **ANN Index** | A pre-built data structure that organizes embeddings for fast nearest-neighbor lookup | Makes real-time candidate retrieval possible at scale |
+| **Cross-Encoder** | A model that jointly scores two items together (e.g., a user and a movie) for higher-accuracy ranking | Reranks the top candidates after ANN retrieval for better precision |
+| **Reranker** | A model or algorithm that takes a list of candidates and re-orders them by predicted relevance | Improves final recommendation quality beyond what ANN alone provides |
+| **Cold-Start Problem** | The challenge of making recommendations for new users who have no viewing history | Requires content-based or hybrid methods when collaborative filtering lacks data |
+| **Content-Based Filtering** | Recommending items based on their attributes (genre, director, themes) rather than other users' behavior | Fallback strategy for new users with no collaborative-filtering data |
+| **Hybrid Approach** | Combining multiple recommendation strategies (e.g., content-based + collaborative) | Smoothly handles the spectrum from new users to established users |
+| **Semantic Cache** | A cache that stores results keyed on meaning or content pairs rather than exact query strings | Avoids redundant LLM calls for explanations that apply to many users |
+| **Cache Hit Rate** | The percentage of requests that are served from cache without a new computation | Determines whether latency and cost targets can be met |
+| **p95 Latency** | The response time that 95 percent of requests complete within | Standard target for defining acceptable user-facing performance |
+| **Recency-Weighted Embedding** | An embedding update where recent watch events count more than old ones | Keeps recommendations responsive to shifts in user taste |
+| **Session Embedding** | A temporary vector built from a user's behavior in the current browsing session | Captures short-term intent that the long-term historical profile may miss |
+| **A/B Testing** | Running two or more algorithm variants simultaneously on different user groups to compare outcomes | Provides evidence-based decisions on which recommendation strategy works better |
+| **Experiment Bucket** | A deterministically assigned user group used for A/B testing | Ensures each user sees a consistent experience within an experiment |
+| **LLM (Large Language Model)** | A neural network trained on vast text data that can generate and understand natural language | Generates personalized, human-readable explanations for each recommendation |
+| **Hallucination** | When an LLM generates plausible-sounding but factually incorrect information | Must be prevented by grounding the model with structured fact sheets |
+| **Latency Budget** | The total time allowance broken down across each stage of a pipeline | Guides design decisions so the end-to-end response stays under the SLA |
+| **TTL (Time-to-Live)** | The duration a cached item is kept before it expires and must be regenerated | Controls freshness vs. computation cost for cached explanations |
+| **Offline Pipeline** | A batch process that runs periodically (e.g., daily) to precompute data used at serving time | Moves expensive computation off the critical real-time path |
+| **Online Serving** | The real-time system that handles user requests and returns results within a latency target | Combines precomputed data with lightweight real-time signals |
+
 *Related chapters: [Semantic Caching](../08-memory-and-state/05-semantic-caching.md), [Cost Optimization](../04-inference-optimization/07-cost-optimization-playbook.md)*

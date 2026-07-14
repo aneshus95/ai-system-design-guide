@@ -8,11 +8,18 @@ A practice bank for **Python (data-science / pandas)** and **SQL** coding interv
 - [Python — Pandas Data Manipulation](#python--pandas-data-manipulation)
 - [Python — NumPy & Vectorization](#python--numpy--vectorization)
 - [Python — Implement DS Functions from Scratch](#python--implement-ds-functions-from-scratch)
+- [Python — Harder & Real-Company Patterns](#python--harder--real-company-patterns)
+- [Python — Efficiency: Alternative Solutions](#python--efficiency-alternative-solutions)
+- [SQL — The 7 Recurring Patterns (~90% of Interviews)](#sql--the-7-recurring-patterns-90-of-interviews)
 - [SQL — Core (SELECT / Filter / Aggregate)](#sql--core-select--filter--aggregate)
 - [SQL — Joins](#sql--joins)
 - [SQL — Subqueries](#sql--subqueries)
 - [SQL — Window Functions](#sql--window-functions)
 - [SQL — Dates & Advanced Patterns](#sql--dates--advanced-patterns)
+- [SQL — Gaps & Islands and Sessionization](#sql--gaps--islands-and-sessionization)
+- [SQL — Cohort & Retention](#sql--cohort--retention)
+- [SQL — Recursive CTE & Hierarchy](#sql--recursive-cte--hierarchy)
+- [SQL — Efficient Alternatives & Rewrites](#sql--efficient-alternatives--rewrites)
 - [How to Approach These in the Interview](#how-to-approach-these-in-the-interview)
 - [References](#references)
 
@@ -281,6 +288,149 @@ Guard against zero-norm vectors in production.
 
 ---
 
+## Python — Harder & Real-Company Patterns
+
+**P23. (Shopify/Amazon) From `orders[customer_id, order_date, order_cost]`, find the customer(s) with the highest *daily* total order cost (sum per customer per day), and the date.**
+<details><summary>Solution</summary>
+
+```python
+daily = df.groupby(['customer_id', 'order_date'], as_index=False)['order_cost'].sum()
+daily[daily['order_cost'] == daily['order_cost'].max()]
+```
+Aggregate to daily totals first, then filter to the max. (`==max()` returns ties; `.nlargest(1)` would drop them.)
+</details>
+
+**P24. Multi-condition bucketing: label `amount` as 'low'/'mid'/'high' — efficiently, no `apply`.**
+<details><summary>Solution + alternatives</summary>
+
+```python
+# BEST — vectorized, handles many conditions cleanly:
+df['band'] = np.select(
+    [df.amount < 50, df.amount < 200],
+    ['low', 'mid'],
+    default='high')
+
+# Also fine for 2 buckets: np.where(df.amount < 50, 'low', 'high')
+# AVOID (slow, row-by-row): df['band'] = df.amount.apply(lambda x: 'low' if x < 50 else ...)
+```
+`np.select` is the idiomatic multi-branch vectorized if/else — far faster than `.apply` on big data.
+</details>
+
+**P25. Add a column with each row's value as a % of its group total (`df[dept, salary]`).**
+<details><summary>Solution</summary>
+
+```python
+df['pct_of_dept'] = df['salary'] / df.groupby('dept')['salary'].transform('sum') * 100
+```
+`transform('sum')` broadcasts the group total back to every row — no merge needed.
+</details>
+
+**P26. Time-based join: for each `trade[symbol, time]`, attach the most recent `quote[symbol, time, price]` at or before the trade (as-of join).**
+<details><summary>Solution</summary>
+
+```python
+trades = trades.sort_values('time'); quotes = quotes.sort_values('time')
+pd.merge_asof(trades, quotes, on='time', by='symbol', direction='backward')
+```
+`merge_asof` is the specialized tool for "nearest earlier match" joins (finance, event enrichment) — both frames must be sorted on the key.
+</details>
+
+**P27. One row per `(user, tag)` from `df[user, tags]` where `tags` is a comma-separated string.**
+<details><summary>Solution</summary>
+
+```python
+df.assign(tag=df['tags'].str.split(',')).explode('tag')
+# strip whitespace: .assign(tag=lambda d: d['tag'].str.strip())
+```
+`str.split` → list column → `explode` fans it to one row per element (the pandas "unnest").
+</details>
+
+**P28. Rank customers by total spend and return their percentile.**
+<details><summary>Solution</summary>
+
+```python
+spend = df.groupby('customer_id')['amount'].sum()
+pct = spend.rank(pct=True) * 100          # 0–100 percentile
+```
+`rank(pct=True)` gives the percentile directly; `method='dense'`/`'min'` controls tie behavior.
+</details>
+
+**P29. Count consecutive-day login streaks per user from `logins[user, date]` (distinct dates).**
+<details><summary>Solution (the pandas gaps-and-islands trick)</summary>
+
+```python
+df = df.drop_duplicates(['user','date']).sort_values(['user','date'])
+df['date'] = pd.to_datetime(df['date'])
+# A streak = consecutive days ⇒ (date - rank_days) is constant within a streak:
+grp = df.groupby('user')
+df['island'] = (df['date'] - pd.to_timedelta(grp.cumcount(), unit='D'))
+streaks = df.groupby(['user','island']).size()   # length of each streak
+```
+Subtracting a running counter of days from the date makes consecutive dates map to the **same constant** → group by it. This is the pandas mirror of the SQL gaps-and-islands pattern below.
+</details>
+
+---
+
+## Python — Efficiency: Alternative Solutions
+
+Interviewers flag explicit loops where vectorization is expected. Know the fast alternative for each common task:
+
+| Task | ❌ Slow | ✅ Efficient |
+|---|---|---|
+| Conditional column | `.apply(lambda row: ...)` | `np.where` / `np.select` (vectorized) |
+| Lookup/enrich by key | Python `for` + dict | `df['x'].map(mapping)` or `merge` |
+| Top-N rows | `.sort_values().head(n)` | `.nlargest(n, col)` (partial sort, faster) |
+| Group-wise value on each row | `merge` a groupby back | `groupby(...).transform(...)` |
+| Filter | boolean mask on huge frame | `df.query("amount > 100")` (readable, can be faster) |
+| Row-wise math | iterate rows | column arithmetic (`df.a * df.b`) — C-speed |
+| Repeated string categories | `object` dtype | `astype('category')` (memory + speed) |
+| Count per group | `groupby().apply(len)` | `groupby().size()` or `value_counts()` |
+| Existence check in list | `x in a_list` (O(n)) | `x in a_set` (O(1)) |
+
+**P30. Sum a numeric column — three ways, fastest last.**
+<details><summary>Solution</summary>
+
+```python
+# ❌ Python loop over rows — slowest:
+total = 0
+for v in df['amount']: total += v
+# ⚠️ .apply — still Python-level:
+df['amount'].apply(lambda x: x).sum()
+# ✅ vectorized — runs in C:
+df['amount'].sum()
+```
+Rule of thumb: if you're writing a `for` loop over a DataFrame, there's almost always a vectorized alternative. Reach for iteration only for genuinely sequential logic (and even then prefer `itertuples()` over `iterrows()`).
+</details>
+
+**P31. Replace values via a mapping dict — efficiently.**
+<details><summary>Solution</summary>
+
+```python
+df['country'] = df['code'].map({'US':'United States','IN':'India'})   # vectorized lookup
+# .replace(mapping) also works; .map is faster and returns NaN for misses
+```
+</details>
+
+---
+
+## SQL — The 7 Recurring Patterns (~90% of Interviews)
+
+Most SQL interview questions are one of these shapes — recognize the pattern and the query writes itself:
+
+| # | Pattern | Signature tool | Example below |
+|---|---|---|---|
+| 1 | **Filter & aggregate** | `GROUP BY` + `HAVING` | S1, S2 |
+| 2 | **Conditional joins** | `LEFT JOIN` + `IS NULL` (anti-join) | S3, S5 |
+| 3 | **Top-N per group** | `ROW_NUMBER() OVER (PARTITION BY…)` | S10 |
+| 4 | **Period-over-period** | `LAG` / `LEAD` | S12 |
+| 5 | **Gaps & islands / sessionization** | `LAG` + running `SUM` of a flag | S19–S21 |
+| 6 | **Dedup keeping latest** | `ROW_NUMBER()` + filter `= 1` | S14 |
+| 7 | **Hierarchy / manager chain** | recursive CTE / self-join | S22–S23 |
+
+Source: [The 7 SQL interview patterns](https://datavidhya.com/blog/sql-data-engineering-interview-questions/)
+
+---
+
 ## SQL — Core (SELECT / Filter / Aggregate)
 
 *Tables:* `employees(id, name, dept, salary, hire_date, manager_id)`, `orders(id, customer_id, amount, order_date, status)`, `customers(id, name, country)`.
@@ -513,6 +663,163 @@ Foundation for cohort/retention analysis.
 
 ---
 
+## SQL — Gaps & Islands and Sessionization
+
+The highest-value advanced pattern: an **island** is a contiguous run of rows; a **gap** is the break between runs. Same shape powers login streaks, sessionization, consecutive purchases, and unchanged-price periods.
+
+**S19. Longest streak of consecutive login days per user (`logins[user_id, login_date]`, distinct).**
+<details><summary>Solution (the row_number trick)</summary>
+
+```sql
+WITH grp AS (
+  SELECT user_id, login_date,
+         login_date - (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY login_date))::int AS island
+  FROM logins
+)
+SELECT user_id, MIN(login_date) AS streak_start, MAX(login_date) AS streak_end,
+       COUNT(*) AS streak_len
+FROM grp
+GROUP BY user_id, island
+ORDER BY streak_len DESC;
+```
+**Why it works:** for consecutive dates, `date − row_number` stays **constant** (both increase by 1 each row), so it's a stable island id. A gap bumps it. Group by it to collapse each run. Take the max `streak_len` per user for the longest streak.
+</details>
+
+**S20. Sessionize a clickstream: assign a session id where a >30-minute gap starts a new session (`events[user_id, event_time]`).**
+<details><summary>Solution (flag-then-cumulative-sum — the key composite pattern)</summary>
+
+```sql
+WITH flagged AS (
+  SELECT user_id, event_time,
+         CASE WHEN event_time - LAG(event_time) OVER (PARTITION BY user_id ORDER BY event_time)
+                   > INTERVAL '30 minutes'
+              OR LAG(event_time) OVER (PARTITION BY user_id ORDER BY event_time) IS NULL
+              THEN 1 ELSE 0 END AS is_new_session
+  FROM events
+)
+SELECT user_id, event_time,
+       SUM(is_new_session) OVER (PARTITION BY user_id ORDER BY event_time) AS session_id
+FROM flagged;
+```
+Two passes: (1) `LAG` the previous event time and **flag** a new session when the gap exceeds the timeout (or is the first event); (2) a **running SUM of the flag** turns those 0/1 marks into incrementing session numbers. This flag-then-cumsum shape is the most important composite pattern in analytics SQL.
+</details>
+
+**S21. Periods where a product's price stayed unchanged (`price_history[product_id, day, price]`).**
+<details><summary>Solution</summary>
+
+```sql
+WITH marked AS (
+  SELECT *, CASE WHEN price = LAG(price) OVER (PARTITION BY product_id ORDER BY day)
+                 THEN 0 ELSE 1 END AS chg
+  FROM price_history
+), grp AS (
+  SELECT *, SUM(chg) OVER (PARTITION BY product_id ORDER BY day) AS island
+  FROM marked
+)
+SELECT product_id, price, MIN(day) AS from_day, MAX(day) AS to_day
+FROM grp GROUP BY product_id, price, island;
+```
+Same flag-then-cumsum: flag when the price changes, cumulative-sum to id each unchanged run.
+</details>
+
+Source: [Gaps & islands pattern](https://datavidhya.com/learn/sql/interview-patterns/gaps-and-islands/)
+
+---
+
+## SQL — Cohort & Retention
+
+**S22. Monthly signup cohorts and how many users return in each subsequent month (`activity[user_id, activity_month]`).**
+<details><summary>Solution</summary>
+
+```sql
+WITH cohort AS (                                   -- each user's first month
+  SELECT user_id, MIN(activity_month) AS cohort_month
+  FROM activity GROUP BY user_id
+),
+joined AS (
+  SELECT c.cohort_month,
+         (EXTRACT(YEAR FROM a.activity_month)*12 + EXTRACT(MONTH FROM a.activity_month))
+       - (EXTRACT(YEAR FROM c.cohort_month )*12 + EXTRACT(MONTH FROM c.cohort_month )) AS month_offset,
+         a.user_id
+  FROM activity a JOIN cohort c ON c.user_id = a.user_id
+)
+SELECT cohort_month, month_offset, COUNT(DISTINCT user_id) AS active_users
+FROM joined
+GROUP BY cohort_month, month_offset
+ORDER BY cohort_month, month_offset;
+```
+Cohort = each user's first-activity month; `month_offset` = months since signup; count distinct actives per (cohort, offset). Pivoting `month_offset` into columns gives the classic retention triangle.
+</details>
+
+**S23. Day-1 retention: % of users active the day after their signup day.**
+<details><summary>Solution</summary>
+
+```sql
+WITH first_day AS (
+  SELECT user_id, MIN(activity_date) AS d0 FROM activity GROUP BY user_id
+)
+SELECT AVG((a.user_id IS NOT NULL)::int) * 100 AS day1_retention_pct
+FROM first_day f
+LEFT JOIN activity a
+  ON a.user_id = f.user_id AND a.activity_date = f.d0 + INTERVAL '1 day';
+```
+Left-join each user's day-0 to activity on day-0+1; the average of the match flag is the retention rate.
+</details>
+
+Source: [SQL cohort & retention questions](https://letsdatascience.com/blog/sql-cohort-retention-interview-questions)
+
+---
+
+## SQL — Recursive CTE & Hierarchy
+
+**S24. All employees under a given manager (the full reporting subtree).**
+<details><summary>Solution</summary>
+
+```sql
+WITH RECURSIVE subtree AS (
+  SELECT id, name, manager_id, 1 AS level
+  FROM employees WHERE id = :manager_id          -- anchor: the manager
+  UNION ALL
+  SELECT e.id, e.name, e.manager_id, s.level + 1
+  FROM employees e JOIN subtree s ON e.manager_id = s.id   -- recurse down
+)
+SELECT * FROM subtree;
+```
+Anchor row = the starting manager; the recursive part repeatedly joins direct reports until none remain. `level` gives the depth in the org chart.
+</details>
+
+---
+
+## SQL — Efficient Alternatives & Rewrites
+
+Interviewers love "can you write that a better way?" Know these rewrites:
+
+| Slower / risky | Faster / safer | Why |
+|---|---|---|
+| Correlated subquery (`WHERE x > (SELECT AVG…WHERE dept=e.dept)`) | Window: `AVG(x) OVER (PARTITION BY dept)` | Correlated subquery re-runs per row; window computes once |
+| `WHERE id NOT IN (SELECT …)` | `NOT EXISTS` or `LEFT JOIN … IS NULL` | `NOT IN` returns **nothing** if the subquery has a NULL |
+| `SELECT DISTINCT` to dedup groups | `GROUP BY` | Clearer intent; often a better plan |
+| Self-join to get previous row | `LAG()` window function | One pass vs an n×n-ish join |
+| `WHERE YEAR(date) = 2025` | `date >= '2025-01-01' AND date < '2026-01-01'` | Sargable — lets the index work |
+| `UNION` (dedups) | `UNION ALL` when duplicates impossible | Skips the dedup sort |
+| `COUNT(DISTINCT big_col)` everywhere | approx (`APPROX_COUNT_DISTINCT`) if exactness not needed | Much cheaper at scale |
+| `SELECT *` | select only needed columns | Less I/O; enables covering indexes |
+
+**S25. Rewrite "employees above their dept average" without a correlated subquery.**
+<details><summary>Solution</summary>
+
+```sql
+SELECT name, dept, salary FROM (
+  SELECT *, AVG(salary) OVER (PARTITION BY dept) AS dept_avg
+  FROM employees
+) t
+WHERE salary > dept_avg;
+```
+The window computes each dept average **once**; the correlated-subquery version re-executes the average for every row.
+</details>
+
+---
+
 ## How to Approach These in the Interview
 
 - **Think aloud and clarify first** — ask about nulls, duplicates, ties, data types, and expected output shape before coding. Interviewers score your process, not just the answer.
@@ -526,7 +833,9 @@ Foundation for cohort/retention analysis.
 ## References
 
 - [SQL Programming (this guide)](../22-data-engineering/02-sql-programming.md) · [Python Core Concepts](01-python-core-concepts.md) · [Classification Metrics](../20-machine-learning-foundations/06-classification-metrics.md)
-- [StrataScratch — DS SQL & Python questions](https://www.stratascratch.com/) · [DataLemur — SQL interview questions](https://datalemur.com/) · [LeetCode Database](https://leetcode.com/studyplan/top-sql-50/)
+- [StrataScratch — Python/Pandas DS interview questions](https://www.stratascratch.com/blog/python-pandas-interview-questions-for-data-science) · [DataLemur — SQL interview questions](https://datalemur.com/) · [LeetCode Database (Top SQL 50)](https://leetcode.com/studyplan/top-sql-50/)
+- [The 7 recurring SQL interview patterns](https://datavidhya.com/blog/sql-data-engineering-interview-questions/) · [Gaps & islands](https://datavidhya.com/learn/sql/interview-patterns/gaps-and-islands/) · [Cohort & retention questions](https://letsdatascience.com/blog/sql-cohort-retention-interview-questions)
+- [DataCamp — Top 30 pandas interview questions](https://www.datacamp.com/blog/top-python-pandas-interview-questions-and-answers) · [Top 99 SQL interview questions](https://www.datacamp.com/blog/top-sql-interview-questions-and-answers-for-beginners-and-intermediate-practitioners)
 - [pandas documentation](https://pandas.pydata.org/docs/) · [PostgreSQL — SQL language](https://www.postgresql.org/docs/current/sql.html)
 
 ---

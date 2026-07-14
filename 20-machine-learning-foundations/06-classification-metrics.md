@@ -220,4 +220,4 @@ Precision, recall, and F1 all depend on **one chosen threshold**. ROC-AUC steps 
 
 ---
 
-*Previous: [Loss Functions](05-loss-functions.md) | Up: [Guide Home](../README.md)*
+*Previous: [Loss Functions](05-loss-functions.md) | Next: [Data Science Lifecycle](07-data-science-lifecycle.md) | Up: [Guide Home](../README.md)*

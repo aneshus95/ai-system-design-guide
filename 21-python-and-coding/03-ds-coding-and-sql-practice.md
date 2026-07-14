@@ -11,6 +11,7 @@ A practice bank for **Python (data-science / pandas)** and **SQL** coding interv
 - [Python — Implement DS Functions from Scratch](#python--implement-ds-functions-from-scratch)
 - [Python — Harder & Real-Company Patterns](#python--harder--real-company-patterns)
 - [Python — Efficiency: Alternative Solutions](#python--efficiency-alternative-solutions)
+- [Pandas `groupby` — Full Reference](#pandas-groupby--full-reference)
 - [SQL — The 7 Recurring Patterns (~90% of Interviews)](#sql--the-7-recurring-patterns-90-of-interviews)
 - [SQL — Core (SELECT / Filter / Aggregate)](#sql--core-select--filter--aggregate)
 - [SQL — Joins](#sql--joins)
@@ -546,6 +547,99 @@ df['country'] = df['code'].map({'US':'United States','IN':'India'})   # vectoriz
 # .replace(mapping) also works; .map is faster and returns NaN for misses
 ```
 </details>
+
+---
+
+## Pandas `groupby` — Full Reference
+
+`groupby` is the workhorse of pandas interviews. Understand it through **one mental model + three operation types** (examples run on the [sample data](#sample-data--run-this-first)).
+
+**The mental model — split → apply → combine:**
+```
+employees.groupby('dept')      # SPLIT rows into one bucket per dept (lazy — shows nothing yet)
+          .agg / transform / filter   # APPLY a function to each bucket
+                              # COMBINE results back together
+```
+`df.groupby('dept')` alone does nothing visible — what you do *next* decides the output shape. The three fundamentally different things:
+
+### 1. Aggregate — many rows → **one row per group** (output *shrinks*)
+```python
+employees.groupby('dept')['salary'].mean()               # one number per dept
+
+# multiple named aggregations (clean column names):
+employees.groupby('dept').agg(
+    headcount=('name', 'count'),
+    avg_salary=('salary', 'mean'),
+    max_salary=('salary', 'max'))
+
+# different funcs per column:
+employees.groupby('dept').agg({'salary': ['mean', 'max'], 'age': 'median'})
+
+# custom:
+employees.groupby('dept')['salary'].agg(lambda s: s.max() - s.min())   # salary spread
+```
+Aggregators: `sum, mean, median, min, max, count, size, std, var, nunique, first, last`.
+
+### 2. Transform — returns the **same shape** (one value per *original* row)
+The group result is broadcast back to every row → ideal for new columns.
+```python
+employees['dept_avg'] = employees.groupby('dept')['salary'].transform('mean')          # stat per row
+employees['age'] = employees.groupby('dept')['age'].transform(lambda s: s.fillna(s.median()))  # group fill
+employees['pct'] = employees['salary'] / employees.groupby('dept')['salary'].transform('sum') * 100
+g = employees.groupby('dept')['salary']
+employees['z'] = (employees['salary'] - g.transform('mean')) / g.transform('std')        # group z-score
+```
+
+### 3. Filter — keep or drop **whole groups** (pandas' `HAVING`)
+```python
+employees.groupby('dept').filter(lambda gp: len(gp) > 5)                  # depts with >5 employees
+employees.groupby('dept').filter(lambda gp: gp['salary'].mean() > 90)
+```
+
+### 4. Apply — the do-anything escape hatch (most flexible, slowest)
+```python
+employees.groupby('dept').apply(lambda gp: gp.nlargest(2, 'salary'))      # top 2 rows per group
+```
+
+### 5. Select specific rows per group
+```python
+employees.sort_values('salary', ascending=False).groupby('dept').head(2)  # top 2 per dept
+employees.groupby('dept').tail(1)          # last row per group
+employees.groupby('dept').nth(0)           # the 0th row per group
+employees.groupby('dept')['salary'].idxmax()   # index of max-salary row per dept
+```
+
+### 6. Cumulative & ranking within groups
+```python
+orders.sort_values('order_date').groupby('customer_id')['amount'].cumsum()   # running total per customer
+employees.groupby('dept')['salary'].rank(ascending=False)                    # rank within dept
+employees.groupby('dept').cumcount()                                         # 0,1,2… position in group
+```
+
+### 7. Utility & inspection
+```python
+employees.groupby('dept').size()               # rows per group (counts NaN)
+employees.groupby('dept').count()              # non-null count per column
+employees.groupby('dept')['name'].nunique()
+employees.groupby('dept').get_group('Eng')     # pull out one group as a DataFrame
+for name, gp in employees.groupby('dept'):     # iterate groups
+    print(name, len(gp))
+orders.groupby(['customer_id', 'status'])['amount'].sum()   # group by multiple keys
+```
+
+### Cheat sheet
+
+| You want… | Method | Output shape |
+|---|---|---|
+| One summary per group | **`.agg` / `.mean()` etc.** | **shrinks** (1 row/group) |
+| A group stat beside each row | **`.transform`** | **same** as input |
+| Keep/drop whole groups | **`.filter`** | subset of rows |
+| Arbitrary per-group logic | **`.apply`** | anything (slowest) |
+| First/last/N-th rows per group | `.head` / `.tail` / `.nth` | subset |
+| Running total / rank in group | `.cumsum` / `.rank` / `.cumcount` | same as input |
+| Counts | `.size` (incl. NaN) / `.count` (non-null) | 1/group |
+
+> **The mental hook:** *`agg` shrinks, `transform` keeps shape, `filter` selects groups, `apply` does anything.* ~90% of interview `groupby` questions are one of the first three. Tip: add `.reset_index()` after an aggregation to turn the group keys back into normal columns.
 
 ---
 

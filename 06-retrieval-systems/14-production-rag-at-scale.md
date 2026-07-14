@@ -1074,6 +1074,8 @@ async def nightly_quality_check(sample_size: int = 200):
 
 Moving from thousands to millions of documents introduces challenges in indexing throughput, retrieval latency, and index management.
 
+**The intuition — why "just add more documents" breaks.** A vector index isn't a filing cabinet you can keep stuffing; it's a **graph (HNSW) living in RAM** that you traverse on every query. Three things grow at once as documents pile up: **memory** (the index must fit in RAM, or latency falls off a cliff), **search work** (more vectors = a bigger graph to walk per query), and **write load** (ingestion re-touches the index while queries are hitting it). Below ~1M chunks, one machine handles all three and you don't think about it. Past that, no single box has enough RAM or CPU, so the game changes from *tuning one index* to *splitting the problem across machines* — which is what sharding, replicas, and tiering are all about. **The mental shift: from "one big index" to "many small indexes coordinated."**
+
 ### Scaling Dimensions
 
 ```
@@ -1087,6 +1089,14 @@ Strategy:    Single   Single    Sharded   Distributed
              Node     Node +    Index     Cluster +
                       Replicas             Tiered
 ```
+
+**Read the table as a set of thresholds, not a smooth curve — each jump forces a new architecture:**
+- **Single node (≤ ~1M chunks):** the whole index fits in one machine's RAM. Simplest possible setup; don't over-engineer here.
+- **+ Replicas (~1M+):** you can still hold the index on one machine, but *one* machine can't serve enough **queries per second** — so you copy the index to read replicas to scale throughput (see [Read Replicas](#read-replicas-for-retrieval) below). Copies fix QPS, not size.
+- **Sharded (~10M+):** now the index is too big for one machine's RAM, so you **split** it into pieces (shards) across machines — each holds a slice, and queries fan out and merge. Sharding fixes size.
+- **Distributed + Tiered (~100M–1B+):** even sharding isn't enough, so you add **tiering** — keep hot/recent vectors in fast RAM and push cold vectors to cheaper SSD (DiskANN-style), because keeping a billion vectors in RAM would cost a fortune. Tiering fixes cost.
+
+*Two levers, two problems:* **replicas** solve *too many queries* (throughput); **shards** solve *too much data* (capacity). You often need both at once.
 
 ### Ingestion Pipeline at Scale
 
@@ -1119,7 +1129,11 @@ Strategy:    Single   Single    Sharded   Distributed
 +-------------------+
 ```
 
+**Why it looks like this (the intuition).** Embedding millions of documents is **embarrassingly parallel** — each chunk is independent, so the bottleneck is just how many workers you can run. A **queue** (Kafka/SQS) sits in front for three reasons: it **decouples** bursty sources from steady workers (a 10M-doc backfill doesn't overwhelm the system), it lets you **scale workers elastically** (add more consumers to go faster), and it gives you **retries + dead-lettering** so one poison document doesn't stall the pipeline. Dedup happens *at the queue* so you never pay to embed the same content twice. The golden rule: **keep embedding off the query hot path** — ingestion is a background firehose, retrieval is a low-latency trickle, and they must not fight over the same resources (which is exactly why read replicas exist, below).
+
 ### Sharding Strategies
+
+**The core idea:** a shard is a self-contained slice of the index on its own machine. The whole design question is **"how do I split the vectors so a query touches as few shards as possible?"** — because a query that must hit *every* shard and merge results (a *scatter-gather*) is slower and costlier than one that lands on a single shard. So you shard on whatever your queries already filter by.
 
 | Strategy | How It Works | Pros | Cons |
 |----------|-------------|------|------|
@@ -1127,6 +1141,8 @@ Strategy:    Single   Single    Sharded   Distributed
 | **Range-based** | shard by date range | Time-based queries fast | Uneven shard sizes |
 | **Domain-based** | shard by document type | No cross-shard queries | Unbalanced domains |
 | **Tenant-based** | shard by tenant_id | Perfect isolation | Many small shards |
+
+**How to read the trade-off:** **hash-based** spreads data perfectly evenly (no hot shard) but every query fans out to all shards, because any doc could be anywhere. **Domain/tenant-based** does the opposite — a query for tenant X hits *only* tenant X's shard (fast, and it doubles as isolation), but if one tenant is huge and another tiny, your shards are lopsided (a "hot shard"). **Range-based** makes time queries cheap but new data all lands in the newest shard (another hot spot). *Rule of thumb:* shard by your **most common filter** (usually `tenant_id`), and fall back to hashing only when queries are truly global.
 
 ### Index Maintenance
 
@@ -1166,6 +1182,8 @@ class IndexMaintenanceScheduler:
 
 Separate read and write paths so that ingestion never degrades query latency.
 
+**The intuition — don't let the firehose slow the trickle.** Ingestion (writes) and retrieval (reads) compete for the same CPU and memory. During a big re-index, that competition makes user queries slow — the worst possible time. **Replication** solves it by copying the index: the **primary** absorbs all the write/re-index churn, and users query **read-only replicas** that only ever serve searches, so ingestion load can never spike query latency. It's the same reason apps put reporting queries on a database replica instead of the live transactional DB.
+
 ```
   Ingestion Pipeline              Query Pipeline
         |                              |
@@ -1181,6 +1199,10 @@ Separate read and write paths so that ingestion never degrades query latency.
                                   |  (Read)   |
                                   +-----------+
 ```
+
+**Two bonus wins:** replicas also give you **horizontal read scaling** (each replica adds QPS — 3 replicas ≈ 3× query capacity) and **high availability** (if one replica dies, queries route to the others). The one catch is **replication lag** — a freshly ingested document takes a moment to propagate to the replicas, so reads are *eventually* consistent. Usually fine for RAG; worth noting when "I just uploaded it but can't find it" bugs appear.
+
+> **Shards vs replicas in one line:** you **shard** to hold *more data* (split the index), and you **replicate** to serve *more queries* and survive failures (copy the index). Large systems do both — N shards, each with R replicas.
 
 ---
 

@@ -11,10 +11,12 @@ SQL is the single most-tested practical skill in Data Science and Data Engineeri
 - [JOINs](#joins)
 - [Subqueries](#subqueries)
 - [CTEs (WITH)](#ctes-with)
-- [Window Functions (the Big One)](#window-functions-the-big-one)
+- [Window Functions — Made Visual](#window-functions--made-visual)
+- [Window Frames (Moving Windows)](#window-frames-moving-windows)
 - [Set Operations](#set-operations)
 - [CASE & NULL Handling](#case--null-handling)
-- [Indexes & Performance](#indexes--performance)
+- [Advanced SQL Topics](#advanced-sql-topics)
+- [Query Optimization Deep Dive](#query-optimization-deep-dive)
 - [Classic Interview Patterns](#classic-interview-patterns)
 - [Interview Questions](#interview-questions)
 - [Glossary](#glossary)
@@ -192,34 +194,86 @@ WHERE  e.salary > d.avg_sal;      -- earns above their dept average
 
 ---
 
-## Window Functions (the Big One)
+## Window Functions — Made Visual
 
-**The single highest-value advanced topic** — CTEs + window functions appear in ~40% of hard SQL interview questions. A window function computes across a set of rows **related to the current row** — *without collapsing them* (unlike `GROUP BY`). You keep every row *and* get an aggregate/rank alongside it.
+Window functions are the highest-value advanced topic (~40% of hard SQL questions), and also the most-misunderstood. Let's build the picture from actual rows.
 
-```sql
-SELECT
-  name, department, salary,
-  RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS dept_rank,
-  AVG(salary) OVER (PARTITION BY department)                AS dept_avg,
-  SUM(salary) OVER (ORDER BY hire_date)                     AS running_total
-FROM employees;
+### The one idea: keep every row, add a computed column
+
+**`GROUP BY` collapses rows. A window function does NOT.** That's the whole difference. Watch what each does to the same table:
+
+```
+ SOURCE TABLE                     GROUP BY dept              WINDOW: AVG() OVER (PARTITION BY dept)
+ name   dept   salary            dept   avg_salary          name   dept   salary  dept_avg
+ Alice  Eng    120        ─┐     Eng    106.7        ─┐      Alice  Eng    120     106.7   ─┐
+ Bob    Eng    100         ├──►  Sales   85           │      Bob    Eng    100     106.7    │  5 rows
+ Carol  Eng    100         │     (2 rows — names      │      Carol  Eng    100     106.7    │  KEPT — every
+ Dave   Sales  90          │      are GONE)           ┘      Dave   Sales   90      85      │  row survives,
+ Eve    Sales  80         ─┘                                 Eve    Sales   80      85      ─┘  avg attached
 ```
 
-**The anatomy: `FUNCTION() OVER (PARTITION BY ... ORDER BY ...)`**
-- **`PARTITION BY`** = "reset the calculation for each group" (like GROUP BY, but rows aren't collapsed). Omit it → the window is the whole table.
-- **`ORDER BY`** (inside `OVER`) = order within the partition — needed for ranking and running totals.
+**GROUP BY** answers "one number per group" and throws the rows away. **The window function** answers "attach the group's number to *every row*." You keep Alice, Bob, Carol *and* each learns their dept average sits next to them. That's why you use windows when you need per-row detail **and** an aggregate together.
 
-**The workhorse functions:**
+### The mental model: a spotlight that slides down the table
+
+For **each row**, the database:
+1. **draws a "window"** — the set of *related* rows (defined by `PARTITION BY`),
+2. **computes** the function over that window,
+3. **writes the result next to the current row**,
+4. moves to the next row and repeats.
+
+```
+  FUNCTION() OVER ( PARTITION BY <which rows are "related"> ORDER BY <order inside the window> )
+                    └── draws the window ──┘                └── needed for rank / running totals ──┘
+```
+
+- **`PARTITION BY dept`** = "the window for a row is only the rows with the same dept." Omit it → the window is the *whole table*.
+- **`ORDER BY`** *inside* `OVER(...)` = the order the spotlight walks the window in — required for ranking and running totals (there's no "previous row" without an order).
+
+### Ranking, visualized (the three ranks)
+
+`ORDER BY salary DESC`, partitioned by dept — watch how ties are handled differently:
+
+```
+ Eng partition (sorted desc):     ROW_NUMBER  RANK  DENSE_RANK
+   Alice   120                        1         1        1
+   Bob     100   ◄─ tie               2         2        2
+   Carol   100   ◄─ tie               3         2        2
+   (next distinct value)            ...         4        3
+                                      │         │        │
+                     always unique ──┘  gaps ──┘  no gaps┘
+```
+- **`ROW_NUMBER()`** — always 1,2,3, even on ties (arbitrary tiebreak). *Use for dedup / top-N.*
+- **`RANK()`** — ties share a rank, then it **skips** (1,2,2,**4**). *Use for leaderboards.*
+- **`DENSE_RANK()`** — ties share a rank, **no skip** (1,2,2,**3**). *Use for "Nth highest distinct value."*
+
+### Running total, visualized (add `ORDER BY`, no partition)
+
+`SUM(salary) OVER (ORDER BY hire_date)` — each row's window is *itself + everything before it*, so the window **grows** as you go down:
+
+```
+ hire_date  salary   window (rows summed)          running_total
+ Jan        120      [120]                          120
+ Feb        100      [120,100]                      220
+ Mar        100      [120,100,100]                  320
+ Apr         90      [120,100,100,90]               410   ← each row sees all rows up to itself
+```
+
+### The workhorse functions
+
 | Function | What it does | Classic use |
 |---|---|---|
 | **`ROW_NUMBER()`** | 1,2,3… unique per row | deduplication, top-N per group |
 | **`RANK()`** | ranking with **gaps** on ties (1,2,2,4) | leaderboards |
 | **`DENSE_RANK()`** | ranking **no gaps** on ties (1,2,2,3) | "Nth highest salary" |
-| **`LAG()` / `LEAD()`** | value from the previous / next row | period-over-period change |
-| **`SUM/AVG() OVER (ORDER BY ...)`** | running total / moving average | cumulative metrics, trends |
-| **`NTILE(n)`** | split rows into n buckets | quartiles, deciles |
+| **`LAG(col)` / `LEAD(col)`** | value from the previous / next row | period-over-period change |
+| **`SUM/AVG() OVER (ORDER BY…)`** | running total / moving average | cumulative metrics, trends |
+| **`FIRST_VALUE/LAST_VALUE`** | first/last value in the window | "compare each row to the group's best" |
+| **`NTILE(n)`** | split rows into n equal buckets | quartiles, deciles |
 
-> **Why window functions can't go in `WHERE`:** they run at the `SELECT` step (after filtering). To filter on a rank ("keep only rank ≤ 3"), wrap it in a **CTE** and filter on the outer query — this is *the* most common hard-question pattern (top-N per group).
+### Why windows can't go in `WHERE` (and the fix)
+
+Window functions run at the **`SELECT`** step — *after* `WHERE`. So the rank doesn't exist yet when `WHERE` runs. To filter on it, compute it in a **CTE**, then filter on the outer query. This is *the* canonical hard-question pattern — **top-N per group**:
 
 ```sql
 WITH ranked AS (
@@ -228,6 +282,38 @@ WITH ranked AS (
 )
 SELECT * FROM ranked WHERE rn <= 3;    -- top 3 earners per department
 ```
+
+---
+
+## Window Frames (Moving Windows)
+
+By default, `... OVER (ORDER BY x)` gives a **growing** window (everything up to the current row — a running total). A **frame clause** lets you make the window a **fixed-size sliding window** instead — essential for moving averages.
+
+```
+ ROWS BETWEEN 2 PRECEDING AND CURRENT ROW     →  a 3-row window that SLIDES down:
+
+ row1  ┌───┐                     frame = {row1}                (not enough preceding yet)
+ row2  │win│                     frame = {row1, row2}
+ row3  └───┘ ◄current            frame = {row1, row2, row3}    ← 3-row average here
+ row4      ┌───┐                 frame = {row2, row3, row4}    ← window slid down one
+ row5      │win│ ◄current        frame = {row3, row4, row5}
+           └───┘
+```
+
+```sql
+-- 3-day moving average of sales
+SELECT day, sales,
+  AVG(sales) OVER (ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_avg_3d
+FROM daily_sales;
+```
+
+**Frame vocabulary:**
+- **`ROWS`** — count by physical rows (exact: "2 rows back"). Most common.
+- **`RANGE`** — count by *value* (all rows with an `ORDER BY` value within a range; treats ties as one). The default when you add `ORDER BY` is `RANGE UNBOUNDED PRECEDING → CURRENT ROW`.
+- **Bounds:** `UNBOUNDED PRECEDING` (start of partition), `N PRECEDING`, `CURRENT ROW`, `N FOLLOWING`, `UNBOUNDED FOLLOWING` (end of partition).
+- **Whole partition:** `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING`.
+
+> **Gotcha:** a running total *seems* to work without a frame because adding `ORDER BY` silently applies the default `RANGE ... CURRENT ROW` frame. But `RANGE` lumps tied `ORDER BY` values into the same frame — if two rows share the same date, they'll get the *same* running total. Use `ROWS` when you want strict row-by-row behavior.
 
 ---
 
@@ -270,14 +356,105 @@ FROM employees GROUP BY name;
 
 ---
 
-## Indexes & Performance
+## Advanced SQL Topics
 
-An **index** is a lookup structure (usually a B-tree) that lets the database find rows without scanning the whole table — like a book's index instead of reading every page. Interview-relevant points:
+Beyond the core, these show up in senior DS/DE interviews.
 
-- Index the columns you **filter (`WHERE`), join (`ON`), and sort (`ORDER BY`)** on.
-- Indexes **speed reads but slow writes** (every insert must update the index) and cost storage — don't index everything.
-- **`EXPLAIN` / `EXPLAIN ANALYZE`** shows the query plan — how to tell a **full table scan** (slow) from an **index scan** (fast).
-- Common wins: avoid `SELECT *`, filter early, replace correlated subqueries with joins/window functions, avoid functions on indexed columns in `WHERE` (`WHERE YEAR(date) = 2025` can't use the index — use a range instead).
+**`EXISTS` vs `IN` (and `NOT IN`'s NULL trap).** `WHERE EXISTS (subquery)` returns true as soon as the subquery finds *one* matching row — it **short-circuits**, so it's usually faster than `IN` for large/correlated subqueries. The big trap: **`NOT IN` silently returns nothing if the subquery contains a NULL** (because "x not in (1, NULL)" evaluates to unknown). Prefer `NOT EXISTS` for anti-joins.
+```sql
+SELECT * FROM customers c
+WHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id);   -- customers with orders
+```
+
+**`LATERAL` join (a.k.a. `CROSS APPLY`).** A join where the right side can **reference each left row** — lets you run a subquery *per row* (e.g. "the 3 most recent orders for each customer"). It's the clean way to do top-N-per-group inline.
+```sql
+SELECT c.name, o.*
+FROM customers c
+CROSS JOIN LATERAL (
+  SELECT * FROM orders o WHERE o.customer_id = c.id ORDER BY o.date DESC LIMIT 3
+) o;
+```
+
+**Pivot / unpivot.** Turn rows into columns (pivot) with `CASE` inside aggregates (shown above), or use native `PIVOT` in some engines; unpivot turns columns back into rows with `UNION ALL` or `UNNEST`.
+
+**Date/time & string functions.** `DATE_TRUNC('month', ts)` (bucket by month), `EXTRACT(YEAR FROM ts)`, date arithmetic (`ts + INTERVAL '7 days'`), `DATEDIFF`; strings: `CONCAT`, `SUBSTRING`, `TRIM`, `LOWER`, `REPLACE`, `LIKE`/`ILIKE`, regex (`~`). Time-bucketing is bread-and-butter for analytics.
+
+**JSON / semi-structured.** Modern SQL queries JSON columns: `data->>'field'` (Postgres), `JSON_VALUE`/`JSON_EXTRACT` — useful when events/logs live in one column.
+
+**Transactions & ACID.** A **transaction** groups statements so they succeed or fail together (`BEGIN … COMMIT` / `ROLLBACK`). **ACID** = **A**tomicity (all-or-nothing), **C**onsistency (valid states only), **I**solation (concurrent txns don't corrupt each other), **D**urability (committed = survives a crash).
+
+**Isolation levels** (the concurrency trade-off — higher = safer but slower):
+
+| Level | Prevents | Allows |
+|---|---|---|
+| **Read Uncommitted** | — | dirty reads (see uncommitted data) |
+| **Read Committed** | dirty reads | non-repeatable reads |
+| **Repeatable Read** | non-repeatable reads | phantom rows |
+| **Serializable** | everything (acts as if txns ran one-at-a-time) | lowest concurrency |
+
+**`MERGE` / `UPSERT`.** "Insert if new, update if exists" in one statement — Postgres `INSERT ... ON CONFLICT DO UPDATE`, standard `MERGE`. Core for idempotent pipelines (see [Spark/data-eng ingestion](../06-retrieval-systems/15-data-engineering-for-ai.md)).
+
+**Views vs materialized views.** A **view** is a saved query (re-runs every time — always fresh, no storage). A **materialized view** stores the *result* (fast reads, but must be `REFRESH`ed — stale until then). Trade freshness for speed.
+
+**Partitioning.** Split one huge table into physical chunks by a key (usually date). Queries that filter on that key hit only the relevant partitions (**partition pruning**) — the SQL-table analog of sharding, and how warehouses stay fast on billions of rows.
+
+---
+
+## Query Optimization Deep Dive
+
+The mental model: **SQL is declarative, so a query optimizer/planner turns your query into an execution plan.** Optimization is about helping the planner pick a *fast* plan — mostly by using indexes well and avoiding full scans of huge tables.
+
+### Indexes — the foundation
+
+An **index** is a sorted lookup structure (usually a **B-tree**) — like a book's index, so the DB finds rows without reading every page (a **full table scan**).
+- Index the columns you **filter (`WHERE`)**, **join (`ON`)**, and **sort (`ORDER BY`)** on.
+- Indexes **speed reads but slow writes** (every insert/update maintains them) and cost storage — don't index everything.
+- **Composite index order matters:** an index on `(a, b)` helps `WHERE a = ?` and `WHERE a = ? AND b = ?`, but **not** `WHERE b = ?` alone (leftmost-prefix rule) — like a phone book sorted by last-then-first name.
+- **Covering index:** if an index contains *every* column a query needs (filter + join + `SELECT`), the DB answers from the index alone and never touches the table — an **index-only scan**, the fastest path.
+
+### Sargability — the #1 rule for `WHERE`
+
+A predicate is **sargable** ("Search ARGument-able") if it lets the DB use an index seek. **The killer: wrapping the indexed column in a function or math makes it non-sargable** — the index is useless.
+
+```sql
+WHERE YEAR(order_date) = 2025        -- ❌ non-sargable: function on the column → full scan
+WHERE order_date >= '2025-01-01'     -- ✅ sargable: a range on the raw column → index seek
+  AND order_date <  '2026-01-01'
+
+WHERE status = 'active'              -- ✅ sargable
+WHERE UPPER(status) = 'ACTIVE'       -- ❌ non-sargable (unless you index the expression)
+WHERE price * 1.1 > 100              -- ❌ move the math to the other side: price > 100/1.1
+```
+
+### Join algorithms (what the planner chooses)
+
+Interviewers love this — it explains *why* a join is slow:
+
+| Algorithm | How it works | Best when |
+|---|---|---|
+| **Nested Loop** | for each row of the small table, look up matches in the other (ideally via index) | one side is small / has an index |
+| **Hash Join** | build a hash table on the smaller side, probe it with the larger | large, unsorted tables, equality joins |
+| **Merge Join** | sort both sides, walk them in parallel like a zipper | both inputs already sorted / on sorted indexes |
+
+*Intuition:* nested loop = "look each one up"; hash = "build a dictionary, then check"; merge = "zip two sorted lists." If a join is slow, `EXPLAIN` often shows a nested loop over a **big** table with no index — add the index.
+
+### Reading the plan (`EXPLAIN`)
+
+`EXPLAIN` shows the plan; `EXPLAIN ANALYZE` actually runs it and shows real timings/row counts. What to look for:
+- **`Seq Scan` / full table scan** on a big table in a `WHERE`/`JOIN` → usually a missing or unusable (non-sargable) index.
+- **Row-estimate vs actual mismatch** → stale statistics; run `ANALYZE` so the planner has accurate data.
+- **The expensive node** → the plan is a tree; find the node eating the time and fix *that*.
+
+### Common optimizations (the checklist)
+
+- **Avoid `SELECT *`** — fetch only needed columns (enables covering indexes, less I/O).
+- **Filter early / push predicates down** — reduce rows before joins and aggregations.
+- **Keep predicates sargable** (no functions on indexed columns).
+- **Replace correlated subqueries** with joins or window functions (they re-run per row).
+- **`UNION ALL` over `UNION`** when duplicates are impossible (skips the dedup sort).
+- **`EXISTS`/`NOT EXISTS` over `IN`/`NOT IN`** for large or NULL-prone subqueries.
+- **Batch, don't loop** — one set-based query beats N per-row queries (the app-side "N+1" trap).
+- **Keep statistics fresh** and consider **partitioning** for very large tables.
 
 ---
 
@@ -329,6 +506,24 @@ DELETE FROM users WHERE id IN (SELECT id FROM d WHERE rn > 1);
 ### Q: How do you optimize a slow query?
 **Strong answer:** Run `EXPLAIN ANALYZE` to find full table scans; add indexes on filtered/joined/sorted columns; avoid `SELECT *`; filter early; rewrite correlated subqueries as joins or window functions; and avoid wrapping indexed columns in functions in the `WHERE` clause (it defeats the index).
 
+### Q: What does "sargable" mean and why does it matter?
+**Strong answer:** A predicate is sargable if the DB can use an index seek for it. Wrapping the indexed column in a function (`WHERE YEAR(date) = 2025`) makes it non-sargable → full scan. Rewriting it as a range on the raw column (`date >= '2025-01-01' AND date < '2026-01-01'`) keeps it sargable so the index works. It's the single most common reason an "indexed" query is still slow.
+
+### Q: What's a covering index?
+**Strong answer:** An index that contains *every* column a query needs — its filter, join, and SELECT columns. The DB answers from the index alone (index-only scan) without touching the table, which is the fastest read path. It's why avoiding `SELECT *` helps: fewer columns → easier to cover.
+
+### Q: Explain the three join algorithms.
+**Strong answer:** Nested loop — for each row of the small side, look up matches in the other (great with an index, one side small). Hash join — build a hash table on the smaller side and probe with the larger (best for big unsorted equality joins). Merge join — sort both sides and walk them in parallel like a zipper (best when inputs are already sorted). The planner picks based on size, indexes, and sortedness; a nested loop over a big unindexed table is the classic slow plan.
+
+### Q: `EXISTS` vs `IN` — when and why?
+**Strong answer:** `EXISTS` short-circuits (stops at the first match) so it's usually better for large or correlated subqueries; `IN` is fine for small static lists. Critically, **`NOT IN` breaks with NULLs** in the subquery (returns no rows), so use `NOT EXISTS` for anti-joins.
+
+### Q: What are transaction isolation levels?
+**Strong answer:** They trade concurrency for correctness. Read Committed (default in most DBs) prevents dirty reads; Repeatable Read also prevents non-repeatable reads; Serializable behaves as if transactions ran one at a time (safest, slowest). Higher isolation prevents more anomalies (dirty/non-repeatable reads, phantoms) at the cost of throughput.
+
+### Q: What's the difference between a view and a materialized view?
+**Strong answer:** A view is a saved query that re-runs every time (always fresh, no storage). A materialized view stores the result (fast reads, less compute) but goes stale until you `REFRESH` it. You pick based on freshness-vs-speed — materialized views suit expensive aggregations queried far more often than the data changes.
+
 ---
 
 ## Glossary
@@ -356,18 +551,36 @@ DELETE FROM users WHERE id IN (SELECT id FROM d WHERE rn > 1);
 | **CASE** | SQL's if/else expression | Conditional logic, feature bucketing, pivoting |
 | **NULL** | Unknown/missing value | Needs IS NULL and COALESCE; breaks `=` comparisons |
 | **COALESCE** | Returns the first non-NULL argument | Provide default values for missing data |
-| **Index** | A lookup structure (B-tree) over a column | Find rows fast without a full table scan |
-| **Full table scan** | Reading every row because no index applies | The slow path an index avoids |
-| **EXPLAIN / query plan** | Shows how the DB will execute a query | Diagnose and optimize slow queries |
+| **Window frame** | The subset of the partition a window function computes over (e.g. `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW`) | Fixed-size sliding windows — moving averages |
+| **ROWS vs RANGE** | Frame by physical row count vs by ORDER-BY value | ROWS = strict row window; RANGE lumps ties together |
+| **EXISTS / NOT EXISTS** | Tests whether a subquery returns any row (short-circuits) | Efficient existence checks and NULL-safe anti-joins |
+| **LATERAL / CROSS APPLY** | A join whose right side references each left row | Per-row subqueries, e.g. top-N per group inline |
+| **Transaction** | A group of statements that commit or roll back together | All-or-nothing changes (the T in ACID) |
+| **ACID** | Atomicity, Consistency, Isolation, Durability | The guarantees that make a DB reliable under failure/concurrency |
+| **Isolation level** | How much concurrent transactions can affect each other | Trade concurrency for correctness (Read Committed → Serializable) |
+| **UPSERT / MERGE** | Insert-if-new, update-if-exists in one statement | Idempotent writes in data pipelines |
+| **View** | A saved query that re-runs each time | Reusable logic, always fresh, no storage |
+| **Materialized view** | A stored (cached) query result | Fast reads on expensive aggregations; needs REFRESH |
+| **Partitioning** | Splitting a big table into chunks by a key | Partition pruning — scan only relevant chunks |
+| **Index** | A sorted lookup structure (B-tree) over columns | Find rows fast without a full table scan |
+| **Composite index** | An index on multiple columns, order matters | Serves leftmost-prefix filters (`(a,b)` helps `a`, not `b` alone) |
+| **Covering index** | An index holding all columns a query needs | Index-only scan — answer without touching the table |
+| **Sargable** | A predicate an index seek can use (no function on the column) | The #1 rule for making WHERE clauses use indexes |
+| **Query planner / optimizer** | The engine that turns your SQL into an execution plan | Chooses join algorithms, indexes, and order for you |
+| **Join algorithms** | Nested loop / hash / merge | How the planner physically executes a join; explains join speed |
+| **Full table scan (Seq Scan)** | Reading every row because no index applies | The slow path indexes and sargable predicates avoid |
+| **EXPLAIN / query plan** | Shows how the DB will execute a query (`ANALYZE` runs it) | Diagnose and optimize slow queries |
+| **Statistics (ANALYZE)** | The DB's row-count/distribution estimates | Keep fresh so the planner picks good plans |
 
 ---
 
 ## References
 
-- [PostgreSQL — SQL Language documentation](https://www.postgresql.org/docs/current/sql.html) · [Window Functions tutorial](https://www.postgresql.org/docs/current/tutorial-window.html)
+- [PostgreSQL — SQL Language documentation](https://www.postgresql.org/docs/current/sql.html) · [Window Functions tutorial](https://www.postgresql.org/docs/current/tutorial-window.html) · [Using EXPLAIN](https://www.postgresql.org/docs/current/using-explain.html)
+- [Use The Index, Luke — SQL indexing & tuning](https://use-the-index-luke.com/) · [What is Sargability? — Baeldung](https://www.baeldung.com/sql/sargability)
+- [PostgreSQL Join Optimization: Nested Loop, Hash, Merge](https://dev.to/philip_mcclarence_2ef9475/postgresql-join-optimization-nested-loop-hash-and-merge-1cn9) · [Window frame clause (ROWS/RANGE/GROUPS) — jOOQ](https://www.jooq.org/doc/latest/manual/sql-building/column-expressions/window-functions/window-frame/)
 - [Mode — SQL Tutorial (Basic → Advanced)](https://mode.com/sql-tutorial/)
-- [60 SQL Interview Questions, Beginner to Advanced (Dataquest, 2026)](https://www.dataquest.io/blog/sql-interview-questions-from-beginner-to-advanced/)
-- [Top 99 SQL Interview Questions (DataCamp, 2026)](https://www.datacamp.com/blog/top-sql-interview-questions-and-answers-for-beginners-and-intermediate-practitioners)
+- [60 SQL Interview Questions, Beginner to Advanced (Dataquest, 2026)](https://www.dataquest.io/blog/sql-interview-questions-from-beginner-to-advanced/) · [Top 99 SQL Interview Questions (DataCamp, 2026)](https://www.datacamp.com/blog/top-sql-interview-questions-and-answers-for-beginners-and-intermediate-practitioners)
 
 ---
 

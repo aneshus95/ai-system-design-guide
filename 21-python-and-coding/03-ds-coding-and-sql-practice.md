@@ -10,6 +10,7 @@ A practice bank for **Python (data-science / pandas)** and **SQL** coding interv
 - [Python — NumPy & Vectorization](#python--numpy--vectorization)
 - [Python — Implement DS Functions from Scratch](#python--implement-ds-functions-from-scratch)
 - [Python — Harder & Real-Company Patterns](#python--harder--real-company-patterns)
+- [Python — Common DS Patterns (by Category)](#python--common-ds-patterns-by-category)
 - [Python — Efficiency: Alternative Solutions](#python--efficiency-alternative-solutions)
 - [Pandas `groupby` — Full Reference](#pandas-groupby--full-reference)
 - [SQL — The 7 Recurring Patterns (~90% of Interviews)](#sql--the-7-recurring-patterns-90-of-interviews)
@@ -505,6 +506,225 @@ streaks = df.groupby(['user','island']).size()   # length of each streak
 ```
 Subtracting a running counter of days from the date makes consecutive dates map to the **same constant** → group by it. This is the pandas mirror of the SQL gaps-and-islands pattern below.
 </details>
+
+---
+
+## Python — Common DS Patterns (by Category)
+
+Interviewers think in patterns. Drill these buckets — **missing data, cleaning, reshaping, time series, filtering, feature engineering** — and most pandas questions become recognizable.
+
+### A. Missing Data
+
+**P32. Fill missing numeric with the column mean, categorical with the mode.**
+<details><summary>Solution</summary>
+
+```python
+df['age']  = df['age'].fillna(df['age'].mean())            # numeric → mean/median
+df['dept'] = df['dept'].fillna(df['dept'].mode()[0])       # categorical → most frequent
+```
+`.mode()` returns a Series (can be multi-modal) → take `[0]`. Median is safer than mean for skewed data.
+</details>
+
+**P33. Forward-fill then back-fill a time series (carry last known value).**
+<details><summary>Solution</summary>
+
+```python
+df = df.sort_values('date')
+df['value'] = df['value'].ffill().bfill()     # ffill carries last obs forward; bfill fills any leading NaNs
+```
+</details>
+
+**P34. Interpolate missing values in a numeric time series.**
+<details><summary>Solution + when to prefer it</summary>
+
+```python
+df['value'] = df['value'].interpolate(method='linear')
+```
+**`fillna` vs `interpolate`:** `fillna`/`ffill` repeats a constant/last value; **`interpolate` estimates from the trend** (draws a line between known points) — better for continuous/time-series data.
+</details>
+
+### B. Duplicates & Cleaning
+
+**P35. Count and drop duplicate rows (whole-row, and by key).**
+<details><summary>Solution</summary>
+
+```python
+df.duplicated().sum()                          # how many dup rows
+df.drop_duplicates()                           # drop exact-dup rows
+df.drop_duplicates(subset='email', keep='last')  # dedup by a key, keep the last
+```
+</details>
+
+**P36. Clean a messy string column and cast types.**
+<details><summary>Solution</summary>
+
+```python
+df['name']  = df['name'].str.strip().str.lower()          # trim + lowercase
+df['amount'] = pd.to_numeric(df['amount'], errors='coerce')  # bad values → NaN, not crash
+df['date']   = pd.to_datetime(df['date'], errors='coerce')
+df['dept']   = df['dept'].astype('category')              # memory + speed for repeated categories
+```
+`errors='coerce'` turns unparseable values into NaN instead of raising — key for real-world dirty data.
+</details>
+
+**P37. Flag outliers with the z-score rule (|z| > 3).**
+<details><summary>Solution</summary>
+
+```python
+z = (df['amount'] - df['amount'].mean()) / df['amount'].std()
+df['is_outlier'] = z.abs() > 3
+```
+(IQR version is in [P21](#python--implement-ds-functions-from-scratch).)
+</details>
+
+### C. Reshaping
+
+**P38. Wide → long with `melt` (columns Q1,Q2,Q3 → rows).**
+<details><summary>Solution</summary>
+
+```python
+pd.melt(df, id_vars='region', value_vars=['Q1','Q2','Q3'],
+        var_name='quarter', value_name='revenue')
+```
+`melt` = unpivot; `pivot_table` = the reverse (long → wide, see [P13](#python--pandas-data-manipulation)).
+</details>
+
+**P39. Frequency cross-tab of two categorical columns.**
+<details><summary>Solution</summary>
+
+```python
+pd.crosstab(orders['status'], orders['customer_id'])   # counts of status × customer
+# normalize='index' for row-wise proportions
+```
+</details>
+
+### D. Time Series & Datetime
+
+**P40. Extract calendar features from a timestamp.**
+<details><summary>Solution</summary>
+
+```python
+ts = pd.to_datetime(df['event_time'])
+df['year']  = ts.dt.year
+df['month'] = ts.dt.month
+df['dow']   = ts.dt.dayofweek        # 0=Mon … 6=Sun
+df['hour']  = ts.dt.hour
+df['is_weekend'] = ts.dt.dayofweek >= 5
+```
+Datetime decomposition captures seasonality (day-of-week, month) — a top time-series feature-engineering move.
+</details>
+
+**P41. Resample daily sales to weekly totals.**
+<details><summary>Solution</summary>
+
+```python
+weekly = (daily_sales.set_index('day')['sales']
+                     .resample('W').sum())      # 'W' week, 'M' month, 'D' day, 'H' hour
+```
+`resample` = groupby on a time frequency; the index must be datetime.
+</details>
+
+**P42. Lag feature + day-over-day change (per group).**
+<details><summary>Solution</summary>
+
+```python
+g = orders.sort_values('order_date').groupby('customer_id')['amount']
+orders['prev_amount'] = g.shift(1)          # previous order's amount (SQL LAG)
+orders['delta']       = g.diff()            # change vs previous
+```
+`shift`/`diff` inside a groupby stay within each group — no leakage across customers.
+</details>
+
+**P43. Rolling 3-period mean and std.**
+<details><summary>Solution</summary>
+
+```python
+daily_sales = daily_sales.sort_values('day')
+daily_sales['ma3']  = daily_sales['sales'].rolling(3, min_periods=1).mean()
+daily_sales['std3'] = daily_sales['sales'].rolling(3).std()
+```
+`min_periods=1` returns partial-window values instead of NaN for the first rows.
+</details>
+
+### E. Filtering & Selection
+
+**P44. Rows where dept is in a set AND salary is in a range.**
+<details><summary>Solution</summary>
+
+```python
+df[df['dept'].isin(['Eng','Sales']) & df['salary'].between(90, 120)]
+# readable alternative:
+df.query("dept in ['Eng','Sales'] and 90 <= salary <= 120")
+```
+`isin` for membership, `between` for ranges; `query` is often cleaner for compound conditions.
+</details>
+
+**P45. `loc` vs `iloc` — select by label vs position.**
+<details><summary>Solution</summary>
+
+```python
+df.loc[df['dept'] == 'Eng', ['name','salary']]   # by LABEL / boolean mask + column names
+df.iloc[0:3, [0, 2]]                             # by POSITION (rows 0–2, cols 0 & 2)
+```
+`loc` = labels/conditions; `iloc` = integer positions. Mixing them up is a classic bug.
+</details>
+
+**P46. Top-3 and bottom-3 by amount.**
+<details><summary>Solution</summary>
+
+```python
+orders.nlargest(3, 'amount')      # faster than sort_values().head(3) — partial sort
+orders.nsmallest(3, 'amount')
+```
+</details>
+
+### F. Feature Engineering
+
+**P47. Bin salary into quartiles (equal-count) and fixed bands.**
+<details><summary>Solution</summary>
+
+```python
+df['salary_q']    = pd.qcut(df['salary'], q=4, labels=['Q1','Q2','Q3','Q4'])   # equal-frequency
+df['salary_band'] = pd.cut(df['salary'], bins=[0,80,110,999],
+                           labels=['low','mid','high'])                        # fixed edges
+```
+`qcut` = equal-sized buckets (quantiles); `cut` = fixed cut points.
+</details>
+
+**P48. One-hot encode a categorical column.**
+<details><summary>Solution</summary>
+
+```python
+pd.get_dummies(df, columns=['dept'], drop_first=True)   # drop_first avoids the dummy-variable trap
+```
+</details>
+
+**P49. Min-max scale and z-score standardize a column.**
+<details><summary>Solution</summary>
+
+```python
+s = df['salary']
+df['salary_minmax'] = (s - s.min()) / (s.max() - s.min())     # → [0,1]
+df['salary_z']      = (s - s.mean()) / s.std()                # mean 0, std 1
+```
+</details>
+
+### G. Vectorization (the red-flag pattern)
+
+**P50. Combine/derive across columns *without* `apply(axis=1)`.**
+<details><summary>Solution</summary>
+
+```python
+# ❌ slow — row-by-row Python:
+df['flag'] = df.apply(lambda r: 'big' if r['amount'] > 200 and r['status']=='completed' else 'small', axis=1)
+
+# ✅ vectorized — boolean logic on whole columns:
+df['flag'] = np.where((df['amount'] > 200) & (df['status']=='completed'), 'big', 'small')
+```
+`apply(axis=1)` runs a Python function per row — a common interview red flag. Combine column conditions with `&`/`|` (parenthesize each!) and `np.where`/`np.select`.
+</details>
+
+Source: [Top pandas interview patterns (DataCamp)](https://www.datacamp.com/blog/top-python-pandas-interview-questions-and-answers) · [Time-series feature engineering](https://machinelearningmastery.com/7-pandas-tricks-for-time-series-feature-engineering/)
 
 ---
 

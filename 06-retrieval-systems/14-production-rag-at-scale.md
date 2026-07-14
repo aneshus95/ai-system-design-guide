@@ -1135,6 +1135,8 @@ Strategy:    Single   Single    Sharded   Distributed
 
 **The core idea:** a shard is a self-contained slice of the index on its own machine. The whole design question is **"how do I split the vectors so a query touches as few shards as possible?"** — because a query that must hit *every* shard and merge results (a *scatter-gather*) is slower and costlier than one that lands on a single shard. So you shard on whatever your queries already filter by.
 
+> **Clarification — what sharding does *not* split.** Sharding operates on the **collection of records**, not on any individual chunk or embedding. Picture the index as a table where each row is a *complete* record — `(chunk_text, full embedding vector, metadata)`. Sharding splits the **rows across machines** (horizontal partitioning), exactly like sharding a SQL database. It does **not** cut an embedding vector into pieces, and it does **not** break a chunk into smaller chunks. A chunk is embedded into one vector, and that whole `(chunk, vector)` pair lives intact on exactly **one** shard — sharding just decides *which machine holds it*. (Splitting a *single vector* into sub-vectors is a different technique — [Product Quantization](04-vector-databases.md); splitting a *document* into pieces is [chunking](02-chunking-strategies.md).)
+
 | Strategy | How It Works | Pros | Cons |
 |----------|-------------|------|------|
 | **Hash-based** | shard = hash(doc_id) % N | Even distribution | Cross-shard queries needed |

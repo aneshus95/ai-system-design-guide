@@ -4,6 +4,7 @@ A practice bank for **Python (data-science / pandas)** and **SQL** coding interv
 
 ## Table of Contents
 
+- [Sample Data — Run This First](#sample-data--run-this-first)
 - [Python — Fundamentals with a DS Flavor](#python--fundamentals-with-a-ds-flavor)
 - [Python — Pandas Data Manipulation](#python--pandas-data-manipulation)
 - [Python — NumPy & Vectorization](#python--numpy--vectorization)
@@ -22,6 +23,141 @@ A practice bank for **Python (data-science / pandas)** and **SQL** coding interv
 - [SQL — Efficient Alternatives & Rewrites](#sql--efficient-alternatives--rewrites)
 - [How to Approach These in the Interview](#how-to-approach-these-in-the-interview)
 - [References](#references)
+
+---
+
+## Sample Data — Run This First
+
+The same small dataset works for both the Python and SQL questions. It's deliberately seeded with edge cases: **salary ties** (for `DENSE_RANK`), **NULL ages** (median-fill), **a customer with no orders** (anti-join), **three orders on one day** (daily-sum), **consecutive login dates** (streaks), a **>30-min gap** (sessionization), and **price-change runs**.
+
+### Python / pandas setup
+
+```python
+import pandas as pd, numpy as np
+
+employees = pd.DataFrame({
+    'id':[1,2,3,4,5,6,7,8,9,10],
+    'name':['Alice','Bob','Carol','Dave','Eve','Frank','Grace','Heidi','Ivan','Judy'],
+    'dept':['Eng','Eng','Eng','Eng','Sales','Sales','Sales','Sales','Sales','Sales'],
+    'salary':[120,100,100,90,95,95,80,70,60,150],          # ties: Bob/Carol=100, Eve/Frank=95
+    'hire_date':pd.to_datetime(['2020-01-15','2019-03-01','2021-06-20','2022-02-10','2018-07-30',
+                                '2020-11-05','2021-01-25','2023-04-18','2019-09-09','2017-05-05']),
+    'manager_id':[10,1,1,1,10,5,5,5,5,None],               # Judy (10) = CEO, no manager
+    'age':[34,45,None,29,52,None,38,41,33,50]})            # NULLs → group median-fill (P8)
+
+customers = pd.DataFrame({
+    'id':[1,2,3,4,5],
+    'name':['ACME','Globex','Initech','Umbrella','Stark'],
+    'country':['US','US','IN','UK','US']})                 # Umbrella (4) has NO orders
+
+orders = pd.DataFrame({
+    'id':[101,102,103,104,105,106,107,108],
+    'customer_id':[1,1,2,3,3,1,2,5],
+    'amount':[250,120,300,80,220,90,150,400],
+    'order_date':pd.to_datetime(['2019-02-05','2019-02-05','2019-03-10','2019-02-20',
+                                 '2019-04-01','2019-02-05','2019-03-11','2019-04-15']),
+    'status':['completed','completed','pending','completed','completed','refunded','completed','pending']})
+# customer 1 has 3 orders on 2019-02-05 (250+120+90=460) → beats Stark's single 400 (P23)
+
+logins = pd.DataFrame({
+    'user_id':[1,1,1,1,1,2,2],
+    'login_date':pd.to_datetime(['2024-01-01','2024-01-02','2024-01-03','2024-01-03',  # dup
+                                 '2024-01-05','2024-01-01','2024-01-02'])})             # u1 streak 1-3, u2 1-2
+
+events = pd.DataFrame({
+    'user_id':[1,1,1,1,2,2],
+    'event':['view','click','view','click','view','view'],
+    'event_time':pd.to_datetime(['2024-01-01 10:00','2024-01-01 10:10','2024-01-01 10:50',
+                                 '2024-01-01 11:00','2024-01-01 09:00','2024-01-01 09:20'])})  # 40-min gap → new session
+
+price_history = pd.DataFrame({
+    'product_id':[1,1,1,1,1],
+    'day':pd.to_datetime(['2024-01-01','2024-01-02','2024-01-03','2024-01-04','2024-01-05']),
+    'price':[10,10,12,12,10]})                             # runs: 10,10 | 12,12 | 10
+
+activity = pd.DataFrame({
+    'user_id':[1,1,1,2,2,3],
+    'activity_date':pd.to_datetime(['2024-01-01','2024-01-02','2024-02-15',
+                                    '2024-01-01','2024-03-01','2024-02-01'])})           # cohorts + day-1 retention
+
+users = pd.DataFrame({
+    'id':[1,2,3,4],
+    'email':['a@x.com','b@x.com','a@x.com','b@x.com'],
+    'signup_date':pd.to_datetime(['2024-01-01','2024-01-02','2024-02-01','2024-01-15'])})
+
+trades = pd.DataFrame({'symbol':['AAPL','AAPL','MSFT'],
+    'time':pd.to_datetime(['2024-01-01 09:31','2024-01-01 09:35','2024-01-01 09:32'])})
+quotes = pd.DataFrame({'symbol':['AAPL','AAPL','MSFT','MSFT'],
+    'time':pd.to_datetime(['2024-01-01 09:30','2024-01-01 09:34','2024-01-01 09:30','2024-01-01 09:33']),
+    'price':[187.0,187.5,410.0,410.2]})
+
+region_sales = pd.DataFrame({'region':['North','North','South','South','East','East'],
+    'quarter':['Q1','Q2','Q1','Q2','Q1','Q2'], 'revenue':[100,120,90,110,70,80]})
+monthly_revenue = pd.DataFrame({'month':pd.to_datetime(['2024-01-01','2024-02-01','2024-03-01','2024-04-01']),
+    'revenue':[1000,1100,990,1200]})
+daily_sales = pd.DataFrame({'day':pd.date_range('2024-01-01', periods=10),
+    'sales':[100,120,110,130,90,140,150,160,120,130]})
+
+# Convenience frames matching a few questions' shorthand column names:
+sales = orders.rename(columns={'customer_id':'customer','amount':'order_amount'})   # P6
+web_events = events.rename(columns={'event_time':'timestamp'})                       # P11
+signups = users[['email','signup_date']]                                            # P12
+tags_df = pd.DataFrame({'user':[1,2], 'tags':['python, sql, ml', 'sql, viz']})       # P27
+```
+
+> **Which frame does each `df` mean?** P6→`sales` · P7/P8/P25→`employees` · P9→`orders`+`customers` · P10/S13→`daily_sales` · P11→`web_events` · P12→`signups`/`users` · P13→`region_sales` · P14/S12→`monthly_revenue` · P23/P28→`orders` · P26→`trades`/`quotes` · P27→`tags_df` · P29/S19→`logins`.
+
+### SQL setup (Postgres-flavored; runs on [db-fiddle](https://www.db-fiddle.com/) / [sqliteonline](https://sqliteonline.com/))
+
+```sql
+CREATE TABLE employees (id INT, name TEXT, dept TEXT, salary INT, hire_date DATE, manager_id INT, age INT);
+INSERT INTO employees VALUES
+ (1,'Alice','Eng',120,'2020-01-15',10,34),(2,'Bob','Eng',100,'2019-03-01',1,45),
+ (3,'Carol','Eng',100,'2021-06-20',1,NULL),(4,'Dave','Eng',90,'2022-02-10',1,29),
+ (5,'Eve','Sales',95,'2018-07-30',10,52),(6,'Frank','Sales',95,'2020-11-05',5,NULL),
+ (7,'Grace','Sales',80,'2021-01-25',5,38),(8,'Heidi','Sales',70,'2023-04-18',5,41),
+ (9,'Ivan','Sales',60,'2019-09-09',5,33),(10,'Judy','Sales',150,'2017-05-05',NULL,50);
+
+CREATE TABLE customers (id INT, name TEXT, country TEXT);
+INSERT INTO customers VALUES (1,'ACME','US'),(2,'Globex','US'),(3,'Initech','IN'),(4,'Umbrella','UK'),(5,'Stark','US');
+
+CREATE TABLE orders (id INT, customer_id INT, amount INT, order_date DATE, status TEXT);
+INSERT INTO orders VALUES
+ (101,1,250,'2019-02-05','completed'),(102,1,120,'2019-02-05','completed'),
+ (103,2,300,'2019-03-10','pending'),(104,3,80,'2019-02-20','completed'),
+ (105,3,220,'2019-04-01','completed'),(106,1,90,'2019-02-05','refunded'),
+ (107,2,150,'2019-03-11','completed'),(108,5,400,'2019-04-15','pending');
+
+CREATE TABLE logins (user_id INT, login_date DATE);
+INSERT INTO logins VALUES (1,'2024-01-01'),(1,'2024-01-02'),(1,'2024-01-03'),(1,'2024-01-03'),
+ (1,'2024-01-05'),(2,'2024-01-01'),(2,'2024-01-02');
+
+CREATE TABLE events (user_id INT, event TEXT, event_time TIMESTAMP);
+INSERT INTO events VALUES (1,'view','2024-01-01 10:00'),(1,'click','2024-01-01 10:10'),
+ (1,'view','2024-01-01 10:50'),(1,'click','2024-01-01 11:00'),
+ (2,'view','2024-01-01 09:00'),(2,'view','2024-01-01 09:20');
+
+CREATE TABLE price_history (product_id INT, day DATE, price INT);
+INSERT INTO price_history VALUES (1,'2024-01-01',10),(1,'2024-01-02',10),(1,'2024-01-03',12),
+ (1,'2024-01-04',12),(1,'2024-01-05',10);
+
+CREATE TABLE activity (user_id INT, activity_date DATE);
+INSERT INTO activity VALUES (1,'2024-01-01'),(1,'2024-01-02'),(1,'2024-02-15'),
+ (2,'2024-01-01'),(2,'2024-03-01'),(3,'2024-02-01');
+
+CREATE TABLE users (id INT, email TEXT, signup_date DATE);
+INSERT INTO users VALUES (1,'a@x.com','2024-01-01'),(2,'b@x.com','2024-01-02'),
+ (3,'a@x.com','2024-02-01'),(4,'b@x.com','2024-01-15');
+
+CREATE TABLE daily_sales (day DATE, sales INT);
+INSERT INTO daily_sales VALUES ('2024-01-01',100),('2024-01-02',120),('2024-01-03',110),
+ ('2024-01-04',130),('2024-01-05',90),('2024-01-06',140),('2024-01-07',150),('2024-01-08',160);
+
+CREATE TABLE monthly_revenue (month DATE, revenue INT);
+INSERT INTO monthly_revenue VALUES ('2024-01-01',1000),('2024-02-01',1100),('2024-03-01',990),('2024-04-01',1200);
+```
+
+> **Where to run it:** Python — any notebook/Colab. SQL — paste into [db-fiddle.com](https://www.db-fiddle.com/) (pick PostgreSQL) or [sqliteonline.com](https://sqliteonline.com/); for SQLite, swap `INTERVAL '30 minutes'` for `julianday()` date math and `DATE_TRUNC` for `strftime`.
 
 ---
 

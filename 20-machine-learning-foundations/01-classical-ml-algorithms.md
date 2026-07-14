@@ -31,6 +31,7 @@ Classical (non-deep) machine learning algorithms remain the backbone of producti
 - [Ensemble Methods — Stacking](#ensemble-methods)
 - [Generative vs Discriminative Models](#generative-vs-discriminative)
 - [Parametric vs Non-Parametric Models](#parametric-vs-nonparametric)
+- [Interpreting What a Model Learned](#interpreting-models)
 - [Interview Questions](#interview-questions)
 - [References](#references)
 
@@ -155,9 +156,19 @@ Regularization adds a penalty to the loss function to constrain coefficient magn
 
 ## Linear Regression <a name="linear-regression"></a>
 
+**In plain English:** draw the **straight line (or flat plane) that sits as close as possible to all the points**, then read predictions off that line. Each feature gets a slope that says "how much does the outcome move when I nudge this feature."
+
 **Model:** ŷ = β₀ + β₁x₁ + … + βₚxₚ  
 **Loss:** Mean Squared Error (MSE) = (1/n) Σ(yᵢ − ŷᵢ)²  
 **Solution:** Closed-form normal equations (β = (XᵀX)⁻¹Xᵀy) or gradient descent.
+
+**Interpreting the coefficients (the part interviewers probe):**
+- **Slope βⱼ** = *"holding every other feature fixed, a **one-unit** increase in xⱼ changes the predicted y by βⱼ (in y's units)."* Example: `price = 50,000 + 300·(sqft)` → each extra square foot adds **$300** to the predicted price. That "**holding others fixed**" clause is the whole meaning — it's the effect of *that* feature *after accounting for* the others.
+- **Intercept β₀** = the predicted y when **all features are 0** (often not physically meaningful — e.g. a house with 0 sqft — it's just where the line crosses the axis).
+- **Sign** = direction (positive → y rises with the feature; negative → y falls). **Magnitude** = strength, *but only comparable across features if you standardize them* — otherwise a coefficient's size just reflects the feature's units (a "per-gram" coefficient looks 1000× bigger than the same effect "per-kg").
+- **Standardized (beta) coefficients** — refit on z-scored features so every coefficient is "effect per 1 standard deviation"; now magnitudes are comparable → you can rank feature importance.
+- **Statistical significance** — each coefficient has a **p-value** (is it distinguishable from 0?) and a **confidence interval** (plausible range). A big coefficient with a huge CI isn't trustworthy.
+- **Caution — multicollinearity:** when features are correlated, individual coefficients become unstable and hard to interpret (the model can't tell which correlated feature deserves the credit). Check with **VIF**.
 
 **Classical assumptions (LINE):**
 1. **L**inearity — relationship between X and y is linear.
@@ -167,15 +178,25 @@ Regularization adds a penalty to the loss function to constrain coefficient magn
 
 Violations → biased or inefficient estimates. Fixes: log/Box-Cox transform, add interaction terms, switch to a non-parametric model.
 
+> **Interpreting a log-transformed target:** if you model `log(y)`, a coefficient βⱼ means a one-unit rise in xⱼ multiplies y by ≈ `e^βⱼ` — i.e. roughly a **βⱼ × 100% percent change** in y (for small β). Common for prices/counts.
+
 ---
 
 ## Logistic Regression <a name="logistic-regression"></a>
+
+**In plain English:** it's linear regression bent through an **S-curve (sigmoid)** so the output is squeezed into a **probability between 0 and 1**. The straight-line part scores how strongly the evidence points to class 1; the S-curve turns that score into "% chance."
 
 **Model:** P(y=1|x) = σ(wᵀx + b) where σ(z) = 1/(1+e⁻ᶻ) (sigmoid)  
 **Loss:** Binary cross-entropy (log-loss) = −[y log(p̂) + (1−y) log(1−p̂)]  
 **Output:** Probability in (0,1), threshold at 0.5 for class decision (tunable).
 
 Despite the name, logistic regression is a **classification** algorithm. It is linear in the log-odds space: log(p/(1−p)) = wᵀx.
+
+**Interpreting the coefficients (odds ratios — the key skill):**
+- The coefficient wⱼ is an effect on the **log-odds**, which is awkward — so you exponentiate it: **`exp(wⱼ)` is the *odds ratio*.**
+- Reading it: *"holding other features fixed, a one-unit increase in xⱼ **multiplies the odds** of the positive class by `exp(wⱼ)`."* `exp(w) = 1.5` → 50% higher odds; `exp(w) = 0.8` → 20% lower odds; `exp(w) = 1` → no effect.
+- **Sign:** positive wⱼ → feature pushes toward class 1; negative → toward class 0.
+- **Odds ≠ probability** — an odds ratio of 2 doubles the *odds*, which is not "doubles the probability" (the probability change depends on where you start on the S-curve). This nuance is a classic interview trap.
 
 **Why use it?** Interpretable coefficients (exp(wᵢ) = odds ratio), calibrated probabilities, fast to train, good baseline before trying complex models.
 
@@ -203,6 +224,8 @@ Despite the name, logistic regression is a **classification** algorithm. It is l
 
 ## Random Forests — Bagging <a name="random-forests"></a>
 
+**In plain English:** instead of trusting one opinionated decision tree, **ask hundreds of slightly different trees and take a vote**. Each tree sees a different random slice of the data and features, so their individual mistakes cancel out — wisdom of the crowd.
+
 **Key idea (Bagging = Bootstrap AGGregatING):**
 1. Draw B bootstrap samples (sampling with replacement) from training data.
 2. Train a deep decision tree on each sample — with an additional twist: at each split, only a random subset of features (√p for classification, p/3 for regression) is considered.
@@ -223,6 +246,8 @@ Training data
 ---
 
 ## Gradient Boosting & XGBoost — Boosting <a name="gradient-boosting"></a>
+
+**In plain English:** build trees **one after another, where each new tree focuses on fixing the mistakes the previous ones made**. It's like a student reviewing only the questions they got wrong on each pass — slowly grinding the error down. (Random forest builds trees *in parallel and votes*; boosting builds them *in sequence to correct*.)
 
 **Key idea:** Build trees **sequentially**, each new tree fitting the **residuals (negative gradient of the loss)** of the current ensemble.
 
@@ -260,6 +285,8 @@ For m = 1 to M:
 
 ## Support Vector Machines <a name="svm"></a>
 
+**In plain English:** find the **widest possible "street" between the two classes** and put the boundary down the middle. Only the points right on the curb (the **support vectors**) matter — everything else is ignored. A wider street generalizes better.
+
 **Goal:** Find the hyperplane that maximises the **margin** (gap) between the two classes.
 
 ```
@@ -287,6 +314,8 @@ For m = 1 to M:
 
 ## K-Nearest Neighbours <a name="knn"></a>
 
+**In plain English:** *"you are the company you keep."* To classify a new point, **look at the K closest known points and copy the majority** — no training, no equation, just "what are my neighbours?"
+
 **Idea:** To classify a new point, find its K nearest training points (by Euclidean / cosine distance) and return the majority class (or mean for regression).
 
 - **K=1**: very low bias, very high variance (decision boundary follows every training point).
@@ -298,6 +327,8 @@ For m = 1 to M:
 ---
 
 ## Naive Bayes <a name="naive-bayes"></a>
+
+**In plain English:** for each class, ask *"how typical are these feature values for this class?"*, **multiply those likelihoods together**, and pick the class with the highest score. "Naive" = it pretends the features are independent (e.g. treats each word in an email separately), which is wrong but works shockingly well for text.
 
 **Model:** Applies Bayes' theorem with the "naive" assumption that features are conditionally independent given the class:
 
@@ -316,6 +347,8 @@ P(y|x₁,…,xₙ) ∝ P(y) · Π P(xᵢ|y)
 
 ## K-Means Clustering <a name="k-means"></a>
 
+**In plain English:** drop **K flags** on the map, let every point join its nearest flag, then **move each flag to the center of its crowd**, and repeat until the flags stop moving. You end up with K groups, each represented by its center point.
+
 **Algorithm:**
 1. Randomly initialise K centroids.
 2. Assign each point to its nearest centroid.
@@ -329,6 +362,8 @@ P(y|x₁,…,xₙ) ∝ P(y) · Π P(xᵢ|y)
 ---
 
 ## PCA & Dimensionality Reduction <a name="pca"></a>
+
+**In plain English:** **rotate the data to the angle where it's most spread out**, then keep only those few "most informative" directions and throw away the rest. Like photographing a 3-D object from the angle that shows the most detail, then working with the flat photo — you lose a little, but keep the essentials in far fewer numbers.
 
 **PCA (Principal Component Analysis):**
 - Finds orthogonal directions (principal components) of maximum variance in the data.
@@ -575,6 +610,57 @@ Level-1 (meta-learner, e.g. Ridge or Logistic Regression):
 
 ---
 
+## Interpreting What a Model Learned <a name="interpreting-models"></a>
+
+Interviewers don't just ask "does it work?" — they ask **"what did the model learn, and can you explain a prediction?"** Every model exposes *something* you can read; the trick is knowing *what* and *how carefully*. There's a spectrum from **glass-box** (you can read the rule directly) to **black-box** (you need an external tool like SHAP).
+
+### The glass-box models — read the parameters directly
+
+- **Linear Regression → slopes (coefficients).** *"Holding others fixed, +1 unit of xⱼ changes y by βⱼ."* Sign = direction, magnitude = strength (**only comparable if features are standardized**). See [Linear Regression](#linear-regression).
+- **Logistic Regression → odds ratios.** `exp(wⱼ)` = *"+1 unit of xⱼ multiplies the odds of the positive class by exp(wⱼ)."* >1 raises odds, <1 lowers them. See [Logistic Regression](#logistic-regression).
+- **Decision Tree → the path.** The most literal of all: **read the if/then rules from root to leaf** — "income > 50k AND age < 30 → approve." Feature *importance* = how much each feature reduced impurity across all its splits (features used near the root, on more rows, matter more).
+- **Naive Bayes → likelihood ratios.** Which feature values are most lopsided toward one class (e.g. the words most predictive of "spam").
+
+### The ensemble models — feature importance (with a caveat)
+
+Random Forests and Gradient Boosting are too big to read tree-by-tree, so they report **feature importance**:
+- **Impurity/gain importance** (built-in, fast) — total impurity reduction a feature provided across all trees. **Caveat:** it's **biased toward high-cardinality / continuous features** and can be misleading with correlated features.
+- **Permutation importance** (model-agnostic, more trustworthy) — shuffle one feature's values and measure how much accuracy *drops*; a big drop = the model relied on it. Slower but honest.
+> Importance tells you a feature *mattered* — **not the direction** (did more of it push the prediction up or down?). For that, use SHAP.
+
+### The universal tool — SHAP (works on *any* model)
+
+**SHAP (SHapley Additive exPlanations)** is the modern answer to "explain this specific prediction." It assigns each feature a **signed contribution** (from game theory) showing how it pushed *this one prediction* above or below the average.
+- **Direction + magnitude:** "+$40k income pushed the approval score **up** by 0.12; the recent late payment pushed it **down** by 0.30."
+- **Local** (why *this* customer was denied) **and global** (average |SHAP| across all rows = overall importance, *with* direction).
+- **Model-agnostic** — turns *any* black-box (XGBoost, a neural net) into something explainable. This is what you cite in an interview for "how do you explain a black-box model's decision." (See the [seller-analytics project](../23-my-projects/08-seller-behavior-analytics.md) for a worked use.)
+
+### The geometry / structure models — read the shape
+
+- **SVM → support vectors + margin.** For a **linear** SVM, the weight vector `w` is interpretable like a regression coefficient (which features tilt the boundary). For an **RBF kernel** SVM it's a black box — the "explanation" is *which support vectors* (borderline examples) define the boundary.
+- **KNN → the neighbours themselves.** No coefficients at all (it's instance-based) — the explanation *is* the K nearest training points: "we predicted fraud because the 5 most similar past transactions were fraud."
+- **K-Means → centroids.** Each cluster is summarized by its **center** (the mean feature values), which you read as a persona: "cluster 2 = high-spend, low-frequency." (See [K-Means](#k-means).)
+- **PCA → loadings.** Each principal component is a weighted mix of original features; the **loadings** tell you what a component "means" ("PC1 is mostly size-related features").
+
+### The interpretability spectrum (summary)
+
+| Model | What you read | Gives direction? |
+|---|---|---|
+| Linear regression | slopes (coefficients) | ✅ yes |
+| Logistic regression | odds ratios (`exp(w)`) | ✅ yes |
+| Decision tree | the if/then path + split importance | ✅ (via the rules) |
+| Random forest / GBM | feature importance (impurity or permutation) | ❌ magnitude only → use SHAP |
+| SVM (linear) | weight vector | ✅ ; RBF → black box |
+| KNN | the nearest neighbours | n/a (instance-based) |
+| Naive Bayes | per-class likelihoods | ✅ yes |
+| K-Means | cluster centroids | describes groups |
+| PCA | component loadings | describes directions |
+| **Any black box** | **SHAP values** | ✅ signed, per-prediction |
+
+**The one-liner:** *Glass-box models (linear/logistic/trees) you read directly — slopes, odds ratios, and paths. Ensembles give importance (magnitude, not direction). For direction on any model — including black boxes — reach for SHAP, which gives a signed per-feature contribution for every individual prediction.*
+
+---
+
 ## Interview Questions <a name="interview-questions"></a>
 
 ### Q: Explain the bias-variance tradeoff and how regularization addresses it.
@@ -632,6 +718,18 @@ Both are linear classifiers in log-space. Naive Bayes is generative (models P(x|
 ### Q: What is stacking and how do you prevent target leakage in the meta-learner?
 **Strong answer:**
 Stacking trains multiple diverse base models and then trains a meta-learner on their predictions. To prevent leakage, base model predictions for the meta-features must be generated via out-of-fold (OOF) cross-validation on the training set — each training example's meta-feature is the prediction from a model that was never trained on that example. On the test set, base models trained on the full training set generate the meta-features. This ensures the meta-learner never sees any training example "inside its own training loop."
+
+### Q: How do you interpret a linear regression coefficient? What about logistic regression?
+**Strong answer:**
+A linear regression slope βⱼ means "holding all other features fixed, a one-unit increase in xⱼ changes the predicted y by βⱼ, in y's units." Sign is direction; magnitude is strength but only comparable across features if they're standardized (otherwise it just reflects units). For logistic regression, coefficients are on the log-odds scale, so I exponentiate: `exp(wⱼ)` is the odds ratio — a one-unit increase in xⱼ multiplies the odds of the positive class by that factor (>1 raises odds, <1 lowers). Key nuance: an odds ratio of 2 doubles the *odds*, not the *probability*.
+
+### Q: A stakeholder asks why your XGBoost model denied a specific customer. How do you answer?
+**Strong answer:**
+XGBoost is a black box, so built-in feature importance only tells me which features mattered *globally* and in *magnitude* — not why this one customer was denied. I'd use **SHAP**, which gives a signed contribution per feature for that individual prediction: e.g. "recent late payment pushed the score down 0.30, high income pushed it up 0.12, net result below the approval threshold." SHAP is model-agnostic and gives both local (this customer) and global (average |SHAP|) explanations with direction, which plain importance lacks.
+
+### Q: Feature importance says feature A is most important — can you trust it?
+**Strong answer:**
+Depends which importance. Built-in impurity/gain importance is fast but biased toward high-cardinality and continuous features, and it's unreliable when features are correlated (correlated features split the credit unpredictably). Permutation importance is more trustworthy — shuffle the feature and measure the accuracy drop. And importance only gives magnitude, not direction; for that I'd use SHAP. So I'd corroborate before acting on it.
 
 ---
 
@@ -716,5 +814,16 @@ Stacking trains multiple diverse base models and then trains a meta-learner on t
 | **Non-Parametric Model** | A model whose complexity grows with the training data | Makes fewer assumptions; more flexible but needs more data and compute |
 | **Permutation Importance** | A feature importance method that measures performance drop when a feature's values are randomly shuffled | Model-agnostic and avoids the biases of tree-based importance measures |
 | **Recursive Feature Elimination (RFE)** | A wrapper feature selection method that repeatedly removes the weakest features and retrains | Computationally expensive but gives a ranked feature importance based on the chosen model |
+| **Coefficient / Slope (β)** | In a linear model, the change in the prediction per one-unit change in a feature, holding others fixed | Reads out each feature's effect — direction (sign) and strength (magnitude) |
+| **Intercept (β₀)** | The predicted value when all features are zero | Where the fitted line crosses the axis (often not physically meaningful) |
+| **Standardized coefficient** | A coefficient fit on z-scored features (effect per 1 standard deviation) | Makes feature effects comparable so you can rank importance |
+| **Odds ratio** | `exp(coefficient)` in logistic regression — the factor by which odds change per unit | Turns log-odds coefficients into an interpretable "×odds" statement |
+| **Multicollinearity / VIF** | Correlated predictors; VIF quantifies how inflated a coefficient's variance is | Warns that individual coefficients are unstable and hard to interpret |
+| **Feature Importance** | How much each feature contributed to a model's predictions overall | Ranks features; note it gives magnitude, usually not direction |
+| **SHAP (SHapley Additive exPlanations)** | A model-agnostic method giving each feature a signed contribution to a single prediction | Explains *any* model (incl. black boxes) locally and globally, with direction |
+| **Support vector** | The training points sitting on the margin that define an SVM's boundary | The only points that matter to the SVM; the model's "explanation" |
+| **Centroid** | The mean feature-vector at the center of a K-Means cluster | Summarizes/interprets each cluster as a persona |
+| **Loading (PCA)** | The weight of an original feature in a principal component | Tells you what a component "means" in terms of original features |
+| **Glass-box vs black-box** | Models you can read directly (linear/trees) vs those needing external explanation | Determines whether you read parameters or reach for SHAP |
 
 *Previous: [Multimodal Generation](../19-multimodal-generation/01-multimodal-generation.md) | Next: [Deep Learning Fundamentals](02-deep-learning-fundamentals.md)*

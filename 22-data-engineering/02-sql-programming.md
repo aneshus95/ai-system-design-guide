@@ -287,17 +287,52 @@ SELECT * FROM ranked WHERE rn <= 3;    -- top 3 earners per department
 
 ## Window Frames (Moving Windows)
 
-By default, `... OVER (ORDER BY x)` gives a **growing** window (everything up to the current row — a running total). A **frame clause** lets you make the window a **fixed-size sliding window** instead — essential for moving averages.
+**The mental model: the current row is "me".** A window function walks down the rows one at a time. For each row (**"me"**), the **frame clause** (`ROWS BETWEEN … AND …`) draws a **box** of rows around me — and the function computes over whatever's *inside the box*. Everything is counted relative to me:
 
 ```
- ROWS BETWEEN 2 PRECEDING AND CURRENT ROW     →  a 3-row window that SLIDES down:
+        ↑ rows ABOVE me = "PRECEDING"
+   D2      2 PRECEDING
+   D3      1 PRECEDING
+ ▶ D4   ◀  CURRENT ROW   ← "me"
+   D5      1 FOLLOWING
+        ↓ rows BELOW me = "FOLLOWING"
+```
 
- row1  ┌───┐                     frame = {row1}                (not enough preceding yet)
- row2  │win│                     frame = {row1, row2}
- row3  └───┘ ◄current            frame = {row1, row2, row3}    ← 3-row average here
- row4      ┌───┐                 frame = {row2, row3, row4}    ← window slid down one
- row5      │win│ ◄current        frame = {row3, row4, row5}
-           └───┘
+**Moving average — `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW`** = a fixed 3-row box ("me + 2 above") that **slides down**. Data: D1=100, D2=120, D3=110, D4=130, D5=90.
+
+```
+ current row = D3                    current row = D4 (box slid down)
+   day  sales                          day  sales
+ ┌─────────────┐                         D1    100
+ │ D1    100   │                       ┌─────────────┐
+ │ D2    120   │                       │ D2    120   │
+ │ D3    110   │ ◀ me   AVG=110        │ D3    110   │
+ └─────────────┘                       │ D4    130   │ ◀ me   AVG=120
+   D4    130                           └─────────────┘
+   D5     90                             D5     90
+```
+
+**Running total — `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`** = the box's **top is pinned** to the first row, so it **grows** as I move down:
+
+```
+ current row = D2                    current row = D4
+ ┌─────────────┐                     ┌─────────────┐
+ │ D1    100   │                     │ D1    100   │
+ │ D2    120   │ ◀ me   SUM=220      │ D2    120   │
+ └─────────────┘                     │ D3    110   │
+   D3    110                         │ D4    130   │ ◀ me   SUM=460
+   ...                               └─────────────┘
+```
+
+**The difference in one picture:**
+```
+ MOVING AVG (fixed size, SLIDES)      RUNNING TOTAL (top pinned, GROWS)
+   ┌────┐                               ┌────┐
+   │ .. │  ← box keeps its size          │ .. │ ← top locked to first row
+   │ .. │    and moves down              │ .. │
+   │ me │                                │ .. │
+   └────┘                                │ me │ ← bottom = current row
+                                         └────┘
 ```
 
 ```sql
@@ -306,6 +341,8 @@ SELECT day, sales,
   AVG(sales) OVER (ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_avg_3d
 FROM daily_sales;
 ```
+
+Read the `OVER(...)` this way: **`ORDER BY day`** puts rows in order (so "preceding" = earlier days) → **`ROWS BETWEEN 2 PRECEDING AND CURRENT ROW`** sets where the box's top and bottom edges sit relative to me → **`AVG(sales)`** averages whatever's in the box.
 
 **Frame vocabulary:**
 - **`ROWS`** — count by physical rows (exact: "2 rows back"). Most common.

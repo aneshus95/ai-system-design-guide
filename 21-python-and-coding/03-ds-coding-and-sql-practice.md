@@ -165,7 +165,7 @@ INSERT INTO monthly_revenue VALUES ('2024-01-01',1000),('2024-02-01',1100),('202
 
 ## Python — Fundamentals with a DS Flavor
 
-**P1. Count word frequencies in a list and return the top 3.**
+**P1. Count word frequencies in a list and return the top 3 most common.** You have a plain Python list of strings (e.g., `['apple', 'banana', 'apple', 'cherry', 'apple', 'banana']`). Count how many times each word appears and return the **3 words with the highest counts**, from most to least frequent. *Example:* `['apple'×3, 'banana'×2, 'cherry'×1]` → `[('apple',3), ('banana',2), ('cherry',1)]`.
 <details><summary>Solution</summary>
 
 ```python
@@ -176,7 +176,7 @@ def top3(words):
 `Counter` is the idiomatic tool; `most_common(k)` returns the k highest by count.
 </details>
 
-**P2. Given two lists, return elements in the first not in the second (set difference), preserving order.**
+**P2. Return elements from list A that are NOT in list B, preserving their original order.** You have two plain Python lists. Keep every element of `a` that does not appear anywhere in `b`, in the same left-to-right order as it was in `a`. *Example:* `a=[1,2,3,4]`, `b=[2,4]` → `[1,3]`. (Hint: converting `b` to a set before checking makes each lookup O(1) instead of O(n).)
 <details><summary>Solution</summary>
 
 ```python
@@ -187,7 +187,7 @@ def diff(a, b):
 Convert `b` to a set first — using `x in b` on a list is O(n) per check → O(n²) total.
 </details>
 
-**P3. Flatten a list of lists and dedupe, keeping first-seen order.**
+**P3. Flatten a list-of-lists into one list and remove duplicates, keeping the first time each value appears.** You have a nested list like `[[1,2,2],[3,1],[4]]`. Combine all sublists into a single flat list, then remove any repeated values — but keep them in the order they were **first seen**. *Example:* `[[1,2,2],[3,1],[4]]` → `[1,2,3,4]` (second `2` and second `1` are dropped).
 <details><summary>Solution</summary>
 
 ```python
@@ -202,7 +202,7 @@ def flatten_unique(lol):
 `dict.fromkeys` trick also works: `list(dict.fromkeys(x for sub in lol for x in sub))`.
 </details>
 
-**P4. Given a dict of `{student: [scores]}`, return `{student: average}` for students whose average ≥ 60.**
+**P4. From a dict of `{student: [scores]}`, return a new dict with only the students who are passing (average ≥ 60).** You have a dict like `{'Alice': [70,80,90], 'Bob': [40,50,55]}`. Compute each student's average score and keep only those whose average is **60 or above**. *Example:* Alice avg=80 (keep), Bob avg=48.3 (drop) → `{'Alice': 80.0}`.
 <details><summary>Solution</summary>
 
 ```python
@@ -212,7 +212,7 @@ def passing(d):
 Comprehension with a filter; guard against empty lists in real code.
 </details>
 
-**P5. Write a generator that yields a moving average of window k over a stream of numbers.**
+**P5. Write a generator that yields a rolling (sliding-window) average of the last `k` numbers as they arrive one by one.** Given a stream of numbers and a window size `k`, produce one average for every new number once at least `k` numbers have been seen. *Example:* stream `[1,2,3,4,5]`, `k=3` → yields `2.0` (avg of 1,2,3), `3.0` (avg of 2,3,4), `4.0` (avg of 3,4,5).
 <details><summary>Solution</summary>
 
 ```python
@@ -233,7 +233,7 @@ def moving_avg(stream, k):
 
 *(Assume a DataFrame `df` with columns as described in each question.)*
 
-**P6. `df[customer, order_amount]` — total and average order amount per customer, sorted by total desc.**
+**P6. Compute total and average order amount per customer, sorted by total (highest first).** DataFrame `sales` with columns `customer` and `order_amount`. Group by `customer` and produce two summary columns: the **sum** of all their orders and the **mean** order amount. Return the result sorted by total spend descending. *Example:* customer ACME with orders 250, 120, 90 → total=460, avg≈153.
 <details><summary>Solution</summary>
 
 ```python
@@ -245,7 +245,7 @@ def moving_avg(stream, k):
 Named aggregation (`agg(total='sum', ...)`) gives clean column names in one pass.
 </details>
 
-**P7. Find the top 2 highest-paid employees **per department** (`df[emp, dept, salary]`).**
+**P7. Return the top 2 highest-paid employees within each department.** DataFrame `employees` with columns `name`, `dept`, and `salary`. For **each department separately**, keep only the 2 rows with the largest salary values. *Example:* Eng has Alice(120), Bob(100), Carol(100), Dave(90) → keep Alice and Bob (or Carol — ties are fine).
 <details><summary>Solution</summary>
 
 ```python
@@ -258,7 +258,7 @@ df[df.groupby('dept')['salary'].rank(method='first', ascending=False) <= 2]
 `groupby(...).head(n)` after sorting is the cleanest top-N-per-group.
 </details>
 
-**P8. Fill missing values in `age` with the **median age of that person's `dept`**.**
+**P8. Fill missing ages with the median age of each person's own department.** DataFrame `employees` with columns `dept` and `age` (some `age` values are `NaN`). For each NaN age, fill it with the **median age of the employees in the same department** — not the overall median. *Example:* Eng ages 34, 45, NaN, 29 → median of known Eng ages is 34, so the NaN becomes 34.
 <details><summary>Solution</summary>
 
 ```python
@@ -267,7 +267,7 @@ df['age'] = df.groupby('dept')['age'].transform(lambda s: s.fillna(s.median()))
 `transform` returns a series aligned to the original index — key for group-wise fills. (Doing `.median()` alone would collapse groups.)
 </details>
 
-**P9. Merge `orders[order_id, customer_id, amount]` with `customers[customer_id, name]`, keeping **all** orders even if the customer is missing.**
+**P9. Join orders to customers so that every order is kept, even if no matching customer exists.** DataFrame `orders` (columns `id`, `customer_id`, `amount`, `order_date`, `status`) merged with `customers` (columns `id`, `name`, `country`) on `customer_id`. Use a **left join** so all orders appear in the result; rows with no matching customer get `NaN` for the customer columns. *Example:* if an order references a deleted customer, it still shows up with a null name.
 <details><summary>Solution</summary>
 
 ```python
@@ -276,7 +276,7 @@ merged = orders.merge(customers, on='customer_id', how='left')
 `how='left'` keeps every order; unmatched customers get NaN name. (`how='inner'` would silently drop orders.)
 </details>
 
-**P10. From `df[date, sales]` (daily), compute a 7-day rolling average of sales.**
+**P10. Add a 7-day rolling average column to a daily sales DataFrame.** DataFrame `daily_sales` with columns `day` (date) and `sales` (daily sales figure). For each row, compute the mean of that row and the 6 preceding rows (a 7-day window), and store it in a new column. *Example:* day 7's rolling average = mean of days 1–7; the first 6 rows get NaN (not enough history yet).
 <details><summary>Solution</summary>
 
 ```python
@@ -286,7 +286,7 @@ df['ma7'] = df['sales'].rolling(window=7).mean()
 Sort by date first. `rolling(7).mean()` gives NaN for the first 6 rows (not enough history) — use `min_periods=1` if you want partial windows.
 </details>
 
-**P11. Given `df[user_id, event, timestamp]`, count events per user per day.**
+**P11. Count how many events each user triggered on each calendar day.** DataFrame `web_events` with columns `user_id`, `event` (e.g., 'view', 'click'), and `timestamp` (full datetime). Extract the date from the timestamp, then count rows per `(user_id, day)` pair. *Example:* user 1 has 2 events at 10:00 and 10:10 on 2024-01-01 → count = 2 for that user-day.
 <details><summary>Solution</summary>
 
 ```python
@@ -296,7 +296,7 @@ counts = df.groupby(['user_id', 'day']).size().reset_index(name='event_count')
 `.size()` counts rows per group; `dt.date` buckets timestamps to day.
 </details>
 
-**P12. Remove duplicate rows by `email`, keeping the row with the **most recent** `signup_date`.**
+**P12. Deduplicate a users DataFrame by email address, keeping the most recent signup row.** DataFrame `users` (or `signups`) with columns `email` and `signup_date`. Multiple rows can share the same email. Keep only one row per email — the one with the **latest** `signup_date`. *Example:* `a@x.com` signed up on 2024-01-01 and again on 2024-02-01 → keep the 2024-02-01 row.
 <details><summary>Solution</summary>
 
 ```python
@@ -306,7 +306,7 @@ counts = df.groupby(['user_id', 'day']).size().reset_index(name='event_count')
 Sort ascending, keep `last` = most recent. (Mirrors the SQL `ROW_NUMBER()` dedup pattern.)
 </details>
 
-**P13. Pivot `df[region, quarter, revenue]` so quarters become columns.**
+**P13. Pivot a long-format sales table so each quarter becomes its own column.** DataFrame `region_sales` with columns `region`, `quarter` (values: 'Q1', 'Q2'), and `revenue`. Reshape it so there is one row per region, with separate columns for each quarter's revenue. *Example:* North/Q1=100, North/Q2=120 → a single row `North | 100 | 120`.
 <details><summary>Solution</summary>
 
 ```python
@@ -315,7 +315,7 @@ df.pivot_table(index='region', columns='quarter', values='revenue', aggfunc='sum
 `pivot_table` (not `pivot`) handles duplicate index/column pairs by aggregating.
 </details>
 
-**P14. Compute month-over-month % change in `revenue` from `df[month, revenue]` (one row per month).**
+**P14. Add a month-over-month % revenue change column to a monthly revenue DataFrame.** DataFrame `monthly_revenue` with columns `month` (date, one row per month) and `revenue`. For each month, compute how much revenue changed relative to the previous month, as a percentage. *Example:* Jan=1000, Feb=1100 → Feb's change = +10.0%; Mar=990 → Mar's change = −10.0%.
 <details><summary>Solution</summary>
 
 ```python
@@ -329,7 +329,7 @@ df['mom_pct'] = df['revenue'].pct_change() * 100
 
 ## Python — NumPy & Vectorization
 
-**P15. Given a NumPy array, replace all negative values with 0 (vectorized, no loop).**
+**P15. Replace all negative values in a NumPy array with 0, using a vectorized operation (no Python loop).** You have a 1-D NumPy array like `[-3, 1, -5, 4, 0]`. Clip every negative element to 0 in a single vectorized call. *Example:* `[-3, 1, -5, 4, 0]` → `[0, 1, 0, 4, 0]`.
 <details><summary>Solution</summary>
 
 ```python
@@ -338,7 +338,7 @@ arr = np.where(arr < 0, 0, arr)      # or: arr[arr < 0] = 0
 `np.where(cond, a, b)` is the vectorized if/else; boolean masking also works in place.
 </details>
 
-**P16. Standardize (z-score) each column of a 2-D array.**
+**P16. Z-score standardize every column of a 2-D NumPy array so each column has mean 0 and std 1.** You have a 2-D array where rows are samples and columns are features. For each column independently, subtract its mean and divide by its standard deviation — without writing any loops. *Example:* column `[10, 20, 30]` → `[-1.0, 0.0, 1.0]`.
 <details><summary>Solution</summary>
 
 ```python
@@ -347,7 +347,7 @@ z = (arr - arr.mean(axis=0)) / arr.std(axis=0)
 `axis=0` computes per-column stats; **broadcasting** subtracts/divides row-wise automatically.
 </details>
 
-**P17. Compute the Euclidean distance between two vectors (no loop).**
+**P17. Compute the Euclidean (straight-line) distance between two NumPy vectors, vectorized.** Given two 1-D arrays `a` and `b` of the same length, return the scalar distance √(Σ(aᵢ − bᵢ)²) without writing a loop. *Example:* `a=[0,0]`, `b=[3,4]` → distance = 5.0.
 <details><summary>Solution</summary>
 
 ```python
@@ -360,7 +360,7 @@ dist = np.sqrt(np.sum((a - b) ** 2))   # or np.linalg.norm(a - b)
 
 ## Python — Implement DS Functions from Scratch
 
-**P18. Implement precision, recall, and F1 from lists of true and predicted labels (binary, 0/1).**
+**P18. Implement precision, recall, and F1 score from scratch using two binary label lists.** You have two Python lists of 0s and 1s: `y_true` (actual labels) and `y_pred` (model predictions). Compute TP, FP, FN counts, then derive precision = TP/(TP+FP), recall = TP/(TP+FN), and F1 = 2·P·R/(P+R). Handle the case where a denominator is zero. *Example:* `y_true=[1,0,1,1]`, `y_pred=[1,1,1,0]` → TP=2, FP=1, FN=1 → P=0.67, R=0.67, F1=0.67.
 <details><summary>Solution</summary>
 
 ```python
@@ -376,7 +376,7 @@ def prf1(y_true, y_pred):
 Guard every denominator against zero. (See [Classification Metrics](../20-machine-learning-foundations/06-classification-metrics.md).)
 </details>
 
-**P19. Implement a train/test split (shuffle + split) without sklearn.**
+**P19. Implement a reproducible train/test split without using sklearn — shuffle then cut.** Given arrays `X` (features) and `y` (labels) and a `test_size` fraction (e.g., 0.2), randomly shuffle the indices, then slice off the last 20% as the test set and return `X_train, X_test, y_train, y_test`. Accept a random seed for reproducibility. *Example:* 100 samples → 80 train, 20 test.
 <details><summary>Solution</summary>
 
 ```python
@@ -390,7 +390,7 @@ def train_test_split(X, y, test_size=0.2, seed=42):
 Shuffle indices, then slice — seed for reproducibility. (For classification you'd stratify.)
 </details>
 
-**P20. Compute RMSE between predictions and actuals.**
+**P20. Compute Root Mean Squared Error (RMSE) between two arrays of actual and predicted values.** Given `y_true` and `y_pred` (lists or arrays of numbers), compute √(mean of (actual − predicted)²). *Example:* `y_true=[3,5]`, `y_pred=[2,4]` → errors are −1, −1 → RMSE = 1.0.
 <details><summary>Solution</summary>
 
 ```python
@@ -400,7 +400,7 @@ def rmse(y_true, y_pred):
 ```
 </details>
 
-**P21. Remove outliers from a list using the 1.5×IQR rule.**
+**P21. Remove statistical outliers from a numeric list using the 1.5×IQR fence rule.** Given a list of numbers, compute Q1 and Q3 (the 25th and 75th percentiles), then the IQR = Q3 − Q1. Any value below Q1 − 1.5×IQR or above Q3 + 1.5×IQR is an outlier — remove it. *Example:* `[10,12,11,100,13]` → 100 is far above the upper fence and gets dropped.
 <details><summary>Solution</summary>
 
 ```python
@@ -413,7 +413,7 @@ def drop_outliers(x):
 ```
 </details>
 
-**P22. Cosine similarity between two vectors.**
+**P22. Compute cosine similarity between two numeric vectors from scratch.** Given two lists or arrays `a` and `b`, return their cosine similarity: dot(a,b) / (‖a‖ × ‖b‖). The result ranges from −1 (opposite) to 1 (identical direction). *Example:* `a=[1,0]`, `b=[1,0]` → similarity = 1.0; `a=[1,0]`, `b=[0,1]` → similarity = 0.0 (orthogonal).
 <details><summary>Solution</summary>
 
 ```python
@@ -428,7 +428,7 @@ Guard against zero-norm vectors in production.
 
 ## Python — Harder & Real-Company Patterns
 
-**P23. (Shopify/Amazon) From `orders[customer_id, order_date, order_cost]`, find the customer(s) with the highest *daily* total order cost (sum per customer per day), and the date.**
+**P23. (Shopify/Amazon) Find which customer spent the most on a single calendar day, and what date that was.** DataFrame `orders` with columns `customer_id`, `order_date`, and `amount`. First sum all orders per `(customer_id, order_date)` pair to get daily totals, then find the row(s) with the single highest daily total. Return ties if any. *Example:* ACME placed 3 orders on 2019-02-05 totalling 460; Stark placed one order on 2019-04-15 for 400 → ACME wins with 460 on 2019-02-05.
 <details><summary>Solution</summary>
 
 ```python
@@ -438,7 +438,7 @@ daily[daily['order_cost'] == daily['order_cost'].max()]
 Aggregate to daily totals first, then filter to the max. (`==max()` returns ties; `.nlargest(1)` would drop them.)
 </details>
 
-**P24. Multi-condition bucketing: label `amount` as 'low'/'mid'/'high' — efficiently, no `apply`.**
+**P24. Bucket each order's `amount` into 'low', 'mid', or 'high' using vectorized logic — no `.apply`.** DataFrame `orders` with column `amount`. Add a new column `band`: 'low' if amount < 50, 'mid' if 50 ≤ amount < 200, 'high' otherwise. Do this in a single vectorized call, not a row-by-row `.apply`. *Example:* amounts 30, 120, 300 → 'low', 'mid', 'high'.
 <details><summary>Solution + alternatives</summary>
 
 ```python
@@ -454,7 +454,7 @@ df['band'] = np.select(
 `np.select` is the idiomatic multi-branch vectorized if/else — far faster than `.apply` on big data.
 </details>
 
-**P25. Add a column with each row's value as a % of its group total (`df[dept, salary]`).**
+**P25. Add a column showing each employee's salary as a percentage of their department's total salary.** DataFrame `employees` with columns `dept` and `salary`. For each row, compute `salary / (sum of salaries in that dept) × 100` and store it in a new column — without doing a separate merge. *Example:* Eng total=410; Alice earns 120 → her share = 29.3%.
 <details><summary>Solution</summary>
 
 ```python
@@ -463,7 +463,7 @@ df['pct_of_dept'] = df['salary'] / df.groupby('dept')['salary'].transform('sum')
 `transform('sum')` broadcasts the group total back to every row — no merge needed.
 </details>
 
-**P26. Time-based join: for each `trade[symbol, time]`, attach the most recent `quote[symbol, time, price]` at or before the trade (as-of join).**
+**P26. As-of (time-based) join: for each trade, attach the most recent quote price at or before the trade's timestamp.** DataFrame `trades` (columns `symbol`, `time`) and `quotes` (columns `symbol`, `time`, `price`). For each trade, find the latest quote for the **same symbol** whose `time` is ≤ the trade's `time`, and attach its price. *Example:* AAPL trade at 09:31 → matches the 09:30 quote at $187.0, not the 09:34 quote.
 <details><summary>Solution</summary>
 
 ```python
@@ -473,7 +473,7 @@ pd.merge_asof(trades, quotes, on='time', by='symbol', direction='backward')
 `merge_asof` is the specialized tool for "nearest earlier match" joins (finance, event enrichment) — both frames must be sorted on the key.
 </details>
 
-**P27. One row per `(user, tag)` from `df[user, tags]` where `tags` is a comma-separated string.**
+**P27. Explode a comma-separated tags string so each tag gets its own row, paired with its user.** DataFrame `tags_df` with columns `user` and `tags`, where `tags` is a single string of comma-separated values like `'python, sql, ml'`. Split each string into a list, then expand so there is one row per `(user, tag)` pair. *Example:* user 1 with `'python, sql, ml'` → 3 rows: (1,'python'), (1,'sql'), (1,'ml').
 <details><summary>Solution</summary>
 
 ```python
@@ -483,7 +483,7 @@ df.assign(tag=df['tags'].str.split(',')).explode('tag')
 `str.split` → list column → `explode` fans it to one row per element (the pandas "unnest").
 </details>
 
-**P28. Rank customers by total spend and return their percentile.**
+**P28. Rank customers by total spend and compute each one's spend percentile (0–100).** DataFrame `orders` with columns `customer_id` and `amount`. Aggregate to total spend per customer, then assign each customer a percentile rank — i.e., what percentage of customers they spend more than. *Example:* if ACME spends more than 75% of customers, their percentile is 75.0.
 <details><summary>Solution</summary>
 
 ```python
@@ -493,7 +493,7 @@ pct = spend.rank(pct=True) * 100          # 0–100 percentile
 `rank(pct=True)` gives the percentile directly; `method='dense'`/`'min'` controls tie behavior.
 </details>
 
-**P29. Count consecutive-day login streaks per user from `logins[user, date]` (distinct dates).**
+**P29. Find the length of every consecutive-day login streak per user in the `logins` DataFrame.** DataFrame `logins` with columns `user_id` and `login_date`. First deduplicate (same user may log in twice on one day), then for each user identify runs of back-to-back calendar days and count how long each run is. *Example:* user 1 logged in on Jan 1, 2, 3 (streak=3), skipped Jan 4, then Jan 5 (streak=1).
 <details><summary>Solution (the pandas gaps-and-islands trick)</summary>
 
 ```python
@@ -515,7 +515,7 @@ Interviewers think in patterns. Drill these buckets — **missing data, cleaning
 
 ### A. Missing Data
 
-**P32. Fill missing numeric with the column mean, categorical with the mode.**
+**P32. Fill missing values: numeric columns with the column mean, categorical columns with the most frequent value.** DataFrame `employees` with numeric column `age` (some NaN) and categorical column `dept` (some NaN). Replace each missing numeric value with that column's overall mean, and each missing categorical value with the most common (mode) value in that column.
 <details><summary>Solution</summary>
 
 ```python
@@ -525,7 +525,7 @@ df['dept'] = df['dept'].fillna(df['dept'].mode()[0])       # categorical → mos
 `.mode()` returns a Series (can be multi-modal) → take `[0]`. Median is safer than mean for skewed data.
 </details>
 
-**P33. Forward-fill then back-fill a time series (carry last known value).**
+**P33. Fill gaps in a time-series column by carrying the last known value forward, then filling any remaining leading NaNs backward.** DataFrame with columns `date` and `value` (some `value` entries are NaN). Sort by date, then apply forward-fill (propagate the most recent non-NaN downward) followed by back-fill (fill any remaining NaNs at the start of the series). *Example:* `[NaN, 10, NaN, 20]` → `[10, 10, 20, 20]`.
 <details><summary>Solution</summary>
 
 ```python
@@ -534,7 +534,7 @@ df['value'] = df['value'].ffill().bfill()     # ffill carries last obs forward; 
 ```
 </details>
 
-**P34. Interpolate missing values in a numeric time series.**
+**P34. Fill missing values in a numeric time-series column by linear interpolation (draw a line between known points).** DataFrame with columns `date` and `value` (some NaN). Use linear interpolation so that each missing value is estimated by drawing a straight line between the nearest known values on either side — rather than just repeating the last known value. *Example:* `[10, NaN, 20]` → `[10, 15.0, 20]`.
 <details><summary>Solution + when to prefer it</summary>
 
 ```python
@@ -545,7 +545,7 @@ df['value'] = df['value'].interpolate(method='linear')
 
 ### B. Duplicates & Cleaning
 
-**P35. Count and drop duplicate rows (whole-row, and by key).**
+**P35. Count how many duplicate rows exist, then drop them — both for exact full-row duplicates and by a specific key column.** DataFrame `users` with columns `email` and `signup_date`. First report how many rows are exact duplicates of another row. Then drop all exact-duplicate rows. Finally, separately show how to drop rows duplicated only on `email`, keeping the last one.
 <details><summary>Solution</summary>
 
 ```python
@@ -555,7 +555,7 @@ df.drop_duplicates(subset='email', keep='last')  # dedup by a key, keep the last
 ```
 </details>
 
-**P36. Clean a messy string column and cast types.**
+**P36. Clean a messy string column and safely cast other columns to numeric and datetime types.** A raw DataFrame has a `name` column with extra whitespace and mixed casing, an `amount` column stored as strings (some invalid entries), a `date` column as strings, and a `dept` column with repeated categories. Trim and lowercase `name`; convert `amount` to numeric (turning bad values into NaN rather than crashing); parse `date`; and convert `dept` to a memory-efficient category dtype.
 <details><summary>Solution</summary>
 
 ```python
@@ -567,7 +567,7 @@ df['dept']   = df['dept'].astype('category')              # memory + speed for r
 `errors='coerce'` turns unparseable values into NaN instead of raising — key for real-world dirty data.
 </details>
 
-**P37. Flag outliers with the z-score rule (|z| > 3).**
+**P37. Add a boolean `is_outlier` column that flags rows where the order amount is more than 3 standard deviations from the mean.** DataFrame `orders` with column `amount`. Compute the z-score of each amount: `(amount − mean) / std`. Mark rows as `True` if `|z| > 3`. *Example:* if mean=190 and std=110, an amount of 700 has z≈4.6 and would be flagged.
 <details><summary>Solution</summary>
 
 ```python
@@ -579,7 +579,7 @@ df['is_outlier'] = z.abs() > 3
 
 ### C. Reshaping
 
-**P38. Wide → long with `melt` (columns Q1,Q2,Q3 → rows).**
+**P38. Reshape a wide table (one column per quarter) into a long table (one row per quarter) using `melt`.** DataFrame `region_sales` currently has columns `region`, `Q1`, `Q2`, `Q3`. Convert it so each region-quarter combination becomes its own row, with a `quarter` column and a `revenue` column. *Example:* `North | 100 | 120 | 90` (wide) → 3 rows: (North, Q1, 100), (North, Q2, 120), (North, Q3, 90) (long).
 <details><summary>Solution</summary>
 
 ```python
@@ -589,7 +589,7 @@ pd.melt(df, id_vars='region', value_vars=['Q1','Q2','Q3'],
 `melt` = unpivot; `pivot_table` = the reverse (long → wide, see [P13](#python--pandas-data-manipulation)).
 </details>
 
-**P39. Frequency cross-tab of two categorical columns.**
+**P39. Build a frequency cross-tabulation showing how many orders fall into each combination of `status` and `customer_id`.** DataFrame `orders` with columns `status` (e.g., 'completed', 'pending', 'refunded') and `customer_id`. Produce a table where rows are statuses, columns are customer IDs, and each cell is the count of orders with that status for that customer.
 <details><summary>Solution</summary>
 
 ```python
@@ -600,7 +600,7 @@ pd.crosstab(orders['status'], orders['customer_id'])   # counts of status × cus
 
 ### D. Time Series & Datetime
 
-**P40. Extract calendar features from a timestamp.**
+**P40. Extract calendar components (year, month, day-of-week, hour, weekend flag) from a datetime column.** DataFrame `web_events` with column `event_time` (full timestamp). Add five new columns: `year`, `month`, `dow` (0=Monday, 6=Sunday), `hour`, and `is_weekend` (True if Saturday or Sunday). These features capture seasonality for time-series models.
 <details><summary>Solution</summary>
 
 ```python
@@ -614,7 +614,7 @@ df['is_weekend'] = ts.dt.dayofweek >= 5
 Datetime decomposition captures seasonality (day-of-week, month) — a top time-series feature-engineering move.
 </details>
 
-**P41. Resample daily sales to weekly totals.**
+**P41. Aggregate a daily sales DataFrame into weekly totals by resampling on the date index.** DataFrame `daily_sales` with columns `day` (date) and `sales` (integer). Set `day` as the index, then use pandas' time-frequency resampling to sum up all daily sales within each calendar week. *Example:* days Mon–Sun with sales [100,120,110,130,90,140,150] → one row with total 840.
 <details><summary>Solution</summary>
 
 ```python
@@ -624,7 +624,7 @@ weekly = (daily_sales.set_index('day')['sales']
 `resample` = groupby on a time frequency; the index must be datetime.
 </details>
 
-**P42. Lag feature + day-over-day change (per group).**
+**P42. Add a lag feature (previous order amount) and the change since the previous order, grouped by customer.** DataFrame `orders` with columns `customer_id`, `order_date`, and `amount`. Within each customer's order history (sorted by date), create two new columns: `prev_amount` (the amount from that customer's previous order) and `delta` (current minus previous). The first order per customer gets NaN for both. *Example:* ACME's orders 250 → 120 → 90 give `delta` values NaN, −130, −30.
 <details><summary>Solution</summary>
 
 ```python
@@ -635,7 +635,7 @@ orders['delta']       = g.diff()            # change vs previous
 `shift`/`diff` inside a groupby stay within each group — no leakage across customers.
 </details>
 
-**P43. Rolling 3-period mean and std.**
+**P43. Add a 3-day rolling mean and rolling standard deviation to the daily sales DataFrame.** DataFrame `daily_sales` with columns `day` and `sales`. After sorting by day, compute two new columns: `ma3` (average of the current and previous 2 days' sales) and `std3` (standard deviation over the same 3-day window). Allow partial windows for the first rows so they don't produce NaN. *Example:* sales [100,120,110,...] → day 3 ma3 = (100+120+110)/3 ≈ 110.
 <details><summary>Solution</summary>
 
 ```python
@@ -648,7 +648,7 @@ daily_sales['std3'] = daily_sales['sales'].rolling(3).std()
 
 ### E. Filtering & Selection
 
-**P44. Rows where dept is in a set AND salary is in a range.**
+**P44. Filter `employees` to keep only rows where `dept` is Eng or Sales AND `salary` is between 90 and 120 (inclusive).** DataFrame `employees` with columns `dept` and `salary`. Apply both conditions simultaneously — show both the boolean-mask style and the `query()` style. *Example:* Alice (Eng, 120) passes both conditions; Dave (Eng, 90) passes; Eve (Sales, 95) passes; Bob (Eng, 100) passes; Judy (Sales, 150) fails the salary range.
 <details><summary>Solution</summary>
 
 ```python
@@ -659,7 +659,7 @@ df.query("dept in ['Eng','Sales'] and 90 <= salary <= 120")
 `isin` for membership, `between` for ranges; `query` is often cleaner for compound conditions.
 </details>
 
-**P45. `loc` vs `iloc` — select by label vs position.**
+**P45. Demonstrate the difference between `.loc` (label-based selection) and `.iloc` (position-based selection) on `employees`.** DataFrame `employees` with columns `name`, `dept`, `salary`, etc. Use `.loc` to select the rows where `dept == 'Eng'` and show only the `name` and `salary` columns (using column names). Use `.iloc` to select the first 3 rows and the 1st and 3rd columns (using integer positions). Explain when you'd use each.
 <details><summary>Solution</summary>
 
 ```python
@@ -669,7 +669,7 @@ df.iloc[0:3, [0, 2]]                             # by POSITION (rows 0–2, cols
 `loc` = labels/conditions; `iloc` = integer positions. Mixing them up is a classic bug.
 </details>
 
-**P46. Top-3 and bottom-3 by amount.**
+**P46. Select the 3 orders with the highest amount and the 3 orders with the lowest amount from `orders`.** DataFrame `orders` with column `amount`. Return the top 3 largest rows and the bottom 3 smallest rows separately. Use the most efficient built-in methods (not sort + head). *Example:* amounts [400, 300, 250, 220, 150, 120, 90, 80] → top-3: 400, 300, 250; bottom-3: 80, 90, 120.
 <details><summary>Solution</summary>
 
 ```python
@@ -680,7 +680,7 @@ orders.nsmallest(3, 'amount')
 
 ### F. Feature Engineering
 
-**P47. Bin salary into quartiles (equal-count) and fixed bands.**
+**P47. Bin employee salaries in two ways: equal-frequency quartiles and fixed salary bands.** DataFrame `employees` with column `salary`. Create two new columns: (1) `salary_q` — divide salaries into 4 equal-sized groups (Q1 = bottom 25%, …, Q4 = top 25%); (2) `salary_band` — fixed cut-points: 0–80 is 'low', 81–110 is 'mid', 111+ is 'high'. *Example:* salary 95 → Q2 (roughly), 'mid' band.
 <details><summary>Solution</summary>
 
 ```python
@@ -691,7 +691,7 @@ df['salary_band'] = pd.cut(df['salary'], bins=[0,80,110,999],
 `qcut` = equal-sized buckets (quantiles); `cut` = fixed cut points.
 </details>
 
-**P48. One-hot encode a categorical column.**
+**P48. One-hot encode the `dept` column of `employees` into separate 0/1 binary columns.** DataFrame `employees` with a `dept` column whose values are 'Eng' or 'Sales'. Convert it to dummy variables so each category becomes its own column of 0s and 1s. Drop one of the dummies to avoid the dummy-variable trap (perfect multicollinearity). *Example:* Eng rows → `dept_Sales=0`; Sales rows → `dept_Sales=1`.
 <details><summary>Solution</summary>
 
 ```python
@@ -699,7 +699,7 @@ pd.get_dummies(df, columns=['dept'], drop_first=True)   # drop_first avoids the 
 ```
 </details>
 
-**P49. Min-max scale and z-score standardize a column.**
+**P49. Normalize the `salary` column two ways: min-max scaling (to 0–1) and z-score standardization (mean 0, std 1).** DataFrame `employees` with column `salary`. Add two new columns: `salary_minmax` scaled to the [0, 1] range, and `salary_z` with mean 0 and standard deviation 1. *Example:* salaries range 60–150 → the minimum (60) gets 0.0 and the maximum (150) gets 1.0 under min-max.
 <details><summary>Solution</summary>
 
 ```python
@@ -711,7 +711,7 @@ df['salary_z']      = (s - s.mean()) / s.std()                # mean 0, std 1
 
 ### G. Vectorization (the red-flag pattern)
 
-**P50. Combine/derive across columns *without* `apply(axis=1)`.**
+**P50. Create a `flag` column that labels each order 'big' (amount > 200 AND status='completed') or 'small' — without using `apply(axis=1)`.** DataFrame `orders` with columns `amount` and `status`. Write a vectorized solution that evaluates the two-condition rule across all rows at once using column-level operations. Then show the slow `apply(axis=1)` version for comparison, and explain why it's a red flag in interviews.
 <details><summary>Solution</summary>
 
 ```python
@@ -744,7 +744,7 @@ Interviewers flag explicit loops where vectorization is expected. Know the fast 
 | Count per group | `groupby().apply(len)` | `groupby().size()` or `value_counts()` |
 | Existence check in list | `x in a_list` (O(n)) | `x in a_set` (O(1)) |
 
-**P30. Sum a numeric column — three ways, fastest last.**
+**P30. Sum a numeric DataFrame column three ways — slowest to fastest — and explain why each differs.** DataFrame `orders` with column `amount`. Write the sum using (1) a Python `for` loop over the column, (2) `.apply(lambda x: x).sum()`, and (3) the built-in vectorized method. Explain the speed difference between the three approaches.
 <details><summary>Solution</summary>
 
 ```python
@@ -759,7 +759,7 @@ df['amount'].sum()
 Rule of thumb: if you're writing a `for` loop over a DataFrame, there's almost always a vectorized alternative. Reach for iteration only for genuinely sequential logic (and even then prefer `itertuples()` over `iterrows()`).
 </details>
 
-**P31. Replace values via a mapping dict — efficiently.**
+**P31. Replace abbreviated country codes with full names using a mapping dict — efficiently, no loop.** DataFrame `customers` with column `country` (values like `'US'`, `'IN'`, `'UK'`). Given a dict `{'US':'United States','IN':'India','UK':'United Kingdom'}`, replace every code with its full name in a single vectorized operation. *Example:* `'US'` → `'United States'`; any code not in the dict → NaN.
 <details><summary>Solution</summary>
 
 ```python
@@ -885,7 +885,7 @@ Source: [The 7 SQL interview patterns](https://datavidhya.com/blog/sql-data-engi
 
 *Tables:* `employees(id, name, dept, salary, hire_date, manager_id)`, `orders(id, customer_id, amount, order_date, status)`, `customers(id, name, country)`.
 
-**S1. Average salary per department, only departments with more than 5 employees, highest first.**
+**S1. Average salary per department — big departments only.** Table `employees(name, dept, salary)`. For each department, compute the average salary, but only keep departments with **more than 5 employees**, sorted highest average first. *Example:* if Sales has 6 people and Eng has 4, only Sales appears (Eng is dropped).
 <details><summary>Solution</summary>
 
 ```sql
@@ -898,7 +898,7 @@ ORDER BY avg_salary DESC;
 `WHERE` filters rows before grouping; `HAVING` filters groups after. (See [SQL execution order](../22-data-engineering/02-sql-programming.md#the-key-intuition-query-execution-order).)
 </details>
 
-**S2. Count orders and total revenue per status.**
+**S2. For each order status, count how many orders it has and sum their total revenue.** Table `orders(id, customer_id, amount, order_date, status)`. Group by `status` and return three columns: the status label, the number of orders, and the total amount. *Example:* 'completed' might have 5 orders totalling $860.
 <details><summary>Solution</summary>
 
 ```sql
@@ -908,7 +908,7 @@ GROUP BY status;
 ```
 </details>
 
-**S3. Customers who have never placed an order.**
+**S3. Find all customers who have never placed a single order (anti-join pattern).** Tables `customers(id, name, country)` and `orders(id, customer_id, amount, ...)`. Return the `id` and `name` of every customer for whom no matching row exists in `orders`. *Example:* Umbrella (id=4) has no orders and should appear; ACME (id=1) has orders and should not.
 <details><summary>Solution</summary>
 
 ```sql
@@ -925,7 +925,7 @@ WHERE o.id IS NULL;             -- anti-join
 
 ## SQL — Joins
 
-**S4. For each order, show customer name and country (drop orders with no matching customer).**
+**S4. Join each order to its customer to show the order ID, amount, customer name, and country — dropping orders that have no matching customer.** Tables `orders(id, customer_id, amount, order_date, status)` and `customers(id, name, country)`. Use an inner join on `customer_id = customers.id` so unmatched orders are silently excluded. *Example:* all 8 orders match a customer in our dataset, so all 8 rows appear.
 <details><summary>Solution</summary>
 
 ```sql
@@ -935,7 +935,7 @@ JOIN customers c ON c.id = o.customer_id;   -- INNER JOIN
 ```
 </details>
 
-**S5. Total revenue per country (include countries with zero orders as 0).**
+**S5. Compute total revenue per country, making sure countries with no orders show 0 (not missing).** Tables `customers(id, name, country)` and `orders(id, customer_id, amount, ...)`. Left-join all customers to their orders, group by country, and sum the amounts — using `COALESCE` to turn NULL sums into 0. *Example:* UK has only Umbrella who placed no orders → revenue = 0.
 <details><summary>Solution</summary>
 
 ```sql
@@ -947,7 +947,7 @@ GROUP BY c.country;
 `LEFT JOIN` keeps all countries; `COALESCE` turns NULL sums (no orders) into 0.
 </details>
 
-**S6. Self-join: list each employee with their manager's name.**
+**S6. Self-join `employees` to show each employee paired with their manager's name.** Table `employees(id, name, dept, salary, hire_date, manager_id)`. Join the table to itself: treat one copy as the employee and the other as the manager (matched via `manager_id = manager.id`). Use a left join so the CEO (who has no manager) still appears with a NULL manager name. *Example:* Alice (manager_id=10) → manager = Judy.
 <details><summary>Solution</summary>
 
 ```sql
@@ -962,7 +962,7 @@ LEFT JOIN employees m ON m.id = e.manager_id;
 
 ## SQL — Subqueries
 
-**S7. Employees earning above the company-wide average salary.**
+**S7. Return all employees whose salary is above the overall company average.** Table `employees(name, salary)`. Use a scalar subquery inside the `WHERE` clause to compute the average salary across all employees, then filter for those who exceed it. *Example:* average salary ≈ 96; Alice (120), Bob (100), Carol (100), and Judy (150) all qualify.
 <details><summary>Solution</summary>
 
 ```sql
@@ -973,7 +973,7 @@ WHERE salary > (SELECT AVG(salary) FROM employees);
 Scalar subquery — runs once.
 </details>
 
-**S8. Employees earning above **their own department's** average (correlated subquery).**
+**S8. Return employees who earn above the average salary of their own department — first with a correlated subquery, then with a faster window-function rewrite.** Table `employees(name, dept, salary)`. The correlated subquery computes the dept average once per row; the window approach computes it once per dept. *Example:* Eng avg=102.5 → Alice (120) qualifies; Sales avg=91.7 → Judy (150) and Eve (95) qualify.
 <details><summary>Solution</summary>
 
 ```sql
@@ -992,7 +992,7 @@ The window-function version is usually faster than the correlated subquery.
 
 ## SQL — Window Functions
 
-**S9. 2nd-highest salary (handling ties correctly).**
+**S9. Find the 2nd-highest distinct salary in the company, handling ties correctly with `DENSE_RANK`.** Table `employees(salary)`. Use `DENSE_RANK() OVER (ORDER BY salary DESC)` and filter for rank = 2. *Example:* salaries 150, 120, 100, 100, 95, 95, 90, 80, 70, 60 → rank 1 = 150, rank 2 = 120 (not 100, because 120 is the second unique value).
 <details><summary>Solution</summary>
 
 ```sql
@@ -1002,7 +1002,7 @@ SELECT DISTINCT salary FROM r WHERE rk = 2;
 `DENSE_RANK` (no gaps) is correct for "Nth highest distinct value"; `ROW_NUMBER` would miss ties.
 </details>
 
-**S10. Top 3 highest-paid employees per department.**
+**S10. Return the top 3 highest-paid employees within each department using a window function.** Table `employees(name, dept, salary)`. Assign a row number within each department ordered by salary descending, then filter for row number ≤ 3. *Example:* Eng (4 people): Alice(120), Bob(100), Carol(100) → all three qualify; Sales (6 people): Judy(150), Eve(95), Frank(95) → those three qualify.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1015,7 +1015,7 @@ SELECT * FROM ranked WHERE rn <= 3;
 Window functions can't go in `WHERE` — compute in a CTE, filter outside. (The canonical top-N-per-group pattern.)
 </details>
 
-**S11. Running total of daily revenue over time.**
+**S11. Compute a running (cumulative) total of order revenue ordered by date using a window function.** Table (or derived table) `daily_orders(order_date, amount)`. For each row, produce a `running_total` column that is the sum of all amounts up to and including that date. *Example:* amounts 250, 120, 300 on consecutive dates → running totals 250, 370, 670.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1026,7 +1026,7 @@ FROM daily_orders;
 Adding `ORDER BY` inside `OVER` makes each row sum itself + all prior rows.
 </details>
 
-**S12. Month-over-month revenue change using LAG.**
+**S12. Add a month-over-month revenue change column using the `LAG` window function.** Table `monthly_revenue(month, revenue)`. For each month, compute the difference between that month's revenue and the previous month's revenue. The first row should show NULL (no prior month). *Example:* Jan=1000, Feb=1100 → Feb change = +100; Mar=990 → Mar change = −110.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1037,7 +1037,7 @@ FROM monthly_revenue;
 `LAG` pulls the previous row's value; the first row is NULL (no prior month).
 </details>
 
-**S13. 3-day moving average of sales (window frame).**
+**S13. Compute a 3-day moving average of sales using an explicit window frame.** Table `daily_sales(day, sales)`. For each day, average its sales with the 2 immediately preceding days' sales using `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW`. *Example:* sales [100, 120, 110, 130] → day 3 ma3 = (100+120+110)/3 ≈ 110; day 4 ma3 = (120+110+130)/3 ≈ 120.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1048,7 +1048,7 @@ FROM daily_sales;
 `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW` = a 3-row sliding window.
 </details>
 
-**S14. Remove duplicate users by email, keeping the earliest `id`.**
+**S14. Delete duplicate user rows (same email) keeping only the one with the smallest `id`.** Table `users(id, email, signup_date)`. Multiple rows can share the same email. Use `ROW_NUMBER() OVER (PARTITION BY email ORDER BY id)` to number duplicates, then delete any row whose row number is greater than 1. *Example:* `a@x.com` appears at id=1 and id=3 → delete id=3.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1061,7 +1061,7 @@ DELETE FROM users WHERE id IN (SELECT id FROM d WHERE rn > 1);
 
 ## SQL — Dates & Advanced Patterns
 
-**S15. Number of orders in the last 30 days per customer.**
+**S15. Count how many orders each customer placed in the most recent 30 days.** Table `orders(customer_id, order_date, amount, status)`. Filter to rows where `order_date` is within the last 30 days of today, then count rows per `customer_id`. Write the date filter in a **sargable** way (compare the raw column to a date literal, not the other way around) so an index can be used.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1073,7 +1073,7 @@ GROUP BY customer_id;
 Keep the predicate **sargable** — filter the raw `order_date` column, don't wrap it in a function.
 </details>
 
-**S16. Daily active users (DAU) for the last 7 days.**
+**S16. Compute Daily Active Users (DAU) — the count of distinct users who triggered at least one event — for each of the last 7 days.** Table `events(user_id, event, event_time)`. Filter to the last 7 days, group by calendar day, and count **distinct** `user_id` values per day. *Example:* if both user 1 and user 2 fired events on 2024-01-01 → DAU = 2.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1086,7 +1086,7 @@ ORDER BY day;
 `COUNT(DISTINCT user_id)` — distinct users, not events.
 </details>
 
-**S17. Percentage of orders that are 'completed' per month.**
+**S17. For each calendar month, compute the percentage of orders whose status is 'completed'.** Table `orders(order_date, status)`. Truncate `order_date` to the month, then for each month divide the count of 'completed' orders by the total order count and multiply by 100. *Example:* Feb has 3 orders — 2 completed, 1 refunded → 66.7% completed.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1100,7 +1100,7 @@ GROUP BY 1;
 `AVG(boolean::int)` is a neat rate trick; the `CASE` version is portable across engines.
 </details>
 
-**S18. First order date per customer (cohort starter).**
+**S18. Find the first order date for each customer — the foundation for cohort analysis.** Table `orders(customer_id, order_date)`. For each `customer_id`, return the earliest `order_date`. *Example:* ACME (id=1) first ordered on 2019-02-05; Globex (id=2) on 2019-03-10. This "acquisition date" is the starting point for calculating cohort retention.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1117,7 +1117,7 @@ Foundation for cohort/retention analysis.
 
 The highest-value advanced pattern: an **island** is a contiguous run of rows; a **gap** is the break between runs. Same shape powers login streaks, sessionization, consecutive purchases, and unchanged-price periods.
 
-**S19. Longest streak of consecutive login days per user (`logins[user_id, login_date]`, distinct).**
+**S19. Find each user's longest streak of consecutive login days from `logins`, ignoring duplicate logins on the same day.** Table `logins(user_id, login_date)`. Deduplicate first (same user, same day = one login). Then use the classic row-number trick: for consecutive dates, `login_date − ROW_NUMBER()` stays constant, forming an "island" ID. Group by that island and count rows per group to get streak lengths. *Example:* user 1 logged in Jan 1, 2, 3 → streak of 3; then Jan 5 alone → streak of 1.
 <details><summary>Solution (the row_number trick)</summary>
 
 ```sql
@@ -1135,7 +1135,7 @@ ORDER BY streak_len DESC;
 **Why it works:** for consecutive dates, `date − row_number` stays **constant** (both increase by 1 each row), so it's a stable island id. A gap bumps it. Group by it to collapse each run. Take the max `streak_len` per user for the longest streak.
 </details>
 
-**S20. Sessionize a clickstream: assign a session id where a >30-minute gap starts a new session (`events[user_id, event_time]`).**
+**S20. Assign a session ID to each event, where a gap of more than 30 minutes between consecutive events for the same user starts a new session.** Table `events(user_id, event, event_time)`. Use `LAG` to find the previous event time per user, flag rows where the gap > 30 minutes (or where there is no previous event) as session starts, then use a running `SUM` of that flag to generate incrementing session IDs. *Example:* user 1's events at 10:00, 10:10, 10:50, 11:00 — the 40-min gap before 10:50 starts session 2.
 <details><summary>Solution (flag-then-cumulative-sum — the key composite pattern)</summary>
 
 ```sql
@@ -1154,7 +1154,7 @@ FROM flagged;
 Two passes: (1) `LAG` the previous event time and **flag** a new session when the gap exceeds the timeout (or is the first event); (2) a **running SUM of the flag** turns those 0/1 marks into incrementing session numbers. This flag-then-cumsum shape is the most important composite pattern in analytics SQL.
 </details>
 
-**S21. Periods where a product's price stayed unchanged (`price_history[product_id, day, price]`).**
+**S21. Find each contiguous period during which a product's price stayed the same, and return the start and end date of each period.** Table `price_history(product_id, day, price)`. Flag each row where the price differs from the previous day's price, then use a running sum of those flags to assign a group ID to each consecutive same-price run, then collapse each run to its min and max date. *Example:* prices [10, 10, 12, 12, 10] → three periods: 10 (Jan 1–2), 12 (Jan 3–4), 10 (Jan 5).
 <details><summary>Solution</summary>
 
 ```sql
@@ -1178,7 +1178,7 @@ Source: [Gaps & islands pattern](https://datavidhya.com/learn/sql/interview-patt
 
 ## SQL — Cohort & Retention
 
-**S22. Monthly signup cohorts and how many users return in each subsequent month (`activity[user_id, activity_month]`).**
+**S22. Build a monthly cohort retention table showing how many users from each signup-month cohort are still active in each subsequent month.** Table `activity(user_id, activity_month)`. Find each user's first-ever activity month (their cohort). Then for each `(cohort_month, activity_month)` pair, count distinct active users and compute the offset in months from the cohort month. *Example:* users who first appeared in Jan 2024 — how many were also active in Feb (offset=1), Mar (offset=2), etc.?
 <details><summary>Solution</summary>
 
 ```sql
@@ -1201,7 +1201,7 @@ ORDER BY cohort_month, month_offset;
 Cohort = each user's first-activity month; `month_offset` = months since signup; count distinct actives per (cohort, offset). Pivoting `month_offset` into columns gives the classic retention triangle.
 </details>
 
-**S23. Day-1 retention: % of users active the day after their signup day.**
+**S23. Compute Day-1 retention: what percentage of users had at least one activity event the day after their first-ever activity day?** Table `activity(user_id, activity_date)`. For each user, find their first activity date (day 0). Then left-join to see if the same user has any activity on day 0 + 1 day. The retention rate = the fraction of users who matched. *Example:* 3 users; only user 1 was active on day 1 → day-1 retention = 33.3%.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1222,7 +1222,7 @@ Source: [SQL cohort & retention questions](https://letsdatascience.com/blog/sql-
 
 ## SQL — Recursive CTE & Hierarchy
 
-**S24. All employees under a given manager (the full reporting subtree).**
+**S24. Use a recursive CTE to find every employee in the full reporting subtree under a given manager (all levels deep).** Table `employees(id, name, manager_id)`. Starting from a specific manager's `id`, recursively follow `manager_id` links downward to collect all direct and indirect reports at every level. Also track the depth (level 1 = direct report, level 2 = report's report, etc.). *Example:* starting at Judy (id=10) returns all 9 other employees across multiple levels.
 <details><summary>Solution</summary>
 
 ```sql
@@ -1255,7 +1255,7 @@ Interviewers love "can you write that a better way?" Know these rewrites:
 | `COUNT(DISTINCT big_col)` everywhere | approx (`APPROX_COUNT_DISTINCT`) if exactness not needed | Much cheaper at scale |
 | `SELECT *` | select only needed columns | Less I/O; enables covering indexes |
 
-**S25. Rewrite "employees above their dept average" without a correlated subquery.**
+**S25. Rewrite the "employees above their department's average salary" query using a window function instead of a correlated subquery — and explain why it's faster.** Table `employees(name, dept, salary)`. The correlated subquery version recomputes the dept average once per row (slow). Use `AVG(salary) OVER (PARTITION BY dept)` in a subquery/CTE to compute each dept's average exactly once, then filter in the outer query. *Example:* Eng avg≈102.5 → Alice (120) passes; Sales avg≈91.7 → Judy (150) and Eve (95) pass.
 <details><summary>Solution</summary>
 
 ```sql

@@ -180,6 +180,27 @@ Violations → biased or inefficient estimates. Fixes: log/Box-Cox transform, ad
 
 > **Interpreting a log-transformed target:** if you model `log(y)`, a coefficient βⱼ means a one-unit rise in xⱼ multiplies y by ≈ `e^βⱼ` — i.e. roughly a **βⱼ × 100% percent change** in y (for small β). Common for prices/counts.
 
+**How good is the fit? — R² and Adjusted R²**
+
+- **R² (coefficient of determination)** = `1 − SS_res/SS_tot` = the **fraction of the target's variance the model explains**, measured against the "just predict the mean" baseline. R²=0.8 → 80% of the variation is explained; R²=0 → no better than the mean; R²=1 → perfect; **R²<0 → worse than the mean** (can happen on a test set).
+- **The problem with R²:** it **never decreases when you add a feature — even a useless, random one**. So a high R² can just mean "many predictors," not a better model. You can't use plain R² to compare models with different numbers of features.
+- **Adjusted R²** fixes this by **penalizing extra predictors** — it only rises if a new feature improves the fit *more than chance would*:
+
+```
+              (1 − R²)(n − 1)
+ Adj R² = 1 − ───────────────      n = # rows,  p = # predictors
+                 n − p − 1
+```
+
+| | R² | Adjusted R² |
+|---|---|---|
+| Adding a useless feature | **goes up** (or stays) | **goes down** (penalized) |
+| Adding a genuinely useful feature | goes up | goes up (if it beats the penalty) |
+| Compare models with different # of features | ❌ misleading | ✅ the right tool |
+| Range | 0→1 (can be <0) | ≤ R², can be more negative |
+
+> **Rule of thumb:** report **R²** to say how much variance is explained; use **Adjusted R²** when comparing models or doing feature selection (so you're not rewarded for just piling on predictors). And pair either with **RMSE/MAE** — R² tells you the *proportion* explained, not the error in real units.
+
 ---
 
 ## Logistic Regression <a name="logistic-regression"></a>
@@ -801,6 +822,7 @@ Depends which importance. Built-in impurity/gain importance is fast but biased t
 | **MAE (Mean Absolute Error)** | The average of the absolute differences between predicted and actual values | A robust, interpretable regression metric that ignores outliers |
 | **RMSE (Root Mean Squared Error)** | The square root of the average squared prediction errors | Penalises large errors more than MAE; in the same units as the target |
 | **R² (Coefficient of Determination)** | The proportion of target variance explained by the model | 1.0 = perfect fit; can be negative if the model is worse than the mean |
+| **Adjusted R²** | R² penalized for the number of predictors — only rises if a new feature helps more than chance | Fair comparison of models with different feature counts; avoids R²'s "always goes up" flaw |
 | **SMOTE** | A technique that generates synthetic minority-class samples by interpolating between real ones | Addresses class imbalance without simply duplicating existing points |
 | **Matthews Correlation Coefficient (MCC)** | A balanced metric that accounts for all four cells of the confusion matrix | More reliable than F1 for imbalanced binary classification |
 | **One-Hot Encoding** | Converting a categorical variable into binary columns, one per category | Required for algorithms that cannot handle categorical inputs directly |

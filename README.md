@@ -39,7 +39,7 @@ A practical, continuously updated guide to AI system design, RAG architectures, 
 
 | I want to... | Start here |
 |--------------|------------|
-| **Prepare for interviews** | [Question Bank](00-interview-prep/01-question-bank.md) → [Answer Frameworks](00-interview-prep/02-answer-frameworks.md) |
+| **Prepare for interviews** | [Question Bank](00-interview-prep/01-question-bank.md) → [Answer Frameworks](00-interview-prep/02-answer-frameworks.md) → [7 Question Kits (Answer Key)](00-interview-prep/08-ai-engineer-7-question-kits.md) |
 | **Brush up ML / stats fundamentals** | [Classical ML](20-machine-learning-foundations/01-classical-ml-algorithms.md) → [Deep Learning](20-machine-learning-foundations/02-deep-learning-fundamentals.md) → [Statistics & Probability](20-machine-learning-foundations/03-statistics-and-probability.md) → [ML System Design](20-machine-learning-foundations/04-ml-system-design.md) → [Loss Functions](20-machine-learning-foundations/05-loss-functions.md) → [Classification Metrics](20-machine-learning-foundations/06-classification-metrics.md) → [DS Lifecycle](20-machine-learning-foundations/07-data-science-lifecycle.md) → [ML in Production](20-machine-learning-foundations/08-ml-in-production-and-mlops.md) |
 | **Sharpen Python for interviews** | [Python Core Concepts](21-python-and-coding/01-python-core-concepts.md) → [OOP in Python](21-python-and-coding/02-oop-in-python.md) → [DS Coding & SQL Practice](21-python-and-coding/03-ds-coding-and-sql-practice.md) |
 | **Understand distributed data processing** | [Apache Spark Architecture](22-data-engineering/01-apache-spark-architecture.md) → [SQL Programming](22-data-engineering/02-sql-programming.md) |

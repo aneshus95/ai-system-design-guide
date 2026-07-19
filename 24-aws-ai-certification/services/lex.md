@@ -141,6 +141,45 @@ Amazon Lex V2 uses **pay-per-request** with **no upfront cost and no minimums**.
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Lex | Fully managed AWS service for building chatbots and voice bots using the same technology as Alexa | Lets developers add conversational interfaces to apps without building NLU from scratch |
+| Lex V2 | The current version of Amazon Lex with multi-language support and generative AI features | The version to use for all new bot development |
+| ASR | Automatic Speech Recognition — converts spoken audio into written text | Enables voice-based input so users can speak rather than type |
+| NLU | Natural Language Understanding — figures out what the user means from their words | Maps a user's phrase to the right intent and extracts slot values |
+| Intent | A goal a user wants to accomplish, defined in the bot (e.g., "BookHotel") | The unit of conversational logic; each intent represents one task the bot can do |
+| Sample utterances | Example phrases you provide to teach Lex how users might express an intent | Lex generalizes from these so it understands phrasings you never explicitly listed |
+| Slot | A piece of information Lex must collect to fulfill an intent (e.g., city, date) | Represents a required parameter; Lex prompts the user until all required slots are filled |
+| Slot type | Defines the set of valid values for a slot (built-in or custom) | Validates slot input and enables Lex to recognize canonical values and synonyms |
+| Built-in slot type | Slot types provided by AWS for common data like dates, numbers, and cities | Saves you from defining common input formats yourself |
+| Custom slot type | A slot type you define with a list of values and optional synonyms | Handles domain-specific values like room types or product categories |
+| Fulfillment | The action taken when all required slots are collected (usually an AWS Lambda call) | Where the real work happens — calling an API, querying a database, placing an order |
+| Dialog code hook | An optional Lambda function that runs during the conversation to validate input or dynamically set slots | Allows real-time business logic (e.g., check if a date is in the future) mid-conversation |
+| Fulfillment code hook | A Lambda function that runs when an intent is complete to perform the actual task | Executes the backend action triggered by a completed intent |
+| AWS Lambda | Serverless compute service used to run Lex code hooks | Provides the business logic and backend integration for Lex bots |
+| Session state | Conversation state maintained by Lex across turns (including session attributes) | Allows the bot to remember context without you managing a conversation history manually |
+| Session attributes | Key-value pairs carried through a Lex session (e.g., user ID, preferences) | Pass context between turns and to Lambda without user re-input |
+| Context tags | Labels that control which intents are eligible in the next conversation turn | Implements conversational flow control (e.g., only offer CancelBooking after BookHotel) |
+| Multi-turn dialog | Lex automatically re-prompts for missing slots across multiple exchanges | Enables natural back-and-forth conversation without custom state management |
+| Locale | A language+region setting inside a Lex bot | Allows one bot definition to serve multiple languages |
+| AMAZON.QnAIntent | Built-in Lex intent that answers open-ended questions from a Bedrock knowledge base | Adds GenAI Q&A capability to a structured Lex bot without writing a custom flow |
+| AMAZON.BedrockAgentIntent | Built-in Lex intent that hands a conversation turn to a Bedrock Agent | Enables multi-step, tool-using GenAI task completion within a Lex bot |
+| Descriptive bot builder | Lex V2 GenAI feature that generates a bot from a plain-English description | Speeds up bot creation by auto-generating intents, slots, and utterances |
+| Utterance generation | Lex V2 GenAI feature that auto-suggests additional sample utterances for an intent | Increases NLU coverage without manually brainstorming phrases |
+| Assisted slot resolution | Lex V2 GenAI feature that uses a foundation model to resolve ambiguous slot values | Improves accuracy when users give partial or informal slot answers |
+| Amazon Connect | AWS cloud contact-center service that routes calls and integrates with Lex for IVR | Telephony layer; Lex provides the NLU brain for voice self-service flows |
+| IVR | Interactive Voice Response — a phone system that understands and responds to callers | Common Lex use case; callers speak to get account info or route their call |
+| Amazon Polly | AWS text-to-speech service that gives Lex responses a spoken voice | Converts Lex's text replies into natural-sounding audio for voice channels |
+| Amazon Comprehend | AWS NLP service for analyzing text (sentiment, entities, topics) | Adds post-conversation analytics on top of a Lex transcript; does not do dialog |
+| Amazon Q Business | Fully managed GenAI assistant over enterprise data with built-in RAG and connectors | Alternative when you need no-code document Q&A rather than structured intent modeling |
+| Bedrock Agents | Amazon Bedrock feature for building open-ended, tool-using GenAI agents | Alternative when tasks require multi-step reasoning and dynamic API calls |
+| Streaming request | Lex interaction mode that supports bidirectional audio/text streaming with lower latency | Used for real-time voice conversations where faster response feel is important |
+| Free Tier | First 12 months: 10,000 text and 5,000 speech requests per month at no charge | Allows evaluation and small-scale prototyping without cost |
+
 ## References
 
 - [What is Amazon Lex V2?](https://docs.aws.amazon.com/lexv2/latest/dg/what-is.html)

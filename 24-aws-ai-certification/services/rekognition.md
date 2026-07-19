@@ -117,6 +117,45 @@ Pay-as-you-go, no minimums; priced by **image**, **video minute**, **face vector
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Rekognition | A managed AWS computer-vision service that analyzes images and videos for objects, faces, text, and unsafe content | Adds visual intelligence to applications without requiring any ML expertise |
+| Computer vision | A field of AI that enables computers to interpret and understand visual information from images and video | The underlying technology behind all Rekognition features |
+| DetectLabels | A Rekognition API that identifies objects, scenes, activities, and image properties in a photo | Returns a structured list of what is visually present in an image, with confidence scores and bounding boxes |
+| Bounding box | A rectangular region that marks exactly where in an image a detected object or face is located | Lets downstream applications highlight, crop, or count specific visual elements |
+| DetectFaces | A Rekognition API that finds faces in an image and returns attributes like age range, emotions, and pose | Used for facial analysis without needing to identify who the person is |
+| Face attributes | Properties of a detected face such as estimated age range, detected emotions, glasses, and eye openness | Provide demographic or behavioral signals from an image without requiring identity matching |
+| CompareFaces | A Rekognition API that measures the similarity between exactly two faces from two separate images | Used for quick one-to-one identity checks without storing any face data |
+| Collections | A Rekognition container that stores face vectors (mathematical templates) from indexed images for later searching | Powers "is this person in our database?" use cases at scale by comparing one face against many |
+| IndexFaces | A Rekognition API that extracts a face vector from an image and stores it in a Collection | The step that adds a person to your searchable face gallery |
+| SearchFacesByImage | A Rekognition API that takes a new photo and finds the closest matching face vectors in a Collection | Enables identity verification or access control by matching an incoming face to stored entries |
+| Face vector | A mathematical numerical representation of a face's unique geometry | Stored in Collections instead of actual photos to protect privacy while enabling search |
+| Face Liveness | A Rekognition feature that verifies a user is a real live person rather than a photo or video replay | Used in KYC (Know Your Customer) onboarding to prevent spoofing attacks |
+| DetectText | A Rekognition API that reads words and phrases appearing within a scene in a photo or video frame | Used for reading text on signs, jerseys, product labels, or license plates in real-world images |
+| Scene OCR | Reading incidental text that appears in a photograph, such as a street sign or product label | The distinguishing use case for Rekognition DetectText vs. the document-oriented Textract |
+| DetectModerationLabels | A Rekognition API that flags explicit, violent, or otherwise unsafe content in images | Used to screen user-uploaded photos and videos before they are shown to other users |
+| Content moderation | The process of automatically detecting and filtering inappropriate visual content | Keeps platforms safe and compliant with content policies at high volume |
+| Custom Moderation | A Rekognition feature that lets you fine-tune content moderation with your own examples | Improves accuracy for platform-specific content policies that differ from generic categories |
+| DetectProtectiveEquipment (PPE) | A Rekognition API that detects safety equipment like hard hats, face masks, and gloves on people | Automates workplace safety compliance audits using camera footage |
+| RecognizeCelebrities | A Rekognition API that identifies well-known public figures in images | Used in media, sports, and entertainment to automatically tag or caption images with celebrity names |
+| Stored video analysis | Async Rekognition jobs that process video files stored in S3 and return time-stamped results | Used for offline video analysis where real-time results are not needed |
+| Streaming video analysis | Real-time Rekognition processing of live camera feeds via Kinesis Video Streams | Used for live face search, connected-home event detection, and real-time security monitoring |
+| Kinesis Video Streams | An AWS service for ingesting, storing, and processing live video from cameras and devices | The required input for Rekognition streaming video analysis |
+| Shot detection | A Rekognition stored-video feature that identifies when the camera cuts or scene changes in a video | Used in media and content indexing to segment video into individual shots |
+| Rekognition Custom Labels | A Rekognition feature using AutoML that trains a model to detect your specific objects, logos, or defects | Used when the built-in label set doesn't cover your niche use case, requiring only a small labeled dataset |
+| AutoML | Automated machine learning that handles model training and optimization for you | Makes building a custom vision model accessible without deep ML expertise |
+| SNS (Simple Notification Service) | AWS's managed notification service | Used to alert your application when an async Rekognition video job completes |
+| Amazon Textract | AWS's managed document OCR and structured extraction service | The right tool for scanned documents and forms, while Rekognition handles scene images and video |
+| Amazon Comprehend | AWS's managed NLP service | Used for moderating or analyzing text content, while Rekognition handles visual content |
+| SageMaker | AWS's full ML platform for building and training custom models | The alternative when you need full control over your computer vision model architecture |
+| Group 1 APIs | Rekognition's billing category for face comparison and search APIs | Priced per image at a different rate from the Group 2 detection APIs |
+| Group 2 APIs | Rekognition's billing category for labels, facial analysis, text detection, and moderation | Priced per image and discounted at higher volume |
+| Inference hour | The billing unit for Rekognition Custom Labels while a model is actively running | A running Custom Labels model bills continuously, making it critical to stop the model when idle |
+
 ## References
 
 - [What is Amazon Rekognition](https://docs.aws.amazon.com/rekognition/latest/dg/what-is.html)

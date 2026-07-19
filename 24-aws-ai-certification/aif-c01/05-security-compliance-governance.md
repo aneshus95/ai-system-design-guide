@@ -451,3 +451,85 @@ The matrix pairs each scope with **5 security disciplines** to reason through: *
 - AWS Trusted Advisor: <https://docs.aws.amazon.com/awssupport/latest/user/trusted-advisor.html>
 - Generative AI Security Scoping Matrix: <https://aws.amazon.com/ai/security/generative-ai-scoping-matrix/>
 - AWS Security Blog — Introduction to the Generative AI Security Scoping Matrix: <https://aws.amazon.com/blogs/security/securing-generative-ai-an-introduction-to-the-generative-ai-security-scoping-matrix/>
+
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Shared Responsibility Model** | AWS's framework stating AWS secures the cloud infrastructure while customers secure what they put in it | Defines which party is accountable for each security layer |
+| **Security "of" the cloud** | AWS's responsibility — physical data centers, hardware, and managed service software | The part customers can rely on AWS to handle |
+| **Security "in" the cloud** | The customer's responsibility — data, IAM, encryption choices, app code, and network settings | Always the customer's job regardless of how managed the service is |
+| **IAM (Identity and Access Management)** | AWS service that controls who can do what across AWS resources | The identity layer; first wall of defense for any AI system |
+| **IAM User** | A permanent identity with long-lived credentials assigned to a person or application | Used for human administrators; avoid using for app-to-service access |
+| **IAM Role** | A temporary identity that an app or service assumes to get short-lived, scoped credentials | Preferred over long-lived access keys for application access |
+| **IAM Policy** | A JSON document listing Allow or Deny permissions on specific actions and resources | Defines exactly which doors an identity can open |
+| **Least privilege** | Granting only the minimum permissions required for a task | Reduces the blast radius if an identity is compromised |
+| **AWS KMS (Key Management Service)** | AWS service for creating, storing, and controlling encryption keys | Used to encrypt data at rest in S3, EBS, and SageMaker |
+| **AES-256** | The symmetric encryption standard used by AWS KMS for data at rest | Industry-standard encryption that renders data unreadable without the key |
+| **Encryption at rest** | Encrypting data while it is stored on disk | Protects data in S3, EBS volumes, and SageMaker model artifacts |
+| **Encryption in transit** | Encrypting data as it moves over a network | Implemented via TLS/HTTPS for all Bedrock and SageMaker API calls |
+| **TLS / HTTPS** | Transport Layer Security — the protocol that encrypts network connections | Protects data moving between clients and AWS service endpoints |
+| **AWS-managed key** | A KMS key that AWS creates and rotates automatically | Easy to use; less customer control over key policy |
+| **Customer-managed key (CMK)** | A KMS key that the customer creates, controls, and can revoke | Required when compliance demands the ability to revoke access to data |
+| **VPC (Virtual Private Cloud)** | An isolated private network in AWS for running resources away from the public internet | Isolates SageMaker training jobs and inference endpoints |
+| **Security group** | A virtual firewall that controls inbound and outbound traffic for AWS resources | Used to restrict network access to SageMaker and Bedrock resources |
+| **AWS PrivateLink** | AWS feature that creates a private connection from your VPC to an AWS service, bypassing the internet | Keeps traffic to Bedrock and SageMaker off the public network |
+| **Interface VPC endpoint** | The Bedrock or SageMaker endpoint created by PrivateLink inside your VPC | The resource you create to use PrivateLink for a specific service |
+| **NAT gateway** | A VPC component that allows private resources to reach the internet for outbound calls | Not needed when using PrivateLink; PrivateLink avoids the internet entirely |
+| **Amazon Macie** | AWS managed service that uses ML to scan S3 and discover sensitive data | Used to find PII, PHI, and credentials before they enter an ML pipeline |
+| **PII (Personally Identifiable Information)** | Data that can identify a specific individual, such as a name, SSN, or email | Must be discovered, masked, or removed before training models |
+| **PHI (Protected Health Information)** | Health data protected under HIPAA regulations | Subject to strict handling requirements in healthcare AI applications |
+| **Data lineage** | The end-to-end record of where data came from and how it was transformed | Enables auditability and reproducibility of model training |
+| **Data cataloging** | An organized inventory of datasets with metadata about schema, owner, and location | Enables teams to discover and govern available datasets |
+| **AWS Glue Data Catalog** | AWS managed metadata repository for datasets processed by Glue | Central inventory for data used in ML pipelines |
+| **SageMaker ML Lineage Tracking** | SageMaker feature that records the lineage of training data, models, and deployments | Provides a chain-of-custody trail for audit and reproducibility |
+| **SageMaker Model Cards** | Documents capturing a model's intended use, risk rating, training details, and evaluation results | The primary governance artifact; appears in both Domain 4 and Domain 5 |
+| **Privacy-enhancing technologies (PETs)** | Techniques like masking, anonymization, tokenization, and differential privacy | Reduce exposure of sensitive data during training and inference |
+| **Data masking** | Replacing sensitive values with masked or dummy values | Protects PII in datasets used for development or testing |
+| **Anonymization** | Permanently removing or transforming data so individuals cannot be re-identified | Used when the analytical value of data must be preserved without personal identifiers |
+| **Tokenization (data)** | Replacing sensitive data elements with non-sensitive placeholder tokens | Protects payment card numbers, SSNs, and similar data at rest |
+| **Differential privacy** | A mathematical technique that adds calibrated noise to data to prevent individual re-identification | Advanced privacy technique used in model training |
+| **AWS Lake Formation** | AWS service providing fine-grained access control for data lake tables and columns | Enforces data access policies at the column level for analytics and ML |
+| **Data integrity** | Assurance that data has not been altered or corrupted | Implemented via versioning, checksums, and controlled pipelines |
+| **Prompt injection** | A malicious input that overrides the model's developer instructions to redirect its behavior | The number-one LLM security risk per OWASP; mitigated by Guardrails |
+| **Direct prompt injection** | The user directly types malicious override instructions into the model input | Simplest form of prompt injection attack |
+| **Indirect prompt injection** | Malicious instructions hidden inside external content the model reads during RAG or summarization | More dangerous because the attacker controls a document, not the input |
+| **Jailbreaking** | Crafting prompts to bypass a model's built-in safety guardrails | Causes the model to produce harmful or disallowed content |
+| **OWASP LLM Top 10** | The Open Web Application Security Project's list of top risks for LLM applications | LLM01 Prompt Injection is the most relevant to this domain |
+| **Amazon Bedrock Guardrails** | Bedrock feature that filters harmful content, blocks topics, redacts PII, and detects prompt attacks | The primary AWS defense against prompt injection and unsafe content |
+| **Amazon GuardDuty** | AWS threat detection service that monitors accounts and workloads for malicious activity | Detects security threats in the broader AWS environment |
+| **Amazon Detective** | AWS service for investigating security findings and root-cause analysis | Used to trace the source of a security incident |
+| **Amazon Inspector** | AWS automated vulnerability scanning service for EC2, containers, and Lambda | Finds software CVEs; not a prompt-injection defense |
+| **AWS WAF (Web Application Firewall)** | AWS firewall that filters malicious web traffic at the HTTP layer | Protects web frontends of AI applications from common web attacks |
+| **ISO 27001** | International standard for an Information Security Management System | Broad security certification held by AWS and verifiable via Artifact |
+| **ISO 42001** | International standard specifically for AI management systems | The AI-specific governance certification emerging as a compliance benchmark |
+| **SOC 1 / 2 / 3** | System and Organization Controls audit reports on a service provider's controls | SOC 2 covers security, availability, and confidentiality; downloadable via Artifact |
+| **PCI DSS** | Payment Card Industry Data Security Standard | Required for AI applications that handle payment card data |
+| **HIPAA** | US Health Insurance Portability and Accountability Act governing health data | Required for AI applications handling patient health information |
+| **EU AI Act** | European Union law regulating AI systems by risk level and use case | An example of algorithm accountability legislation covered on the exam |
+| **Algorithm accountability law** | Legislation requiring transparency, impact assessment, and fairness of automated decisions | Regulators globally are passing these; they target the AI decision, not just the infrastructure |
+| **AWS CloudTrail** | AWS service that records every API call and account activity with timestamps | Answers "who did what and when" for compliance audits |
+| **AWS Config** | AWS service that records resource configurations and changes over time | Answers "what is the current or past configuration of this resource" |
+| **AWS Audit Manager** | AWS service that automatically collects audit evidence and maps it to compliance frameworks | Reduces manual work preparing for SOC, PCI, and other audits |
+| **AWS Artifact** | Self-service portal for downloading AWS compliance reports and agreements | Where you get ISO 27001 and SOC 2 reports to give to auditors |
+| **AWS Trusted Advisor** | AWS service providing best-practice recommendations across security, cost, and performance | Proactive guidance; not a logging or auditing tool |
+| **Data lifecycle** | The managed stages data passes through from creation to deletion | Implemented with S3 Lifecycle policies and tiering to Glacier |
+| **Data residency** | The requirement that data must remain within specific geographic regions | Satisfied by selecting the correct AWS Region; Bedrock keeps inference in-Region |
+| **Data retention** | How long data must be kept before it is deleted per compliance rules | Managed with S3 Lifecycle policies and Object Lock |
+| **S3 Lifecycle policy** | An S3 rule that automatically moves or deletes objects after a specified time | Implements data retention and archival policies automatically |
+| **S3 Object Lock** | S3 feature that prevents objects from being deleted or overwritten for a set period | Enforces immutability for compliance and data-integrity requirements |
+| **Generative AI Security Scoping Matrix** | AWS framework that classifies a GenAI workload by how much the customer owns to determine security responsibilities | Helps teams understand which security practices they must implement |
+| **Scope 1 (consumer app)** | Using a public third-party GenAI service as an end user | Minimum control; focus on data governance and vendor agreements |
+| **Scope 2 (enterprise app)** | Using a third-party enterprise SaaS with embedded GenAI features | Review vendor's enterprise agreements for data handling |
+| **Scope 3 (pre-trained models)** | Building your own app on an existing third-party FM, such as Bedrock base models | Builder perspective begins; threat modeling required |
+| **Scope 4 (fine-tuned models)** | Fine-tuning a third-party FM with your business data | Increased responsibility for training data security and model governance |
+| **Scope 5 (self-trained models)** | Building and training a model from scratch on your own data | Maximum control and maximum responsibility for all security aspects |
+| **Threat modeling** | Systematically identifying potential security threats and mitigations for a system | Required at Scopes 3–5 where the customer controls more of the stack |
+| **Vendor enterprise agreement** | A contract defining how a SaaS or AI provider handles your data | Critical for Scopes 1–2 where the vendor controls the infrastructure |
+| **Governance framework** | A structured set of policies, processes, and standards for managing AI | Examples include the Scoping Matrix, ISO 42001, and AWS Well-Architected |
+| **Red-teaming** | Adversarially testing a system by simulating attacker behavior | A review strategy for identifying AI model vulnerabilities before production |
+| **Data sovereignty** | The principle that data is subject to the laws of the country where it is stored | Related to data residency; determines which AWS Region to use |
+| **Bucket policy** | An S3 resource-based policy that controls who can access a bucket or its objects | Used to enforce access control on training data and model artifacts |
+| **Network ACL** | A network-level firewall for VPC subnets controlling inbound and outbound traffic | Adds a subnet-level layer of defense in addition to security groups |

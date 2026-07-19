@@ -403,3 +403,75 @@ Principles of **human-centered design for explainable AI**:
 - Well-Architected Generative AI Lens — Responsible AI: https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/responsible-ai.html
 - Well-Architected Sustainability Pillar: https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sustainability-pillar.html
 - AIF-C01 exam guide: https://docs.aws.amazon.com/aws-certification/latest/examguides/ai-practitioner-01.html
+
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Responsible AI** | A set of principles and practices ensuring AI systems are fair, safe, honest, and transparent | The overarching theme of Domain 4 — builds stakeholder trust in AI |
+| **Bias (fairness)** | Systematic unfair skew in data or predictions that disadvantages a group | A core responsible AI concern; detected with SageMaker Clarify |
+| **Fairness** | The goal that a model treats all individuals and demographic groups equitably | Measured with fairness metrics; reported in Clarify bias reports |
+| **Inclusivity** | Ensuring the AI system works for a broad and diverse range of users | Prevents the model from failing specific user populations |
+| **Robustness** | The model produces correct and stable outputs even with noisy or adversarial input | Guards against jailbreaks and unexpected inputs breaking the system |
+| **Safety** | Reducing harmful output and misuse of AI systems | Implemented at runtime with Guardrails for Amazon Bedrock |
+| **Veracity** | Outputs are truthful and factually correct; the opposite of hallucination | A key responsible AI dimension tested on the exam |
+| **Explainability** | The ability to understand and communicate why a model produced a specific output | Required in regulated industries; provided by SHAP via SageMaker Clarify |
+| **Transparency** | Documenting what a model is, how it was trained, and its intended use | Enables informed decisions by stakeholders; primary tool is Model Cards |
+| **Controllability** | Having mechanisms to monitor and steer AI behavior | Implemented via Guardrails, Model Monitor, and human-in-the-loop review |
+| **Governance** | Best practices across the AI supply chain — providers, builders, and deployers | Ensures accountability and consistent oversight of AI systems |
+| **Hallucination** | When an AI model confidently states false or invented information | A veracity/safety risk; mitigated with RAG, grounding checks, and human review |
+| **Guardrails for Amazon Bedrock** | Bedrock feature that filters harmful content, blocks topics, and redacts PII at runtime | The primary AWS runtime control for responsible AI enforcement |
+| **Content filters** | Guardrails policy that detects and blocks harmful text or images across categories | Covers hate speech, insults, sexual content, violence, and prompt attacks |
+| **Denied topics** | Guardrails policy that blocks prompts and responses that touch user-defined subjects | Prevents the model from discussing off-limits topics in a given application |
+| **Word filters** | Guardrails policy that blocks specific words and phrases using exact matching | Used to block profanity, competitor names, or prohibited terminology |
+| **Sensitive information filters (PII)** | Guardrails policy that detects and blocks or redacts personally identifiable information | Protects customer data in call-center, healthcare, and finance applications |
+| **Contextual grounding checks** | Guardrails policy that flags responses not supported by the retrieved source documents | Prevents RAG-based hallucinations by checking answer vs source alignment |
+| **Automated Reasoning checks** | Guardrails policy using formal logic to mathematically verify factual accuracy | Provides rigorous policy compliance verification for high-stakes answers |
+| **Prompt Attack filter** | Guardrails content filter category covering prompt injection and jailbreak attempts | The primary Bedrock defense against adversarial prompt manipulation |
+| **ApplyGuardrail API** | Bedrock API that applies a guardrail policy to any model, including non-Bedrock models | Allows consistent safety policies across heterogeneous model environments |
+| **Guardrails Standard tier** | An upgraded Guardrails tier with better contextual understanding and 60-language support | Catches obfuscated attacks that the basic tier might miss |
+| **SageMaker Clarify** | SageMaker service that detects bias in data and model predictions and explains predictions via SHAP | The primary AWS tool for bias detection and model explainability |
+| **Pre-training bias** | Bias that exists in the training data before the model is trained | Detected by Clarify; fixed by rebalancing or augmenting the dataset |
+| **Post-training bias** | Bias introduced or amplified in the model's predictions after training | Detected by Clarify bias reports on model outputs |
+| **SHAP (SHapley Additive exPlanations)** | A method that assigns each input feature a contribution score for a specific prediction | Provides per-prediction explanations; output of Clarify's explainability feature |
+| **SageMaker Model Monitor** | SageMaker service that continuously monitors deployed endpoints for drift and quality issues | Raises CloudWatch alerts when data quality, model quality, bias, or feature attribution shifts |
+| **Data quality monitor** | Model Monitor sub-type that checks if input data is drifting from the training baseline | Catches distribution shift before it significantly degrades model performance |
+| **Model quality monitor** | Model Monitor sub-type that tracks accuracy or RMSE against a baseline | Detects model performance decay in production |
+| **Bias drift monitor** | Model Monitor sub-type that detects emerging bias in live predictions over time | Uses Clarify to track fairness metrics continuously in production |
+| **Feature attribution drift monitor** | Model Monitor sub-type that detects shifts in SHAP feature importances over time | Signals that the model is relying on different signals than it was validated on |
+| **Amazon CloudWatch** | AWS monitoring service for metrics, logs, and alarms | Used by Model Monitor to send alerts when drift thresholds are breached |
+| **Amazon Augmented AI (A2I)** | AWS service for routing low-confidence model predictions to human reviewers | The human-in-the-loop answer on the exam; keeps humans in control |
+| **Human-in-the-loop** | A design pattern where humans review or override AI decisions when needed | Core responsible AI principle; implemented with A2I |
+| **Amazon Mechanical Turk** | Crowdsourcing marketplace for human tasks | One of the reviewer workforces available via A2I |
+| **SageMaker Model Cards** | Documents capturing a model's intended use, risk rating, training details, metrics, and caveats | The primary AWS governance and transparency artifact for ML models |
+| **Risk rating** | A Model Card field with values Unknown, Low, Medium, or High | Governs production approval; a high risk rating requires more scrutiny |
+| **Sustainability (AI)** | Choosing model sizes and compute that minimize energy use and carbon footprint | A responsible model selection criterion on the exam |
+| **AWS Inferentia** | AWS custom chip designed for cost-efficient and energy-efficient ML inference | A sustainable compute choice for high-volume inference workloads |
+| **AWS Trainium** | AWS custom chip designed for cost-efficient and energy-efficient ML training | A sustainable compute choice for large-scale model training |
+| **IP infringement** | Generating output that reproduces copyrighted or trademarked content without rights | A legal risk of generative AI; mitigated by IP indemnification from AWS |
+| **IP indemnification** | AWS's legal coverage for copyright claims on output from eligible Titan and select models | Available for Amazon Titan models and select Bedrock-hosted models |
+| **Balanced dataset** | A training dataset with comparable representation across all classes and demographic groups | Prevents the majority class from dominating predictions |
+| **Inclusive dataset** | A dataset that represents all relevant user groups and edge cases | Prevents the model from performing poorly for underrepresented populations |
+| **Subgroup analysis** | Measuring model accuracy separately for each demographic or data slice | Reveals where the model is less accurate for specific groups |
+| **Data curation** | Vetting, cleaning, and rights-clearing data before using it for training | Ensures quality and avoids label errors and legal issues |
+| **High bias (statistical)** | A model that is too simple and misses the true pattern | Results in underfitting — poor performance on both training and test data |
+| **High variance (statistical)** | A model that is too complex and memorizes training noise | Results in overfitting — great on training data, poor on new data |
+| **Underfitting** | Poor performance on both training and new data due to excessive simplicity | Fixed with more model complexity, more features, or longer training |
+| **Overfitting** | Great training performance but poor generalization to new data | Fixed with more data, regularization, dropout, or a simpler model |
+| **Regularization** | Techniques like L1, L2, and dropout that penalize model complexity during training | Reduces overfitting by preventing the model from memorizing noise |
+| **Dropout** | A regularization technique that randomly disables neurons during training | Prevents co-adaptation and reduces overfitting in neural networks |
+| **Glass-box model** | A transparent, interpretable model where the decision logic can be read directly | Examples include linear regression and decision trees; preferred in regulated decisions |
+| **Black-box model** | An opaque model where the internal decision process is not directly readable | Examples include deep neural nets and large LLMs; higher accuracy but lower explainability |
+| **Post-hoc explainability** | Techniques like SHAP that explain a black-box model's decisions after the fact | Partially recovers transparency for complex models without retraining |
+| **Human-centered design (HCD)** | Designing AI systems around the needs and experiences of the people who use them | Core principle for explainable AI; emphasizes human oversight and tailored explanations |
+| **Cognitive load** | The mental effort required to understand an AI explanation | HCD principle: explanations should be calibrated to the audience's expertise |
+| **Trust calibration** | Helping users develop appropriate confidence in AI — neither over-trusting nor under-trusting | A key HCD goal to prevent automation bias or unwarranted skepticism |
+| **Well-Architected Responsible AI Lens** | AWS framework formalizing ten core responsible AI dimensions | Extends the exam's six features with additional dimensions like governance and controllability |
+| **AWS Sustainability Pillar** | AWS Well-Architected Pillar covering environmental impact of cloud workloads | Guides sustainable model selection and compute choices |
+| **Model bias** | Systematic error in a model's predictions that consistently disadvantages a group | Distinguished from statistical bias; a fairness and regulatory concern |
+| **Fairness metrics** | Quantitative measures of equal treatment across groups (e.g., equal accuracy rates) | Output of SageMaker Clarify bias analysis |
+| **Open-source model** | A model whose weights and/or architecture are publicly available for inspection | Provides higher transparency and auditability than closed proprietary models |
+| **Model licensing** | The legal terms governing how a model's weights can be used, redistributed, or modified | Must be checked before deploying open-weight models commercially |
+| **Data lineage** | The end-to-end trail of where data came from and how it was transformed | Supports auditability and reproducibility of model training |

@@ -437,6 +437,94 @@ Tie-breaker: if the question emphasizes **serverless / no cluster** → Glue; **
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon S3 | AWS's infinitely scalable object storage service billed per GB with no capacity to provision | The default data lake foundation for storing raw, curated, and training datasets in ML pipelines |
+| Data lake | A central repository that stores structured, semi-structured, and unstructured data at any scale | Consolidates raw data from many sources in one place for ML, analytics, and archival |
+| S3 Standard | The default S3 storage class for frequently accessed data | Best for active training datasets and curated feature data that models read often |
+| S3 Intelligent-Tiering | An S3 storage class that automatically moves objects between tiers based on actual access patterns | Ideal when you don't know how often your data will be accessed; avoids retrieval fees |
+| S3 Express One Zone | A high-performance, single-AZ S3 storage class with single-digit-millisecond access latency | Optimized for latency-sensitive ML training workloads; up to 10x faster than S3 Standard |
+| S3 Standard-IA | An S3 storage class for infrequently accessed data with lower storage cost but a retrieval fee | Used for older datasets you might retrain on but don't read every day |
+| S3 Glacier | A family of S3 storage classes for long-term archival at very low cost | Retains raw source data that must be kept for compliance but is almost never accessed |
+| EMRFS | The S3-compatible file system interface used by Amazon EMR to read and write S3 data | Allows EMR Spark/Hadoop jobs to treat S3 as their native file system |
+| FSx for Lustre | A high-performance shared file system that integrates with S3 for distributed ML training | Provides POSIX file access at very high throughput for training jobs that need a fast file system |
+| AWS Glue | A serverless Spark ETL service that also provides a central Data Catalog for schema management | Transforms and catalogues data without managing any clusters |
+| Glue Data Catalog | A central metadata repository that stores table schemas and partition information | Gives Athena, EMR, and Redshift Spectrum a single source of truth about what data exists and its structure |
+| Glue Crawler | An automated scanner that examines S3 or JDBC sources and populates the Glue Data Catalog with inferred schemas | Eliminates manual schema definition by discovering tables and partitions automatically |
+| ETL (Extract, Transform, Load) | The process of pulling data from sources, reshaping it, and loading it to a destination | The core data engineering task needed to prepare raw data for analytics or ML training |
+| PySpark | The Python API for Apache Spark, used to write distributed data processing jobs | Lets data engineers write scalable ETL code in Python without managing a cluster when using Glue |
+| Spark Structured Streaming | Apache Spark's API for continuous, fault-tolerant stream processing | Used in Glue streaming ETL jobs to process real-time data without writing batch jobs |
+| Glue Studio | A visual authoring environment inside AWS Glue for building ETL pipelines graphically or in code | Lets engineers build and test Glue jobs without leaving the AWS console |
+| AWS Glue DataBrew | A no-code visual data preparation tool for analysts offering 250+ built-in transforms | Prepares data through a point-and-click interface without writing Spark or pandas code |
+| DataBrew recipe | An ordered list of data transformation steps defined visually in DataBrew | Provides a reusable, versioned data preparation workflow that can be applied to new data |
+| AWS Glue Data Quality | A Glue feature that validates data against rule sets and flags violations in ETL pipelines | Certifies data integrity before it reaches a model, preventing garbage-in garbage-out problems |
+| DQDL (Data Quality Definition Language) | The rule definition language used to write data quality checks in Glue Data Quality | Lets engineers specify constraints like IsComplete, Uniqueness, and ColumnValues in a structured way |
+| AWS Lake Formation | A governance layer on top of S3 and Glue Data Catalog that provides column, row, and cell-level access control | Replaces complex IAM and bucket-policy management with a simple grant/revoke model for lake security |
+| LF-Tag-based access control (LF-TBAC) | A Lake Formation permission model where you tag Catalog resources and grant access on those tags | Scales permissions across thousands of tables without listing each table individually |
+| Fine-grained access control | The ability to restrict access at the column, row, or cell level within a table | Goes beyond object-level S3 permissions to enforce data privacy at the field level |
+| Amazon Athena | A serverless query engine that runs ANSI SQL directly over files in S3 using the Glue Data Catalog | Enables ad-hoc analytics and ML dataset curation without loading data into a database |
+| Trino / Presto | Open-source distributed SQL query engines that Athena is built on | Provide the query execution capability that Athena manages for you |
+| CTAS (Create Table As Select) | An Athena SQL statement that writes query results as a new table in S3 | Used to produce curated, Parquet-formatted training datasets from raw S3 data |
+| Partition projection | An Athena feature that generates partition metadata from a naming pattern instead of querying the Glue catalog | Eliminates per-query Glue partition lookups for large datasets with predictable S3 key layouts |
+| Apache Iceberg | An open table format for large datasets in S3 supporting ACID transactions and schema evolution | Supported by Athena and Glue for more reliable data lake operations with row-level updates |
+| Amazon EMR | A managed big-data platform for running Apache Spark, Hadoop, Hive, Presto, and other frameworks on clusters | Handles petabyte-scale ETL and ML preprocessing where cluster control or ecosystem breadth is needed |
+| EMR Serverless | A mode of Amazon EMR that auto-scales compute without requiring you to configure or manage a cluster | Narrows the ops gap between EMR and Glue while preserving EMR's ecosystem and control |
+| EMR on EKS | A mode that runs EMR workloads inside an existing Amazon Kubernetes cluster | Useful for teams that standardize on Kubernetes for all compute workloads |
+| Apache Spark | An open-source distributed computing framework for large-scale data processing | The primary engine behind both Glue ETL jobs and EMR for parallel data transformation |
+| Amazon Kinesis Data Streams (KDS) | A durable, replayable real-time streaming buffer organized into shards | Ingests high-volume event streams with sub-second latency and allows multiple independent consumers |
+| Shard | The unit of throughput capacity in Kinesis Data Streams | Each shard handles up to 1 MB/s in and 2 MB/s out; you add shards to increase capacity |
+| Enhanced Fan-Out | A Kinesis Data Streams feature that gives each consumer its own dedicated 2 MB/s read throughput | Enables multiple consumers to read the same stream simultaneously without competing for bandwidth |
+| Amazon Data Firehose | A fully managed streaming data delivery service that loads data into S3, Redshift, or OpenSearch | Provides zero-code streaming delivery to destinations without building consumers or managing shards |
+| Amazon Managed Service for Apache Flink | A fully managed serverless Apache Flink service for real-time stream processing | Runs stateful, windowed computations over streaming data without managing Flink infrastructure |
+| Windowed aggregation | A stream processing technique that computes metrics over a rolling or tumbling time window | Produces metrics like "orders per 5-minute window" from a continuous event stream |
+| Sessionization | Grouping a stream of user events into discrete user sessions based on inactivity gaps | Common in clickstream and behavioral analytics for measuring user engagement |
+| Flink Studio | An interactive SQL and notebook environment inside Managed Service for Apache Flink | Lets engineers develop and test streaming applications interactively before deploying them |
+| Amazon MSK | A fully managed Apache Kafka service (Managed Streaming for Apache Kafka) | Provides Kafka without the operational burden of managing brokers, ZooKeeper, or storage |
+| MSK Serverless | A mode of Amazon MSK that auto-scales Kafka capacity without provisioning broker instances | Reduces MSK management overhead for teams that don't need fixed-capacity guarantees |
+| MSK Connect | A managed connector framework for Amazon MSK compatible with Kafka Connect | Moves data between Kafka and other systems using pre-built connectors without managing workers |
+| Kafka Connect | An open-source framework for streaming data between Apache Kafka and external systems | The ecosystem standard for building Kafka data pipelines; MSK Connect is the managed version |
+| MirrorMaker | An Apache Kafka tool for replicating data between two Kafka clusters | Used for disaster recovery or migrating from on-premises Kafka to Amazon MSK |
+| Schema Registry | A service that stores and enforces schemas for Kafka messages | Ensures producers and consumers agree on the data structure of each Kafka topic |
+| Exactly-once semantics | A Kafka guarantee that each message is processed exactly once, never duplicated | Critical for financial or transactional workloads where duplicate processing causes errors |
+| Amazon Redshift | AWS's columnar, massively parallel SQL data warehouse for petabyte-scale analytics | Serves as the central store for structured, frequently-queried analytical and BI data |
+| MPP (Massively Parallel Processing) | A query execution architecture that distributes work across many nodes simultaneously | Enables Redshift to run complex queries over huge tables in seconds |
+| Columnar storage | A data storage format where values from the same column are stored together on disk | Dramatically reduces the amount of data read for analytics queries that touch only a few columns |
+| Redshift Serverless | A Redshift mode that automatically provisions and scales capacity based on query demand | Eliminates cluster management for teams with variable or unpredictable query workloads |
+| Redshift Spectrum | A Redshift feature that queries data files stored in S3 directly without loading them | Extends the warehouse over the data lake for occasional queries on cold or archive data |
+| Redshift ML | A Redshift feature that trains and uses ML models in-database using SQL CREATE MODEL statements | Lets SQL analysts build and run ML models without leaving the warehouse or managing SageMaker |
+| SageMaker Autopilot | An AutoML service that trains and tunes the best model for a dataset automatically | Powers the behind-the-scenes model training when you use Redshift ML CREATE MODEL |
+| Zero-ETL | A Redshift feature that automatically ingests data from Aurora into Redshift without a pipeline | Eliminates the need to build and maintain ETL jobs for Aurora-to-Redshift data movement |
+| Amazon OpenSearch Service | A managed Elasticsearch/OpenSearch cluster service that also functions as a vector database | Powers full-text search, log analytics, and semantic RAG retrieval using k-NN vector indexes |
+| k-NN (k-Nearest Neighbors) | An algorithm that finds the most similar vectors to a query vector in a collection | The core retrieval mechanism in OpenSearch's vector search for RAG and recommendation |
+| ANN (Approximate Nearest Neighbor) | A family of algorithms that find near-matches in a large vector space faster than exact search | Trades a small accuracy loss for dramatically faster query times at scale |
+| HNSW | A graph-based ANN indexing algorithm offering high recall and fast query times | The recommended ANN index type in OpenSearch for most vector search workloads |
+| IVF (Inverted File Index) | A clustering-based ANN indexing algorithm that partitions vectors into groups for faster search | An alternative ANN index in OpenSearch suited for very large vector collections |
+| FAISS | An open-source library from Meta for efficient similarity search and clustering of dense vectors | One of the ANN engines OpenSearch can use under its k-NN index |
+| Embeddings | Dense numerical vector representations of text, images, or other data produced by a model | The format in which data must be stored to enable semantic similarity search in a vector database |
+| OpenSearch Serverless | A fully managed, auto-scaling OpenSearch deployment requiring no cluster management | Used as the default vector store option for Amazon Bedrock Knowledge Bases |
+| RAG (Retrieval-Augmented Generation) | A technique where an AI retrieves relevant documents before generating an answer | Grounds LLM responses in your actual data; OpenSearch is the vector retrieval engine |
+| Amazon QuickSight | AWS's serverless BI service for building interactive dashboards from data in Redshift, Athena, S3, and more | Serves analyzed data to business users through visualizations and natural language Q&A |
+| SPICE | QuickSight's in-memory query engine that caches data for fast interactive dashboard performance | Allows QuickSight to serve dashboards to many users simultaneously at high speed |
+| Amazon Q in QuickSight | An AI assistant embedded in QuickSight for asking data questions in plain English | Generates charts, narratives, and summaries for business users who don't know SQL |
+| AWS Data Exchange | An AWS marketplace for discovering, subscribing to, and receiving third-party datasets | Lets teams enrich ML features with external data like financial, demographic, or weather signals |
+| Parquet | An open-source columnar file format widely used for analytics and ML training data | Reduces Athena scan costs and training I/O by storing data column-by-column with compression |
+| ORC | An open-source columnar file format optimized for Hive and Presto workloads | Similar to Parquet; preferred in the Hadoop ecosystem for Hive and EMR-based pipelines |
+| CSV (Comma-Separated Values) | A simple row-oriented plain-text format for tabular data | Universal, human-readable format accepted by most SageMaker built-in algorithms for small datasets |
+| JSON / JSON Lines | A human-readable row-oriented format for nested or semi-structured data | Common for streaming payloads, API responses, and semi-structured event data |
+| Avro | A row-oriented binary format with an embedded schema that supports schema evolution | Standard in Kafka/MSK streaming pipelines where the schema may change over time |
+| RecordIO-protobuf | A binary format combining Protocol Buffers records in a RecordIO container, preferred by SageMaker built-in algorithms | Used with Pipe mode to stream training data directly to SageMaker without downloading it first |
+| Pipe mode | A SageMaker training data channel mode that streams data from S3 directly into the training container | Eliminates the startup delay of downloading the full dataset before training begins |
+| Column pruning | Reading only the columns needed by a query from a columnar file, skipping all others | Reduces the bytes scanned by Athena queries and speeds up ML training by ignoring irrelevant features |
+| Partition | A subset of S3 data organized into a folder structure by a key like date or region | Athena queries that filter on partition keys skip entire partitions, dramatically reducing data scanned |
+| DMS (Database Migration Service) | An AWS service for migrating databases to AWS and replicating ongoing changes | Used at the ingest stage to continuously move relational database records into a data lake |
+| SageMaker Data Wrangler | A low-code ML feature engineering tool inside SageMaker Studio | Tuned for ML pipelines; contrasted with DataBrew which is a general analytics data prep tool |
+| AWS Macie | An AWS security service that uses ML to discover and protect sensitive data in S3 | Discovers PII in S3 data; contrasted with Glue Data Quality which validates data quality rules |
+| Amazon Kendra | An AWS managed enterprise search service | An alternative to OpenSearch when you need managed document search with relevance tuning rather than raw vector search |
+
 ## References <a name="references"></a>
 
 - Amazon S3 storage classes — https://aws.amazon.com/s3/storage-classes/

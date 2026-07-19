@@ -123,6 +123,39 @@ Because Q is built on Bedrock, **you don't pay Bedrock per-token separately** fo
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Q | AWS's family of managed generative AI assistants built on Amazon Bedrock for specific jobs | Delivers ready-made AI capabilities so you don't have to build and maintain your own assistant |
+| Amazon Q Business | A fully managed enterprise chat assistant that answers questions from your company's own documents and data | Provides a no-pipeline RAG chatbot that respects who can see what across your organization |
+| Amazon Q Developer | An AI coding assistant embedded in IDEs and the AWS CLI that writes, explains, fixes, and secures code | The successor to CodeWhisperer; helps developers ship faster with AI-powered coding support |
+| Amazon Q in QuickSight | An AI assistant inside the QuickSight BI service that lets you ask data questions in plain English | Generates visuals, narratives, and executive summaries from your BI data without SQL knowledge |
+| Amazon Q in Connect | A real-time AI assistant for contact-center agents that recommends answers based on the live customer conversation | Speeds up agent resolution time and improves customer experience in the call center |
+| Amazon Bedrock | The underlying AWS service that provides the foundation models powering all Amazon Q products | Amazon Q is an application layer built on top of Bedrock's model APIs |
+| RAG (Retrieval-Augmented Generation) | A technique where the AI retrieves relevant documents before generating an answer, grounding the response in real data | Makes Q Business answers factually accurate and traceable to source documents |
+| Pre-built RAG | A ready-made retrieval and generation pipeline that Q Business sets up for you automatically | Eliminates the need to manually build a chunking, embedding, retrieval, and generation pipeline |
+| Connector | A pre-built integration that ingests and indexes content from a specific source like S3, SharePoint, or Salesforce | Lets Q Business read your enterprise data without custom ETL code |
+| ACL (Access Control List) | Permissions attached to documents in source systems that control who can read them | Q Business honors these so users only receive answers from documents they are authorized to see |
+| IAM Identity Center | AWS's central identity management service for federated user authentication | Tells Q Business who the asking user is so it can enforce document-level permissions |
+| Permissions-aware responses | Q Business answers that are filtered to only include information the requesting user is allowed to see | Prevents employees from learning confidential information via AI that they couldn't access directly |
+| Citations | References to the specific source documents that an AI answer is based on | Let users verify AI-generated answers and builds trust in the system's accuracy |
+| Plugins | Q Business integrations that let it take actions in third-party apps like creating Jira tickets | Extends Q Business from a read-only assistant to one that can perform tasks across your tools |
+| Guardrails | Admin controls in Q Business that restrict topics and calibrate how much the model relies on enterprise vs. general knowledge | Prevents the assistant from answering off-topic questions or hallucinating unsupported facts |
+| Amazon Kendra | An AWS managed enterprise search service that indexes content and returns relevant passages | A pure retrieval engine that Q Business can use as its back-end search layer |
+| CodeWhisperer | The former name of Amazon Q Developer | Renamed to Q Developer in 2024; any exam question mentioning CodeWhisperer refers to Q Developer |
+| Inline code completion | An IDE feature that suggests the next line or block of code as you type | Speeds up development by predicting what you intend to write based on context |
+| Security scanning | Q Developer analysis of your code for common vulnerabilities and suggested fixes | Helps teams find and remediate security issues earlier in the development process |
+| Agentic workflow | An AI-driven multi-step process where the model takes a sequence of actions to accomplish a goal | Q Developer uses these for complex tasks like upgrading frameworks or refactoring entire features |
+| AWS Builder ID | A free personal account for AWS that is not tied to an AWS subscription | Lets developers use Q Developer's free tier without needing a corporate AWS account |
+| SPICE | QuickSight's in-memory data engine that caches data for fast dashboard queries | Enables QuickSight to serve interactive dashboards to many users at high speed |
+| Natural language Q&A | Asking questions in plain English and getting answers, rather than writing SQL or building charts | Makes data exploration accessible to non-technical business users |
+| User subscription | The per-user monthly fee that Q Business charges for access | The primary billing dimension for Q Business; usage is bundled rather than billed per API token |
+| Index capacity | The storage and compute Q Business uses to hold and search your ingested enterprise data | The second billing dimension for Q Business; scales with the amount of content you index |
+| Per-token pricing | Billing based on the number of input and output words processed by the model | How Bedrock charges for raw model usage; Q pricing bundles this rather than exposing it directly |
+
 ## References
 
 - Amazon Q — product overview: https://aws.amazon.com/q/

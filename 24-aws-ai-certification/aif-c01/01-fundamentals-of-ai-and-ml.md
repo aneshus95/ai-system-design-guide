@@ -560,3 +560,85 @@ flowchart LR
 - SageMaker Model Monitor: https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html
 - Amazon SageMaker AI features: https://docs.aws.amazon.com/sagemaker/latest/dg/whatis-features.html
 - Choosing an AWS machine learning service: https://docs.aws.amazon.com/decision-guides/latest/machine-learning-on-aws-how-to-choose/guide.html
+
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Artificial Intelligence (AI)** | Any technique that lets a machine mimic human-like intelligence such as reasoning or deciding | The broadest umbrella category containing all AI/ML/DL approaches |
+| **Machine Learning (ML)** | AI where the system learns patterns from data instead of following hand-coded rules | The practical foundation for most production AI systems |
+| **Deep Learning (DL)** | ML that uses neural networks with many layers to handle complex inputs like images and speech | Enables computer vision, NLP, and generative AI |
+| **Neural network** | A model of interconnected "neurons" in layers where each connection has a learned weight | The building block of deep learning models |
+| **Computer Vision (CV)** | AI that interprets images and video to detect, classify, or locate objects | Used in quality inspection, face recognition, and medical imaging |
+| **Natural Language Processing (NLP)** | AI that understands and generates human language in text or speech | Powers sentiment analysis, translation, chatbots, and summarization |
+| **Model** | The trained artifact — the learned parameters (weights) that map inputs to outputs | The deployable result of a training run |
+| **Algorithm** | The procedure or recipe used to learn a model from data | Describes the training method, not the trained result |
+| **Training** | The process of fitting a model's parameters to data so it learns patterns | Computationally expensive; happens before deployment |
+| **Inferencing** | Using a trained model to make predictions on new, unseen data | What happens in production every time a user sends a request |
+| **Bias (statistical)** | Error from an overly simple model that misses the true pattern | Causes underfitting — the model is wrong on both training and test data |
+| **Bias (fairness)** | Systematic unfair skew in predictions that disadvantages a group | Causes discriminatory outcomes; detected with SageMaker Clarify |
+| **Fairness** | The goal that a model treats all individuals and groups equitably | A core responsible AI principle measured with fairness metrics |
+| **Fit** | How well a model captures the true underlying pattern in data | Good fit means the model generalizes; over/underfit means it does not |
+| **Overfitting** | When a model memorizes training data noise and performs poorly on new data | High variance; fixed with more data, regularization, or simpler models |
+| **Underfitting** | When a model is too simple to capture the real pattern | High bias; fixed with more model complexity or better features |
+| **Variance (statistical)** | Error from a model that is too sensitive to its specific training data | Causes overfitting |
+| **Large Language Model (LLM)** | A very large deep-learning model trained on text data to predict the next word or token | Powers chatbots, summarization, code generation, and translation |
+| **Generative AI (GenAI)** | AI that creates new content such as text, images, audio, or code | Contrasts with discriminative AI that only classifies or predicts |
+| **Agentic AI** | A GenAI model given tools and a goal so it can plan and take multi-step actions | Used to build autonomous assistants that call APIs and complete tasks |
+| **Foundation Model (FM)** | A large pre-trained model that can be adapted to many different tasks | The basis for all modern GenAI applications |
+| **Supervised learning** | ML where the model learns from labeled data that includes the correct answers | Used for classification and regression tasks |
+| **Unsupervised learning** | ML where the model finds patterns in unlabeled data without correct answers provided | Used for clustering and anomaly detection |
+| **Reinforcement learning (RL)** | ML where an agent learns by trial and error, receiving rewards for correct actions | Used for game AI, robotics, and aligning LLMs via RLHF |
+| **RLHF** | Reinforcement Learning from Human Feedback — training with human preference rankings as rewards | Used to align LLM behavior with human values and helpfulness |
+| **Labeled data** | Training data where each example includes the correct target answer | Required for supervised learning |
+| **Unlabeled data** | Data with inputs but no target answers provided | Used for unsupervised learning or self-supervised pre-training |
+| **Structured data** | Data organized in rows and columns like a spreadsheet or database table | Well-suited to traditional ML algorithms like XGBoost |
+| **Unstructured data** | Data with no fixed schema such as text, images, audio, or video | Requires deep learning or FMs to process effectively |
+| **Tabular data** | Structured data in rows and columns, typically stored as CSV | The primary data format for traditional ML algorithms |
+| **Time-series data** | Values indexed by time such as stock prices or sensor readings | Used for forecasting future values |
+| **Regression** | Supervised ML that predicts a continuous numeric output | Used when the answer is "how much" (e.g., house price) |
+| **Classification** | Supervised ML that predicts a discrete category or label | Used when the answer is "which class" (e.g., spam vs not spam) |
+| **Clustering** | Unsupervised ML that groups similar items without predefined labels | Used to find customer segments or anomalies |
+| **Batch Transform** | SageMaker offline inference mode that scores a whole dataset without a running endpoint | Best for scoring millions of records overnight |
+| **Real-time endpoint** | Always-on SageMaker endpoint with millisecond response latency | Best for fraud checks, chatbots, and interactive applications |
+| **Asynchronous inference** | SageMaker inference mode that queues large jobs and stores results in S3 | Best for large payloads or long-running inference tasks |
+| **Serverless inference** | SageMaker inference mode that scales to zero when idle and charges per use | Best for spiky or intermittent traffic |
+| **Context window** | The maximum number of tokens (input plus output) a model can process in one call | Limits how much text you can send in a single request |
+| **Hyperparameter tuning** | Optimizing model settings set before training, such as learning rate or tree depth | SageMaker Automatic Model Tuning (AMT) automates this search |
+| **EDA (Exploratory Data Analysis)** | Visually and statistically exploring a dataset to understand distributions and spot problems | Done before modeling to avoid garbage-in, garbage-out |
+| **Feature engineering** | Creating, transforming, or selecting input variables to improve model accuracy | Often the biggest single driver of model performance |
+| **Data pre-processing** | Cleaning data by handling missing values, outliers, and duplicates | Ensures the model learns from quality inputs |
+| **Deployment** | Serving a trained model so it can make predictions for real users | The step that delivers business value |
+| **Monitoring** | Continuously tracking a deployed model's performance and data quality in production | Detects drift and triggers retraining when the model decays |
+| **MLOps** | DevOps principles applied to the ML model lifecycle — automates build, deploy, and monitor | Makes ML workflows repeatable, scalable, and auditable |
+| **Data drift** | When production input data shifts away from the distribution the model was trained on | Detected by SageMaker Model Monitor; a common trigger for retraining |
+| **Amazon SageMaker AI** | AWS fully managed platform for building, training, tuning, and deploying ML models | The primary AWS service for custom ML work end-to-end |
+| **SageMaker Data Wrangler** | SageMaker tool with 300+ built-in transforms for importing, cleaning, and featurizing data | Reduces manual data preparation time dramatically |
+| **SageMaker Feature Store** | Central repository that stores and serves ML features for training and real-time inference | Avoids recreating the same features across multiple models |
+| **SageMaker Model Monitor** | SageMaker service that continuously monitors deployed endpoints for drift and quality issues | Raises CloudWatch alerts when the model or data quality degrades |
+| **Amazon Transcribe** | AWS service that converts speech to text via batch or streaming audio | Used to transcribe call recordings or add captions |
+| **Amazon Translate** | AWS neural machine translation service | Localizes content across many languages without custom training |
+| **Amazon Comprehend** | AWS NLP service for sentiment, entities, key phrases, language detection, and PII | Extracts structured insight from unstructured text |
+| **Amazon Lex** | AWS chatbot service using automatic speech recognition and natural language understanding | Builds voice and text bots without ML expertise |
+| **Amazon Polly** | AWS text-to-speech service that generates lifelike audio | Adds a voice to applications and accessibility features |
+| **Amazon Rekognition** | AWS computer vision service for image/video analysis, faces, and content moderation | Provides visual AI capabilities via a managed API |
+| **Amazon Textract** | AWS service that extracts text and structured data from scanned documents and forms | Digitizes documents without custom OCR model building |
+| **Amazon Kendra** | AWS enterprise semantic search service | Searches company knowledge bases using natural language queries |
+| **Amazon Q** | AWS generative AI assistant (Q Business for enterprise docs, Q Developer for coding) | Provides a turnkey AI assistant without building one from scratch |
+| **Amazon Personalize** | AWS managed recommendation engine | Delivers personalized content and product suggestions |
+| **Amazon Fraud Detector** | AWS managed service for flagging likely fraudulent transactions | Adds fraud detection without custom ML expertise |
+| **Amazon Bedrock** | AWS managed service providing access to multiple foundation models via one API | Primary service for building GenAI applications without managing infrastructure |
+| **Managed API service** | A cloud service you consume via an API without managing underlying servers | Provides the least operational overhead option on the exam |
+| **SageMaker JumpStart** | SageMaker ML hub for one-click deploying and fine-tuning open and proprietary FMs | Bridge between fully managed Bedrock and fully custom SageMaker |
+| **Accuracy** | Percentage of all predictions that are correct | Can be misleading on imbalanced datasets |
+| **Precision** | Of all predictions labeled positive, the fraction that were truly positive | Optimized when false positives are costly |
+| **Recall** | Of all actual positives, the fraction the model correctly caught | Optimized when false negatives are costly |
+| **F1 score** | Harmonic mean of precision and recall | Best single metric for imbalanced classification problems |
+| **AUC / ROC-AUC** | Area under the receiver operating characteristic curve | Measures overall classifier quality across all thresholds |
+| **RMSE** | Root Mean Squared Error — average magnitude of error for regression predictions | Lower is better; the standard regression performance metric |
+| **ROI (Return on Investment)** | Business value delivered minus total cost | The ultimate scorecard for whether an ML project is worth doing |
+| **XGBoost** | A popular gradient-boosting ML algorithm for tabular data | One of SageMaker's built-in algorithms; strong on structured data |
+| **k-means** | An unsupervised clustering algorithm that groups data into k clusters | Used for customer segmentation and data exploration |
+| **Random Cut Forest** | An anomaly detection algorithm available as a SageMaker built-in | Identifies unusual patterns in data without labeled anomaly examples |

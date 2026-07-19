@@ -463,6 +463,96 @@ flowchart LR
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| MLA-C01 | The AWS Certified Machine Learning Engineer – Associate exam code | Identifies the certification this chapter prepares you for |
+| Domain 3 | The third scored section of MLA-C01, covering deployment and orchestration (22% of the exam) | Tests ability to serve trained models in production and automate ML pipelines |
+| Inference | Running a trained model on new input data to produce predictions | The operational phase where the model delivers business value |
+| Real-Time Endpoint | A persistent, always-on SageMaker endpoint that returns predictions synchronously | Suited for live applications requiring millisecond latency |
+| Serverless Inference | A SageMaker endpoint type that scales to zero when idle and charges only per request | Suited for spiky or infrequent traffic where paying for idle capacity is wasteful |
+| Asynchronous Inference | A SageMaker endpoint type that accepts large payloads (up to 1 GB) via S3 and queues them for processing | Suited for long-running or large-payload inferences that exceed real-time limits |
+| Batch Transform | A transient SageMaker job that scores an entire S3 dataset without a persistent endpoint | Suited for offline batch scoring jobs with no live user waiting for results |
+| Payload | The data sent in a single prediction request | Determines which endpoint type is appropriate based on size limits |
+| Cold start | Delay incurred when a serverless or scale-from-zero endpoint must initialize before handling the first request | Mitigated by Provisioned Concurrency for latency-sensitive workloads |
+| Provisioned Concurrency | Pre-initialized capacity kept warm on a serverless endpoint | Eliminates cold start latency at the cost of a baseline charge |
+| Data Capture | SageMaker endpoint feature that logs inference inputs and outputs to S3 | Required to feed Model Monitor with live traffic data |
+| SNS | Amazon Simple Notification Service; pub/sub messaging for sending alerts and event notifications | Used by Asynchronous Inference to notify when a job completes or fails |
+| GPU | Graphics Processing Unit; massively parallel processor used for matrix-heavy deep learning workloads | Required for training and inference of large neural networks |
+| CPU | Central Processing Unit; general-purpose processor suitable for classical ML and small models | Cost-efficient for XGBoost, sklearn, and low-throughput inference |
+| AWS Inferentia | AWS custom chip optimized for low-cost, high-throughput deep learning inference | Provides the cheapest per-inference cost for large neural network serving |
+| AWS Trainium | AWS custom chip optimized for low-cost deep learning training | Reduces training cost for large models by up to ~50% versus GPU instances |
+| ml.inf2 | SageMaker instance family powered by Inferentia2 chips | The go-to instance for cost-optimized GenAI inference on AWS hardware |
+| ml.trn1 | SageMaker instance family powered by Trainium chips | The go-to instance for cost-optimized large-model training on AWS hardware |
+| ml.g5 | SageMaker GPU instance family for cost-effective deep learning inference | Balances GPU performance and cost for production inference workloads |
+| ml.p4d / ml.p5 | High-end SageMaker GPU instances for large-scale model training | Used for training the largest deep learning and foundation models |
+| Elastic Fabric Adapter (EFA) | High-bandwidth, low-latency network interface for distributed training | Required for multi-GPU training jobs that need fast inter-node communication |
+| Multi-Model Endpoint (MME) | A SageMaker endpoint that hosts many models in a shared container, loading each on demand from S3 | Enables cost-effective hosting of thousands of similar models on a single endpoint |
+| Multi-Container Endpoint (MCE) | A SageMaker endpoint that runs up to 15 different containers on one endpoint | Hosts a few models with different frameworks on a single endpoint to reduce cost |
+| Inference Components | A SageMaker endpoint feature that assigns explicit CPU, GPU, and memory to each model | Provides per-model resource control and independent scaling for generative AI hosting |
+| SageMaker Neo | Service that compiles and optimizes trained models for specific hardware (ARM, Intel, Nvidia, Inferentia) | Makes models run faster and smaller on target edge or cloud devices |
+| ONNX | Open Neural Network Exchange; interoperable model format supported by Neo | Allows models trained in different frameworks to be compiled for target hardware |
+| AWS IoT Greengrass | AWS service that extends cloud capabilities to edge devices | Deploys Neo-compiled models to edge hardware for local inference |
+| ARM Cortex-A | ARM processor family commonly found in IoT and edge cameras | Supported Neo compilation target for deploying ML models at the edge |
+| Nvidia Jetson | NVIDIA edge computing platform with a GPU | Supported Neo edge target for vision and AI workloads on edge devices |
+| Amazon ECS | Elastic Container Service; AWS-native container orchestration for running Docker containers | Alternative to SageMaker endpoints when the team needs custom container serving |
+| Amazon EKS | Elastic Kubernetes Service; managed Kubernetes for container orchestration | Used when the team is standardized on Kubernetes or needs multi-cloud portability |
+| Amazon Lambda | Serverless function service with a 15-minute timeout and no GPU support | Suitable for very lightweight ML inference or pre/post-processing in an inference pipeline |
+| EC2 | Elastic Compute Cloud; raw virtual machine service | Used for model serving when maximum infrastructure control is needed |
+| DAG | Directed Acyclic Graph; a workflow graph where each step runs after its dependencies with no cycles | The execution model used by both SageMaker Pipelines and Airflow |
+| SageMaker Pipelines | AWS ML-native, serverless pipeline orchestration service integrated with SageMaker | Automates end-to-end ML workflows from processing through model registration and deployment |
+| SageMaker Projects | SageMaker feature that provisions ready-made CI/CD templates (CodePipeline + repo) for MLOps | Provides a quick-start MLOps scaffold with integrated source control and pipelines |
+| Amazon MWAA | Managed Workflows for Apache Airflow; AWS-managed Airflow environment | Used when teams need general-purpose workflow orchestration with Airflow's Python DAG ecosystem |
+| Apache Airflow | Open-source workflow orchestration platform using Python DAG definitions | Flexible orchestration for complex multi-system pipelines mixing ML and non-ML tasks |
+| AWS Step Functions | Serverless state-machine service for orchestrating AWS service calls | An alternative ML pipeline orchestrator with a visual workflow graph and pay-per-execution pricing |
+| Application Auto Scaling | AWS service that adjusts the instance count of SageMaker endpoints based on scaling policies | Automatically matches endpoint capacity to live traffic demand |
+| Target tracking scaling | Auto-scaling policy that keeps a metric at a specified target value | The AWS-recommended default policy for SageMaker endpoint scaling |
+| Step scaling | Auto-scaling policy that adds or removes a fixed number of instances when an alarm threshold is crossed | Used for custom, non-linear scaling reactions |
+| Scheduled scaling | Auto-scaling policy that changes capacity at specified times | Used for predictable traffic patterns such as daily business-hours spikes |
+| SageMakerVariantInvocationsPerInstance | The AWS-recommended CloudWatch metric for target-tracking endpoint auto-scaling | Represents average requests per minute per instance; scale out when this exceeds target |
+| Infrastructure as Code (IaC) | Defining cloud resources in machine-readable files rather than clicking the console | Makes infrastructure repeatable, version-controlled, and reviewable |
+| AWS CloudFormation | AWS service for deploying infrastructure from declarative YAML or JSON templates | The foundational IaC engine on AWS; CDK synthesizes to CloudFormation |
+| AWS CDK | Cloud Development Kit; lets you define AWS infrastructure using Python, TypeScript, Java, or other code | Generates CloudFormation templates from high-level code constructs with loops and logic |
+| Amazon ECR | Elastic Container Registry; private Docker image registry on AWS | Stores and versions custom SageMaker, ECS, and EKS container images |
+| VPC | Virtual Private Cloud; an isolated network segment within AWS | Used to keep ML workloads off the public internet and control traffic between services |
+| Private subnet | A VPC subnet with no direct route to the internet | Hosts SageMaker training jobs and endpoints that must not have internet access |
+| AWS PrivateLink | AWS technology that creates private connectivity to AWS services via ENIs in your VPC | Keeps SageMaker API and Runtime traffic entirely within the AWS network |
+| Interface VPC endpoint | A PrivateLink-powered ENI in your VPC providing private access to an AWS service | Used to connect SageMaker workloads to the SageMaker API/Runtime without an internet gateway |
+| Gateway VPC endpoint | A VPC route-table entry providing free private access to S3 or DynamoDB | Used to access training data in S3 from a VPC without internet or NAT |
+| Security group | A stateful firewall rule set attached to ENIs controlling allowed traffic | Restricts who can send requests to SageMaker endpoint ENIs |
+| Managed Spot Training | SageMaker feature that runs training jobs on Spot instances and handles interruptions automatically | Reduces training cost by up to ~90% for fault-tolerant jobs |
+| AWS CodePipeline | AWS service that orchestrates a multi-stage software release pipeline | The CI/CD conveyor belt that chains source, build, test, and deploy stages |
+| AWS CodeBuild | AWS fully managed build service that runs commands from a buildspec.yml | Executes unit tests, integration tests, Docker image builds, and model packaging in the pipeline |
+| AWS CodeDeploy | AWS deployment automation service supporting blue/green, canary, and linear traffic shifting | Rolls out new code or model versions to EC2, Lambda, or ECS targets |
+| buildspec.yml | The configuration file that tells CodeBuild what commands to run during a build | Defines build, test, and packaging steps for the CI/CD pipeline |
+| Gitflow | A branching model with long-lived main, develop, feature, release, and hotfix branches | Suited for versioned software with scheduled releases and parallel maintenance |
+| GitHub Flow | A simplified branching model with main plus short-lived feature branches that deploy on merge | Suited for continuous deployment and fast-moving web applications |
+| EventBridge | AWS event bus that routes events from AWS services or custom apps to targets like Pipelines or Lambda | The nervous system for event-driven ML automation (drift → retrain, S3 upload → pipeline) |
+| Blue/green deployment | Deployment strategy that builds a full second environment (green), routes traffic, and keeps the first (blue) for instant rollback | Provides the safest rollback option at the cost of temporarily doubling compute capacity |
+| Canary deployment | Deployment strategy that shifts a small percentage of traffic to the new version first, then the remainder | Catches bad deployments early with minimal blast radius |
+| Linear deployment | Deployment strategy that shifts traffic in equal increments at regular intervals | Provides the most granular traffic migration control at the cost of the slowest rollout |
+| All-at-once deployment | Deployment strategy that switches 100% of traffic to the new version immediately | Fastest rollout with the highest blast radius if the new version has a defect |
+| Rolling deployment | Deployment strategy that updates instances in batches, avoiding full replacement | No double capacity required but creates a window where both old and new versions serve traffic |
+| Baking period | The time after a deployment shift during which CloudWatch alarms are monitored for errors | Determines when auto-rollback triggers; if no alarm fires, the deployment is promoted |
+| Deployment guardrails | SageMaker feature that manages safe endpoint updates with auto-rollback tied to CloudWatch alarms | Automates rollback without manual intervention if the new model causes errors |
+| EndpointConfig | SageMaker resource that defines which model and instance configuration an endpoint uses | Preserved after deployment so the endpoint can be reverted to a previous configuration |
+| Production variants | Named model instances behind one SageMaker endpoint, each receiving a configurable traffic weight | Enables A/B testing and gradual traffic migration between model versions |
+| SageMaker Model Registry | Catalog for versioning trained models with approval status and metadata | Tracks every model version and gates production deployment through an approval workflow |
+| MLOps | Machine Learning Operations; applying DevOps practices to the ML lifecycle | Ensures models are reliably trained, versioned, deployed, and monitored in production |
+| CI/CD | Continuous Integration and Continuous Delivery/Deployment; automating build, test, and release | Enables fast, reliable, and auditable delivery of ML model updates |
+| Continuous Training (CT) | Automatically retraining a model when new data arrives or drift is detected | Keeps model accuracy current without requiring manual retraining triggers |
+| CodeStar / EventBridge integration | Source-stage trigger that starts a CodePipeline when a commit is pushed to a repository | Automates the CI/CD pipeline kickoff on every code change |
+| SageMaker SDK | AWS Python SDK for SageMaker that provides Estimator, Model, and Predictor abstractions | Simplifies creating training jobs, registering models, and deploying endpoints in Python code |
+| model.deploy() | SageMaker SDK method that creates a Model, EndpointConfig, and Endpoint in one call | The standard programmatic way to deploy a trained model to a SageMaker endpoint |
+| API Gateway | AWS service for creating, publishing, and managing REST or WebSocket APIs | Often sits in front of Lambda in the Lambda-behind-an-endpoint serving pattern |
+| Service Quotas | AWS limits on the number of resources (instances, endpoints) in a region | Must be increased via the Service Quotas console when hitting hard scaling ceilings |
+| Max concurrency (serverless) | Maximum number of simultaneous requests a serverless endpoint can handle (up to 200 per endpoint) | Determines the burst capacity of a serverless endpoint before requests are rejected |
+
+---
+
 ## References <a name="references"></a>
 
 - [MLA-C01 exam guide (v1.0)](https://docs.aws.amazon.com/aws-certification/latest/examguides/machine-learning-engineer-associate-01.html)

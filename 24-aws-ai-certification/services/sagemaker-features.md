@@ -420,6 +420,77 @@ flowchart LR
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| SageMaker Data Wrangler | A low-code visual data preparation tool inside SageMaker Studio | Lets data scientists clean, transform, and engineer ML features without writing much code |
+| SageMaker Feature Store | A central repository for storing, sharing, and serving ML features consistently between training and inference | Eliminates training-serving skew by ensuring the model trains and predicts on identical feature values |
+| Feature group | A named collection of related features stored in the Feature Store | Organizes features so teams can discover, share, and reuse them across multiple models |
+| Online store | The Feature Store tier that serves features with low latency for real-time inference | Ensures the live prediction pipeline reads the same feature values as were used during training |
+| Offline store | The Feature Store tier that stores historical feature values in S3 for training and batch use | Provides point-in-time correct training datasets so a model can learn from accurate past feature snapshots |
+| Apache Iceberg | An open table format for large S3 datasets that supports ACID transactions and schema evolution | Used as the offline store table format in Feature Store for reliable, queryable historical data |
+| Training-serving skew | A problem where features used during training differ from features used during inference, degrading model quality | Prevented by Feature Store ensuring both training and inference pipelines read from the same feature definitions |
+| SageMaker Ground Truth | A data-labeling service that creates annotated training datasets using human workers | Turns raw, unlabeled data into the supervised examples ML models require |
+| Ground Truth Plus | A fully managed, turnkey version of Ground Truth where AWS runs the labeling workflow with expert workers | Lets teams get high-quality labels without setting up workflows or managing an annotator workforce |
+| Mechanical Turk | Amazon's crowdsourced marketplace of online workers available as a Ground Truth workforce option | Provides a large on-demand labeling pool for non-sensitive tasks at relatively low cost |
+| Automated data labeling | A Ground Truth feature that auto-labels high-confidence examples and sends only uncertain ones to humans | Reduces labeling cost by letting the model handle easy cases while humans focus on hard ones |
+| Active learning | The ML technique underlying automated data labeling, where the model identifies the examples it is least certain about | Maximizes the value of each human annotation by targeting the most informative unlabeled examples |
+| SageMaker Processing | An ephemeral managed compute service for running data preprocessing, feature engineering, and model evaluation scripts | Provides managed infrastructure for batch data tasks without maintaining a persistent cluster |
+| SageMaker JumpStart | A model hub providing pre-trained and foundation models plus one-click solution templates inside SageMaker | Accelerates getting started with ML by providing proven starting points instead of building from scratch |
+| Solution templates | Pre-built end-to-end ML architectures for common use cases like fraud detection or churn prediction in JumpStart | Let teams skip the build-versus-buy decision for well-understood problems by deploying a proven reference design |
+| Built-in algorithms | AWS-optimized, pre-built training containers that only require data and hyperparameters | Save time by providing scalable, well-tested implementations of common algorithms without model coding |
+| XGBoost | A gradient-boosted tree algorithm available as both a SageMaker built-in algorithm and a framework container | The most common algorithm for tabular classification and regression tasks in SageMaker |
+| Linear Learner | A SageMaker built-in algorithm for binary/multiclass classification and regression on tabular data | Fast, scalable option for linear models when relationships between features and target are approximately linear |
+| K-Means | A SageMaker built-in algorithm for unsupervised clustering | Groups unlabeled data points into clusters based on similarity |
+| PCA (Principal Component Analysis) | A SageMaker built-in algorithm that reduces the number of features while preserving variance | Used to shrink high-dimensional data before feeding it to another algorithm |
+| DeepAR | A SageMaker built-in algorithm for probabilistic time-series forecasting using recurrent neural networks | Forecasts multiple related time series simultaneously, capturing seasonal and trend patterns |
+| BlazingText | A SageMaker built-in algorithm for fast word embeddings and text classification | Handles large NLP datasets efficiently without requiring a deep learning framework |
+| Factorization Machines | A SageMaker built-in algorithm for recommendation and sparse feature problems | Effectively captures interactions between features even in very sparse input matrices |
+| Random Cut Forest (RCF) | A SageMaker built-in algorithm for unsupervised anomaly detection | Identifies unusual data points in time series or tabular data without labeled anomaly examples |
+| LDA / NTM | SageMaker built-in algorithms for unsupervised topic modeling of text corpora | Discover hidden thematic structure in document collections without predefined categories |
+| Automatic Model Tuning (AMT) | A managed hyperparameter optimization service that runs many training jobs to find the best configuration | Replaces manual hyperparameter guessing with an automated search over a defined range |
+| Bayesian strategy | An AMT approach that treats each training run as a data point to inform the next run sequentially | Most efficient use of a limited number of training jobs; cannot massively parallelize |
+| Random strategy | An AMT approach that samples hyperparameters independently with no learning between runs | Maximizes the number of jobs running in parallel when you have a large compute budget |
+| Hyperband strategy | An AMT approach that uses intermediate training results to eliminate poor runs early and reallocate resources | Fastest strategy for deep-learning models where intermediate metrics predict final performance |
+| Grid strategy | An AMT approach that exhaustively tries every combination in the defined hyperparameter grid | Used for small discrete search spaces where reproducibility and exhaustive coverage matter most |
+| Early stopping | An AMT feature that terminates a training run when it is unlikely to beat the current best | Reduces wasted compute by ending bad runs before they finish |
+| Warm start | An AMT feature that initializes a new tuning job using results from a prior tuning job | Speeds up continued hyperparameter search by leveraging prior knowledge |
+| SageMaker Experiments | A service that tracks, organizes, and compares ML training runs with their parameters, metrics, and artifacts | Makes experiments reproducible and helps teams identify which configuration produced the best result |
+| SageMaker Debugger | A training-time monitoring tool that captures tensors and detects training problems like vanishing gradients or GPU bottlenecks | Surfaces training issues in real time so you can fix them without waiting for the job to finish |
+| Vanishing gradients | A common deep learning problem where gradient values shrink to nearly zero, stopping the network from learning | Debugger detects this automatically using built-in rules so you can adjust the architecture |
+| SMDDP (SageMaker Distributed Data Parallel) | A library that replicates a model across multiple GPUs and splits training data across them | Speeds up training when the model fits on one GPU but training data is very large |
+| SMP (SageMaker Distributed Model Parallel) | A library that splits a model itself across multiple GPUs | Required when a model is too large to fit in the memory of a single GPU |
+| SageMaker Model Registry | A versioned catalog of trained model packages with approval statuses to gate deployment | Provides governance by ensuring only approved model versions are promoted to production |
+| Model package | A versioned entry in the Model Registry containing model artifacts, metadata, and evaluation metrics | The unit of promotion in the MLOps pipeline from training to deployment |
+| Approval status | A Model Registry flag (PendingManualApproval / Approved / Rejected) that gates CI/CD deployment | Enforces a human sign-off step before a new model version reaches production |
+| SageMaker Pipelines | A native ML workflow orchestrator that defines training, evaluation, and deployment as a directed acyclic graph | Automates the entire ML lifecycle in a versioned, repeatable, and lineage-tracked way |
+| DAG (Directed Acyclic Graph) | A graph of steps where each step depends on earlier steps and there are no cycles | The structure of a SageMaker Pipeline, ensuring steps run in the correct dependency order |
+| SageMaker Projects | A service that provisions a full MLOps environment (source repos, CI/CD pipelines, and templates) in one click | Gives teams a standardized, reproducible foundation for team-scale ML operations |
+| SageMaker Neo | A tool that compiles a trained model for a specific target hardware platform to run faster | Optimizes models for edge devices or cloud instances without retraining or sacrificing accuracy |
+| Inference Recommender | A SageMaker tool that load-tests your model across instance types and returns the best configuration for your latency and cost targets | Replaces manual endpoint sizing with automated benchmarking |
+| Multi-Model Endpoint (MME) | A SageMaker endpoint that hosts thousands of same-framework models behind one endpoint, loading them on demand per request | Reduces infrastructure cost when serving many similar models that don't all need to be hot at once |
+| Multi-Container Endpoint (MCE) | A SageMaker endpoint hosting up to 15 different containers that can be invoked independently or chained as a serial pipeline | Supports heterogeneous model stacks or preprocessing-inference-postprocessing chains on one endpoint |
+| Serial inference pipeline | An MCE mode where the output of one container automatically becomes the input to the next | Chains preprocessing, inference, and postprocessing into a single endpoint call |
+| SageMaker Model Cards | Standardized, immutable documentation records for a model's intended use, risk rating, training data, and performance | Supports governance and audit requirements by creating an official record of every deployed model |
+| SageMaker Clarify | A tool that detects bias before and after training and explains predictions using SHAP values | Supports responsible AI by quantifying unfairness and making model decisions interpretable |
+| Pre-training bias metrics | Bias measures computed on the raw data before any model is trained | Identify whether the training data itself is unrepresentative for a sensitive group |
+| Post-training bias metrics | Bias measures computed on the trained model's predictions | Detect whether the training process introduced or amplified unfairness beyond the data |
+| SHAP (KernelSHAP) | A model-agnostic method that assigns each feature a contribution score for a given prediction | Answers "why did the model predict this?" at the level of individual input features |
+| PDP (Partial Dependence Plot) | A visualization showing the marginal effect of one feature on model predictions across its range | Reveals the overall relationship between a feature and the prediction without per-instance detail |
+| SageMaker Model Monitor | A service that continuously monitors a deployed endpoint for data drift and model quality degradation | Alerts you when your production model's input distribution or accuracy changes over time |
+| Data quality monitor | A Model Monitor type that checks whether incoming feature distributions match a baseline | Catches upstream data pipeline problems that would silently degrade model accuracy |
+| Model quality monitor | A Model Monitor type that tracks accuracy metrics by comparing predictions to delayed ground-truth labels | Measures actual performance degradation in production, not just input drift |
+| Bias drift monitor | A Model Monitor type that tracks whether fairness metrics change over time in production | Detects if the model becomes more or less biased as the real-world population shifts |
+| Feature attribution drift monitor | A Model Monitor type that tracks whether the relative importance of features shifts over time in production | Signals potential data drift or concept drift by showing that what the model relies on has changed |
+| Amazon A2I (Augmented AI) | An AWS service that routes low-confidence live predictions to human reviewers | Adds a human-in-the-loop quality check for inference-time predictions that are uncertain |
+| SageMaker Role Manager | A tool that creates least-privilege IAM roles for ML practitioners from predefined persona templates | Simplifies security setup by generating correct, scoped-down permissions without hand-crafting IAM policies |
+| Least-privilege | A security principle granting only the minimum permissions needed for a task | Reduces the blast radius if credentials are compromised by limiting what an identity can do |
+| AIF-C01 | The AWS AI Practitioner certification exam | Tests conceptual awareness of AWS AI and ML services including SageMaker features |
+| MLA-C01 | The AWS Machine Learning Engineer Associate certification exam | Tests deeper practical knowledge of SageMaker features including parameters, limits, and trade-offs |
+
 ## References <a name="references"></a>
 
 **Data & features**

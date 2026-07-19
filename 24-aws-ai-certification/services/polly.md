@@ -126,6 +126,36 @@ Billed **per character** of input text (per 1 million characters), by **engine**
 | "long text → S3 audio file async" | **StartSpeechSynthesisTask** |
 | "IVR / voice bot prompts" | **Polly + Connect / Lex** |
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Polly | Fully managed AWS text-to-speech service that converts written text into spoken audio | Gives applications, IVRs, and bots a natural-sounding voice |
+| TTS | Text-to-Speech — technology that turns written words into spoken audio | The core function Polly provides |
+| Standard engine | Polly's original concatenative synthesis engine; cheapest but most synthetic-sounding | Used when cost matters most and audio quality is secondary |
+| Neural engine (NTTS) | Polly engine using deep learning for noticeably more natural voices | Best balance of quality and cost for most production apps |
+| Long-form engine | Polly engine optimized for extended content like articles and audiobooks | Maintains expressiveness and engagement over many paragraphs |
+| Generative engine | Polly's most human-like, emotionally nuanced engine for conversational contexts | Best choice for AI assistant voices or agent personas |
+| SSML | Speech Synthesis Markup Language — W3C XML tags that control how Polly speaks | Enables precise control of pauses, emphasis, pitch, pronunciation, and rate |
+| Lexicon | A custom pronunciation dictionary you upload to Polly | Ensures brand names, acronyms, and jargon are spoken correctly every time |
+| Speech Marks | JSON metadata Polly returns with timing for each word, sentence, SSML tag, or viseme | Used to highlight text in sync with playback or animate a lip-synced avatar |
+| Viseme | A mouth-shape code for a phoneme; part of Polly Speech Marks output | Drives lip-sync animations in characters or avatars |
+| SynthesizeSpeech | Real-time Polly API for converting text to audio with low latency | Used for interactive apps; handles up to 6,000 characters per call |
+| StartSpeechSynthesisTask | Async Polly API for long text (up to 200,000 characters) that writes audio to S3 | Used when text is too long for a single real-time call or when background processing is preferred |
+| SNS | Simple Notification Service — AWS messaging that can alert you when an async Polly task finishes | Lets your application know when the S3 audio file is ready |
+| mp3 | Common compressed audio format supported by Polly | Standard output format for streaming and download |
+| ogg_vorbis / ogg_opus | Open compressed audio formats supported by Polly | Efficient for web and mobile streaming |
+| pcm | Raw uncompressed audio format supported by Polly | Used when downstream systems need raw audio bytes |
+| µ-law / a-law | Telephony-standard audio encoding formats supported by Polly | Required for integration with traditional telephone systems (IVR) |
+| Amazon Connect | AWS cloud contact-center platform that uses Polly for spoken IVR prompts and responses | Telephony layer that calls Polly to voice dynamic messages to callers |
+| Amazon Lex | AWS conversational bot service that uses Polly to speak its text responses | Lex handles the dialog logic; Polly provides the voice |
+| Amazon Transcribe | AWS speech-to-text service — the opposite direction from Polly | Converts audio to text; Polly converts text to audio |
+| Amazon Translate | AWS neural machine translation service | Commonly chained with Polly (Transcribe → Translate → Polly) to build a speech translation pipeline |
+| Prosody | SSML element that controls pitch, rate, and volume of speech | Fine-tunes the delivery style of spoken output |
+| Phoneme | The smallest unit of sound in a language; used with SSML's phoneme tag | Allows exact pronunciation control via IPA or X-SAMPA notation |
+
 ## References
 
 - Amazon Polly — product page: https://aws.amazon.com/polly/

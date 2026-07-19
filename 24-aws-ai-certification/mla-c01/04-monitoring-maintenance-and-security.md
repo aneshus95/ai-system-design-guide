@@ -453,6 +453,123 @@ Facts:
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| MLA-C01 | The AWS Certified Machine Learning Engineer – Associate exam code | Identifies the certification this chapter prepares you for |
+| Domain 4 | The fourth scored section of MLA-C01, covering monitoring, maintenance, and security (24% of the exam) | Tests day-2 operations: watching the model, infra, cost, and access controls |
+| Data drift | A shift in the statistical distribution of input features between training time and production | Detected without ground-truth labels; signals the model may be receiving unfamiliar inputs |
+| Concept drift | A change in the relationship between input features and the target label over time | Requires ground-truth labels to detect; signals the model's learned rules are becoming stale |
+| Covariate drift | Another name for data drift; the input distribution P(X) changes | Detected by comparing live input statistics against a training baseline |
+| P(X) | Probability distribution of input features | What changes during data drift |
+| P(Y|X) | Conditional probability of the target given the inputs; the model's learned mapping | What changes during concept drift |
+| Ground-truth labels | The true correct answers for predictions the model has already made | Required for Model Quality monitoring and concept drift detection |
+| SageMaker Model Monitor | Scheduled monitoring service that compares live endpoint traffic against a computed baseline | Detects data quality, model quality, bias, and feature-attribution drift in production |
+| Baseline (Model Monitor) | A statistical profile of "normal" computed from training or validation data | The reference point against which live data is compared to detect drift |
+| Data Capture | SageMaker endpoint feature that logs inference request inputs and outputs to S3 | Must be enabled to supply Model Monitor with live traffic samples |
+| Data Quality monitor | Model Monitor type that checks whether live input statistics match the training baseline | Works without labels; detects feature distribution shifts and schema violations |
+| Model Quality monitor | Model Monitor type that tracks live accuracy, RMSE, F1, or AUC against a baseline | Requires merging predictions with ground-truth labels to compute real performance |
+| Bias Drift monitor | Model Monitor type (powered by Clarify) that checks whether prediction bias is growing over time | Monitors fairness metrics in production to catch new discriminatory patterns |
+| Feature Attribution Drift monitor | Model Monitor type (powered by Clarify) that checks whether SHAP feature importance rankings have shifted | Detects when the model is relying on different features than it did during training |
+| Deequ | Open-source library used internally by Model Monitor's Data Quality checks | Powers the statistical constraint validation for data quality violations |
+| Violations report | Output file written by Model Monitor to S3 after each scheduled run | Lists which constraints were breached and by how much |
+| CloudWatch alarm | A threshold-based alert on a CloudWatch metric | Triggers notifications or automated actions (via EventBridge) when a metric crosses a limit |
+| EventBridge | AWS event bus that routes events from AWS services to targets such as Lambda or SageMaker Pipelines | Used to trigger automated retraining when a Model Monitor alarm fires |
+| SageMaker Clarify | AWS tool computing pre-training bias, post-training bias, and SHAP feature-attribution explanations | Detects unfairness and explains model decisions; powers two of the four Model Monitor types |
+| SHAP | SHapley Additive exPlanations; assigns each feature a contribution score to a specific prediction | Used by Clarify to explain individual predictions and track feature importance over time |
+| Normal Bootstrap Interval | Statistical method Clarify uses to estimate a confidence interval around a live bias metric | Provides a range rather than a point estimate to account for sampling variation |
+| Production variants | Named model versions behind a single SageMaker endpoint, each receiving a configurable traffic share | Enables A/B testing; both variants' metrics are streamed to CloudWatch for comparison |
+| A/B testing | Splitting live traffic between two model variants to compare real user outcomes | Determines which model wins in production before committing full traffic |
+| Shadow variant / shadow test | A second model variant that receives a copy of every live request but whose responses are discarded | Validates a new model on real traffic with zero impact on users |
+| TargetVariant | Query parameter used when invoking a SageMaker endpoint to send a request to a specific named variant | Allows deterministic routing to a chosen variant during testing |
+| ML Lens | AWS Well-Architected Machine Learning Lens; prescriptive guidance applying the six WA pillars to the ML lifecycle | Provides design principles for building reliable, cost-efficient, secure ML systems |
+| Well-Architected pillars | The six principles (Operational Excellence, Security, Reliability, Performance, Cost, Sustainability) used to evaluate cloud architecture | Framework for evaluating and improving AWS workloads |
+| Continuous Training (CT) | Automatically retraining a model when data drift or model quality degradation is detected | Keeps model accuracy current without manual intervention |
+| CloudWatch Metrics | Time-series numerical measurements emitted by AWS services and custom code | Primary data source for SageMaker endpoint health, throughput, and latency monitoring |
+| CloudWatch Logs Insights | SQL-like query engine for searching and aggregating CloudWatch log groups | Used to find error patterns, trace exceptions, and analyze inference logs |
+| CloudWatch Lambda Insights | Extension providing function-level CPU, memory, and duration metrics for AWS Lambda | Enables deep performance analysis of Lambda functions in an ML serving pipeline |
+| AWS X-Ray | Distributed request tracing service that maps latency across all services in a request path | Used to identify which hop in an API Gateway → Lambda → SageMaker chain is slow |
+| Segment (X-Ray) | A timing record for one service's processing of a traced request | The unit of X-Ray tracing; combined into a trace for the full request path |
+| AWS CloudTrail | Service that records every AWS API call with the caller identity, time, and parameters | Used for compliance auditing, detecting unauthorized access, and triggering pipeline automation |
+| Trail (CloudTrail) | A CloudTrail configuration that delivers API event records to an S3 bucket for long-term retention | Required for regulatory audit log retention |
+| CPUUtilization | CloudWatch metric showing percentage of CPU in use on an endpoint instance | Used to detect under- or over-provisioned instances |
+| GPUUtilization | CloudWatch metric showing percentage of GPU in use on an endpoint instance | Indicates whether a GPU instance is being efficiently utilized |
+| MemoryUtilization | CloudWatch metric showing percentage of RAM in use on an endpoint instance | Signals memory pressure that could cause latency spikes |
+| ModelLatency | CloudWatch metric showing the time (in microseconds) the model container takes per prediction | Key indicator of inference performance; a rise triggers scale-out |
+| Invocations | CloudWatch metric counting the total number of prediction requests to an endpoint | Measures throughput; used in target-tracking auto-scaling |
+| Invocation5XXErrors | CloudWatch metric counting server-side errors from the endpoint | High values indicate model or infrastructure issues requiring immediate attention |
+| Throughput | Requests processed per unit time by an endpoint | Measures the endpoint's output capacity under load |
+| Availability | The fraction of time a system is operational and serving requests correctly | Measured via uptime and 5XX error rates; targeted with multi-AZ deployments |
+| Scalability | The ability to handle increasing load by adding resources | Achieved through Application Auto Scaling policies on SageMaker endpoints |
+| Fault tolerance | The ability to continue operating despite individual component failures | Implemented via multiple instances, multiple Availability Zones, and variant redundancy |
+| SageMaker Inference Recommender | SageMaker tool that runs automated load tests across instance types to find the best cost-performance configuration | Used proactively before deployment when no utilization history exists |
+| AWS Compute Optimizer | Account-wide ML-powered rightsizing service that analyzes historical utilization data | Recommends instance changes for EC2, Lambda, EBS, and SageMaker based on past usage |
+| Rightsizing | Matching the instance type and size to actual workload requirements | Reduces cost on over-provisioned resources and prevents performance issues on under-provisioned ones |
+| Application Auto Scaling | AWS service that adjusts the instance count of SageMaker endpoints and other resources based on policies | Keeps endpoint capacity aligned with live traffic without manual intervention |
+| Target-tracking policy | Auto-scaling policy that keeps a metric at a defined target value like a thermostat | Recommended default for SageMaker endpoint scaling using InvocationsPerInstance |
+| SageMakerVariantInvocationsPerInstance | CloudWatch metric measuring average invocations per minute per endpoint instance | The AWS-recommended metric for SageMaker endpoint target-tracking auto-scaling |
+| SageMakerInferenceComponentConcurrentRequestsPerCopyHighResolution | High-resolution CloudWatch metric for per-copy concurrency on inference components | Used for scaling generative AI inference component deployments |
+| Provisioned Concurrency | Pre-initialized capacity on a serverless endpoint kept permanently warm | Eliminates cold-start latency for latency-sensitive serverless inference use cases |
+| Service Quotas | Hard AWS limits on the count of resources (instances, endpoints) in a region | Must be raised through the Service Quotas console when auto-scaling hits a ceiling |
+| AWS Cost Explorer | Console and API for visualizing, filtering, and forecasting AWS spend over time | Used to identify which services, accounts, or time periods drive ML costs |
+| AWS Budgets | Service for setting spend or usage thresholds and receiving alerts or taking automated actions when crossed | Prevents unexpected overspending by alerting teams before the bill arrives |
+| Cost Allocation Tags | User-defined key-value metadata on AWS resources that can be activated for cost breakdown | Enables per-project, per-team, or per-environment cost attribution in Cost Explorer |
+| AWS Trusted Advisor | Service that runs best-practice checks across AWS accounts and flags idle or underutilized resources | Identifies cost-saving opportunities like idle endpoints or oversized instances |
+| On-Demand pricing | Pay-as-you-go pricing with no upfront commitment or long-term contract | Baseline price; maximum flexibility at highest per-hour cost |
+| Spot Instances | AWS spare-capacity EC2 instances priced up to ~90% below On-Demand | Used for fault-tolerant, checkpointed training jobs; can be interrupted with two-minute notice |
+| Reserved Instances (RIs) | Pre-purchased EC2 capacity for 1 or 3 years at up to ~72% savings | Best for steady-state EC2 workloads with predictable instance type and region |
+| SageMaker Savings Plans | Flexible commitment to a $/hour spend on SageMaker compute for 1 or 3 years at up to 64% savings | Applies discounts across training, inference, processing, and notebooks without locking to one instance type |
+| Managed Spot Training | SageMaker feature that runs training jobs on Spot instances with automatic checkpoint-based restart | Reduces training cost without requiring custom interruption handling logic |
+| Checkpointing | Saving model training state to S3 at regular intervals | Allows a Spot-interrupted training job to resume from the last checkpoint |
+| IAM | Identity and Access Management; AWS service for controlling who can access what | The foundation of every AWS security model |
+| IAM role | An AWS identity that a service or application assumes, receiving temporary credentials | Used by SageMaker training jobs and endpoints to access S3, ECR, and KMS |
+| IAM user | A permanent AWS identity for a human, with long-term credentials | Typically replaced by roles for service access to avoid credential exposure |
+| IAM group | A collection of IAM users sharing a common set of policies | Simplifies permission management for teams |
+| Identity-based policy | An IAM policy attached to a user, group, or role that grants allowed actions | Controls what a principal can do and on which resources |
+| Resource-based policy | An IAM policy attached to an AWS resource (e.g., an S3 bucket policy) | Controls who can access a resource, independent of the caller's identity policies |
+| Least privilege | Security principle of granting only the minimum permissions needed for a task | Reduces blast radius if credentials are compromised |
+| SageMaker execution role | The IAM role that SageMaker training jobs, processing jobs, and endpoints assume at runtime | Must be scoped to the specific S3 prefixes, ECR repos, and KMS keys the job needs |
+| SageMaker Role Manager | Console wizard that generates least-privilege IAM roles based on predefined ML personas | Provides a fast, compliant starting point instead of hand-writing IAM policies |
+| ML persona (Role Manager) | A named role template (e.g., data scientist, MLOps engineer) in Role Manager | Maps common ML activities to the minimum required IAM permissions |
+| Condition (IAM) | An optional element in a policy that restricts when the policy takes effect (e.g., source VPC, tags) | Tightens policies so permissions apply only in the intended context |
+| VPC | Virtual Private Cloud; an isolated network within AWS with customer-defined IP ranges and routing | Used to keep ML workloads and data off the public internet |
+| Private subnet | A VPC subnet with no internet gateway route | Hosts SageMaker workloads that must have no direct internet access |
+| Internet Gateway (IGW) | VPC component that provides routes to and from the public internet | Absent from fully isolated VPC configurations for ML workloads |
+| NAT Gateway | VPC component that allows instances in private subnets to initiate outbound internet connections | Removed from fully isolated ML environments to prevent data exfiltration |
+| Network isolation | SageMaker training/processing option that disables all inbound and outbound network calls from the container | Ensures the training container cannot reach the internet or other AWS services |
+| Interface VPC endpoint | A PrivateLink-powered ENI in your VPC for private access to a specific AWS service | Used to reach the SageMaker API and Runtime without traversing the public internet |
+| Gateway VPC endpoint | A free VPC route-table entry for private access to S3 or DynamoDB | Used to access training data in S3 from a VPC without an internet or NAT gateway |
+| AWS PrivateLink | Technology powering interface VPC endpoints; keeps traffic on the AWS backbone | Prevents API calls to SageMaker from leaving the AWS network |
+| ENI | Elastic Network Interface; a virtual network card attached to an EC2 instance or VPC endpoint | The mechanism through which interface VPC endpoints appear in your subnet |
+| Security group | Stateful firewall rules controlling allowed inbound and outbound traffic on ENIs | Restricts which sources can reach SageMaker endpoint ENIs |
+| VPC endpoint policy | An IAM resource policy attached to a VPC endpoint limiting allowed API calls | Adds an extra layer of control beyond security groups for endpoint access |
+| NACL | Network Access Control List; stateless subnet-level firewall rules | Provides an additional perimeter control around subnets hosting ML resources |
+| AWS Network Firewall | Managed deep-packet-inspection firewall for VPCs | Used for advanced traffic filtering (domain allowlists, intrusion detection) in ML VPCs |
+| AWS KMS | Key Management Service; creates and manages encryption keys | Used to encrypt S3 objects, EBS volumes, SageMaker model artifacts, and notebook volumes at rest |
+| Encryption at rest | Protecting stored data by encrypting it with a key | Required for compliance; AWS KMS provides the keys for SageMaker resources |
+| Encryption in transit | Protecting data moving between systems using TLS | Prevents eavesdropping on data flowing between SageMaker components and S3 |
+| Amazon Macie | ML-powered service that discovers and classifies sensitive data in S3 | Flags PII, PHI, and other sensitive content so appropriate controls can be applied |
+| AWS Config | Service that records AWS resource configuration history and evaluates compliance rules | Detects and alerts when resources drift from approved security configurations |
+| Amazon Inspector | Automated vulnerability scanning service for EC2 instances and container images | Identifies known CVEs in custom SageMaker container images stored in ECR |
+| AWS Security Hub | Centralized dashboard aggregating security findings from multiple AWS security services | Provides a single pane of glass for security posture across Macie, Inspector, Config, and others |
+| Model Cards | SageMaker documentation artifact recording a model's purpose, performance, and limitations | Supports transparency, governance, and regulatory compliance for deployed models |
+| Secrets Manager | AWS service for storing and rotating database passwords and API keys | Used in CI/CD pipelines instead of hardcoding credentials in buildspec files |
+| SSM Parameter Store | AWS service for storing configuration values and secrets | Lightweight alternative to Secrets Manager for pipeline configuration and non-rotating secrets |
+| ECR image scanning | ECR feature that scans container images for known OS and library vulnerabilities | Prevents deploying containers with high-severity CVEs into production ML endpoints |
+| Artifact signing | Cryptographically signing model artifacts and container images to verify provenance | Ensures only approved, untampered models are promoted to production |
+| Model lineage | SageMaker tracking of the data, code, and pipeline run that produced each model version | Enables reproducibility and audit trails required for regulated ML use cases |
+| Compliance | Meeting regulatory or organizational requirements for data handling and system controls | Demonstrated through CloudTrail audit logs, encryption, least-privilege IAM, and Model Cards |
+| PII | Personally Identifiable Information; data that can identify a specific individual | Requires protection via encryption, masking, or anonymization under privacy laws |
+| PHI | Protected Health Information; health data regulated under HIPAA | Requires strict access controls, encryption, and audit logging |
+| Data residency | Requirement that data must remain within a specific geographic region | Enforced by choosing the correct AWS Region and disabling cross-region replication |
+| AWS Neuron SDK | Software development kit for compiling and running models on Inferentia and Trainium chips | Required to deploy PyTorch or TensorFlow models to Inf2 or Trn1 instances |
+| QuickSight | AWS business intelligence service for dashboards and visualizations | Used to build FinOps dashboards from Cost Allocation Tag data exported from Cost Explorer |
+
+---
+
 ## References <a name="references"></a>
 
 **Model monitoring & drift (4.1)**

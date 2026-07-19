@@ -209,3 +209,93 @@ Build these reflexes — they resolve a large share of scenario questions instan
 | Audit API calls / who did what | **AWS CloudTrail** · Compliance reports → **AWS Artifact** |
 
 Each of these is explained in depth in the [service deep-dives](README.md#-shared-aws-service-deep-dives-linked-from-both-tracks).
+
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **AIF-C01** | The AWS Certified AI Practitioner exam code | Identifies the foundational AI exam this guide covers |
+| **MLA-C01** | The AWS Certified Machine Learning Engineer – Associate exam code | Identifies the associate-level ML engineering exam |
+| **Scaled score** | A score between 100 and 1000 that accounts for question difficulty variations across exam versions | Lets AWS compare results fairly across different test sittings |
+| **Compensatory model** | A scoring approach where weakness in one exam domain can be offset by strength in another | Means you only need to pass the overall exam, not each domain separately |
+| **Unscored questions** | 15 experimental questions mixed into the exam that do not affect your score | AWS uses them to trial new questions; you cannot tell which ones they are |
+| **Multiple choice** | Question type with exactly one correct answer from four options | Most common format on both exams |
+| **Multiple response** | Question type where two or more answers must all be selected correctly | No partial credit; must identify every correct option |
+| **Ordering** | Question type asking you to arrange steps in the correct sequence | Tests knowledge of process order, such as ML pipeline stages |
+| **Matching** | Question type pairing items from two lists | Tests ability to associate services with their functions |
+| **Case study** | A scenario-based question block where one scenario underlies several questions | Each sub-question is scored independently |
+| **Pearson VUE** | The testing company that delivers AWS certification exams at test centers and online | You schedule your exam through Pearson VUE |
+| **Domain** | A major topic category within an exam, each worth a percentage of the score | AIF-C01 has 5 domains; MLA-C01 has 4 domains |
+| **Foundation Model (FM)** | A large pre-trained AI model that can be adapted to many tasks | Core technology behind generative AI services like Bedrock |
+| **Generative AI (GenAI)** | AI that creates new content such as text, images, code, or audio | The focus of AIF-C01 Domain 2 and many exam questions |
+| **RAG (Retrieval-Augmented Generation)** | A technique where an LLM's answer is grounded in documents retrieved at query time | Fixes stale knowledge and hallucination without retraining the model |
+| **Vector store / vector database** | A database optimized for storing and searching embeddings by semantic similarity | Enables semantic search in RAG pipelines |
+| **Amazon Bedrock** | AWS managed service providing access to many foundation models via a single API | Primary service for building GenAI applications without managing infrastructure |
+| **Amazon SageMaker** | AWS fully managed platform for building, training, tuning, and deploying custom ML models | Used for custom model work and the full ML lifecycle |
+| **Guardrails for Amazon Bedrock** | A Bedrock feature that filters harmful content, blocks topics, and redacts PII at runtime | Adds safety controls to GenAI applications |
+| **Amazon OpenSearch Service** | AWS managed search and analytics service that also supports vector (embedding) search | Default vector store for Bedrock Knowledge Bases |
+| **Amazon Aurora** | AWS managed relational database; supports pgvector for storing embeddings | Used when you want vectors stored alongside relational data |
+| **Amazon Neptune** | AWS managed graph database with vector search support | Used for graph-connected data in RAG pipelines |
+| **Amazon DocumentDB** | AWS managed MongoDB-compatible document database with vector search | Used for JSON/document workloads needing vector search |
+| **SageMaker Clarify** | SageMaker feature that detects bias in data and models and explains predictions using SHAP | Used to assess fairness and explainability before and after training |
+| **SageMaker Model Monitor** | SageMaker feature that continuously tracks deployed model performance and data drift | Alerts when model quality degrades in production |
+| **Amazon A2I (Augmented AI)** | AWS service that routes low-confidence model predictions to human reviewers | Adds a human-in-the-loop safety net for sensitive decisions |
+| **Amazon Textract** | AWS service that extracts text and data from scanned documents and forms | Used for document digitization without custom ML |
+| **Amazon Comprehend** | AWS NLP service for sentiment analysis, entity detection, key phrases, and PII | Extracts meaning from text without building a custom model |
+| **Amazon Rekognition** | AWS computer vision service for image and video analysis, faces, and content moderation | Used for visual AI tasks without custom model training |
+| **Amazon Transcribe** | AWS speech-to-text service | Converts audio recordings into text |
+| **Amazon Polly** | AWS text-to-speech service | Converts text into lifelike audio |
+| **Amazon Translate** | AWS neural machine translation service | Translates text between languages |
+| **Amazon Lex** | AWS service for building conversational chatbots and voice assistants | Shares technology with Alexa; no ML expertise required |
+| **Amazon Kendra** | AWS enterprise semantic search service | Searches across company documents using natural language |
+| **Amazon Q** | AWS generative AI assistant; Q Business answers from your docs, Q Developer assists coding | Turnkey AI assistant for enterprises and developers |
+| **Amazon Personalize** | AWS managed recommendation engine | Personalizes content and product recommendations |
+| **Amazon Fraud Detector** | AWS managed service for detecting fraudulent activity | Identifies fraud patterns without building custom models |
+| **SageMaker Model Cards** | Documents capturing a model's intended use, risk rating, metrics, and caveats | Primary governance and transparency artifact for ML models |
+| **Amazon Macie** | AWS managed service that uses ML to discover and protect sensitive data in S3 | Finds PII and other sensitive data before it is used in training |
+| **AWS PrivateLink** | AWS feature for private VPC-to-service connections that bypass the public internet | Keeps traffic to Bedrock and SageMaker off the public network |
+| **AWS CloudTrail** | AWS service that logs all API calls and account activity | Used to audit who did what and when across AWS services |
+| **AWS Artifact** | Self-service portal for downloading AWS compliance reports | Used to give auditors ISO, SOC, and PCI compliance documentation |
+| **SageMaker JumpStart** | ML hub inside SageMaker for one-click deploying and fine-tuning open and proprietary models | Bridge between fully managed Bedrock and fully custom SageMaker |
+| **Amazon Kinesis** | AWS real-time data streaming service | Ingests high-velocity streaming data for ML pipelines |
+| **AWS Glue** | AWS managed ETL and data cataloging service | Prepares and transforms data for ML pipelines |
+| **MLOps** | Practices that apply DevOps principles to machine learning model lifecycle management | Makes model building, deployment, and monitoring repeatable and automated |
+| **CI/CD** | Continuous Integration / Continuous Deployment — automated software delivery pipeline | Used to automate model testing, retraining, and deployment |
+| **SageMaker Data Wrangler** | SageMaker tool for importing, cleaning, transforming, and featurizing data | Reduces data preparation time with 300+ built-in transforms |
+| **SageMaker Feature Store** | Central repository for storing and sharing ML features | Provides features for both offline training and real-time inference |
+| **Batch Transform** | SageMaker inference mode that scores an entire dataset offline without a persistent endpoint | Best for bulk scoring jobs where results can wait |
+| **Asynchronous inference** | SageMaker inference mode that queues large or long-running requests and stores results in S3 | Best for large payloads or processing that takes more than a few seconds |
+| **Serverless inference** | SageMaker inference mode that scales to zero when idle and charges only per use | Best for spiky or intermittent traffic where cold starts are acceptable |
+| **Real-time endpoint** | Always-on SageMaker endpoint that responds to requests in milliseconds | Best for chatbots, fraud checks, and other latency-sensitive applications |
+| **RLHF** | Reinforcement Learning from Human Feedback — trains models using human preference rankings | Used to align LLMs with human values and desired behavior |
+| **LLM (Large Language Model)** | A very large deep-learning model trained on massive text data to generate and understand language | Powers chatbots, summarization, code generation, and more |
+| **Agentic AI** | A GenAI model equipped with tools and a goal so it can plan and take multi-step actions | Used to automate complex workflows that require calling APIs or databases |
+| **Amazon Bedrock Agents** | Bedrock feature for building agents that can call tools and knowledge bases autonomously | Used to build AI that acts, not just answers |
+| **Provisioned Throughput** | Bedrock pricing option that reserves model capacity at a fixed hourly rate | Required for custom models; best for steady high-volume workloads |
+| **On-Demand pricing** | Bedrock pay-per-token pricing with no capacity commitment | Best for spiky or low-volume workloads and prototyping |
+| **ROUGE** | Metric measuring n-gram recall overlap between generated and reference text | Used to evaluate summarization quality |
+| **BLEU** | Metric measuring n-gram precision of generated text against a reference | Used to evaluate translation quality |
+| **BERTScore** | Metric measuring semantic similarity between generated and reference text using embeddings | Used when paraphrases with different wording should still score well |
+| **Precision** | Of all predictions labeled positive, the fraction that were truly positive | Optimized when false positives are costly (e.g., spam filters) |
+| **Recall** | Of all actual positives, the fraction the model correctly identified | Optimized when false negatives are costly (e.g., fraud or disease detection) |
+| **F1 score** | Harmonic mean of precision and recall | Best single metric for imbalanced class problems |
+| **AUC / ROC-AUC** | Area under the receiver operating characteristic curve; measures classifier ranking quality | Used to compare classifiers across all decision thresholds |
+| **RMSE** | Root Mean Squared Error — average magnitude of prediction error for regression models | Lower is better; measures how far off numeric predictions are |
+| **Confusion matrix** | Table showing true/false positives and negatives for a classification model | Used to diagnose where a classifier makes errors |
+| **Hyperparameter tuning** | Optimizing model settings (like learning rate or tree depth) that are set before training | SageMaker Automatic Model Tuning automates this search |
+| **Regularization** | Techniques like dropout, L1/L2, and weight decay that prevent overfitting | Improves a model's ability to generalize to new data |
+| **Overfitting** | When a model memorizes training data and performs poorly on new data | Fixed with more data, regularization, or simpler models |
+| **Underfitting** | When a model is too simple to capture the underlying pattern | Fixed with more complexity, more features, or longer training |
+| **Data drift** | When the statistical distribution of production data shifts away from training data | Detected by SageMaker Model Monitor; triggers retraining |
+| **Blue-green deployment** | Release strategy that runs old and new model versions in parallel, then cuts over | Reduces deployment risk by allowing instant rollback |
+| **Canary deployment** | Release strategy that routes a small percentage of traffic to the new model version first | Validates new models safely before full rollout |
+| **IaC (Infrastructure as Code)** | Defining cloud infrastructure in code files (CloudFormation, CDK) for repeatability | Makes ML infrastructure reproducible and version-controlled |
+| **Amazon EKS** | AWS managed Kubernetes service | Used to run containerized ML workloads at scale |
+| **Amazon ECS** | AWS managed container orchestration service | Used to run Docker containers for ML inference |
+| **AWS Lambda** | AWS serverless compute service | Used as action backends for Bedrock Agents and lightweight inference |
+| **AWS CodePipeline / CodeBuild / CodeDeploy** | AWS CI/CD services for automating build, test, and deployment of ML models | Automates the model release process |
+| **Amazon CloudWatch** | AWS monitoring service for metrics, logs, and alarms | Used to alert on model drift and endpoint health |
+| **AWS Cost Explorer** | AWS tool for visualizing and analyzing cloud spending | Used to track and optimize ML infrastructure costs |
+| **Spot instances** | Spare AWS EC2 capacity available at up to 90% discount but interruptible | Cost-effective for fault-tolerant ML training jobs |

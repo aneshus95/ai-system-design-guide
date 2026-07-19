@@ -201,6 +201,50 @@ Pay-per-use, no minimums (verify — service is closed to new customers): ([Amaz
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Personalize | Fully managed AWS service that delivers real-time individualized recommendations | Lets any developer add Amazon.com-quality recommendations without ML expertise |
+| Dataset Group | Container that holds all related datasets for one Personalize use case | Organizes Users, Items, and Interactions data for a single recommendation system |
+| Interactions dataset | Records of what users did — clicks, views, purchases, ratings | The most important and required input; provides the behavioral signal for training |
+| Users dataset | Optional metadata about each user (age, membership tier, location) | Enriches personalization beyond behavior alone |
+| Items dataset | Optional metadata about each item (category, price, genre) | Enables cold-start recommendations for new items |
+| Recipe | A pre-built algorithm in Personalize tied to a specific recommendation use case | Abstracts ML algorithm selection so you pick by goal, not by math |
+| User-Personalization | Recipe that generates a ranked "recommended for you" list per user | Handles homepage/feed recommendations and cold-start via item exploration |
+| Similar-Items | Recipe that returns items related to a given item | Powers "customers who viewed this also viewed" product-detail shelves |
+| Personalized-Ranking | Recipe that re-ranks a supplied list of items for a specific user | Personalizes search results or curated collections for each visitor |
+| Trending-Now / Popularity-Count | Non-personalized recipes that surface trending or most-popular items | Provides a popularity baseline for users with no interaction history |
+| Transformer-based architecture | Deep-learning design (used in v2 recipes) that captures context across sequences | Enables higher relevance and scales to up to 5 million items |
+| Solution | The training configuration pairing a dataset group with a recipe | Defines how a model will be trained; not the model itself |
+| Solution Version | The actual trained model produced by running a Solution | The artifact you deploy to serve recommendations |
+| Campaign | A live real-time endpoint (inference deployment) of a Solution Version | What your app calls with GetRecommendations to get ranked item lists |
+| TPS | Transactions Per Second — minimum throughput provisioned for a Campaign | Determines baseline latency and cost of a real-time recommendation endpoint |
+| Batch inference job | Generates recommendations offline for many users at once and writes to S3 | Cost-effective alternative to a live Campaign when real-time latency isn't needed |
+| Event Tracker | Personalize component that receives live user events via PutEvents | Keeps recommendations fresh in real time, including within a single session |
+| PutEvents | API call that streams a live user interaction to Personalize | Updates the model's context so it adapts to what the user just did |
+| Cold-start | The challenge of recommending to new users or new items with no history | Personalize handles it via item metadata exploration and User-Personalization |
+| Filters | Business rules applied to recommendations to include or exclude items | Ensures excluded (already-purchased, out-of-stock) items are not surfaced |
+| Recommenders | Pre-optimized use cases (e-commerce, video-on-demand) with minimal configuration | Faster setup for standard domains without choosing recipes manually |
+| Amazon Fraud Detector | Fully managed ML service for detecting online fraud using Amazon's fraud expertise | Scores business events (sign-ups, checkouts) for fraud risk with no ML team needed |
+| Event type | Schema defining the structure of a business event being evaluated for fraud | Tells Fraud Detector what fields to expect (email, IP, amount, etc.) |
+| Variables | Data fields sent per event (e.g., email address, IP, transaction amount) | Feature inputs the ML model uses to compute a fraud risk score |
+| Entity | Who performed the business event (e.g., a customer) | Provides identity context for the fraud model |
+| Labels | Classification tags on historical events marking them as fraud or legitimate | Supervised training signal that teaches the model what fraud looks like |
+| Online Fraud Insights | Fraud Detector model type suited for events with limited historical data | Good starting point when labeled fraud samples are scarce |
+| Transaction Fraud Insights | Fraud Detector model type for card-not-present payment fraud | Specialized for e-commerce checkout and payment scenarios |
+| Account Takeover Insights | Fraud Detector model type for login and account compromise fraud | Detects when a bad actor gains control of a legitimate user account |
+| Insight score | A 0–1000 numeric output from a Fraud Detector model (higher = more risky) | Quantifies fraud risk so rules can decide to approve, review, or deny |
+| Rules | If-then logic applied to insight scores and variables to produce outcomes | Lets business teams configure thresholds without touching the ML model |
+| Outcomes | The result labels a rule returns (approve, review, block) | Drive your application's response to each scored event |
+| Detector | The container combining a trained model and rules into deployable fraud logic | The unit you version and deploy for a particular fraud-detection scenario |
+| GetEventPrediction | Real-time API that submits a live event and returns a score plus outcomes | The runtime call your application makes to check each transaction or sign-up |
+| AutoGluon | Open-source AutoML library AWS recommends for new fraud-detection builds | Replacement option for Amazon Fraud Detector which is now closed to new customers |
+| AWS WAF | Web Application Firewall — blocks bad HTTP requests, bots, and DDoS at the edge | Network/request-layer protection; not for scoring transaction fraud risk |
+| Random Cut Forest | SageMaker unsupervised anomaly-detection algorithm | Used for general metric/stream anomaly detection, not labeled fraud classification |
+
 ## References
 
 **Amazon Personalize**

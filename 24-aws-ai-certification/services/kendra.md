@@ -99,6 +99,41 @@ Key takeaway for the exam: **Kendra bills largely on provisioned index capacity 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Kendra | Managed ML-powered enterprise search service that answers natural-language questions | Lets employees ask questions in plain English and get specific answers from internal docs |
+| Intelligent search | Search that understands the meaning of a question, not just exact keywords | Returns precise answers or passages rather than a ranked list of links |
+| Natural language query | A question asked in everyday speech ("what is our refund policy?") | Allows non-technical users to find information without knowing exact document terms |
+| Query API | Kendra endpoint that returns an answer, passage, or FAQ match directly to a search app | Used when building an internal search UI for employees or customers |
+| Retrieve API | Kendra endpoint that returns semantically relevant passages formatted for an LLM | Used when wiring Kendra as a retriever in a RAG pipeline with Amazon Bedrock |
+| RAG | Retrieval-Augmented Generation — grounding an LLM's answer with retrieved documents | Reduces hallucination by giving the model factual context before it generates a response |
+| Kendra index | The searchable store Kendra builds from your connected data sources | The core artifact you query; must be provisioned and kept running (costs money when idle) |
+| Developer Edition | Low-cost Kendra index tier for proof-of-concept work; no high availability | Not suitable for production; used to evaluate Kendra before committing |
+| Enterprise Edition | Production-grade Kendra index with high availability and SLA | Used for live customer or employee search applications |
+| GenAI Enterprise Edition | Highest-accuracy Kendra index optimized for RAG and semantic search | Best choice when using Kendra as a retriever for a Bedrock Knowledge Base |
+| Kendra GenAI Index | Newer index type purpose-built for generative AI and RAG workloads | Integrates with Bedrock Knowledge Bases while retaining connectors and ACL filtering |
+| Data source connector | Pre-built integration that syncs content from a source (S3, SharePoint, Salesforce) into a Kendra index | Avoids manual ingestion; handles common file formats and preserves ACLs |
+| Incremental sync | Connector behavior that only re-indexes content that has changed since the last sync | Keeps the index fresh without re-crawling everything each time |
+| Incremental learning | Kendra's automatic re-ranking of results based on user clicks and feedback | Continuously improves relevance without you retraining an ML model |
+| Relevance tuning | Settings that boost results by freshness, data source, or author, and add synonyms | Tailors Kendra's ranking to your domain's priorities |
+| Custom synonyms | Domain-specific word lists that tell Kendra to treat different terms as equivalent | Ensures jargon or abbreviations match the right documents |
+| ACL | Access Control List — per-document permission list defining who can read it | Kendra honors ACLs so users only see content they are authorized to access |
+| User context filtering | Token-based filtering that scopes Kendra results to what the querying user is allowed to see | Prevents one user from seeing another user's private documents in search results |
+| Semantic search | Search based on meaning and context rather than exact keyword matching | Finds the right answer even when the query words don't appear verbatim in the document |
+| FAQ match | Kendra's ability to return a pre-authored question-answer pair when a query matches | Gives instant, authoritative answers for common questions |
+| Storage unit | Unit of Kendra index capacity for document count and extracted text size | Determines how many documents the index can hold; billed hourly |
+| Query unit | Unit of Kendra index capacity for queries per second | Determines query throughput; shared between Query and Retrieve APIs |
+| Amazon OpenSearch Service | AWS-managed Elasticsearch/OpenSearch cluster for general search and analytics | Used when you need custom embeddings, log analytics, or full control over scoring |
+| Amazon Q Business | Fully managed GenAI assistant that generates cited answers over enterprise data | A higher-level product that can use Kendra as its retriever; adds generation and actions |
+| Bedrock Knowledge Base | Amazon Bedrock feature that manages a vector store for RAG applications | Can use a Kendra GenAI Index as its retriever for enterprise document grounding |
+| k-NN | k-Nearest Neighbors — vector similarity search for finding semantically related items | Used in OpenSearch when you want direct control over your own embeddings |
+| Custom Document Enrichment | Kendra feature to apply Lambda functions that modify or enrich documents at ingestion | Allows preprocessing (redaction, metadata extraction) before content enters the index |
+| Experience Builder | No-code Kendra tool for creating a search application without writing code | Lets business teams launch an internal search portal quickly |
+
 ## References
 
 - What is Amazon Kendra: https://docs.aws.amazon.com/kendra/latest/dg/what-is-kendra.html

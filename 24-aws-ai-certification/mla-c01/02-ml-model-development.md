@@ -628,6 +628,133 @@ Source: [Shadow tests in SageMaker](https://docs.aws.amazon.com/sagemaker/latest
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| MLA-C01 | The AWS Certified Machine Learning Engineer – Associate exam code | Identifies the certification this chapter prepares you for |
+| Domain 2 | The second scored section of MLA-C01, covering ML model development (26% of the exam) | Covers algorithm selection, training, and performance analysis |
+| Task 2.1 | Exam task statement for choosing a modeling approach | Tests ability to select the right algorithm, service, or FM tier |
+| Task 2.2 | Exam task statement for training and refining models | Tests hyperparameter tuning, distributed training, regularization, and versioning |
+| Task 2.3 | Exam task statement for analyzing model performance | Tests evaluation metrics, debugging, bias, and experiment management |
+| AI services | Fully trained AWS ML APIs requiring no model-building (Rekognition, Transcribe, etc.) | Fastest path to common ML tasks for teams with no ML expertise |
+| Foundation model (FM) | A very large pre-trained model trained on broad data that can be adapted to many tasks | Enables generative AI, summarization, chat, and embeddings without training from scratch |
+| Amazon Bedrock | Serverless API giving access to multiple foundation models from Anthropic, Meta, Amazon, and others | Provides FM capabilities with no infrastructure to manage |
+| SageMaker JumpStart | SageMaker feature for deploying and fine-tuning open-source foundation models inside SageMaker | Gives more control over the model instance and fine-tuning compared to Bedrock |
+| Guardrails for Amazon Bedrock | Bedrock feature that adds content filtering, topic blocking, and PII redaction to FM applications | Enforces safety and compliance policies on generative AI outputs |
+| Amazon Rekognition | AWS AI service for object, scene, face, and text detection in images and video | Enables vision tasks without any model training |
+| Amazon Transcribe | AWS AI service for converting audio speech to text | Used for call-center transcription, subtitles, and voice interfaces |
+| Amazon Translate | AWS AI service for neural machine translation between languages | Used to translate content across language pairs at scale |
+| Amazon Polly | AWS AI service that converts text to lifelike speech | Used for voice responses, accessibility, and audio content |
+| Amazon Comprehend | AWS AI service for entity extraction, sentiment analysis, key-phrase detection, and PII detection in text | Used for document analytics and text classification without custom model training |
+| Amazon Textract | AWS AI service that extracts text, forms, and tables from scanned documents | Used for document digitization beyond simple OCR |
+| Amazon Lex | AWS AI service for building conversational chatbots | Provides the same technology underlying Alexa for custom bot interfaces |
+| Amazon Kendra | AWS ML-powered enterprise semantic search service | Enables natural-language questions over large internal document repositories |
+| Amazon Personalize | AWS AI service for real-time product and content recommendations | Produces personalized recommendations from user interaction history |
+| Amazon Forecast | AWS managed time-series forecasting service | Enables demand and inventory forecasting without an ML team |
+| Amazon Fraud Detector | AWS AI service for detecting online transaction fraud | Provides fraud detection using historical transaction data |
+| Script mode | SageMaker training option where you supply a TensorFlow/PyTorch/sklearn script run inside an AWS-managed container | Allows custom model code without building a full Docker image |
+| BYO container (BYOC) | Bring Your Own Container; a fully custom Docker image pushed to ECR for use in SageMaker | Supports unsupported frameworks or specialized runtimes |
+| ECR | Amazon Elastic Container Registry; private Docker image store | Stores and versions custom container images used by SageMaker, ECS, and EKS |
+| Deep Learning Containers (DLC) | AWS-maintained Docker images for TensorFlow, PyTorch, MXNet, and other frameworks | Pre-built base images for script mode or extending with custom dependencies |
+| XGBoost | Gradient-boosted tree algorithm; the default choice for tabular classification and regression | Fast, accurate, and interpretable-ish for structured data |
+| Linear Learner | SageMaker built-in algorithm for linear classification and regression | Trains many linear models in parallel and selects the best; suited for large sparse data |
+| K-Nearest Neighbors (k-NN) | Non-parametric algorithm that predicts from the k most similar labeled training points | Used for similarity-based predictions where local patterns matter |
+| Factorization Machines | Built-in algorithm for classification and regression on high-dimensional sparse data | Best for recommendation and click-prediction tasks with sparse feature interactions |
+| DeepAR | SageMaker built-in RNN-based algorithm for forecasting many related time series simultaneously | Outperforms classical methods when many series share patterns |
+| Object2Vec | SageMaker built-in algorithm for learning low-dimensional embeddings of arbitrary objects | Used to find similar documents, tickets, or products |
+| K-Means | Unsupervised clustering algorithm that groups data into k clusters | Used for customer segmentation or discovering structure in unlabeled data |
+| PCA | Principal Component Analysis; reduces the number of features while retaining maximum variance | Preprocessing step to speed up training and reduce noise |
+| Random Cut Forest (RCF) | SageMaker built-in anomaly detection algorithm for data streams | Detects outliers in real-time sensor, fraud, or log data |
+| IP Insights | SageMaker built-in algorithm for detecting anomalous IPv4 address–entity pairings | Flags suspicious account logins from unexpected IP addresses |
+| LDA | Latent Dirichlet Allocation; statistical topic model for discovering themes in text corpora | Classifies documents by inferred topics without labeled data |
+| NTM | Neural Topic Model; neural-network-based topic modeling built into SageMaker | Discovers document topics with deeper representations than LDA |
+| BlazingText | SageMaker built-in algorithm for fast Word2Vec embeddings and text classification | Scales word-vector training and text classification to very large corpora |
+| Sequence-to-Sequence (seq2seq) | SageMaker built-in algorithm for input-sequence to output-sequence tasks | Used for machine translation, summarization, and speech-to-text |
+| Image Classification | SageMaker built-in algorithm that assigns a label to an entire image | Used for content moderation, product categorization, or medical image labeling |
+| Object Detection | SageMaker built-in algorithm that locates and labels objects with bounding boxes in images | Used for vehicle detection, retail shelf analysis, and surveillance |
+| Semantic Segmentation | SageMaker built-in algorithm that assigns a class label to every pixel in an image | Used for self-driving perception, medical imaging, and satellite analysis |
+| AutoGluon-Tabular | SageMaker built-in ensemble algorithm that automatically stacks multiple models for tabular data | Achieves strong accuracy with minimal hyperparameter tuning |
+| Interpretability | How easily a human can understand why a model produced a specific prediction | Required in regulated domains (credit, healthcare, hiring) to explain decisions |
+| SHAP | SHapley Additive exPlanations; assigns each feature a contribution score to a prediction | Used by SageMaker Clarify to explain individual predictions and rank global feature importance |
+| Epoch | One full pass through the entire training dataset | Defines how many times the model sees all training examples |
+| Batch size | Number of training samples processed before the model updates its weights | Controls the trade-off between training speed, memory use, and gradient noise |
+| Step / iteration | One weight update computed from one batch of data | The atomic unit of training; steps per epoch equals dataset size divided by batch size |
+| Early stopping | Halting training when the validation metric stops improving | Saves compute cost and prevents overfitting by avoiding unnecessary extra epochs |
+| Data parallel training | Distributed training strategy that splits the dataset across GPUs while each holds a full model copy | Speeds up training when the dataset is huge but the model fits in a single GPU |
+| Model parallel training | Distributed training strategy that splits model layers or tensors across multiple GPUs | Required when the model is too large to fit in a single GPU |
+| SMDDP | SageMaker Distributed Data Parallelism library; manages gradient synchronization across GPUs | Implements efficient all-reduce communication for data-parallel training on SageMaker |
+| SMP library v2 | SageMaker Model Parallelism library version 2; supports tensor parallelism, sharded data parallelism, and activation checkpointing | Enables training of very large LLMs across multiple GPUs |
+| Spot instances | AWS EC2 spare-capacity instances priced up to ~90% below On-Demand | Used for interruption-tolerant training jobs to reduce cost |
+| Managed Spot Training | SageMaker feature that uses Spot instances and handles interruptions via checkpointing | Reduces training cost without requiring manual interruption handling |
+| Checkpointing | Saving model state to persistent storage at regular intervals during training | Allows training to resume from the last checkpoint after a Spot interruption |
+| Warm pools | SageMaker feature that keeps training infrastructure running between jobs | Eliminates instance startup time for repeated short training runs |
+| Underfitting | Model is too simple, performing poorly on both training and test data | Signals the model needs more capacity, features, or training time |
+| Overfitting | Model memorizes training data noise, performing well on training but poorly on new data | Signals the need for regularization, more data, or a simpler model |
+| Catastrophic forgetting | A fine-tuned model loses knowledge of its prior training while learning a new task | Mitigated by lower learning rates, mixing original data, or parameter-efficient methods like LoRA |
+| L1 regularization (Lasso) | Adds a penalty proportional to the absolute value of weights, driving some to exactly zero | Performs automatic feature selection, producing sparse models |
+| L2 regularization (Ridge / weight decay) | Adds a penalty proportional to the square of weights, shrinking them toward zero | Reduces overfitting smoothly without forcing features to zero |
+| Dropout | Randomly disables a fraction of neurons during each training step | Forces neural networks to learn redundant representations, reducing overfitting |
+| Elastic Net | Combination of L1 and L2 regularization | Produces sparse models with stable weight magnitudes |
+| Hyperparameter | A model configuration knob set before training (learning rate, tree depth, batch size) | Controls the learning process itself rather than being learned from data |
+| Learning rate | How large a step the optimizer takes in the direction of the gradient each update | Too high causes divergence; too low causes slow or stalled training |
+| SageMaker Automatic Model Tuning (AMT) | Service that runs many training jobs with different hyperparameter values to find the best combination | Automates the otherwise manual and costly search for optimal hyperparameters |
+| Grid search | HPO strategy that tries every combination in a discrete grid | Exhaustive and thorough but impractical for large or continuous search spaces |
+| Random search | HPO strategy that samples hyperparameter combinations randomly | Parallelizes easily and often finds good results with fewer jobs than grid search |
+| Bayesian optimization | HPO strategy that uses prior job results to intelligently choose the next combination | Sample-efficient; requires fewer jobs to reach a good result than random or grid |
+| Hyperband | HPO strategy that early-stops weak configurations and allocates more resources to strong ones | Up to 3× faster than Bayesian for iterative algorithms like neural networks |
+| Bagging | Ensemble technique that trains models in parallel on random data subsets and averages their predictions | Reduces variance (overfitting); Random Forest is the canonical example |
+| Boosting | Ensemble technique that trains models sequentially, each correcting the previous one's errors | Reduces bias (underfitting); XGBoost, LightGBM, and CatBoost are boosting algorithms |
+| Stacking | Ensemble technique that feeds multiple models' predictions into a meta-model | Combines strengths of diverse models; AutoGluon uses deep stacking automatically |
+| RAG | Retrieval-Augmented Generation; retrieves relevant documents at inference and feeds them to the FM | Keeps FM answers grounded in private or up-to-date information without retraining |
+| Fine-tuning | Updating a pre-trained model's weights on task-specific labeled examples | Produces consistent task-specific behavior with less data than training from scratch |
+| Continued pre-training | Updating a pre-trained model's weights on a large unlabeled domain corpus | Teaches the model a new domain's vocabulary and knowledge |
+| LoRA | Low-Rank Adaptation; a parameter-efficient fine-tuning method that adds small trainable matrices | Fine-tunes large models cheaply while reducing catastrophic forgetting |
+| Quantization | Reducing the numeric precision of model weights (e.g., FP32 → FP16 or INT8) | Decreases model memory footprint and speeds up inference |
+| Pruning | Removing weights or neurons that contribute little to model output | Reduces model size and inference latency |
+| Knowledge distillation | Training a small student model to mimic a large teacher model's outputs | Produces a compact model with accuracy closer to the larger model |
+| SageMaker Neo | Service that compiles and optimizes models for specific hardware targets | Reduces model size and increases inference speed on edge or cloud hardware |
+| SageMaker Model Registry | Catalog for versioning trained models with approval statuses and metadata | Enables controlled, auditable promotion of models through staging to production |
+| Model (Package) Group | A named collection of model versions in the Model Registry | Organizes all versions of a single logical model for comparison and governance |
+| Approval status | A Model Registry field (PendingManualApproval, Approved, Rejected) on each model version | Gates deployment; an Approved status can trigger a CI/CD pipeline via EventBridge |
+| Confusion matrix | A table counting TP, FP, FN, and TN predictions for a classification model | The foundation from which all classification metrics are derived |
+| True Positive (TP) | Prediction is positive and the actual label is positive | Correct positive prediction; contributes to precision and recall |
+| False Positive (FP) | Prediction is positive but the actual label is negative | A false alarm; the cost of FPs drives precision optimization |
+| False Negative (FN) | Prediction is negative but the actual label is positive | A miss; the cost of FNs drives recall optimization |
+| True Negative (TN) | Prediction is negative and the actual label is negative | Correct negative prediction; contributes to specificity |
+| Accuracy | Fraction of all predictions that are correct | Misleading on imbalanced datasets; a model predicting the majority class can score high |
+| Precision | Fraction of positive predictions that are actually positive | Optimized when false alarms are costly |
+| Recall (Sensitivity / TPR) | Fraction of actual positives that the model correctly identifies | Optimized when missing a positive (disease, fraud) is costly |
+| Specificity (TNR) | Fraction of actual negatives that the model correctly clears | Measures how well the model avoids false alarms for the negative class |
+| F1 score | Harmonic mean of precision and recall | Balanced metric for imbalanced datasets where both false alarms and misses matter |
+| ROC curve | Plot of True Positive Rate vs False Positive Rate across all classification thresholds | Visualizes the trade-off between sensitivity and specificity for a classifier |
+| AUC | Area Under the ROC Curve; ranges from 0.5 (random) to 1.0 (perfect) | Single number for comparing classifiers independent of threshold choice |
+| Precision-Recall (PR) curve | Plot of precision vs recall across all thresholds | Preferred over ROC when the positive class is very rare |
+| RMSE | Root Mean Squared Error; square root of the average squared prediction error | Penalizes large errors heavily; used for regression when big misses are costly |
+| MAE | Mean Absolute Error; average of absolute differences between predictions and true values | More robust to outliers than RMSE; treats all errors equally |
+| R² | Coefficient of determination; fraction of target variance explained by the model | 1.0 = perfect fit; 0 = no better than predicting the mean |
+| Baseline (ML) | A simple reference model (e.g., predict the mean) that the real model must beat | Confirms that the ML investment adds value over a trivial heuristic |
+| Convergence | The state where training loss stabilizes at a minimum and further training makes little difference | Indicates the model has learned as much as the optimizer can find |
+| Vanishing gradients | Gradients become extremely small in deep networks, preventing early layers from learning | Mitigated by better initialization, ReLU activations, batch normalization, or residual connections |
+| Exploding gradients | Gradients grow uncontrollably, destabilizing training | Mitigated by lowering the learning rate or applying gradient clipping |
+| SageMaker Debugger | SageMaker feature that captures tensors during training and evaluates built-in rules in real time | Automatically detects convergence issues (vanishing gradients, overfitting, loss not decreasing) |
+| SageMaker Experiments | MLflow-integrated tool for tracking, comparing, and reproducing training runs | Logs parameters, metrics, and artifacts for each run to enable systematic comparison |
+| SageMaker Pipelines | ML-native, serverless DAG pipeline orchestration integrated with SageMaker | Automates end-to-end ML workflows from data processing through model registration |
+| Shadow testing | Routing a copy of live production traffic to a new model variant whose responses are logged but not returned to users | Validates a new model or container on real traffic with zero user impact |
+| Production variants | Named model instances behind one SageMaker endpoint, each receiving a configurable fraction of traffic | Enables A/B testing and gradual traffic migration between model versions |
+| A/B testing | Splitting live traffic between two model variants to compare business and quality metrics | Determines which model performs better on real users before full rollout |
+| SageMaker Clarify | AWS tool that computes pre-training bias, post-training bias, and SHAP feature-attribution explanations | Detects unfairness and explains predictions throughout the ML lifecycle |
+| Post-training bias metrics | Clarify metrics computed on model predictions (DPPL, DI, AD, Recall Difference, Fliptest) | Measure whether the model's outputs are unfair to specific demographic groups |
+| DPPL | Difference in Positive Proportions in Predicted Labels; a post-training bias metric | Measures whether predicted positive rates differ between groups |
+| Disparate Impact (DI) | Post-training bias metric comparing positive prediction rates between groups as a ratio | Legal concept applied to model outputs to check for discriminatory decisions |
+| Heat map | A color-coded matrix visualization of values (e.g., a confusion matrix or correlation matrix) | Makes patterns in multi-dimensional tables visually obvious |
+| Partial dependence plot | A visualization showing the marginal effect of one or two features on model predictions | Used alongside SHAP to understand feature-level model behavior globally |
+| Model Cards | SageMaker documentation artifact that records a model's intended use, performance, and limitations | Supports transparency, governance, and regulatory compliance for deployed models |
+
+---
+
 ## References <a name="refs"></a>
 
 All URLs verified against current AWS documentation.

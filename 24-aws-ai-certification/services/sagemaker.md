@@ -206,6 +206,60 @@ SageMaker has **no upfront cost and no minimum fee** — you pay for the underly
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon SageMaker AI | AWS's fully managed platform for the entire machine learning lifecycle from data prep through model deployment and monitoring | Gives data scientists and ML engineers a single place to build, train, tune, deploy, and monitor custom models |
+| ML lifecycle | The end-to-end sequence of steps to go from raw data to a deployed, monitored model | Provides a structured framework for repeatable, production-quality machine learning |
+| SageMaker Studio | A web-based IDE that brings notebooks, experiments, pipelines, and deployment into one console | Eliminates context-switching between tools by unifying the entire ML workflow in one interface |
+| Notebook instance | A managed Jupyter server you can launch on any EC2 instance size for interactive ML experimentation | Lets data scientists explore data and iterate on models without setting up their own server |
+| Training job | An ephemeral compute task that pulls data from S3, runs your training code, saves the model artifact back to S3, and then shuts down | Means you only pay for compute while actually training, not for idle instances |
+| Built-in algorithms | Pre-built, AWS-optimized algorithm containers you can train by just supplying data and hyperparameters | Saves you from writing model code for standard tasks like classification, clustering, or forecasting |
+| Script mode | Using an AWS-provided framework container (TensorFlow, PyTorch, etc.) while supplying your own training script | A middle ground between a built-in algorithm and a fully custom container |
+| BYOC (Bring Your Own Container) | Providing a completely custom Docker image in ECR for training or inference | Used when you have unusual dependencies or need full control over the runtime environment |
+| ECR (Elastic Container Registry) | AWS's managed Docker image registry | Stores custom training and inference containers that SageMaker pulls during jobs |
+| S3 (Simple Storage Service) | AWS's object storage service | Acts as the primary input and output store for training data, model artifacts, and results |
+| Hyperparameter | A configuration value you set before training that controls how the learning process works, like learning rate or tree depth | Determines model architecture and training behavior; tuning them improves model performance |
+| Automatic Model Tuning (AMT / HPO) | A SageMaker service that launches many training jobs to automatically find the best hyperparameter combination | Saves you from manually guessing the right hyperparameter values |
+| Bayesian tuning | An HPO strategy where each training run informs the next, making sequential smart choices | Best when you have a limited budget of training jobs and want the most efficient search |
+| Random search | An HPO strategy where all runs are independent and can run fully in parallel | Best when you want to maximize the number of parallel training jobs simultaneously |
+| Grid search | An HPO strategy that exhaustively tries every combination in a defined grid | Best for small, discrete hyperparameter spaces where you want reproducible, exhaustive coverage |
+| Hyperband | An HPO strategy that stops bad training runs early using intermediate results and redirects resources to promising runs | Best for deep learning models where you want the fastest tuning with early-stopping signals |
+| Real-time endpoint | A persistent SageMaker endpoint serving a live REST API for low-latency predictions | Used for applications that need instant responses to individual prediction requests |
+| Serverless inference | A SageMaker endpoint that scales to zero when idle and only runs when requests arrive | Ideal for intermittent traffic where paying for an always-on instance is wasteful |
+| Asynchronous inference | A SageMaker inference option that accepts large payloads or slow jobs through a queue and delivers results to S3 | Used when payloads are too big or processing too slow for a synchronous response |
+| Batch Transform | A SageMaker job that scores an entire dataset offline without needing a persistent endpoint | Used for bulk predictions where results are not needed in real time |
+| Managed Spot Training | Using spare EC2 capacity for training jobs at up to 90% discount | Dramatically cuts training costs for fault-tolerant, long-running jobs |
+| Checkpointing | Saving training progress to S3 at regular intervals so an interrupted job can resume instead of restart | Makes Spot Training reliable by preventing loss of progress on interruption |
+| EC2 Spot instance | Spare AWS compute capacity available at a steep discount but subject to interruption | The underlying compute type for Managed Spot Training |
+| Data parallelism (SMDDP) | A distributed training strategy that replicates the model on each GPU and splits the data across them | Speeds up training when the model fits on one GPU but the dataset is very large |
+| Model parallelism (SMP) | A distributed training strategy that splits the model itself across multiple GPUs | Required when the model is too large to fit in a single GPU's memory |
+| Warm pools | Keeping provisioned training instances alive between jobs to skip startup time | Reduces the overhead of repeatedly launching and tearing down training clusters |
+| Processing job | An ephemeral SageMaker job for data preprocessing, feature engineering, or model evaluation scripts | Provides managed compute for the steps before and after training in a pipeline |
+| SageMaker Pipelines | SageMaker's native ML workflow orchestrator that chains data prep, training, evaluation, and deployment as a versioned DAG | Automates the end-to-end ML workflow for repeatable, auditable production processes |
+| Model Registry | A SageMaker catalog for versioning trained models and managing their approval status before deployment | Acts as a governance gate ensuring only approved models get deployed to production |
+| SageMaker Clarify | A SageMaker feature that detects bias in data and model predictions and explains predictions using SHAP values | Supports responsible AI by making models more fair and interpretable |
+| Model Monitor | A SageMaker feature that continuously watches a deployed endpoint for data drift and quality degradation | Alerts you when your production model starts performing worse so you can retrain |
+| Ground Truth | A SageMaker data-labeling service for building training datasets using human annotators | Turns raw, unlabeled data into the supervised training examples ML models need |
+| Feature Store | A SageMaker repository for storing, sharing, and serving ML features consistently between training and inference | Eliminates training-serving skew by ensuring models train and predict on identical feature values |
+| Data Wrangler | A low-code visual data preparation tool inside SageMaker Studio | Lets data scientists clean, transform, and engineer features without writing Spark or pandas code |
+| JumpStart | A SageMaker hub of pre-trained models and one-click solution templates | Gets you started quickly without building from scratch, especially for foundation model fine-tuning |
+| SageMaker Neo | A SageMaker tool that compiles a trained model for a specific hardware target to run faster | Optimizes models for deployment on edge devices or specific cloud instance types |
+| Inference Recommender | A SageMaker tool that load-tests your model across instance types and recommends the best one | Helps you right-size your endpoint for cost, latency, and throughput without guessing |
+| Multi-model endpoint (MME) | A SageMaker endpoint that hosts thousands of same-framework models behind one endpoint, loading them on demand | Reduces infrastructure costs when you have many similar models to serve |
+| Multi-container endpoint (MCE) | A SageMaker endpoint that runs up to 15 different containers, optionally chained as a serial inference pipeline | Supports heterogeneous model stacks or preprocessing and postprocessing chains on one endpoint |
+| SageMaker Autopilot | An AutoML feature that automatically builds, trains, and tunes candidate models for a tabular dataset | Lets non-experts produce a good ML model by just pointing at labeled data |
+| SageMaker Savings Plans | A commitment-based discount (1 or 3 year) that applies across SageMaker compute for up to 64% savings | Reduces SageMaker costs for teams with predictable, sustained compute usage |
+| XGBoost | A highly effective gradient-boosted tree algorithm included as both a SageMaker built-in algorithm and a framework | The go-to algorithm for tabular classification and regression tasks |
+| DeepAR | A SageMaker built-in algorithm for probabilistic time-series forecasting using recurrent neural networks | Best choice when you need to forecast multiple related time series simultaneously |
+| BlazingText | A SageMaker built-in algorithm for fast word-embedding training and text classification | Efficient NLP for large corpora without needing a deep learning framework |
+| Random Cut Forest (RCF) | A SageMaker built-in algorithm for unsupervised anomaly detection | Identifies unusual data points in time-series or tabular data without labeled anomaly examples |
+| MLA-C01 | The AWS Machine Learning Engineer Associate certification exam | The primary target certification for SageMaker platform knowledge |
+| AIF-C01 | The AWS AI Practitioner certification exam | Tests broader awareness of AWS AI/ML services at a higher level |
+
 ## References
 
 - [Amazon SageMaker AI — product page](https://aws.amazon.com/sagemaker/ai/)

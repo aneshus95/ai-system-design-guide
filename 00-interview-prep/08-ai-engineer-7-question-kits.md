@@ -1068,4 +1068,37 @@ Sanitized: "[NAME_1] ([EMAIL_1]) has a balance of [AMOUNT_1]" → 3rd-party API
 - **The mental models are the memory hooks** — if you can recall the one-liner, you can reconstruct the full answer under pressure.
 - Each kit's **"Go deeper"** links point to the full treatment (with sources) elsewhere in this guide.
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Big-O notation** | A way to describe how an algorithm's time or memory grows as input grows | Compare algorithm efficiency in DSA questions |
+| **Two pointers / sliding window** | Techniques that scan an array with one or two moving indices instead of nested loops | Turn O(n²) scans into O(n) |
+| **Hash map** | Key→value store with average O(1) lookup | De-duplication, counting, caching intermediate results |
+| **Dynamic programming** | Solving a problem by caching answers to overlapping subproblems | Avoid recomputing in recursive problems |
+| **Token** | Smallest chunk of text an LLM reads/writes (~0.75 words) | Drives context limits and cost |
+| **Embedding** | A vector of numbers capturing the meaning of text | Semantic search and RAG retrieval |
+| **Temperature** | Knob controlling LLM randomness (low = focused, high = creative) | Tune determinism vs creativity |
+| **Context window** | Max tokens a model can consider at once | Bounds how much you can feed a prompt |
+| **RAG (Retrieval-Augmented Generation)** | Fetch relevant documents at query time and feed them to the LLM | Ground answers in fresh/private data, reduce hallucination |
+| **Chunking** | Splitting documents into passages before embedding | Control retrieval granularity |
+| **Reranking** | A second, more precise model reorders retrieved candidates | Boost the relevance of top results |
+| **Hybrid search** | Combine keyword (BM25) and vector search | Catch both exact-term and semantic matches |
+| **Vector database** | Store that indexes embeddings for fast similarity search | The retrieval backbone of RAG |
+| **Hallucination** | Confident but false model output | Key risk RAG and guardrails mitigate |
+| **Agent** | An LLM that plans, calls tools, observes results, and loops | Automate multi-step tasks |
+| **Tool / function calling** | Letting an LLM invoke external APIs in a structured way | Give agents real-world actions |
+| **ReAct** | Reason + Act prompting loop (think, act, observe, repeat) | Structure agent decision-making |
+| **Guardrails** | Runtime filters on inputs/outputs (content, PII, topics) | Keep LLM apps safe and on-topic |
+| **Prompt injection** | Malicious text that hijacks an LLM's instructions | Core LLM security threat to defend against |
+| **LLMOps** | Practices for deploying, monitoring, and evaluating LLM apps | Keep GenAI systems reliable in production |
+| **Evaluation (eval)** | Systematic scoring of model outputs (accuracy, faithfulness) | Measure quality before/after changes |
+| **Latency vs throughput** | Time per request vs requests handled per second | Core system-design trade-off |
+| **Caching** | Reusing prior results (responses, embeddings) | Cut cost and latency |
+| **Load balancing / horizontal scaling** | Spread traffic across many instances | Handle scale and stay available |
+
+---
+
 *Up: [Interview Prep](README.md) · [Guide Home](../README.md)*

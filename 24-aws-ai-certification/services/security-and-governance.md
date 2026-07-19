@@ -388,6 +388,70 @@ The matrix pairs these scopes with **five security disciplines**: **Governance &
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Shared Responsibility Model | AWS secures the cloud infrastructure; you secure what you put in it | Defines who is accountable for which security controls |
+| IaaS | Infrastructure as a Service — you rent virtual machines and manage the OS | Sets expectation that you patch the OS and configure the stack |
+| PaaS | Platform as a Service — AWS manages infrastructure; you configure the service | Narrows your security job to data, IAM, and network config |
+| AWS IAM | Identity and Access Management — controls who can do what on which resource | Enforces least privilege across all AWS services |
+| Least privilege | Grant only the minimum permissions a user or service actually needs | Reduces the blast radius of compromised credentials |
+| IAM role | A temporary identity an AWS service or user assumes (no long-lived password) | Lets services like SageMaker act on your behalf safely |
+| STS AssumeRole | AWS Security Token Service call that grants short-lived credentials for a role | Issues temporary access without embedding permanent keys |
+| SageMaker execution role | The IAM role SageMaker assumes to access S3, ECR, KMS, etc. on your behalf | Authorizes SageMaker jobs without hardcoded credentials |
+| SageMaker Role Manager | Console wizard that generates least-privilege IAM roles for ML personas | Speeds up role creation without hand-writing policy JSON |
+| AWS KMS | Key Management Service — creates, stores, and controls encryption keys | Protects data at rest across S3, EBS, SageMaker, Bedrock, etc. |
+| CMK | Customer-Managed Key — a KMS key you control, rotate, and audit | Gives you control and an audit trail of every key use |
+| AWS-managed key | A KMS key AWS creates and manages on your behalf | Easiest option; less control than a CMK |
+| Encryption at rest | Data is scrambled while stored on disk | Protects data if physical storage is compromised |
+| Encryption in transit | Data is scrambled while moving over the network (TLS/HTTPS) | Prevents eavesdropping on API calls and data transfers |
+| TLS / HTTPS | Transport Layer Security — the protocol that encrypts network traffic | Secures SageMaker endpoints, Bedrock API calls, S3 transfers |
+| Inter-node traffic encryption | Encrypts data moving between training nodes in a distributed SageMaker job | Protects model gradients and data in multi-instance training |
+| Amazon Macie | ML-powered service that finds and classifies sensitive data in S3 buckets | Discovers PII in datasets before training or fine-tuning |
+| PII | Personally Identifiable Information — data that can identify a person | Must be protected or redacted under privacy regulations |
+| AWS PrivateLink | Creates a private network tunnel from your VPC to an AWS service | Keeps inference traffic off the public internet |
+| Interface VPC endpoint | A network interface in your VPC that connects to an AWS service via PrivateLink | Routes service calls through the AWS backbone, not the internet |
+| VPC endpoint policy | A resource policy attached to a VPC endpoint to restrict which APIs can be called | Adds an extra access-control layer on top of IAM |
+| Private DNS | Routes standard AWS service DNS names through a VPC endpoint automatically | Eliminates code changes when switching to private connectivity |
+| Amazon VPC | Virtual Private Cloud — your isolated virtual network inside AWS | Provides network-level isolation for ML workloads |
+| Private subnet | A subnet with no direct internet route | Hides training and inference resources from public exposure |
+| Security group | Stateful, instance-level firewall controlling inbound/outbound traffic | Restricts which ports and IPs can reach a SageMaker resource |
+| Network ACL | Stateless, subnet-level firewall with allow and deny rules | Adds a second layer of network filtering at the subnet boundary |
+| VPC mode | Running SageMaker jobs inside your VPC and private subnets | Standard pattern for regulated ML workloads |
+| AWS Secrets Manager | Encrypted vault for credentials and API keys, with automatic rotation | Keeps secrets out of notebooks, Dockerfiles, and Git repos |
+| SSM Parameter Store | Stores non-secret configuration values; cheaper than Secrets Manager | Used for feature flags and config, not high-value credentials |
+| AWS CloudTrail | Records every AWS API call with who, what, when, and source IP | Provides an audit trail for governance, forensics, and compliance |
+| Amazon CloudWatch | Collects metrics, logs, and alarms about workload health and performance | Monitors SageMaker endpoint latency, errors, and resource usage |
+| CloudWatch Logs | Stores log data from AWS services and applications | Captures training job output, model monitor data, and app logs |
+| AWS Config | Tracks resource configuration changes and checks them against compliance rules | Enforces policies like "SageMaker notebooks must be in a VPC" |
+| Config rule | A compliance policy that evaluates resource configurations automatically | Flags non-compliant resources and can trigger auto-remediation |
+| Amazon Inspector | Automatically scans EC2, container images, and Lambda for software vulnerabilities | Finds CVEs in custom SageMaker container images before deployment |
+| CVE | Common Vulnerability and Exposure — a publicly known software security flaw | What Inspector scans for to prioritize patching |
+| ECR | Elastic Container Registry — stores Docker container images in AWS | Where custom SageMaker training/inference containers live |
+| AWS Audit Manager | Automatically gathers compliance evidence mapped to control frameworks | Produces audit-ready reports without manual screenshot collection |
+| AWS Artifact | Self-service portal to download AWS's own compliance certifications and reports | Proves the AWS infrastructure side (SOC 2, ISO 27001, PCI DSS) |
+| SOC 2 | System and Organization Controls 2 — security trust-services audit report | Common compliance requirement for SaaS and cloud services |
+| ISO 27001 | International information-security management standard | Required by many enterprise customers and regulators |
+| PCI DSS | Payment Card Industry Data Security Standard | Required when handling credit card data |
+| HIPAA | Health Insurance Portability and Accountability Act — US healthcare data rules | Governs medical data; relevant to healthcare ML workloads |
+| BAA | Business Associate Agreement — contract required under HIPAA | Signed between AWS and customers handling protected health info |
+| AWS Trusted Advisor | Automated best-practice checker across cost, security, performance, and limits | Flags open security groups, idle endpoints, and service-quota risks |
+| AWS Cost Explorer | Visualizes and analyzes historical AWS spending | Lets you filter, group, and forecast ML training costs |
+| AWS Budgets | Sets cost or usage thresholds and sends alerts when they're exceeded | Prevents surprise bills from runaway GPU training jobs |
+| Resource tagging | Key-value labels attached to AWS resources | Attributes cost by team or project in cost allocation reports |
+| Spot Instance | Spare AWS capacity offered at up to 90% discount; can be interrupted | Best for fault-tolerant, checkpointed training jobs |
+| On-Demand Instance | Full-price compute with no commitment | Used for unpredictable or short workloads |
+| Reserved Instance | 1- or 3-year commitment to a specific instance type for up to 72% discount | Reduces cost of steady-state EC2 infrastructure |
+| SageMaker Savings Plans | Flexible 1- or 3-year hourly spend commitment for SageMaker usage | Cuts cost of ongoing SageMaker training and inference without instance lock-in |
+| GenAI Security Scoping Matrix | AWS framework that maps five levels of GenAI ownership to security responsibilities | Helps teams scope risk before building an AI solution |
+| Well-Architected Tool | AWS self-assessment tool that reviews workloads against six best-practice pillars | Identifies architectural risks and provides remediation guidance |
+| ML Lens / GenAI Lens | Specialized review modules for the Well-Architected Tool | Tailors best-practice questions to ML and generative AI workloads |
+| Bedrock Guardrails | Amazon Bedrock feature that filters prompts and responses for PII, topics, and safety | Redacts sensitive content in GenAI interactions |
+| Amazon Comprehend | NLP service that detects PII, entities, and sentiment in text | Used for PII detection in text documents (not S3 discovery like Macie) |
+
 ## References <a name="references"></a>
 
 - AWS Shared Responsibility Model — https://aws.amazon.com/compliance/shared-responsibility-model/

@@ -553,6 +553,108 @@ Source: [Feature Store](https://docs.aws.amazon.com/sagemaker/latest/dg/feature-
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| MLA-C01 | The AWS Certified Machine Learning Engineer – Associate exam code | Identifies the certification exam this chapter prepares you for |
+| Domain 1 | The first scored section of MLA-C01, covering data preparation (28% of the exam) | Anchors all data-prep topics under a single exam weight |
+| Data pipeline | A series of steps that move and transform data from source to a model-ready form | Structures the ingestion → transformation → integrity workflow |
+| Ingest | The act of pulling raw data from a source and loading it into a storage system | First gate before any transformation or training |
+| Feature engineering | Reshaping raw data columns into numeric signals a model can learn from effectively | Directly improves model accuracy without changing the algorithm |
+| Integrity (data) | Ensuring data is fair, free of illegal identifiers, and high quality before training | Prevents biased or legally problematic models |
+| CSV | Comma-Separated Values; plain text table, one row per line, no schema | Simple row-based format, human-readable but no type enforcement |
+| JSON / JSON Lines | JavaScript Object Notation; semi-structured, supports nesting | Flexible row-based format used by APIs and streaming events |
+| Apache Avro | Binary row-based format with an embedded schema supporting schema evolution | Best for Kafka/streaming pipelines where schema changes over time |
+| Apache Parquet | Columnar binary format with schema and efficient compression | Default format for analytics and ML feature stores queried by Athena/Glue |
+| Apache ORC | Optimized Row Columnar; columnar format common in Hive ecosystems | Columnar alternative to Parquet, especially for Hive-based workloads |
+| RecordIO-protobuf | Binary row-based format preferred by SageMaker built-in algorithms | Enables efficient Pipe mode streaming, shrinking pre-training download time |
+| Columnar storage | Stores each column's values together rather than each row together | Allows analytic queries to skip irrelevant columns, reducing cost |
+| Row storage | Stores each complete record together | Efficient for reading or writing one full record at a time |
+| Schema | A formal definition of a dataset's columns, types, and constraints | Lets systems catch bad records at read time instead of silently corrupting training |
+| Schema evolution | Ability to add or change fields in a data format without breaking existing consumers | Essential for long-lived streaming pipelines |
+| Amazon S3 | AWS object store with 11-nines durability and tiered pricing | Default data lake for raw data, features, and model artifacts |
+| Amazon EFS | Elastic File System; managed NFS that multiple instances can mount simultaneously | Lets many training jobs or notebooks share the same files without copying |
+| Amazon FSx for Lustre | High-performance parallel file system with sub-millisecond latency | Fastest I/O option for large-scale distributed training jobs |
+| Amazon FSx for NetApp ONTAP | Managed NetApp NAS supporting NFS, SMB, iSCSI, and S3 API | Enterprise features (snapshots, dedup) combined with S3-API access for SageMaker |
+| Amazon EBS | Elastic Block Store; block volume attached to a single EC2 or notebook instance | Provides configurable IOPS for single-instance workloads |
+| Kinesis Data Streams | Sharded, ordered, replayable streaming service with up to 365-day retention | Real-time ingest for sub-second, ordered, multi-consumer pipelines |
+| Kinesis Data Firehose | Zero-code delivery stream that buffers and lands data in S3, Redshift, or OpenSearch | Easiest way to continuously load streaming data into a data lake |
+| Managed Service for Apache Flink | AWS-managed Apache Flink for real-time windowed stream processing | Runs SQL or code-based transformations on live data streams |
+| Amazon MSK | Managed Streaming for Apache Kafka; fully managed Kafka service | Used when teams need Kafka's ecosystem or require cross-cloud portability |
+| Shard | A unit of throughput in Kinesis Data Streams; each shard handles ordered records | Determines throughput capacity and ordering guarantees |
+| S3 Transfer Acceleration | Speeds up S3 uploads/downloads over long distances via CloudFront edge nodes | Reduces latency when producers and the S3 bucket are far apart geographically |
+| EBS Provisioned IOPS | A guaranteed IOPS level on an EBS block volume (io1/io2) | Ensures consistent high-speed disk access for I/O-intensive single-instance jobs |
+| DynamoDB export to S3 | Bulk export of a DynamoDB table directly to S3 without consuming read capacity | Lets ML teams extract training data without impacting production database performance |
+| SageMaker Data Wrangler | Visual, ML-aware data preparation tool inside SageMaker Studio | End-to-end feature prep with 300+ transforms, quality insights, and export to Pipelines/Feature Store |
+| SageMaker Feature Store | Managed repository for reusable, versioned ML features with online and offline stores | Eliminates training/serving skew by storing features consistently for both real-time inference and model training |
+| Online store (Feature Store) | Low-latency, single-record lookup layer of Feature Store | Serves features to real-time inference endpoints with millisecond latency |
+| Offline store (Feature Store) | Historical feature data stored as Parquet in S3 | Used for model training and batch inference; supports Glue and Iceberg table formats |
+| PutRecord | The Feature Store streaming API call that writes a single record synchronously | Enables real-time feature ingestion for online serving |
+| Feature group | The schema and table definition in Feature Store, requiring a record identifier and event-time column | Organizes features into a logical, queryable unit |
+| AWS Glue | Serverless Spark ETL service with a Data Catalog for schema management | Merges, transforms, and catalogs data from multiple sources without managing servers |
+| Glue Crawler | Glue component that scans data sources and infers schemas into the Data Catalog | Automates schema discovery, avoiding hand-written table definitions |
+| Glue Data Catalog | Central metadata repository for tables, schemas, and partitions across AWS | Makes data discoverable by Athena, SageMaker, and other services |
+| Glue Studio | Visual authoring interface for creating and monitoring Glue ETL jobs | Allows low-code pipeline authoring for non-expert users |
+| AWS Glue DataBrew | No-code visual data preparation service with 250+ pre-built transforms | Lets analysts clean, profile, and transform data without writing code |
+| DQDL | Data Quality Definition Language; rule syntax for AWS Glue Data Quality checks | Specifies completeness, uniqueness, freshness, and other rules for automated quality gates |
+| AWS Glue Data Quality | Rule-based in-pipeline data quality checking service | Automatically validates datasets against defined rules and blocks bad data from flowing downstream |
+| Apache Spark | Distributed computing framework for large-scale data processing | Handles very large joins, aggregations, and transforms across many nodes |
+| Amazon EMR | Elastic MapReduce; managed Hadoop/Spark cluster service | Runs full-scale Spark or Hadoop workloads with complete control over the cluster |
+| pandas | Python data manipulation library for in-memory tabular data | Suitable for small, ad-hoc data merging or exploration in notebooks |
+| Imputation | Filling in missing values using statistical estimates (mean, median, mode, KNN) | Preserves rows that would otherwise be dropped, maintaining dataset size |
+| Outlier | A data point that falls far outside the normal distribution of its column | Can distort model training if not detected and treated |
+| IQR | Interquartile Range; the spread between the 25th and 75th percentile | Used to detect outliers as points beyond 1.5×IQR from the quartiles |
+| Z-score | Number of standard deviations a value is from the mean | Detects outliers as values with absolute z-score above a threshold (e.g., 3) |
+| Deduplication | Removing duplicate rows from a dataset | Prevents over-weighting repeated examples and data leakage |
+| Normalization | Rescaling feature values to [0, 1] | Required for distance-based and neural-network algorithms sensitive to scale |
+| Standardization | Transforming a feature to have mean 0 and standard deviation 1 | Preferred by linear models and PCA where units differ across features |
+| Log transformation | Applying log(x) to compress a right-skewed column toward a normal distribution | Reduces the influence of very large values on model training |
+| Binning / bucketing | Converting a continuous numeric feature into discrete categorical buckets | Captures non-linear thresholds and reduces noise from minor variations |
+| Feature splitting | Breaking one compound field into multiple separate fields | Extracts more signal from structured strings such as dates or addresses |
+| One-hot encoding | Creating one binary column per category value | Represents nominal categories as numbers without implying false ordering |
+| Label encoding | Mapping each category to an integer | Suitable for ordinal categories or tree-based models |
+| Binary encoding | Converting a category to its integer representation then to binary digits | More space-efficient than one-hot for medium-to-high cardinality features |
+| Tokenization | Splitting text into tokens or subwords and mapping them to integer IDs | Required preprocessing step for feeding text to NLP and LLM models |
+| Cardinality | The number of unique values in a categorical column | High cardinality makes one-hot encoding impractical; drives choice of alternative encoding |
+| SageMaker Ground Truth | AWS managed data labeling service with workforce options and automated labeling | Generates labeled training data at scale, reducing cost via machine-assisted labeling |
+| Mechanical Turk | Amazon's public crowd-sourced workforce for annotation tasks | Provides large-scale labeling for non-sensitive public data |
+| Private workforce | A labeling workforce made up of your own employees or a vendor | Required for PII/PHI or confidential data that must not be shared publicly |
+| Automated data labeling | Ground Truth feature where a model labels easy examples so humans handle only hard ones | Reduces labeling cost by up to ~70% by minimizing human review |
+| PII | Personally Identifiable Information; data that can identify an individual (name, SSN, email) | Triggers legal obligations to protect, anonymize, or mask before sharing or labeling |
+| PHI | Protected Health Information; health data regulated under HIPAA | Requires stricter controls including encryption, private labeling workforce, and access restriction |
+| HIPAA | U.S. Health Insurance Portability and Accountability Act | Compliance regime governing how health data must be stored, processed, and accessed |
+| Amazon Macie | ML-powered service that discovers and classifies sensitive data in S3 | Automatically detects PII and other sensitive content to trigger protective controls |
+| AWS KMS | Key Management Service; creates and manages encryption keys | Used to encrypt S3 buckets, EBS volumes, SageMaker model artifacts, and notebooks at rest |
+| SSE-KMS | Server-Side Encryption using AWS KMS-managed keys | Protects S3 objects at rest with customer-controlled encryption keys |
+| Anonymization | Irreversibly removing or transforming identifiers so re-identification is impossible | Meets legal requirements for sharing datasets without exposing personal details |
+| Data residency | Requirement that data must remain within a specific geographic region or country | Drives selection of AWS Region and disables cross-region replication |
+| SageMaker Clarify | AWS tool that computes pre-training bias metrics, post-training bias metrics, and SHAP explainability | Detects unfairness and explains model decisions throughout the ML lifecycle |
+| Class Imbalance (CI) | Pre-training bias metric measuring under-representation of a demographic group by sample count | Signals when one group has too few training examples for the model to learn from fairly |
+| DPL | Difference in Proportions of Labels; measures whether groups receive positive labels at different rates | Reveals outcome bias in the training data before any model is trained |
+| Facet | A sensitive attribute or demographic group used in bias analysis (e.g., gender, age) | Defines which subgroup comparisons are made when computing bias metrics |
+| Selection bias | Bias that occurs when the training sample does not represent the true population | Causes the model to underperform on groups that were under-sampled during data collection |
+| Measurement bias | Bias from inconsistent data collection instruments or labeling practices | Introduces systematic errors that skew model learning |
+| SMOTE | Synthetic Minority Over-sampling Technique; generates new synthetic minority-class examples | Addresses class imbalance without simply duplicating existing rows |
+| Oversampling | Duplicating or generating minority-class rows to balance class distribution | Gives the model more minority-class signal at the cost of potential overfitting |
+| Undersampling | Removing majority-class rows to balance class distribution | Simpler than oversampling but discards potentially useful data |
+| F1 score | Harmonic mean of precision and recall | Preferred metric when class imbalance makes raw accuracy misleading |
+| AUC | Area Under the ROC Curve; measures a classifier's ability across all thresholds | Robust to class imbalance; used to compare classifiers independent of threshold |
+| Train/validation/test split | Partitioning data into sets for training, tuning, and final unbiased evaluation | Ensures the model is tested on data it has never seen during training or hyperparameter tuning |
+| Stratified split | Split that preserves each class's proportion in every partition | Essential for imbalanced datasets to prevent a split from having no minority-class examples |
+| Shuffling | Randomly reordering rows before splitting | Removes any ordering artifacts that could leak patterns into the model |
+| Data augmentation | Synthetically expanding a dataset (e.g., flipping images, paraphrasing text) | Improves robustness and helps models generalize from small or imbalanced datasets |
+| File mode | SageMaker training input mode that downloads the full dataset to local disk before starting | Simplest input mode; suitable when the dataset fits on the training instance's disk |
+| Fast File mode | SageMaker training input mode that exposes S3 as a POSIX file system and streams objects on demand | Allows training to start immediately without downloading the full dataset |
+| Pipe mode | SageMaker training input mode that streams data as a Unix pipe (typically RecordIO) | Minimizes local disk usage for very large sequential datasets |
+| Apache Iceberg | Open table format supporting time-travel and schema evolution | Supported as an offline Feature Store table format alongside the default AWS Glue format |
+| Glue DataBrew masking | Glue DataBrew transform that replaces sensitive values with redacted placeholders | Enables sharing datasets without exposing PII or other sensitive column values |
+| Amazon Comprehend | AWS NLP service that detects entities, sentiment, key phrases, and PII in text | Can identify PII inside unstructured text fields before data is shared or labeled |
+
+---
+
 ## References <a name="references"></a>
 
 - SageMaker – Choosing an input mode and storage unit: https://docs.aws.amazon.com/sagemaker/latest/dg/model-access-training-data-best-practices.html

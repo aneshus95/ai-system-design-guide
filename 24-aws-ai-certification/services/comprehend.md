@@ -135,6 +135,45 @@ Pay-per-use, no minimums. The pricing **unit for built-in NLP APIs is 100 charac
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Comprehend | A fully managed NLP service that extracts insights like entities, sentiment, and PII from unstructured text | Lets you analyze large volumes of text without training or hosting any ML models |
+| NLP (Natural Language Processing) | The branch of AI that helps computers understand, interpret, and derive meaning from human language | The underlying technology powering all Comprehend features |
+| Entity recognition | Identifying and classifying named things in text such as people, organizations, locations, and dates | Structures raw text so downstream systems can act on specific mentions automatically |
+| Key phrase extraction | Pulling out the main noun phrases that summarize what a document is about | Quickly indexes or summarizes content without reading the full text |
+| Sentiment analysis | Classifying the overall emotional tone of a document as Positive, Negative, Neutral, or Mixed | Useful for monitoring customer feedback, reviews, and support tickets at scale |
+| Targeted sentiment | Sentiment measured per entity within a document rather than for the document as a whole | Answers questions like "what did customers think specifically about the delivery vs. the product?" |
+| Language detection | Identifying which language a piece of text is written in | Commonly used as a first step before routing text to Amazon Translate |
+| Syntax analysis | Labeling each word in a sentence with its grammatical role, such as noun, verb, or adjective | Used in pipelines that need fine-grained linguistic structure, like grammar checkers or parsers |
+| PII detection | Finding personally identifiable information in text such as names, SSNs, phone numbers, or credit card numbers | Enables automated compliance workflows that must locate and handle sensitive personal data |
+| PII redaction | Replacing detected PII in a document copy with masked placeholders | Produces a sanitized version of a document safe to share or store without exposing personal data |
+| Toxicity detection | Flagging harmful, abusive, or offensive content in text | Used in moderation pipelines for user-generated content platforms |
+| Prompt-safety classification | Categorizing whether an input to a language model is safe or a potential jailbreak attempt | Adds a guardrail layer to GenAI applications before the prompt reaches the model |
+| Topic modeling | Unsupervised grouping of a large document corpus into clusters of related themes | Discovers hidden structure in unlabeled text without needing predefined categories |
+| LDA (Latent Dirichlet Allocation) | The statistical algorithm behind Comprehend's topic modeling feature | Infers topics by finding words that frequently co-occur across documents |
+| Custom classification | Training Comprehend on your own labeled examples to categorize documents into your own categories | Routes tickets, tags content, or classifies documents into domain-specific buckets |
+| Custom entity recognition (CER) | Training Comprehend to find domain-specific entities not in the built-in model | Detects things like policy numbers, part IDs, or gene names that a generic model doesn't know |
+| Multi-class classification | A classification mode where each document gets exactly one label | Used when documents belong to one clear category, like assigning a support ticket to one team |
+| Multi-label classification | A classification mode where each document can receive multiple labels simultaneously | Used when a document legitimately belongs to more than one category at once |
+| Amazon Comprehend Medical | A separate HIPAA-eligible Comprehend service specialized for clinical and medical text | Extracts medical entities, PHI, and maps them to standard medical codes like ICD-10 |
+| PHI (Protected Health Information) | Medical data that can identify a patient, such as diagnoses, medications, or dates of service | Comprehend Medical detects PHI so healthcare systems can comply with HIPAA |
+| ICD-10-CM | A standardized medical coding system for diagnoses used for billing and clinical records | Comprehend Medical maps extracted conditions to ICD-10 codes via InferICD10CM |
+| RxNorm | A standard vocabulary for medications used across clinical systems | Comprehend Medical maps extracted drug mentions to RxNorm codes via InferRxNorm |
+| SNOMED CT | A comprehensive international clinical terminology standard | Comprehend Medical maps extracted medical concepts to SNOMED CT via InferSNOMEDCT |
+| Ontology linking | Mapping extracted medical terms to standardized code systems like ICD-10, RxNorm, or SNOMED CT | Allows downstream clinical systems to interpret extracted terms in a common language |
+| Synchronous API | A Comprehend API mode that processes one document at a time and returns results immediately | Used for real-time, low-latency applications needing instant text analysis |
+| Asynchronous batch job | A Comprehend API mode that processes large volumes of documents stored in S3 and returns results when done | Used for bulk processing of thousands or millions of documents cost-effectively |
+| Inference Unit (IU) | The billing unit for a live Comprehend custom real-time endpoint representing 100 characters per second | Determines how much capacity your endpoint provides and how much you are billed per second |
+| Amazon Textract | AWS's document OCR service that extracts text and structure from scanned files | Often used upstream of Comprehend to extract text from PDFs and images before NLP analysis |
+| Amazon Translate | AWS's managed neural machine translation service | Used downstream of Comprehend's language detection to translate text into a target language |
+| Amazon Bedrock | AWS's managed foundation model API service for generative AI | An alternative to Comprehend for flexible but costlier and less structured text analysis via LLMs |
+| Confidence score | A number between 0 and 1 indicating how certain the model is about a prediction | Used to filter low-quality results or route uncertain predictions to human review |
+| Character offset | The exact position in the source text where a detected entity or PII begins and ends | Allows precise redaction or highlighting of specific text spans in downstream processing |
+
 ## References
 
 - Amazon Comprehend — product page: https://aws.amazon.com/comprehend/

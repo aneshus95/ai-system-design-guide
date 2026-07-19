@@ -539,3 +539,86 @@ All sources are official AWS documentation unless noted (noted items are used on
 - Intuition only (not AWS facts): [Transformer architecture & self-attention — Codecademy](https://www.codecademy.com/article/transformer-architecture-self-attention-mechanism)
 
 > **Internal deep-dives:** [Bedrock](../services/bedrock.md) · [Amazon Q](../services/amazon-q.md) · [SageMaker](../services/sagemaker.md) · Back to [Exam Overview & Study Plan](../00-exam-overview-and-study-plan.md)
+
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Generative AI (GenAI)** | AI that creates new content — text, images, audio, or code — rather than just classifying existing content | The core technology this entire domain covers |
+| **Foundation Model (FM)** | A large model pre-trained on enormous data that can be adapted to many different tasks with little or no extra training | The basis for all GenAI services like Bedrock |
+| **Large Language Model (LLM)** | An FM specialized in text — it reads and writes natural language using a transformer architecture | Powers chatbots, summarization, translation, and code generation |
+| **Token** | The smallest unit of text a model processes — roughly 0.75 English words or 4 characters | Pricing and context window limits are measured in tokens |
+| **Tokenization** | Splitting text into tokens before feeding it to a model | Necessary because models work with numbers, not raw text |
+| **Context window** | The maximum number of tokens (input + output combined) a model can handle in one request | Sets the limit on how much text you can send; larger = more expensive |
+| **Input tokens** | Tokens that make up the prompt you send to the model | Billed at the input-token rate, usually cheaper than output |
+| **Output tokens** | Tokens the model generates in its response | Usually priced higher than input tokens |
+| **Embedding** | A list of numbers (a vector) that represents the meaning of a piece of text or other content | Captures semantic meaning so similar content lands close together in numeric space |
+| **Vector** | The list of numbers that forms an embedding | The raw mathematical representation the model uses internally |
+| **Dimensions** | How many numbers are in a vector — higher means richer but larger and costlier | Affects storage size, search speed, and semantic richness |
+| **Vector database** | A database optimized to find the nearest (most similar) vectors quickly | Enables semantic search and is the storage layer in RAG pipelines |
+| **Semantic search** | Retrieval based on meaning rather than exact keyword matching | Lets users find relevant content even when the wording differs |
+| **Amazon Titan Text Embeddings** | AWS embedding models that output 256, 512, or 1024 dimensions (V2) or 1536 (V1) | The primary AWS embedding model used in Bedrock Knowledge Bases |
+| **Chunking** | Splitting a long document into smaller passages before embedding each piece | Makes large documents searchable by meaning within a RAG pipeline |
+| **Retrieval-Augmented Generation (RAG)** | A technique that retrieves relevant document chunks at query time and includes them in the prompt | Grounds model answers in current private documents without retraining |
+| **Transformer** | The neural network architecture underlying virtually all modern LLMs | Enables parallel processing and long-range context understanding |
+| **Self-attention** | The mechanism inside a transformer that lets each token consider every other token when computing its meaning | How the model resolves ambiguity and understands context |
+| **Query / Key / Value (Q/K/V)** | The three components of the attention mechanism — Q asks, K advertises, V carries information | The mathematical building blocks of self-attention |
+| **Attention head** | One parallel self-attention computation within a transformer layer | Multiple heads learn different types of relationships simultaneously |
+| **RNN / LSTM** | Older sequential neural network architectures that process text one token at a time | Replaced by transformers for most NLP tasks due to speed and context limitations |
+| **Multi-modal model** | A model that can process more than one type of input or output, such as text and images | Used when applications need to read images, generate visuals, or handle mixed content |
+| **Diffusion model** | A model that generates images by starting from random noise and progressively removing it guided by a prompt | Used for text-to-image and text-to-video generation; not the same as an LLM |
+| **Prompt engineering** | Crafting the instructions sent to a model to steer its output | The cheapest way to change model behavior without any retraining |
+| **Context engineering** | Assembling everything the model sees at inference time — instructions, retrieved docs, tool outputs, and memory | Maximizes model performance by providing the right information within the token budget |
+| **Zero-shot** | Prompting a model with no worked examples | Tests the model's built-in knowledge; works for common tasks |
+| **Few-shot** | Including several worked examples in the prompt to teach the model a format or behavior | Improves performance on nuanced or unusual tasks |
+| **Chain-of-thought (CoT)** | Asking the model to reason step by step before giving a final answer | Improves accuracy on multi-step math, logic, and reasoning problems |
+| **System prompt** | Instructions placed at the start of a conversation to set persona, rules, and constraints | Sets the guardrails and role of the model for the entire session |
+| **AI agent** | A foundation model equipped with tools, memory, and a goal so it can take multi-step actions | Enables autonomous task completion beyond simple question-and-answer |
+| **Tool use** | An agent's ability to call external functions, APIs, or databases during a task | Connects the model to real-world data and actions |
+| **Memory (agent)** | Stored context that an agent retains across turns or sessions | Enables coherent multi-turn interactions and long-running workflows |
+| **Workflow orchestration** | Breaking a goal into steps and coordinating them across tools and agents | The planning capability that makes agents useful for complex tasks |
+| **Multi-agent system** | Several specialized agents collaborating — e.g., a planner, researcher, and writer | Handles tasks too complex for a single agent |
+| **Model Context Protocol (MCP)** | An open standard for connecting agents to external tools and data sources in a universal way | The "USB-C for AI tools" — any MCP agent can plug into any MCP server |
+| **Amazon Bedrock** | AWS managed serverless service giving access to many FMs from multiple providers through one API | The primary AWS platform for building GenAI apps without managing infrastructure |
+| **Amazon Bedrock Agents** | Bedrock feature for building agents that reason, call tools, and use knowledge bases | Used when the model needs to act, not just answer |
+| **Bedrock AgentCore** | AWS service for deploying, managing, and scaling production agents | Provides the infrastructure layer for production agentic applications |
+| **Strands Agents** | AWS open-source agent SDK for building custom agentic workflows | Gives developers programmatic control over agent behavior |
+| **PartyRock** | AWS no-code web playground for experimenting with GenAI apps for free | Used for learning and demos before writing code |
+| **SageMaker JumpStart** | SageMaker ML hub for one-click deploying and fine-tuning open and proprietary FMs | Offers more control than Bedrock, less than full SageMaker training |
+| **Amazon Q** | AWS ready-made AI assistant; Q Business answers from enterprise docs, Q Developer helps with code | A turnkey AI assistant; no need to build one |
+| **Amazon Q Business** | Amazon Q variant that answers questions from your private enterprise documents | Used for internal knowledge search without custom FM development |
+| **Amazon Q Developer** | Amazon Q variant that acts as an AI coding assistant in the IDE | Helps write, debug, and understand code |
+| **Kiro** | AWS AI developer tool for spec-driven and agentic software development workflows | An emerging GenAI coding and planning assistant |
+| **Hallucination** | When a model confidently states false or invented information | A key limitation of LLMs; mitigated with RAG, grounding, and human review |
+| **Nondeterminism** | The property that the same prompt can produce different outputs each run | Managed by lowering temperature or setting top-p/top-k constraints |
+| **Interpretability** | How easily you can understand why a model produced a specific output | A key limitation of large black-box models |
+| **Temperature** | A parameter that controls how random or creative the model's output is | Low temperature = deterministic and focused; high = creative and varied |
+| **Top-K** | A parameter limiting token sampling to the K most likely next tokens | Narrows the candidate pool; lower K = safer, more predictable output |
+| **Top-P (nucleus sampling)** | A parameter limiting token sampling to the smallest set whose cumulative probability reaches P | Dynamically adjusts the candidate pool based on probability mass |
+| **Adaptability** | An FM's ability to handle many different types of tasks without separate models | A key business advantage of foundation models over narrow ML |
+| **Cross-domain performance** | How well a single model performs across varied tasks and subject areas | A business metric for evaluating FM generalization |
+| **ROI (Return on Investment)** | Value gained from a GenAI project minus its total cost | The primary business metric for justifying GenAI investment |
+| **ARPU (Average Revenue Per User)** | Total revenue divided by the number of users | A business metric used to measure GenAI's impact on monetization |
+| **CLV / CLTV (Customer Lifetime Value)** | Total revenue expected from a customer over their entire relationship | Business metric for measuring long-term GenAI impact on retention |
+| **Conversion rate** | Percentage of users who take a desired action | Business metric for measuring GenAI impact on sales or engagement |
+| **On-Demand pricing** | Pay-per-token Bedrock pricing with no capacity commitment | Best for variable, low, or unpredictable traffic |
+| **Provisioned Throughput** | Bedrock pricing that reserves model capacity at a fixed hourly rate per Model Unit | Required for custom models; best for steady high-volume workloads |
+| **Model Unit (MU)** | The capacity unit purchased for Provisioned Throughput; guarantees a fixed token rate per minute | Defines how much guaranteed capacity you have for a specific model |
+| **Batch inference** | Bedrock option for running large offline jobs at roughly 50% lower cost than on-demand | Best for bulk scoring where latency does not matter |
+| **IAM (Identity and Access Management)** | AWS service controlling who can call which APIs and access which resources | Always the customer's responsibility, even with fully managed services |
+| **VPC (Virtual Private Cloud)** | AWS isolated private network for running resources away from the public internet | Used to isolate SageMaker training and inference resources |
+| **AWS PrivateLink** | AWS feature for private VPC connections to AWS services that bypass the public internet | Keeps Bedrock and SageMaker traffic off the public network |
+| **Bedrock Guardrails** | Bedrock feature that filters harmful content, blocks topics, and redacts PII at runtime | Adds safety controls to both inputs and outputs of GenAI applications |
+| **Shared responsibility model** | AWS's framework defining which security tasks AWS handles versus which the customer handles | AWS secures the cloud infrastructure; customers secure what they put in it |
+| **Data residency** | Keeping data stored and processed within specific geographic regions for compliance | Determined by which AWS Region you deploy in |
+| **Pre-training** | The initial and very costly process of training an FM on massive unlabeled data | Usually done by model providers like Anthropic, Meta, or Amazon |
+| **Fine-tuning** | Training an existing FM on a smaller labeled dataset to adapt its behavior | Much cheaper than pre-training; done in Bedrock or SageMaker |
+| **FM lifecycle** | The ordered stages an FM goes through: data → model selection → pre-train → fine-tune → evaluate → deploy → feedback | Tests ordering questions on the exam |
+| **Amazon Nova** | Amazon's family of multimodal foundation models (text, image, video) available in Bedrock | Includes Nova Canvas for images and Nova Reel for video generation |
+| **Stable Diffusion** | A popular open-source diffusion model for generating images from text prompts | Available via Amazon Bedrock from Stability AI |
+| **Anthropic Claude** | A family of LLMs from Anthropic available in Amazon Bedrock | A leading conversational AI model widely used for enterprise tasks |
+| **Meta Llama** | Open-weight LLM family from Meta available via Bedrock and SageMaker JumpStart | Popular for fine-tuning because weights can be downloaded and modified |
+| **Amazon OpenSearch Service** | AWS managed search engine that also supports vector and hybrid search | Default vector store backend for Amazon Bedrock Knowledge Bases |
+| **Amazon Bedrock Knowledge Bases** | Managed RAG service that handles chunking, embedding, storage, retrieval, and citation | The easiest way to ground a Bedrock model on private documents |

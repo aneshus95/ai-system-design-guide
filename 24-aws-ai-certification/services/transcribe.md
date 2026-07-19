@@ -130,6 +130,36 @@ Billed **per second** of audio (one-second increments), with a **15-second minim
 | "redact PII from transcript" | **PII / automatic content redaction** |
 | "detect spoken language" | **automatic language identification** |
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Transcribe | Fully managed AWS automatic speech recognition service that converts audio to text | Turns recorded or live audio into searchable, analyzable transcripts |
+| ASR | Automatic Speech Recognition — technology that converts spoken words into written text | The core engine powering Transcribe |
+| Batch transcription | Processes a pre-recorded audio file stored in S3 and returns a finished transcript | Best for accuracy and large files; processes the whole file before returning results |
+| Real-time streaming transcription | Transcribes live audio over HTTP/2 or WebSocket with low latency | Used for live captions, live agent assist, and real-time subtitles |
+| Custom vocabulary | A list of domain-specific words, product names, or acronyms you give Transcribe | Improves spelling accuracy for jargon without retraining a model |
+| Custom Language Model (CLM) | A model you train on a domain text corpus for deeper accuracy gains | Used when custom vocabulary alone isn't enough (e.g., highly technical or legal audio) |
+| Vocabulary filtering | Masks, removes, or flags specific unwanted words (e.g., profanity) in the transcript | Moderates transcript output for customer-facing or compliance use cases |
+| Speaker diarization | Labels who spoke when on a single-channel recording | Used for meeting or interview recordings where all speakers share one audio track |
+| Channel identification | Separately transcribes each audio channel (e.g., agent vs. customer on a stereo call) | Used for two-channel call recordings; billed as one stream |
+| Automatic language identification | Detects the spoken language automatically without you specifying it | Useful when audio language is unknown or variable |
+| PII redaction | Identifies and blanks out personally identifiable information in the transcript | Protects sensitive data (SSNs, card numbers) before downstream processing |
+| Automatic Content Redaction | The Transcribe feature name for transcript-level PII redaction | An add-on priced per minute that removes sensitive identifiers from the output |
+| Toxicity detection | Flags toxic speech (harassment, hate, threats) in audio | Used for moderation of gaming, social, or peer-to-peer audio content |
+| Transcribe Medical | HIPAA-eligible Transcribe variant for clinical dictation and conversations | Used by healthcare providers to transcribe patient-clinician audio accurately |
+| Transcribe Call Analytics | Purpose-built Transcribe offering for contact centers with sentiment, categories, and summaries | Replaces manual stitching of Transcribe + Comprehend for call-center analysis |
+| AWS HealthScribe | Generative AI service built on Transcribe that produces structured clinical notes | Automates clinical documentation from patient-clinician conversations |
+| Word-level timestamps | Per-word timing data included in the Transcribe JSON output | Enables text highlighting, downstream alignment, and navigation in the transcript |
+| Confidence score | A number indicating how certain Transcribe is about each transcribed word | Helps flag low-confidence words for human review |
+| Amazon Comprehend | AWS NLP service that extracts meaning (sentiment, entities, PII) from text | Paired with Transcribe when you need to analyze the content of a transcript |
+| Amazon Translate | AWS neural machine translation service | Chained after Transcribe to translate transcripts into other languages |
+| Amazon Bedrock | AWS platform for running foundation models | Used after Transcribe to summarize, answer questions over, or do RAG on transcripts |
+| Free tier | 60 audio minutes per month for the first 12 months at no charge | Allows experimentation and small-scale evaluation without cost |
+| Volume tiers | Pricing model where the per-minute rate decreases as monthly usage increases | Reduces cost for high-volume production workloads |
+
 ## References
 
 - Amazon Transcribe — product page: https://aws.amazon.com/transcribe/

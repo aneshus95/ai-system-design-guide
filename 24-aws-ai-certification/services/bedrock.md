@@ -130,6 +130,61 @@ Reflexes — **if you see X, pick Bedrock (or the noted feature)**:
 - **Bedrock vs SageMaker**: Bedrock = serverless FM API + GenAI building blocks; SageMaker = full ML platform where you train/host and control endpoints. "Full control / custom training / host unsupported model" → SageMaker (JumpStart to quickly deploy open FMs).
 - Bedrock is **regional** and supports **IAM**, **KMS encryption**, **CloudWatch/CloudTrail**, and **cross-region inference** for higher availability/throughput.
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Bedrock | A fully managed AWS service that gives you a single API to access many AI foundation models | Lets you build generative AI apps without managing any servers or GPU infrastructure |
+| Foundation Model (FM) | A large pre-trained AI model that can handle many tasks like writing, summarizing, and answering questions | The core "brain" powering generative AI features |
+| Serverless | A cloud delivery model where AWS runs and scales the infrastructure for you automatically | You pay only for what you use and never provision or manage servers |
+| Unified API | A single consistent programming interface that works with multiple different AI model providers | Lets you swap models by changing one parameter without rewriting your integration code |
+| modelId | The string identifier you pass to Bedrock to specify which foundation model to use | Allows model selection and easy model swapping within the same API call |
+| Converse API | A standardized Bedrock API that uses a consistent message format across all supported models | Makes it easy to switch between chat-style models without changing your code structure |
+| InvokeModel API | A Bedrock API for sending a prompt to a foundation model and getting a response | The core inference call for direct text and image generation requests |
+| Knowledge Bases | A fully managed Bedrock feature that connects your documents to a foundation model so it can answer questions from them | Provides managed Retrieval-Augmented Generation (RAG) without building the pipeline yourself |
+| RAG (Retrieval-Augmented Generation) | A technique where the AI looks up relevant documents before generating an answer | Makes AI responses grounded in your actual data rather than just the model's training |
+| Bedrock Agents | A Bedrock feature that lets a model break a task into steps, call your APIs, and take multi-step actions | Enables autonomous AI that can complete complex goals, not just answer single questions |
+| Action groups | Configured connections between a Bedrock Agent and your AWS Lambda functions or APIs | Let an agent actually do things, like query a database or submit a form |
+| Bedrock Guardrails | Configurable safety controls you apply on top of any foundation model to filter harmful or unwanted content | Enforces responsible AI policies like blocking hate speech, denying topics, or redacting PII |
+| PII (Personally Identifiable Information) | Data that can identify a specific person, like names, SSNs, or credit card numbers | Must be detected and redacted to comply with privacy regulations |
+| Contextual grounding | A Guardrails feature that checks whether an AI answer is actually supported by the retrieved documents | Reduces hallucinations in RAG systems by verifying answers against sources |
+| Automated Reasoning checks | A Guardrails feature that uses math-based logic to verify factual claims in model responses | Catches errors that are provably wrong, adding an extra accuracy layer |
+| Prompt Attack | A category of harmful input where someone tries to trick the model into ignoring its instructions | Guardrails can detect and block this category of jailbreak attempt |
+| Fine-tuning | Training an existing model further on your labeled examples to improve it for your specific task | Adapts a general-purpose model to your domain without training from scratch |
+| Continued pre-training | Training an existing model further on large amounts of unlabeled domain text | Teaches the model your industry's vocabulary and context without needing labeled examples |
+| Provisioned Throughput | A Bedrock pricing option where you reserve dedicated model capacity billed per hour with a commitment | Guarantees throughput for steady high-volume workloads and is required for custom models |
+| Model units | The unit of reserved capacity in Provisioned Throughput | Each unit represents a certain amount of inference throughput you are guaranteeing |
+| On-Demand pricing | Pay-as-you-go Bedrock billing with no commitment, charged per token or per image | Best for variable or exploratory workloads where traffic is unpredictable |
+| Batch inference | Submitting a large job of many prompts to run asynchronously overnight, with results stored in S3 | Roughly 50% cheaper than on-demand and ideal for non-time-sensitive bulk work |
+| Prompt caching | Storing repeated prompt prefixes so the model doesn't reprocess them on every call | Cuts cost and latency when you use the same long system prompt over and over |
+| Bedrock Flows | A visual drag-and-drop tool to chain prompts, models, Knowledge Bases, Agents, and Lambda into a workflow | Lets you build multi-step AI pipelines without writing orchestration code |
+| Prompt Management | A Bedrock feature for storing, versioning, and testing reusable prompt templates | Keeps prompts organized, reproducible, and shareable across your team |
+| LLM-as-a-judge | Using another language model to automatically score and evaluate model outputs | Allows scalable, automated model evaluation without requiring human reviewers |
+| Model evaluation | Bedrock tooling to compare multiple models on your own test data before committing to one | Helps you pick the best model for your specific task based on objective metrics |
+| Amazon Nova | Amazon's own family of multimodal foundation models on Bedrock (Micro, Lite, Pro, Premier, Canvas, Reel) | AWS-native models optimized for cost-effectiveness across text, image, and video tasks |
+| Amazon Titan | Amazon's older family of foundation models on Bedrock covering text, embeddings, and images | General-purpose AWS-native models, especially useful for generating embeddings |
+| Anthropic Claude | A family of AI models from Anthropic available on Bedrock, known for strong reasoning and long context | Popular choice for agentic tasks, complex reasoning, and tool use scenarios |
+| Meta Llama | An open-weight family of AI models from Meta available on Bedrock | Provides a customizable, open-source alternative with multimodal capabilities |
+| Cohere Embed | A Cohere model on Bedrock designed to turn text into vector embeddings for search | Used in RAG pipelines to convert documents and queries into searchable numerical representations |
+| Vector store | A database that stores and searches high-dimensional number arrays (embeddings) by similarity | The retrieval backbone of RAG systems that finds relevant documents for a given query |
+| OpenSearch Serverless | A fully managed, auto-scaling version of Amazon OpenSearch Service | Used as the default vector store for Bedrock Knowledge Bases |
+| Aurora pgvector | Amazon Aurora PostgreSQL with an extension for storing and querying vector embeddings | An option for teams already using PostgreSQL who want RAG without a separate vector database |
+| Neptune Analytics | Amazon's graph database service with vector search support for GraphRAG use cases | Used when your knowledge has complex relationships best represented as a graph |
+| S3 Vectors | Amazon S3 with native support for storing vector embeddings | A simple, low-cost vector storage option integrated directly into S3 |
+| VPC (Virtual Private Cloud) | A logically isolated network in AWS where your resources communicate privately | Keeps traffic between your application and Bedrock off the public internet |
+| PrivateLink | An AWS service that creates private network connections between your VPC and AWS services | Ensures Bedrock API calls never traverse the public internet for security compliance |
+| IAM (Identity and Access Management) | AWS's system for controlling who can access which services and actions | Used to restrict which users or applications can call Bedrock APIs |
+| KMS (Key Management Service) | AWS's service for creating and managing encryption keys | Ensures data sent to and stored by Bedrock is encrypted with your own keys |
+| CloudWatch | AWS's monitoring and logging service | Tracks Bedrock usage metrics and errors for observability |
+| CloudTrail | AWS's audit logging service that records every API call | Provides a complete record of who called Bedrock and when for compliance |
+| Cross-region inference | Bedrock's ability to route requests to the same model in a different AWS region | Improves availability and throughput when one region is congested |
+| Amazon Bedrock Marketplace | An extension of the Bedrock model catalog featuring 100+ specialized third-party models | Lets you access niche or emerging models that aren't in the standard catalog |
+| PartyRock | A no-code web app built on Bedrock for experimenting with generative AI and building shareable demos | A learning and prototyping playground that requires no AWS account or coding |
+| Amazon Q | A family of managed AI assistants built on Bedrock for enterprise data and software development | Ready-made AI products so you don't have to build a custom assistant yourself |
+| SageMaker JumpStart | A SageMaker feature for deploying and fine-tuning foundation models on your own managed endpoints | Used when you need more control over the model infrastructure than serverless Bedrock provides |
+
 ## References
 
 - Amazon Bedrock — product page: https://aws.amazon.com/bedrock/

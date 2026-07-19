@@ -1290,4 +1290,32 @@ The window computes each dept average **once**; the correlated-subquery version 
 
 ---
 
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **DataFrame** | A pandas 2-D table of rows and columns | The core structure for tabular data work |
+| **Series** | A single pandas column (1-D labeled array) | Result of selecting one column; input to many ops |
+| **`groupby`** | Split rows into groups by a key, then aggregate/transform each group | Per-category summaries (avg per dept, count per user) |
+| **`agg`** | Reduce each group to one value per column (sum, mean, etc.) | Produce a summary table, one row per group |
+| **`transform`** | Return a value for every original row, aligned to the group | Fill/normalize within groups without collapsing rows |
+| **`apply`** | Run a custom function over a group, column, or row | Flexible catch-all when agg/transform don't fit |
+| **`merge` / join** | Combine two DataFrames on matching keys | Bring related data together (like SQL JOIN) |
+| **`merge_asof`** | Join on nearest key rather than exact match | Time-series joins (latest price before a trade) |
+| **`pivot` / `pivot_table`** | Reshape long data into a wide cross-tab | Rows×columns summaries |
+| **`melt`** | Reshape wide data into long (unpivot) | Tidy format for analysis/plotting |
+| **Vectorization** | Operating on whole arrays at once instead of Python loops | Faster, cleaner pandas/numpy code |
+| **Window function** | SQL calc across a set of rows related to the current row, without collapsing them | Running totals, rankings, per-group comparisons |
+| **`PARTITION BY`** | Splits window-function rows into groups | Restart the window per category |
+| **`ROW_NUMBER` / `RANK` / `DENSE_RANK`** | Assign position numbers within a partition | Top-N per group, deduplication |
+| **CTE (`WITH`)** | A named temporary result you can reference in a query | Break complex SQL into readable steps |
+| **Recursive CTE** | A CTE that references itself | Hierarchies, sequences, gaps-and-islands |
+| **`HAVING`** | Filter *after* grouping/aggregation | Keep groups meeting a condition (count ≥ 5) |
+| **Gaps and islands** | Pattern for finding consecutive runs (or breaks) in ordered data | Sessionization, streak detection |
+| **Cohort / retention** | Group users by start period and track behavior over time | Measure repeat engagement |
+| **Sargable** | A predicate that can use an index | Faster queries; avoid wrapping indexed columns in functions |
+| **Execution order** | The logical order SQL runs (FROM→WHERE→GROUP BY→HAVING→SELECT→ORDER BY) | Explains why aliases/aggregates behave as they do |
+
+---
+
 *Previous: [OOP in Python](02-oop-in-python.md) | Up: [Guide Home](../README.md)*

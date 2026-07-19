@@ -110,6 +110,34 @@ Pay-per-character (includes whitespace and punctuation), no minimum commitment, 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Translate | Fully managed AWS neural machine translation service that converts text between languages | Provides cheap, fast, consistent translation without building or hosting an ML model |
+| NMT | Neural Machine Translation — deep-learning approach to translation that understands context | Produces fluent, natural-sounding translations instead of word-by-word substitutions |
+| TranslateText | Synchronous Translate API for real-time text translation | Used in interactive apps, chat, and live caption pipelines |
+| StartTextTranslationJob | Asynchronous Translate API that processes a batch of documents in S3 | Used for large overnight translation workloads across many files |
+| Automatic source-language detection | Setting source language to `auto` so Translate identifies the input language via Comprehend | Removes the need to know or specify the source language before translating |
+| Custom terminology | A glossary (CSV or TMX) that forces specific terms to always translate the same way | Preserves brand names, product names, and acronyms exactly as required |
+| TMX | Translation Memory eXchange — standard file format for bilingual glossaries and memories | Supported format for uploading custom terminology or parallel data to Translate |
+| Active Custom Translation (ACT) | Feature that uses parallel data (example translations) to adapt output to your style on the fly | Tailors translation to your domain without training or hosting a custom model |
+| Parallel data | Your own example source-target translation pairs used to train ACT | Teaches Translate to mimic your organization's preferred phrasing and terminology |
+| Formality | Translate option that controls the politeness register of the output (formal vs. informal) | Used for languages with distinct formal/informal forms (French, German, Hindi, Italian, Japanese, Spanish) |
+| Profanity masking | Translate option that replaces offensive words in the output with a grawlix (`?$#@$`) | Keeps translated content appropriate for customer-facing or regulated contexts |
+| Grawlix | Typographic placeholder (`?$#@$`) substituted for profane words when masking is on | Indicates redacted content while preserving sentence flow |
+| Real-time document translation | Translate mode that converts a formatted document (text, HTML, DOCX) in one synchronous call | Preserves document structure and formatting alongside the translated content |
+| Language pair | A specific source-language to target-language combination supported by Translate | Translate converts between pairs via an intermediate representation, enabling thousands of combinations |
+| Amazon Comprehend | AWS NLP service for sentiment, entity, and language detection on text | Used under the hood by Translate for automatic source-language detection |
+| Amazon Transcribe | AWS speech-to-text service that is the first step of the speech-translation pipeline | Converts audio to text before Translate handles the language conversion |
+| Amazon Polly | AWS text-to-speech service that is the last step of the speech-translation pipeline | Speaks the translated text in the target language after Translate produces it |
+| Amazon Bedrock | AWS platform for running foundation models including large language models | Alternative to Translate when translation is bundled with generation or reasoning in one prompt |
+| KMS | AWS Key Management Service used to encrypt Translate data at rest | Ensures customer content sent to Translate is encrypted and not used to train AWS models |
+| Per-character billing | Translate pricing model that charges by the number of input characters (including whitespace) | Predictable cost model; no minimum commitment or volume tiers |
+| Free tier | ~2 million characters per month for 12 months for standard text translation | Allows experimentation and small-scale production without cost |
+
 ## References
 
 - Amazon Translate — product page: https://aws.amazon.com/translate/

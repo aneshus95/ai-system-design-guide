@@ -537,3 +537,86 @@ ROUGE and BLEU count **surface word overlap**; BERTScore compares **meaning**, s
 
 **Exam guide**
 - AWS Certified AI Practitioner (AIF-C01) exam guide: https://docs.aws.amazon.com/aws-certification/latest/examguides/ai-practitioner-01.html
+
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| **Foundation Model (FM)** | A large pre-trained model that can be adapted to many tasks with little or no extra training | The core building block for all GenAI applications covered in this domain |
+| **Amazon Bedrock** | AWS managed service giving access to many FMs from multiple providers via one API | Primary platform for building GenAI apps without managing infrastructure |
+| **Model selection** | Choosing the best FM for a task based on cost, latency, capability, and compliance | Ensures the application meets requirements without overpaying for capability |
+| **Modality** | The type of input or output a model handles — text, image, audio, video, or mixed | Determines which model family to use for a given task |
+| **Multi-modal model** | A model that handles more than one type of content, such as text and images together | Used when an application needs to process or generate images alongside text |
+| **Context window** | Maximum number of tokens (input + output) a model can handle in a single request | Must be large enough to hold the prompt plus RAG chunks plus the expected answer |
+| **Temperature** | Parameter controlling how random the model's output is | Low temperature = consistent, factual; high = creative, varied |
+| **Top-K** | Parameter limiting token sampling to the K most probable next tokens | Narrows the candidate pool; lower K means more predictable output |
+| **Top-P (nucleus sampling)** | Parameter limiting sampling to the smallest token set whose cumulative probability reaches P | Dynamically adjusts candidate pool size based on probability mass |
+| **Max tokens (output length)** | Hard cap on how many tokens the model generates before stopping | Controlling cost and preventing runaway responses; increase if answers are cut off |
+| **Retrieval-Augmented Generation (RAG)** | Technique where relevant document chunks are retrieved and included in the prompt before the model answers | Grounds answers in current private documents without retraining the model |
+| **Amazon Bedrock Knowledge Bases** | AWS managed RAG service handling chunking, embedding, retrieval, and citations automatically | Easiest way to build a grounded enterprise Q&A application on Bedrock |
+| **Chunking** | Splitting long documents into smaller passages before embedding each one | Ensures each embedded unit is small enough for precise retrieval |
+| **Embedding** | A numeric vector that captures the meaning of a text chunk | Enables similarity-based retrieval of relevant chunks for a given query |
+| **Vector store / vector database** | A database optimized to find the nearest (most similar) embedding vectors quickly | The storage and retrieval layer of any RAG pipeline |
+| **Amazon OpenSearch Service** | AWS managed search engine supporting vector and hybrid (keyword + vector) search | The default vector store for Bedrock Knowledge Bases |
+| **Amazon Aurora (pgvector)** | AWS managed PostgreSQL database with the pgvector extension for storing embeddings | Used when vectors need to live alongside existing relational data |
+| **Amazon RDS for PostgreSQL (pgvector)** | AWS managed PostgreSQL with pgvector support | Used when an existing RDS Postgres estate needs to store embeddings |
+| **Amazon Neptune Analytics** | AWS managed graph database with vector search for highly connected data | Used for GraphRAG — combining graph relationships with embedding retrieval |
+| **Amazon DocumentDB** | AWS managed MongoDB-compatible document database with vector search | Used for JSON/document workloads that also need semantic retrieval |
+| **pgvector** | An open-source PostgreSQL extension that adds vector storage and similarity search | Enables relational databases to serve as vector stores |
+| **Semantic search** | Retrieval by meaning rather than exact keyword matching | Lets users find relevant documents even when they use different words |
+| **Hybrid search** | Combining keyword search and vector search results | Improves recall by catching both exact-match and semantic matches |
+| **GraphRAG** | RAG that uses a graph database to capture relationships between entities alongside embeddings | Useful when the data has complex entity relationships, such as knowledge graphs |
+| **Bedrock Agents** | Bedrock feature for building agents that reason, call tools, and use knowledge bases to complete multi-step tasks | Used when an FM needs to act, not just answer |
+| **Action group** | A set of API operations defined by an OpenAPI or JSON schema that a Bedrock Agent may call | Connects the agent to external systems like databases or business APIs |
+| **AWS Lambda** | AWS serverless compute used as the backend for Bedrock Agent action groups | Executes API calls on behalf of the agent without managing servers |
+| **OpenAPI / JSON schema** | A standard format for describing an API's operations and parameters | Used to define which actions a Bedrock Agent can perform |
+| **Multi-agent collaboration** | A pattern where a supervisor agent coordinates multiple specialist sub-agents | Used for tasks too complex for a single agent |
+| **In-context learning** | Using examples or instructions placed directly in the prompt to steer model behavior | The cheapest customization — no training, just tokens |
+| **Zero-shot** | Prompting with no worked examples | Works for tasks the model already knows; no example cost |
+| **One-shot (single-shot)** | Providing exactly one example before the task | Helps the model understand expected format with minimal prompt cost |
+| **Few-shot** | Providing several examples before the task | Improves performance on nuanced or format-sensitive tasks |
+| **Chain-of-thought (CoT)** | Asking the model to reason step by step before giving a final answer | Improves accuracy on multi-step math, logic, and reasoning problems |
+| **Prompt template** | A reusable, parameterized prompt with variable slots | Standardizes prompts across an application for consistency |
+| **Instruction** | The task directive inside a prompt | Tells the model what action to perform |
+| **Context (prompt)** | Background information included in a prompt for the model to use | Helps the model produce accurate and relevant responses |
+| **Negative prompt** | Instructions about what to avoid or exclude | Steers the model away from unwanted styles, topics, or formats |
+| **Latent space** | The model's internal high-dimensional representation of everything it learned during training | A prompt navigates this space toward the desired response region |
+| **Prompt injection / hijacking** | A malicious input that overrides the developer's instructions to redirect the model | The top OWASP LLM risk; mitigated with Guardrails prompt-attack filter |
+| **Jailbreaking** | A prompt crafted to bypass the model's built-in safety guardrails | Produces harmful or disallowed content; mitigated with Guardrails |
+| **Prompt poisoning / data poisoning** | Injecting misleading content into training data or RAG sources to corrupt model outputs | Mitigated by curating and governing data sources |
+| **Prompt leaking / exposure** | Tricking the model into revealing its hidden system prompt or configuration | Mitigated by Guardrails prompt-leakage detection and not storing secrets in prompts |
+| **Bedrock Guardrails** | Bedrock feature that filters harmful content, blocks topics, redacts PII, and detects prompt attacks | The primary AWS runtime defense against all prompt-attack categories |
+| **Prompt-attack filter** | A Guardrails policy that detects prompt injection and jailbreak attempts | Configurable at strength levels: NONE, LOW, MEDIUM, HIGH |
+| **Input tagging** | Guardrails feature that labels parts of a prompt as trusted (developer) or untrusted (user) | Prevents user input from overriding developer instructions |
+| **Pre-training** | Training an FM from scratch on massive unlabeled data — very expensive | Done by model providers; practitioners almost never do this |
+| **Continued pre-training** | Further training an existing FM on additional unlabeled domain text | Injects domain vocabulary and knowledge into an existing model |
+| **Fine-tuning** | Training an FM on a smaller labeled dataset to adapt its behavior to a specific task | Bakes consistent style, format, or task behavior into the model weights |
+| **Instruction tuning** | Fine-tuning on (instruction → desired response) pairs | Makes the model better at following natural language instructions |
+| **Domain adaptation** | Fine-tuning or continued pre-training on a specific field's data (legal, medical, finance) | Improves model performance on specialized domain terminology and tasks |
+| **Transfer learning** | Reusing knowledge from a pre-trained model and adapting it to a new related task | Why fine-tuning works — the model doesn't have to relearn language from scratch |
+| **RLHF (Reinforcement Learning from Human Feedback)** | Training technique that uses human preference rankings to align model behavior | Used to make models helpful, harmless, and honest |
+| **Reward model** | A secondary model trained to predict human preference scores | The bridge between human rankings and RL optimization |
+| **SFT (Supervised Fine-Tuning)** | The first step of RLHF — fine-tuning on high-quality example answers | Gives the model a starting behavior before RL refinement |
+| **JSONL** | JSON Lines format — one JSON object per line | Required data format for Bedrock model customization (fine-tuning) jobs |
+| **FINE_TUNING job type** | Bedrock API value for customization jobs that use labeled prompt-completion pairs | Used when you want to adapt behavior with supervised examples |
+| **CONTINUED_PRE_TRAINING job type** | Bedrock API value for customization jobs that use unlabeled domain text | Used when you want to deepen domain knowledge without labeled examples |
+| **Amazon SageMaker Ground Truth** | SageMaker labeling service for creating high-quality training datasets | Enables human and automated labeling at scale |
+| **Amazon Augmented AI (A2I)** | AWS service for routing low-confidence model predictions to human reviewers | Used for RLHF feedback collection and high-stakes decision review |
+| **Amazon Mechanical Turk** | Crowdsourcing marketplace for human labeling tasks | Provides a scalable workforce for data labeling and RLHF ranking |
+| **Bedrock Model Evaluation** | Bedrock feature for measuring model quality using automated metrics and human review | Lets you compare models before committing to one in production |
+| **ROUGE** | Metric measuring recall-oriented n-gram overlap between generated and reference text | Standard metric for evaluating summarization quality |
+| **BLEU** | Metric measuring precision-oriented n-gram overlap between generated and reference text | Standard metric for evaluating translation quality |
+| **BERTScore** | Metric measuring semantic similarity between generated and reference text using contextual embeddings | Catches correct paraphrases that ROUGE/BLEU would miss |
+| **N-gram** | A contiguous sequence of N words used in text overlap metrics | The unit of comparison in ROUGE and BLEU calculations |
+| **Brevity penalty** | BLEU's correction for outputs that are too short | Prevents a model from gaming BLEU by generating one correct word |
+| **MMLU** | Massive Multitask Language Understanding — a standardized benchmark dataset | Used to compare LLMs on broad academic knowledge tasks |
+| **Human evaluation** | Having people rate model outputs for quality, accuracy, tone, and safety | Captures nuance that automated metrics miss; slow and costly at scale |
+| **Business KPI** | A measurable business outcome such as time saved, cost per interaction, or conversion rate | The real test of whether an FM is creating value |
+| **Task completion rate** | Percentage of user tasks the AI system successfully completes | Measures whether the FM actually solves real user problems |
+| **Deflection rate** | Percentage of support tickets or calls handled by AI without human escalation | Measures cost savings from AI automation in customer support |
+| **CSAT / NPS** | Customer Satisfaction score and Net Promoter Score | Business metrics for measuring user satisfaction with AI features |
+| **Customization cost ladder** | The ranking from cheapest to most expensive FM adaptation: in-context < RAG < fine-tuning < continued pre-training < pre-training | Used to pick the lightest approach that meets the requirement |
+| **PPO (Proximal Policy Optimization)** | The RL algorithm commonly used in the RLHF optimization step | Keeps model updates stable while maximizing the reward signal |
+| **Bedrock Evaluations** | Bedrock product for running automated and human evaluation jobs against FM outputs | Lets you compare model quality before selecting or switching models |

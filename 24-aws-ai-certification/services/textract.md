@@ -127,6 +127,38 @@ Pay-per-page, no minimums; each **feature is billed separately and additively** 
 
 ---
 
+---
+
+## Glossary
+
+| Term | Simple explanation | Purpose |
+|---|---|---|
+| Amazon Textract | A managed AWS service that extracts text, handwriting, forms, tables, and structured data from scanned documents and images | Goes beyond raw OCR by preserving document structure like key-value form fields and table rows/columns |
+| OCR (Optical Character Recognition) | Technology that converts scanned or photographed text into machine-readable characters | The foundation of document digitization, turning images of words into editable text |
+| DetectDocumentText | Textract's basic OCR API that returns all words and lines found in a document image | The cheapest Textract operation; use it when you just need raw text without preserving structure |
+| AnalyzeDocument | Textract's structured analysis API that extracts forms, tables, queries, signatures, and layout from a document | Preserves the relationships between labels and values in a form or cells in a table |
+| FORMS feature | An AnalyzeDocument feature type that extracts key-value pairs like "Name: Jane Doe" from a form | Eliminates manual template-matching by automatically identifying which text is a label vs. a value |
+| TABLES feature | An AnalyzeDocument feature type that reconstructs table grids with rows, columns, and cell relationships | Turns a printed grid into structured data you can query or load into a spreadsheet |
+| QUERIES feature | An AnalyzeDocument feature type where you ask natural-language questions and Textract returns the answer | Extracts specific fields without needing a fixed template, adaptable to varied document layouts |
+| Custom Queries | A Textract feature for tuning QUERIES to your specific document types with additional examples | Improves extraction accuracy for documents with unusual layouts or non-standard field names |
+| SIGNATURES feature | An AnalyzeDocument feature type that detects the presence and location of handwritten signatures | Used in contract and agreement workflows where signature verification is required |
+| LAYOUT feature | An AnalyzeDocument feature type that identifies structural elements like titles, headers, and paragraphs | Preserves reading order, making extracted text cleaner for feeding into LLMs or RAG pipelines |
+| AnalyzeExpense | A Textract API specialized for extracting vendor, total, tax, and line-item data from invoices and receipts | More accurate than generic FORMS for financial documents because it understands expense semantics |
+| AnalyzeID | A Textract API that extracts normalized identity fields from US driver's licenses and passports | Standardizes inconsistent ID layouts into consistent key names like DATE_OF_BIRTH or DOCUMENT_NUMBER |
+| AnalyzeLending | A Textract API for mortgage and loan packages that classifies each page type and routes it to the right extraction | Automates document intake for financial services without building a custom page-classification system |
+| Key-value pair | A label paired with its corresponding value, like "Date of Birth: 01/01/1980" | The structured output of FORMS extraction, representing filled form fields in a machine-readable way |
+| Bounding box | Coordinates describing the rectangular region in an image where a detected word or element appears | Enables downstream applications to highlight, crop, or verify exactly where text was found |
+| Synchronous API | A Textract API that processes a single-page image or small document and returns results immediately | Used for real-time document processing where low latency matters |
+| Asynchronous API | A Textract API (Start… / Get…) that processes multi-page PDFs from S3 and notifies you via SNS when done | Required for multi-page documents since synchronous APIs only handle one page at a time |
+| JobId | A unique identifier returned by an asynchronous Textract Start API call | Used to poll or retrieve the results of a multi-page document analysis job |
+| SNS (Simple Notification Service) | AWS's managed message notification service | Used by async Textract jobs to notify your application when processing is complete |
+| Amazon A2I (Augmented AI) | An AWS service that routes low-confidence AI predictions to human reviewers | Integrated with Textract so uncertain extractions can be verified by a person before use |
+| Confidence threshold | A minimum confidence score below which an extraction is flagged for human review | Controls the quality bar for automated processing versus human-in-the-loop review |
+| Amazon Comprehend | AWS's managed NLP service for entity extraction, sentiment, PII detection, and more | Used downstream of Textract to understand or classify the text that Textract extracted |
+| Amazon Rekognition | AWS's managed computer-vision service for analyzing images and video scenes | Handles scene-level text detection in photos, not structured document extraction like Textract |
+| Per-page billing | Textract's pricing model where each feature is charged per 1,000 pages processed | Features stack additively, so requesting FORMS and TABLES on the same page charges for both |
+| TIFF | A multi-page image format used for scanned documents | Textract async APIs support multi-page TIFFs stored in S3 alongside multi-page PDFs |
+
 ## References
 
 - [What is Amazon Textract](https://docs.aws.amazon.com/textract/latest/dg/what-is.html)

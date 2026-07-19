@@ -1,6 +1,6 @@
 # MLA-C01 Practice Questions
 
-A bank of ~80 scenario-based practice questions for the **AWS Certified Machine Learning Engineer – Associate (MLA-C01)** exam, organized by the four official exam domains in proportion to their scored weight, plus a mixed mini-exam that blends domains the way the real test does.
+A bank of ~100 scenario-based practice questions for the **AWS Certified Machine Learning Engineer – Associate (MLA-C01)** exam, organized by the four official exam domains in proportion to their scored weight, plus a mixed mini-exam and a second set of advanced questions that blend domains the way the real test does.
 
 > **How to use this bank**
 > 1. Read the scenario carefully and note the **qualifier** ("MOST cost-effective", "LEAST operational overhead", "highest throughput", "minimal latency"). On the real exam the qualifier is usually what separates the right answer from a technically-workable-but-wrong distractor.
@@ -1384,16 +1384,443 @@ A near-real-time recommendation service needs to enrich each request with the us
 
 ---
 
+## Additional practice — Set 2
+
+These 20 questions cover fresh MLA-C01 angles including inference right-sizing, shadow testing, warm pools, deployment guardrails, lineage tracking, Processing jobs, Batch Transform data joins, cross-account governance, and cost allocation — weighted toward Data Preparation (28 %) and Monitoring / Security (24 %).
+
+### Q81. [MCQ]
+
+A data scientist wants to identify the **most cost-effective** real-time endpoint instance type for a newly registered PyTorch model before committing to production traffic. The team has no historical load-test data. Which SageMaker feature should they use *first*?
+
+- **A.** Run a SageMaker Automatic Model Tuning job with instance type as a categorical hyperparameter.
+- **B.** Use Amazon SageMaker Inference Recommender to run a Default recommendation job, then optionally an Advanced (load-test) job against the shortlisted instances.
+- **C.** Deploy the model to a Multi-Model Endpoint and compare CloudWatch latency metrics across instance sizes.
+- **D.** Use SageMaker Debugger profiling rules to measure GPU utilisation and extrapolate savings to cheaper families.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+SageMaker Inference Recommender automates load testing and model tuning across SageMaker ML instance types. A **Default** (instance recommendation) job benchmarks a curated set of instances and returns cost, latency, and throughput metrics; an **Advanced** job load-tests the specific instances you shortlist against a custom traffic pattern. The output directly identifies which instance delivers the required SLA at the lowest cost — with no self-managed benchmarking infrastructure. The model must be registered in the SageMaker Model Registry (or a SageMaker model object created) before launching the job.
+
+- **A** is wrong — Automatic Model Tuning optimises *model* hyperparameters, not infrastructure selection; instance type is not a supported tunable hyperparameter dimension.
+- **C** is wrong — Multi-Model Endpoints share a single container and instance; per-instance-family benchmarking is not possible with this approach.
+- **D** is wrong — Debugger profiling reports utilisation on an *already-chosen* instance; it cannot compare across families before deployment.
+
+</details>
+
+### Q82. [MCQ]
+
+A company runs a high-traffic real-time SageMaker endpoint serving a fraud-detection model. The ML team wants to validate a new model version under live traffic *without changing the responses returned to callers* and *without exposing users to potential regressions*. Which approach satisfies both constraints with the **least operational overhead**?
+
+- **A.** Deploy a second independent endpoint and use Route 53 weighted routing to send 5 % of requests there.
+- **B.** Add the new model as a second production variant with a 5 % traffic weight using `UpdateEndpoint`.
+- **C.** Configure a shadow variant on the existing endpoint; SageMaker mirrors live requests to it but returns only the production variant's response to callers.
+- **D.** Use a canary deployment guardrail to shift 5 % of traffic to the new model and watch CloudWatch alarms during the baking period.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: C.**
+
+SageMaker **shadow testing** deploys the new model as a *shadow variant* on the same endpoint. SageMaker automatically routes a copy of every live inference request to the shadow variant; **only the production variant's response is returned to the caller**. The shadow variant's response can be discarded or logged for offline comparison. This lets you measure operational metrics (latency, error rate) under real production traffic with zero user impact, and the SageMaker console provides a built-in monitoring dashboard.
+
+- **A** is wrong — Route 53 weighted routing sends *real* user traffic to the new endpoint, exposing users to potential regressions.
+- **B** is wrong — A second production variant with non-zero traffic weight returns its responses to real callers, violating the zero-impact constraint.
+- **D** is wrong — A canary deployment guardrail shifts a portion of real user traffic to the green fleet; some callers receive responses from the untested model during the baking period.
+
+</details>
+
+### Q83. [MCQ]
+
+A machine learning team iterates rapidly on model architecture, running dozens of short training jobs per day with identical instance types, VPC settings, and IAM roles. Cluster provisioning time dominates wall-clock time per job. Which SageMaker feature *directly* reduces provisioning overhead with the **least configuration change**?
+
+- **A.** Enable Managed Spot Training with a `MaxWaitTimeInSeconds` budget.
+- **B.** Attach an Amazon FSx for Lustre file system to accelerate data loading.
+- **C.** Set `KeepAlivePeriodInSeconds` in the training job's `ResourceConfig` to enable Managed Warm Pools.
+- **D.** Switch to a heterogeneous cluster to parallelise instance provisioning across instance groups.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: C.**
+
+SageMaker **Managed Warm Pools** retain provisioned training infrastructure after a job completes for up to 3,600 seconds (60 minutes). When the next training job matches on `InstanceType`, `InstanceCount`, `VolumeSizeInGB`, `VpcConfig`, `RoleArn`, and encryption settings, it reuses the warm cluster — eliminating the cold-start provisioning delay. The only configuration change is adding `KeepAlivePeriodInSeconds` to `ResourceConfig`. Note: warm pools are **not** compatible with Spot instances or heterogeneous clusters, and the idle cluster is billed during the retention window.
+
+- **A** is wrong — Managed Spot Training can *increase* wait time due to interruptions and re-provisioning; it targets cost reduction, not start-up latency.
+- **B** is wrong — FSx for Lustre accelerates data I/O throughput but does not reduce cluster provisioning time.
+- **D** is wrong — Heterogeneous clusters are explicitly incompatible with Managed Warm Pools, and switching to them would prevent warm pool reuse.
+
+</details>
+
+### Q84. [MCQ]
+
+A model platform team runs a training job on a `ml.p3.8xlarge` and observes GPU utilisation averaging only 30 % while CPU utilisation sits at 100 %. They suspect a data-loading bottleneck. Which SageMaker Debugger capability should they use to *confirm* this with the **highest precision**?
+
+- **A.** Enable Debugger built-in rules for `VanishingGradient` and `ExplodingTensor` to inspect tensor values.
+- **B.** Enable Debugger system monitoring (profiling) to collect CPU, GPU, network, and I/O metrics at fine granularity, and inspect the Profiler Report.
+- **C.** Enable Debugger `LossNotDecreasing` rule to determine whether the CPU bottleneck is causing convergence issues.
+- **D.** Use SageMaker Experiments to compare training curves across runs with different `DataParallel` configurations.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+SageMaker Debugger **profiling** monitors system resources — CPU utilisation, GPU utilisation, GPU memory, network, and I/O wait — at fine collection intervals. The generated Profiler Report surfaces bottlenecks such as low GPU utilisation caused by CPU-bound data preprocessing, and gives actionable guidance (e.g., increase data loader workers, offload preprocessing to a heterogeneous cluster).
+
+- **A** is wrong — `VanishingGradient` and `ExplodingTensor` are *tensor* rules that inspect model parameters; they do not capture system-level utilisation.
+- **C** is wrong — `LossNotDecreasing` detects convergence problems, not the root cause of CPU saturation or low GPU utilisation.
+- **D** is wrong — SageMaker Experiments tracks run metadata and metrics; it does not profile system-level resource utilisation during training.
+
+</details>
+
+### Q85. [MRQ]
+
+A central MLOps team wants to make approved model versions from their *model registry account* available for deployment in three separate *consumer accounts* without copying model artifacts. Which **TWO** actions enable cross-account model discovery and access using AWS RAM? *(Choose two.)*
+
+- **A.** Copy the model artifacts to an S3 bucket in each consumer account and create a new model package there.
+- **B.** In the owner account, share the model package group with the consumer accounts using AWS Resource Access Manager (RAM).
+- **C.** In the owner account, attach a resource-based policy to the model package group granting the consumer accounts `sagemaker:DescribeModelPackage` and `sagemaker:ListModelPackages` permissions.
+- **D.** In each consumer account, physically re-upload the model tarball before it can be deployed.
+- **E.** Enable SageMaker Model Monitor on the owner account's endpoint before sharing can proceed.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B and C.**
+
+SageMaker Model Registry supports cross-account sharing via **AWS RAM**. The owner account must: (1) share the model package group through AWS RAM — granting *discoverability* — and (2) attach a resource-based policy to the model package group granting the consumer accounts the necessary SageMaker API permissions for *accessibility* (e.g., `DescribeModelPackage`, `ListModelPackages`, and optionally `CreateModel` for deployment). Consumer accounts can then view and use the shared model packages without any artifact copying.
+
+- **A** is wrong — Copying artifacts defeats the purpose of cross-account sharing and creates data duplication; RAM sharing avoids this.
+- **D** is wrong — Re-uploading the tarball is exactly the duplication cross-account sharing eliminates.
+- **E** is wrong — Model Monitor is an inference monitoring service and has no relationship to cross-account model registry sharing prerequisites.
+
+</details>
+
+### Q86. [MCQ]
+
+A compliance team requires that every production model be documented with intended use, training dataset description, evaluation results, and risk ratings in a standardised, auditable format. Which SageMaker feature is purpose-built for this?
+
+- **A.** SageMaker Experiments — to record training run metadata and metric history.
+- **B.** SageMaker Model Cards — to create standardised governance documents attached to model versions throughout the model lifecycle.
+- **C.** SageMaker Feature Store — to store dataset metadata alongside features.
+- **D.** SageMaker Pipelines — to codify the training workflow so it is reproducible and auditable.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+**SageMaker Model Cards** centralise model documentation throughout the lifecycle: intended use cases, training dataset details, evaluation results, and risk ratings in a structured, version-controlled document. Model Cards can be shared across accounts using AWS RAM for organisation-wide governance audits, directly addressing ML governance requirements around transparency and accountability.
+
+- **A** is wrong — Experiments records training *metrics and parameters* for comparison; it does not produce governance documentation.
+- **C** is wrong — Feature Store manages feature data; it does not store model-level governance artefacts like risk ratings or intended use.
+- **D** is wrong — Pipelines codify workflow steps but do not produce human-readable governance documentation for compliance audits.
+
+</details>
+
+### Q87. [MCQ]
+
+An ML team must process **50 TB of raw CSV data** in Amazon S3 daily using existing PySpark transformation code before training. Which SageMaker Processing choice offers the **highest throughput** with the **least refactoring**?
+
+- **A.** `SKLearnProcessor` on a single large `ml.m5.24xlarge` instance.
+- **B.** `PySparkProcessor` (SageMaker's managed Spark container) on a multi-instance cluster of `ml.m5.4xlarge` nodes.
+- **C.** `ScriptProcessor` using a custom pandas Docker image on `ml.c5.18xlarge`.
+- **D.** SageMaker Training job using a `SparkML` serving container.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+SageMaker provides a managed **PySparkProcessor** that runs existing PySpark scripts inside a prebuilt Spark Docker image on a multi-instance cluster. Spark's distributed execution scales near-linearly with node count, making it the right fit for 50 TB daily. No refactoring of existing PySpark logic is required — you pass the script directly.
+
+- **A** is wrong — `SKLearnProcessor` runs single-node scikit-learn Python; it cannot distribute PySpark transformations, and one instance cannot process 50 TB efficiently.
+- **C** is wrong — A custom pandas container is single-node and would require rewriting PySpark logic to pandas, with poor scalability at 50 TB.
+- **D** is wrong — Training jobs are for model training; the SparkML *serving* container is for batch inference, not preprocessing.
+
+</details>
+
+### Q88. [MCQ]
+
+A Batch Transform job generates predictions on a large JSON dataset. Downstream consumers need the original `customer_id` joined with the model's predicted `score` in one output file, but `customer_id` must be *excluded* from the model input to avoid leakage. Which `DataProcessing` parameters achieve this?
+
+- **A.** `InputFilter="$"`, `JoinSource="None"`, `OutputFilter="$"`
+- **B.** `InputFilter="$.score"`, `JoinSource="Input"`, `OutputFilter="$.customer_id"`
+- **C.** `InputFilter="$.features"`, `JoinSource="Input"`, `OutputFilter="$['customer_id','SageMakerOutput']"`
+- **D.** `InputFilter="$[1:]"`, `JoinSource="Output"`, `OutputFilter="$[0,-1]"`
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: C.**
+
+Batch Transform `DataProcessing` works in three steps: (1) `InputFilter` selects which fields are sent to the model — `$.features` excludes `customer_id`; (2) `JoinSource="Input"` appends the original input record to the model output; (3) `OutputFilter` selects which fields appear in the final file — `$['customer_id','SageMakerOutput']` retains only the ID and the prediction. SageMaker stores inference results under the `SageMakerOutput` key for JSON input.
+
+- **A** is wrong — `JoinSource="None"` outputs only model predictions with no input fields joined; `customer_id` would be absent.
+- **B** is wrong — `InputFilter="$.score"` tries to send a prediction field that doesn't exist at input time to the model, not the feature set.
+- **D** is wrong — `JoinSource="Output"` is not a valid value (accepted values are `"Input"` and `"None"`); the CSV index syntax also doesn't apply to JSON.
+
+</details>
+
+### Q89. [MCQ]
+
+An ML team uses SageMaker **serverless inference** for a low-traffic NLP endpoint. Users report **high first-request latency** (cold starts) during predictable 08:00–10:00 peak periods. They want to mitigate cold starts only in that window with **minimal ongoing cost**. Which approach is *MOST cost-effective*?
+
+- **A.** Switch to a real-time endpoint on `ml.g4dn.xlarge` running 24/7.
+- **B.** Enable Provisioned Concurrency on the serverless endpoint and use Application Auto Scaling with a scheduled action to add it at 08:00 and remove it at 10:00.
+- **C.** Increase the serverless endpoint's `MaxConcurrency` to 200 to pre-warm more workers automatically.
+- **D.** Switch to an asynchronous inference endpoint with `MinCapacity=0`.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+Serverless Inference **Provisioned Concurrency** keeps a specified number of compute environments initialised and ready to respond in milliseconds, eliminating cold starts. Because the peak window is predictable, a **scheduled Application Auto Scaling action** adds provisioned concurrency only during 08:00–10:00 and removes it afterwards — incurring provisioned-concurrency charges for two hours per day. Outside that window the endpoint returns to pure on-demand serverless with pay-per-invocation pricing.
+
+- **A** is wrong — A 24/7 GPU real-time endpoint costs far more than two hours of provisioned concurrency and is over-provisioned for sporadic traffic.
+- **C** is wrong — `MaxConcurrency` caps concurrent requests but does not pre-warm compute; it does not reduce cold-start latency.
+- **D** is wrong — Asynchronous inference adds queuing latency and is for long-running/queued workloads, not the low-latency real-time NLP response required.
+
+</details>
+
+### Q90. [MCQ]
+
+A company deploys an updated recommendation model using SageMaker deployment guardrails with **canary blue/green** traffic shifting. After the canary shifts to the green fleet, a CloudWatch alarm on 5xx error rate fires during the baking period. What does SageMaker do *automatically*?
+
+- **A.** Waits for the baking period to expire, then terminates the blue fleet regardless of alarm state.
+- **B.** Immediately shifts 100 % of traffic to the green fleet to reduce blast radius.
+- **C.** Rolls back all traffic to the blue fleet (auto-rollback) and terminates the green fleet.
+- **D.** Pauses traffic shifting and sends an SNS notification, but requires manual rollback.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: C.**
+
+With deployment guardrails, pre-specified **CloudWatch alarms** monitor the green fleet during the baking period. If any alarm trips, SageMaker **automatically rolls back** all traffic to the blue fleet and terminates the green fleet — no manual intervention required — protecting production from regressions.
+
+- **A** is wrong — SageMaker does not ignore alarms; a trip causes an immediate rollback.
+- **B** is wrong — Shifting 100 % to the erroring green fleet would amplify the problem; the safe behaviour is rollback to the stable blue fleet.
+- **D** is wrong — Auto-rollback is fully automated when pre-specified alarms are configured.
+
+</details>
+
+### Q91. [MCQ]
+
+A team runs many consecutive HPO tuning jobs on the **same dataset and XGBoost training image**; each new job should reuse prior results to avoid re-exploring the search space. Which HPO warm start type should they use?
+
+- **A.** `TRANSFER_LEARNING` — because the model algorithm and dataset are both changing.
+- **B.** `IDENTICAL_DATA_AND_ALGORITHM` — because the dataset and training image are unchanged; only hyperparameter ranges are adjusted.
+- **C.** `BAYESIAN_RESUME` — to resume a paused Bayesian search from its last checkpoint.
+- **D.** `GRID_RESTART` — to restart a grid search from the beginning with a refined search space.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+`IDENTICAL_DATA_AND_ALGORITHM` warm start is used when the *same training data and training image* are used as in the parent tuning job(s). The new job inherits prior evaluations so Bayesian optimisation focuses on unexplored promising regions. Up to 5 parent jobs (all terminal) can be referenced. `TRANSFER_LEARNING` is for when the dataset or algorithm *may change*, where prior evaluations are used with lower confidence.
+
+- **A** is wrong — `TRANSFER_LEARNING` fits changed data/algorithm; using it here needlessly discounts prior evaluations.
+- **C** is wrong — `BAYESIAN_RESUME` is not a valid warm start type; the two supported types are `IDENTICAL_DATA_AND_ALGORITHM` and `TRANSFER_LEARNING`.
+- **D** is wrong — `GRID_RESTART` does not exist; grid search is a strategy, not a warm start type.
+
+</details>
+
+### Q92. [MCQ]
+
+A training job on `ml.p3.16xlarge` performs heavy CPU-side data augmentation before feeding tensors to the GPU; GPU utilisation is 35 %. The team wants to fix the CPU bottleneck with *minimal changes to the training script*. What is the *MOST* effective infrastructure change?
+
+- **A.** Switch to a homogeneous cluster of more `ml.p3.16xlarge` instances to get more CPUs.
+- **B.** Enable Managed Warm Pools to pre-load data between jobs.
+- **C.** Use a **heterogeneous cluster** with a GPU instance group (`ml.p3.16xlarge`) for forward/backward passes and a CPU instance group (`ml.c5.18xlarge`) to handle data augmentation.
+- **D.** Replace the GPU instances with `ml.trn1.32xlarge` (Trainium), which have higher CPU-to-GPU ratios.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: C.**
+
+SageMaker **heterogeneous clusters** let one training job use multiple instance groups of different types. CPU-intensive preprocessing (augmentation) is offloaded to cost-effective `ml.c5` instances while GPU instances handle gradient computation — resolving the CPU bottleneck without adding GPU instances or rewriting the core training logic.
+
+- **A** is wrong — More GPU nodes leave the per-node CPU bottleneck in place; throughput gain is marginal and costly.
+- **B** is wrong — Warm Pools reduce cluster *provisioning* latency between jobs; they do not move computation across hardware during a job.
+- **D** is wrong — `ml.trn1` requires Neuron SDK script changes and does not specifically target a CPU augmentation bottleneck.
+
+</details>
+
+### Q93. [MCQ]
+
+An **asynchronous** SageMaker inference endpoint processes large batch requests that arrive sporadically. The team wants it to scale to zero when idle and scale back up on new arrivals. Which metric and `MinCapacity` setting enables this?
+
+- **A.** `InvocationsPerInstance` target metric with `MinCapacity=1`.
+- **B.** `ApproximateBacklogSizePerInstance` target metric with `MinCapacity=0`; add a step scaling policy triggered by the `HasBacklogWithoutCapacity` metric to scale from zero on new arrivals.
+- **C.** `CPUUtilization` target metric with `MinCapacity=0` and `ScaleInCooldown=0`.
+- **D.** Enable SageMaker Serverless Inference with `MaxConcurrency=1` to scale to zero.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+Asynchronous Inference is the only SageMaker endpoint type that supports `MinCapacity=0`. The recommended target-tracking metric is `ApproximateBacklogSizePerInstance` (queued requests per instance). Because the endpoint can reach zero instances, a *separate* step scaling policy on the `HasBacklogWithoutCapacity` metric is needed to scale from zero when a request arrives in an empty queue.
+
+- **A** is wrong — `InvocationsPerInstance` is for real-time endpoints and cannot trigger scale-out from zero; `MinCapacity=1` also prevents scale-to-zero.
+- **C** is wrong — With zero instances there is no CPU to measure, so `CPUUtilization` cannot trigger a cold scale-out; it is not the recommended async metric.
+- **D** is wrong — The scenario describes an *asynchronous* endpoint with large, long-running payloads; serverless caps payload at 4 MB and is a different endpoint type.
+
+</details>
+
+### Q94. [MCQ]
+
+A large-scale training job reads a **200 TB dataset** from Amazon S3; S3 I/O is the bottleneck (GPU idle > 50 %). The team wants a shared, high-throughput POSIX file system accessible from all instances with sub-millisecond random-read latency, at the **least operational overhead**. Which solution fits?
+
+- **A.** Mount Amazon EFS and copy data from S3 to EFS before training.
+- **B.** Create an Amazon FSx for Lustre file system linked to the S3 bucket; SageMaker mounts it via `FileSystemDataSource`.
+- **C.** Use SageMaker Pipe mode to stream data from S3.
+- **D.** Use SageMaker Fast File mode (FFM) with S3 as the data source.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+**Amazon FSx for Lustre** is a high-performance parallel file system for HPC/ML. Linked to an S3 bucket, it lazily loads objects on first access and exposes them as POSIX with sub-millisecond latency and hundreds of GB/s aggregate throughput to a multi-node cluster. SageMaker natively mounts it via `FileSystemDataSource`. At 200 TB it is the standard AWS recommendation for eliminating S3 I/O as the bottleneck.
+
+- **A** is wrong — EFS provides lower throughput than FSx for Lustre and needs a manual pre-copy step.
+- **C** is wrong — Pipe mode streams sequentially via a named pipe; no random-access POSIX semantics, weaker for large shuffled datasets.
+- **D** is wrong — Fast File mode improves over Pipe mode but does not match FSx for Lustre's aggregate throughput for 200 TB with heavy random I/O across many nodes.
+
+</details>
+
+### Q95. [MCQ]
+
+A Managed Spot Training job is interrupted after 4 hours. Checkpointing was configured with a local path `/opt/ml/checkpoints` and an S3 checkpoint URI. What happens when the job resumes on a new instance?
+
+- **A.** The job restarts from scratch; spot training does not support checkpointing, so 4 hours are lost.
+- **B.** SageMaker automatically copies the latest checkpoint from the S3 URI back to `/opt/ml/checkpoints`; the script resumes from the last checkpoint.
+- **C.** SageMaker re-runs only the failed steps by replaying the data pipeline from the last logged step.
+- **D.** The endpoint is rolled back to the last deployed model version while training resumes in the background.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+With Managed Spot Training and checkpointing, SageMaker **automatically syncs checkpoints** written to `/opt/ml/checkpoints` to the S3 checkpoint URI during training. On interruption, it provisions a new instance, copies the checkpoints from S3 back to `/opt/ml/checkpoints`, and the training script detects them and resumes from the last saved state — avoiding loss of prior progress.
+
+- **A** is wrong — Spot training *does* support checkpointing; this is the mechanism for tolerating interruptions.
+- **C** is wrong — SageMaker restores model state via checkpoints, not by replaying individual pipeline steps.
+- **D** is wrong — Endpoint rollback is a deployment concern, irrelevant to a spot training resume.
+
+</details>
+
+### Q96. [MCQ]
+
+An ML governance team wants to trace which datasets, feature groups, training jobs, and endpoints contributed to a specific production model version, and query this graph programmatically. Which feature and API are purpose-built for this?
+
+- **A.** SageMaker Experiments — use `ListTrialComponents` to enumerate steps linked to a trial.
+- **B.** SageMaker ML Lineage Tracking — use the `QueryLineage` API to traverse the lineage graph of artifacts, actions, and associations from a starting ARN.
+- **C.** SageMaker Pipelines — use `ListPipelineExecutionSteps` to see each step's inputs and outputs.
+- **D.** AWS CloudTrail — query the management event log for all `sagemaker:CreateTrainingJob` calls referencing the dataset.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+SageMaker **ML Lineage Tracking** automatically records entities (Artifacts, Actions, Contexts, Trials) and Associations representing relationships between data, code, models, and endpoints. The `QueryLineage` API traverses this graph from a start ARN (e.g., a model package ARN) up to a configurable depth, returning all connected artifacts and associations — giving end-to-end lineage from dataset through training job to deployed endpoint.
+
+- **A** is wrong — `ListTrialComponents` lists components within one trial; it does not traverse cross-entity lineage linking datasets, feature stores, and endpoints.
+- **C** is wrong — `ListPipelineExecutionSteps` shows steps within a single pipeline execution, not a queryable cross-job graph.
+- **D** is wrong — CloudTrail logs API events but does not model semantic relationships between ML artefacts as a queryable graph.
+
+</details>
+
+### Q97. [MCQ]
+
+A company runs SageMaker workloads across 15 AWS accounts in AWS Organizations. FinOps needs to allocate training and inference costs to individual product teams by cost centre with the **most granular** attribution and **least custom tooling**. Which approach fits?
+
+- **A.** Enable Cost Explorer and use account-level cost allocation without tagging.
+- **B.** Apply consistent resource tags (e.g., `CostCentre`, `Team`) to all SageMaker resources; activate those keys as **Cost Allocation Tags** in the Billing console; query Cost Explorer by tag dimension.
+- **C.** Write a Lambda that parses CloudWatch Logs for SageMaker billing events and aggregates by job name prefix.
+- **D.** Use AWS Budgets with per-account alerts as a substitute for per-team allocation.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+**Cost Allocation Tags**, once activated in the Billing console, appear as filterable dimensions in Cost Explorer and Cost & Usage Reports. Tagging SageMaker resources (training jobs, endpoints, processing jobs, notebooks) with `CostCentre`/`Team` enables granular per-team cost visibility across all 15 accounts via consolidated billing — the native, fully managed mechanism with no custom tooling.
+
+- **A** is wrong — Account-level granularity cannot attribute costs to teams sharing an account.
+- **C** is wrong — CloudWatch Logs do not contain billing data; SageMaker billing comes from Cost & Usage Reports. A custom parser is unnecessary tooling.
+- **D** is wrong — Budgets provides spending *alerts*, not cost allocation/attribution.
+
+</details>
+
+### Q98. [MCQ]
+
+An inference pipeline has three sequential steps: (1) feature normalisation, (2) an XGBoost model, and (3) post-processing that converts scores to ranked labels. The team wants all three deployed behind a *single* endpoint invocation. Which construct is *MOST* appropriate?
+
+- **A.** Deploy each container as a separate real-time endpoint and chain them with AWS Step Functions.
+- **B.** Use a SageMaker **Inference Pipeline** — a sequence of up to 15 containers in a single `PipelineModel` behind one endpoint.
+- **C.** Use a Multi-Model Endpoint to host all three containers and invoke them in sequence via `TargetModel`.
+- **D.** Package all three steps into a single Docker container.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+A SageMaker **Inference Pipeline** chains multiple containers (up to 15) into one `PipelineModel` behind a single endpoint. The request flows sequentially: normalisation → XGBoost → post-processing, each container's output feeding the next. Callers invoke one endpoint and get the final output — the native construct for multi-step inference without custom orchestration.
+
+- **A** is wrong — Chaining separate endpoints with Step Functions adds network latency, cost, and operational complexity.
+- **C** is wrong — Multi-Model Endpoints host many *independent* models sharing resources; `TargetModel` selects one model, not a sequential chain.
+- **D** is wrong — Bundling into one container works but sacrifices modularity, independent versioning, and the ability to swap individual steps.
+
+</details>
+
+### Q99. [MCQ]
+
+A SageMaker Model Monitor job runs hourly on a real-time endpoint and flags data quality violations, but the team is unsure whether these reflect true drift or the model's expected input ranges. What must be created *before* Model Monitor can compute meaningful violation reports?
+
+- **A.** A SageMaker Clarify explainability baseline using SHAP on the training dataset.
+- **B.** A **baseline** via `suggest_baseline()` run against representative training/validation data; Monitor compares live captured data against this baseline's statistics and constraints.
+- **C.** A Ground Truth labelling job to annotate the live captured data first.
+- **D.** A SageMaker Experiments run that records expected metric ranges from the last training job.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+Model Monitor requires a **baseline** — generated by a baseline job (`suggest_baseline`) on representative data (typically training/validation). The baseline computes descriptive statistics and infers data quality constraints (expected ranges, null rates, types) stored as JSON in S3. The scheduled monitor then compares live captured data against these constraints and reports violations. Without a baseline there is no reference point.
+
+- **A** is wrong — A Clarify SHAP baseline is for *bias/explainability* monitoring, a separate monitor type with different prerequisites.
+- **C** is wrong — Ground Truth labels are needed for *model quality* monitoring (predictions vs actuals), not data quality violations.
+- **D** is wrong — Experiments tracks training metadata; it does not produce the statistical constraint files Model Monitor compares against.
+
+</details>
+
+### Q100. [MCQ]
+
+A team is choosing between `ml.inf2` (Inferentia2) and `ml.g5` (NVIDIA A10G) for deploying an LLM inference endpoint. The model is **already compiled with the AWS Neuron SDK**. Sustained throughput is high and latency must be *MOST* consistently low at scale. Which family is most appropriate, and why?
+
+- **A.** `ml.g5` — because NVIDIA GPUs support more ML frameworks natively and require no compilation step.
+- **B.** `ml.inf2` — because Inferentia2 is purpose-built for high-throughput, cost-effective inference; with the model already Neuron-compiled, `ml.inf2` delivers higher throughput per dollar and consistent low latency versus equivalent GPU instances.
+- **C.** `ml.p3` — because V100 GPUs have more VRAM than Inferentia2 NeuronCores.
+- **D.** `ml.c5` — because CPU-only inference eliminates GPU cold starts and is most cost-effective at high throughput.
+
+<details><summary>Answer & explanation</summary>
+
+**Correct: B.**
+
+AWS **Inferentia2** (`ml.inf2`) instances are purpose-built for deep learning inference, offering high throughput and low latency at reduced cost versus GPU-based inference for compiled workloads. Since the model is *already compiled* with the Neuron SDK (a prerequisite for Inferentia2), the team can fully exploit `ml.inf2`'s NeuronCores for predictable low latency at scale, typically at meaningfully lower cost per inference than equivalent GPU instances.
+
+- **A** is wrong — `ml.g5` is a strong general inference instance but does not leverage the Neuron compilation already performed; `ml.inf2` is superior once Neuron compilation is complete.
+- **C** is wrong — `ml.p3` (V100) is a training-focused generation; for inference it has higher cost and lower throughput efficiency than modern inference-optimised instances.
+- **D** is wrong — CPU instances are far slower than purpose-built accelerators for LLM inference at high throughput; the latency/throughput requirements cannot be met economically on CPU.
+
+</details>
+
+---
+
 ## Score guide <a name="score-guide"></a>
 
 Tally your correct answers (multiple-response counts as correct only if **all** required options are right).
 
-| Score (out of 80) | Percentage | Interpretation |
+| Score (out of 100) | Percentage | Interpretation |
 |---|---|---|
-| **72–80** | 90–100% | Exam-ready. You have the reflexes down — do a final timed run and book the exam. |
-| **60–71** | 75–89% | On track. AWS scales MLA-C01 to a **720/1000** pass. Re-drill the 1–2 weakest domains and the qualifiers you misread. |
-| **48–59** | 60–74% | Borderline. Revisit the domain concept files (`01`–`04`) for every miss, then re-attempt this bank. |
-| **Below 48** | < 60% | Not ready yet. Study each domain end-to-end, focus on endpoint selection, metrics, drift types, and cost/purchasing options, then return. |
+| **90–100** | 90–100% | Exam-ready. You have the reflexes down — do a final timed run and book the exam. |
+| **75–89** | 75–89% | On track. AWS scales MLA-C01 to a **720/1000** pass. Re-drill the 1–2 weakest domains and the qualifiers you misread. |
+| **60–74** | 60–74% | Borderline. Revisit the domain concept files (`01`–`04`) for every miss, then re-attempt this bank. |
+| **Below 60** | < 60% | Not ready yet. Study each domain end-to-end, focus on endpoint selection, metrics, drift types, and cost/purchasing options, then return. |
 
 **Per-domain check:** aim for **≥ 70%** in *every* domain, not just overall — the real exam can fail you on lopsided weakness in a heavily weighted domain (Data Prep 28%, Model Dev 26%, Monitoring/Security 24%, Deploy/Orchestration 22%).
 

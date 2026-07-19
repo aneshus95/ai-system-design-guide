@@ -1536,16 +1536,444 @@ A model makes **high-impact medical triage suggestions**. Regulators require the
 
 ---
 
+## Additional practice — Set 2
+
+The following 20 questions cover fresh angles on AWS AI/ML services, generative AI concepts, responsible AI, and cost governance not addressed in Set 1.
+
+### S1 (Multiple choice)
+
+A startup wants to deploy a foundation model on AWS exclusively for **real-time inference** at the lowest cost, without managing GPU servers. Which AWS custom silicon instance family is *MOST appropriate*?
+
+- A. Trn1 (AWS Trainium)
+- B. Inf2 (AWS Inferentia2)
+- C. P4d (NVIDIA A100)
+- D. G5 (NVIDIA A10G)
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — Inferentia2 is purpose-built for inference.**
+
+AWS Inferentia chips are purpose-built to accelerate machine learning *inference* workloads at high throughput and low cost per prediction. Inf2 instances powered by Inferentia2 are the right choice when a model is already trained and you need cost-effective, production-scale deployment. Trainium (Trn1) is designed for *training*, not inference. P4d and G5 are general GPU instances that carry higher cost for inference-only workloads.
+
+- A. Trn1/Trainium is optimised for deep learning *training* of 100B+ parameter models, not inference serving.
+- C. P4d is a high-end GPU training instance; cost per inference request is far higher than Inferentia2.
+- D. G5 uses NVIDIA A10G GPUs and is flexible but more expensive than purpose-built Inferentia2 for steady inference traffic.
+
+</details>
+
+### S2 (Multiple choice)
+
+A data science team needs to fine-tune an open-source large language model with full control over hyperparameters, custom training scripts, and GPU instance selection. The model is **not available** in Amazon Bedrock. Which service is the *BEST fit*?
+
+- A. Amazon Bedrock fine-tuning
+- B. Amazon SageMaker JumpStart
+- C. Amazon Bedrock Prompt Management
+- D. Amazon PartyRock
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — SageMaker JumpStart for open-source models with full control.**
+
+SageMaker JumpStart provides a broader catalog of publicly available and open-source foundation models than Bedrock, and lets teams bring custom training scripts, choose compute instances (including Trainium or GPU), and tune hyperparameters freely. Bedrock fine-tuning only works with the proprietary models it hosts and abstracts away infrastructure. Prompt Management is for storing/versioning prompts, not training. PartyRock is a no-code prototype playground.
+
+- A. Bedrock fine-tuning is limited to models available in the Bedrock model catalog and does not surface raw compute configuration.
+- C. Prompt Management stores and versions prompts; it does not train or fine-tune models.
+- D. PartyRock is a no-code app builder for quick demos, not model training.
+
+</details>
+
+### S3 (Multiple choice)
+
+An ML engineer wants to reduce the randomness of a foundation model's output so responses are highly consistent and deterministic for a compliance use case. Which inference parameter should be *decreased*?
+
+- A. Top-K
+- B. Max tokens
+- C. Temperature
+- D. Top-P
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: C — Temperature controls output randomness directly.**
+
+Temperature shapes the probability distribution over next-token candidates. A lower temperature (approaching 0) makes the distribution sharper, so the model almost always picks the highest-probability token, producing highly consistent, deterministic text. Top-K and Top-P further filter the candidate pool but Temperature is the primary lever for determinism. Max tokens controls response length, not randomness.
+
+- A. Lowering Top-K narrows the candidate pool but, without also lowering temperature, probability mass can still spread across the remaining candidates unpredictably.
+- B. Max tokens sets a length cap and has no effect on output randomness.
+- D. Lowering Top-P also reduces randomness but acts on cumulative probability mass, not the distribution shape itself; Temperature is the canonical first adjustment per AWS documentation.
+
+</details>
+
+### S4 (Multiple choice)
+
+A developer must choose a vector store for an Amazon Bedrock Knowledge Base that supports **graph-based relationship traversal** alongside vector similarity search, enabling GraphRAG patterns. Which supported option is *MOST suitable*?
+
+- A. Amazon OpenSearch Serverless
+- B. Amazon Aurora PostgreSQL with pgvector
+- C. Amazon Neptune Analytics
+- D. Amazon S3 Vectors
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: C — Neptune Analytics for GraphRAG.**
+
+Amazon Neptune Analytics is the AWS vector store option for Bedrock Knowledge Bases that combines vector similarity search with native graph traversal. This is specifically suited to GraphRAG, where the retrieval step needs to follow entity relationships across a knowledge graph rather than pure nearest-neighbour search. OpenSearch Serverless, Aurora pgvector, and S3 Vectors are vector/keyword stores without native graph capabilities.
+
+- A. OpenSearch Serverless excels at semantic and keyword hybrid search but has no native graph traversal.
+- B. Aurora PostgreSQL with pgvector provides relational + vector search but no graph traversal.
+- D. S3 Vectors is optimised for cost-effective large-scale vector storage; it has no graph layer.
+
+</details>
+
+### S5 (Multiple response — choose TWO)
+
+A generative AI application is producing too many hallucinations in customer-facing responses. Which TWO layered mitigations on AWS directly address hallucination at the *output* stage?
+
+- A. Enable Amazon Bedrock Guardrails contextual grounding check
+- B. Implement RAG with an Amazon Bedrock Knowledge Base
+- C. Lower the inference temperature to 0
+- D. Switch to an AWS Trainium instance
+- E. Enable Amazon Macie on the S3 data source
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: A and B — Guardrails contextual grounding and RAG.**
+
+Contextual grounding in Bedrock Guardrails scores each model response for groundedness against retrieved source documents and completeness, blocking or flagging responses that are not supported by the context. RAG (via Bedrock Knowledge Bases) reduces hallucination by anchoring generation to retrieved facts. Together they form a retrieval-plus-validation layer that directly mitigates hallucination.
+
+- C. Lowering temperature reduces randomness but does not prevent the model from confidently asserting wrong facts; hallucination is not purely a randomness problem.
+- D. Trainium is a training chip; switching instance type does not change model behaviour or output accuracy.
+- E. Macie identifies sensitive data in S3 (PII, credentials); it has no effect on model output accuracy.
+
+</details>
+
+### S6 (Multiple choice)
+
+A company wants to evaluate which foundation model on Amazon Bedrock produces the *most faithful* summaries of internal legal documents before committing to one model. They have subject-matter experts available but need to reduce review time. Which evaluation approach offers **human-like quality at lower cost and time** compared to full human review?
+
+- A. Automatic evaluation using built-in accuracy metrics
+- B. Human evaluation with AWS-managed reviewers
+- C. LLM-as-a-Judge evaluation in Amazon Bedrock Model Evaluation
+- D. ROUGE score comparison using Amazon SageMaker Clarify
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: C — LLM-as-a-Judge in Bedrock Model Evaluation.**
+
+Amazon Bedrock Model Evaluation's LLM-as-a-Judge feature uses a separate evaluator model to score responses on metrics such as faithfulness (hallucination), correctness, and completeness — delivering human-like evaluation quality at lower cost and faster than full human review. Automatic evaluation with built-in metrics covers accuracy and toxicity but not deep faithfulness to specific source documents. Full human review is the gold standard but slow and expensive.
+
+- A. Automatic built-in metrics (accuracy, robustness, toxicity) are useful for general benchmarks but do not assess faithfulness to specific source documents.
+- B. AWS-managed human review is highest quality but most time-consuming and expensive.
+- D. ROUGE measures n-gram overlap and is a blunt instrument for legal faithfulness; SageMaker Clarify handles bias/explainability, not FM comparison.
+
+</details>
+
+### S7 (Multiple choice)
+
+An enterprise wants to let business analysts query internal wikis, SharePoint sites, and Confluence pages using natural language. Developers should NOT be the target users. Which AWS service best addresses this requirement with *LEAST operational overhead*?
+
+- A. Amazon Q Developer
+- B. Amazon Kendra
+- C. Amazon Q Business
+- D. Amazon Bedrock Agents with a custom knowledge base
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: C — Amazon Q Business targets business users, not developers.**
+
+Amazon Q Business is a fully managed GenAI assistant designed for employees to query internal enterprise data sources (SharePoint, Confluence, S3, Slack, and more) using natural language. It requires no ML expertise and connects to 40+ data sources out of the box. Amazon Q Developer is aimed specifically at software developers for coding assistance and AWS service guidance. Kendra is a powerful enterprise search service but requires more configuration. Bedrock Agents with a custom knowledge base is powerful but demands significant engineering effort.
+
+- A. Q Developer targets software developers—coding, debugging, code transformation, and AWS console help—not general business analysts.
+- B. Kendra is an enterprise search service that provides relevant results but requires more configuration and does not include the conversational chat interface Q Business provides natively.
+- D. Building on Bedrock Agents is flexible but introduces significant operational overhead compared to Q Business's managed setup.
+
+</details>
+
+### S8 (Multiple choice)
+
+A model pre-trained on the internet has learned to produce biased, harmful, and inconsistent outputs. A company wants to align it to be helpful, harmless, and honest before deployment. Which training technique is *MOST directly* associated with this alignment goal?
+
+- A. Continued pre-training on domain data
+- B. Supervised fine-tuning on labelled Q&A pairs
+- C. Reinforcement Learning from Human Feedback (RLHF)
+- D. Retrieval-Augmented Generation
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: C — RLHF is the canonical alignment technique.**
+
+RLHF trains a reward model on human preference rankings between model outputs, then uses reinforcement learning to update the language model to maximise that reward. This is the primary technique used to align models to be helpful, harmless, and honest. Continued pre-training adds domain knowledge but does not teach preferences. Supervised fine-tuning improves task performance but does not capture nuanced human preference signals. RAG is a retrieval method at inference time, not a training technique.
+
+- A. Continued pre-training on domain data improves knowledge coverage, not behavioural alignment.
+- B. Supervised fine-tuning on labelled examples teaches format and task behaviour but lacks the preference-comparison signal RLHF uses to enforce safety and helpfulness.
+- D. RAG grounds outputs in retrieved documents at inference time; it does not modify model weights or alignment.
+
+</details>
+
+### S9 (Multiple choice)
+
+An AWS account team needs to understand the **intended use cases, limitations, and responsible AI design choices** for *Amazon Rekognition* as an AWS-managed service. Which resource provides this information directly from AWS?
+
+- A. Amazon SageMaker Model Card for Rekognition
+- B. AWS AI Service Card for Rekognition
+- C. Amazon Bedrock Model Evaluation report
+- D. AWS Artifact compliance report
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — AWS AI Service Cards document pre-built AWS AI services.**
+
+AWS AI Service Cards are responsible AI documentation published by AWS for its pre-built AI services (such as Rekognition, Transcribe, and Comprehend). They cover intended use cases, limitations, responsible AI design choices, and deployment best practices. SageMaker Model Cards are used by *customers* to document their own custom models built in SageMaker. Bedrock Model Evaluation produces performance benchmarks, not usage guidance. AWS Artifact provides compliance and audit reports, not AI transparency documentation.
+
+- A. SageMaker Model Cards are customer-authored documents for custom models; AWS does not publish them for Rekognition.
+- C. Bedrock Model Evaluation produces benchmark metrics for FM comparison; it is not a service transparency resource.
+- D. AWS Artifact provides third-party audit and compliance documents (SOC, ISO, PCI); it does not cover AI use-case guidance.
+
+</details>
+
+### S10 (Multiple choice)
+
+A developer is building a Bedrock-powered chatbot and wants to **save a tested prompt, version it, and reuse it across multiple workflows** without copying and pasting. Which Amazon Bedrock feature enables this?
+
+- A. Bedrock Knowledge Bases
+- B. Bedrock Prompt Management
+- C. Bedrock Guardrails
+- D. Bedrock Agents action groups
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — Bedrock Prompt Management handles prompt storage and versioning.**
+
+Amazon Bedrock Prompt Management lets developers create, test, version, and share prompt templates with variable placeholders. Saved prompts can be referenced by Bedrock Flows and Agents, avoiding duplication across workflows. Knowledge Bases store and retrieve vector-indexed documents. Guardrails apply safety policies to model I/O. Action groups define what tools an Agent can call.
+
+- A. Knowledge Bases index and retrieve documents to ground model responses; they do not store or version prompt text.
+- C. Guardrails enforce content policies (content filters, denied topics, PII redaction); prompt storage is not their function.
+- D. Action groups define callable APIs or Lambda functions for agents; they are not for prompt template management.
+
+</details>
+
+### S11 (Multiple choice)
+
+A company generating images with **Amazon Titan Image Generator** wants to confirm later whether a specific image was originally produced by that model. Which built-in mechanism does Amazon Bedrock provide?
+
+- A. Amazon Rekognition content moderation label
+- B. Invisible watermark embedded in all Titan-generated images plus a DetectGeneratedContent API
+- C. C2PA manifest attached to the EXIF metadata
+- D. Amazon Macie data classification tag
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — Titan Image Generator embeds an invisible watermark detectable via API.**
+
+All images produced by Amazon Titan Image Generator automatically contain an invisible watermark. Amazon Bedrock provides a `DetectGeneratedContent` API that returns a confidence score indicating whether a given image bears that watermark, even if the image has been subsequently modified. This is AWS's built-in provenance mechanism for AI-generated images.
+
+- A. Rekognition content moderation detects labels (violence, nudity, etc.); it does not identify AI generation origin.
+- C. C2PA manifests are an emerging open standard, but the built-in Titan mechanism the exam maps to is the invisible watermark + detection API.
+- D. Macie identifies sensitive data such as PII in S3 storage; it has no image provenance function.
+
+</details>
+
+### S12 (Multiple choice)
+
+A product team notices that **on-demand pricing** for a foundation model in Bedrock is getting expensive. A large, non-time-sensitive scoring job can tolerate latency. Which option reduces cost *MOST significantly* for large batch workloads?
+
+- A. Enable Provisioned Throughput for the model
+- B. Use Amazon Bedrock batch inference
+- C. Lower the max-tokens parameter
+- D. Switch to a multimodal model
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — Batch inference is substantially cheaper for non-real-time workloads.**
+
+Amazon Bedrock batch inference processes large volumes of prompts asynchronously and is priced significantly below on-demand real-time inference (roughly half the on-demand token price). Provisioned Throughput guarantees throughput but is a fixed reservation suited to steady, predictable traffic, not an ad-hoc savings lever. Lowering max-tokens reduces per-request output cost marginally but does not change the pricing tier. Switching model modality does not inherently reduce cost.
+
+- A. Provisioned Throughput is a commitment that makes sense for predictable, sustained high-volume workloads; it does not help with bursty or batch-style jobs and may increase total cost if under-utilised.
+- C. Lowering max-tokens reduces output token cost at the margin, but the primary driver for large batch savings is the batch-inference pricing tier.
+- D. Multimodal models are often more expensive than text-only models; modality is irrelevant to this cost problem.
+
+</details>
+
+### S13 (Multiple choice)
+
+A compliance officer asks which AWS responsible AI dimension addresses ensuring that an AI system produces **factually correct outputs** rather than fabricated information. Which dimension *BEST fits*?
+
+- A. Fairness
+- B. Controllability
+- C. Veracity
+- D. Robustness
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: C — Veracity means achieving factually correct system outputs.**
+
+AWS defines veracity (and robustness) as the responsible AI dimension concerned with achieving factually correct outputs — directly mapping to the hallucination problem in generative AI. Fairness is about equitable treatment across groups. Controllability is about human ability to monitor and steer behaviour.
+
+- A. Fairness addresses bias and equitable outcomes across demographic groups, not factual accuracy.
+- B. Controllability covers human-in-the-loop mechanisms and override capabilities; it is about oversight, not output truth.
+- D. Robustness means the system behaves correctly under unexpected or adversarial inputs; it overlaps but is not the primary dimension for factual accuracy.
+
+</details>
+
+### S14 (Multiple choice)
+
+A developer notices their prompt causes the model to answer questions outside the intended scope because the system prompt is overridden by a malicious user instruction. This is an example of which attack type, and which Bedrock Guardrails feature specifically mitigates it?
+
+- A. Data poisoning — mitigated by Bedrock Knowledge Base access controls
+- B. Prompt injection — mitigated by the prompt-attack filter in Bedrock Guardrails
+- C. Model inversion — mitigated by AWS KMS encryption
+- D. Denial of service — mitigated by AWS WAF
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — Prompt injection, mitigated by the prompt-attack filter.**
+
+Prompt injection occurs when a user crafts input that overrides or ignores the developer's system prompt, redirecting model behaviour. Amazon Bedrock Guardrails includes a dedicated prompt-attack filter that detects and blocks prompt injection and jailbreak attempts before they reach the model.
+
+- A. Data poisoning corrupts training data; it is unrelated to runtime user-input attacks or Knowledge Base ACLs.
+- C. Model inversion attempts to extract training data from model outputs; KMS encryption protects data at rest, not runtime prompt attacks.
+- D. Denial of service exhausts compute resources; AWS WAF rate-limits HTTP traffic but does not address semantic prompt manipulation.
+
+</details>
+
+### S15 (Multiple choice)
+
+A team plans to use a **multimodal foundation model** on Amazon Bedrock to process both customer invoice images and accompanying text descriptions in a single API call. What does *multimodal* mean in this context?
+
+- A. The model can run inference on multiple AWS regions simultaneously
+- B. The model accepts and reasons across more than one data type (e.g., image and text) in a single request
+- C. The model uses multiple sampling modes (temperature, top-k, top-p) at the same time
+- D. The model is deployed on multiple EC2 instance families for redundancy
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — Multimodal means accepting multiple data types in a single request.**
+
+A multimodal model can ingest and reason across different modalities — such as text, images, audio, or video — within the same inference call. Amazon Bedrock hosts multimodal models (for example, Anthropic Claude with vision) that let you pass an image and a text prompt together and receive a unified response grounded in both inputs.
+
+- A. Multi-region deployment is an infrastructure concept unrelated to model modality.
+- C. Sampling parameters (temperature, top-k, top-p) are inference configuration knobs; combining them is not "multimodal."
+- D. Multi-instance deployment is a redundancy/scaling pattern, not a description of model input capability.
+
+</details>
+
+### S16 (Multiple choice)
+
+A company wants to track and attribute **Amazon Bedrock inference costs** to separate business units using their existing AWS cost management tooling. Which combination is *MOST effective* with LEAST custom development?
+
+- A. Parse CloudTrail logs manually and aggregate in Amazon Athena
+- B. Apply AWS cost allocation tags to Bedrock application inference profiles and use AWS Budgets with tag-based filters
+- C. Enable Amazon Macie to scan Bedrock usage logs
+- D. Create a custom Lambda function to query the Bedrock API and write cost records to S3
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — Cost allocation tags on inference profiles with AWS Budgets.**
+
+Amazon Bedrock supports application inference profiles that allow teams to apply AWS cost allocation tags, aligning Bedrock usage to cost centres, business units, and applications in AWS Cost Explorer and AWS Budgets. Tag-based budget alerts then provide proactive notifications without custom code — the native, low-overhead pattern.
+
+- A. Parsing CloudTrail logs in Athena can surface API call counts but does not produce token-level cost attribution and requires significant engineering.
+- C. Macie is a data-security service that detects sensitive data in storage; it has no cost attribution capability.
+- D. A custom Lambda polling solution is high-effort, fragile, and duplicates what cost allocation tags + Budgets already provide natively.
+
+</details>
+
+### S17 (Multiple choice)
+
+An agentic application built with Amazon Bedrock Agents must remember a user's preferences from **previous sessions** weeks later, without re-sending that history in every new prompt. Which capability supports this requirement?
+
+- A. Bedrock Agents session attributes (in-session context)
+- B. Amazon Bedrock AgentCore Memory for long-term, cross-session retention
+- C. Increasing the model's max-tokens to hold more conversation history
+- D. Storing preferences in Amazon DynamoDB and embedding them in every system prompt
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — AgentCore Memory enables long-term, cross-session retention.**
+
+Amazon Bedrock AgentCore Memory is a managed capability that gives agents both short-term (within-session) and long-term (cross-session) memory, allowing preferences and facts to persist across conversations without manual context stuffing. Session attributes only last for the current session. Increasing max-tokens extends the context window but not cross-session retention, and costs more per call. Manually embedding preferences in every system prompt is a valid workaround but adds operational overhead and latency.
+
+- A. Session attributes persist only for the duration of a single session and are lost when it ends.
+- C. A larger context window allows more tokens per call but does not persist information across sessions.
+- D. A DynamoDB lookup injected into every system prompt is a common pattern but constitutes significant custom development and adds latency, unlike the managed AgentCore Memory service.
+
+</details>
+
+### S18 (Multiple choice)
+
+A product manager asks why Generative AI should **NOT** be chosen for a use case requiring precise, reproducible arithmetic calculations on financial ledgers. Which characteristic of large language models *BEST explains* this limitation?
+
+- A. LLMs can only process text, not numbers
+- B. LLMs are probabilistic token predictors and do not perform symbolic arithmetic reliably, making exact numerical outputs non-deterministic and error-prone
+- C. LLMs require GPU instances that are too expensive for finance workloads
+- D. LLMs cannot be integrated with databases
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — LLMs are probabilistic and unreliable for exact arithmetic.**
+
+LLMs predict the most probable next token based on training data patterns; they do not execute deterministic arithmetic algorithms. Even with temperature at 0, LLMs frequently produce incorrect results for multi-step calculations, especially with large numbers. For precise financial computation, rule-based systems, spreadsheets, or purpose-built calculation engines are appropriate.
+
+- A. LLMs can represent and discuss numbers; the issue is correctness of computation, not input format.
+- C. Cost is a consideration but is not the *reason* GenAI is inappropriate for exact arithmetic; a cheap model would fail just as badly.
+- D. LLMs can be integrated with databases via tool use and function calling; inability to connect is not the core limitation here.
+
+</details>
+
+### S19 (Multiple choice)
+
+A security-conscious enterprise needs foundation model inference to **never traverse the public internet** and remain within their AWS VPC. Which networking feature enables this for Amazon Bedrock?
+
+- A. AWS Shield Advanced
+- B. Amazon VPC endpoint (AWS PrivateLink) for Amazon Bedrock
+- C. Amazon CloudFront with origin access control
+- D. AWS WAF attached to an Application Load Balancer
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: B — VPC endpoint via PrivateLink keeps traffic private.**
+
+AWS PrivateLink enables customers to create VPC interface endpoints for Amazon Bedrock, routing all API calls from their VPC to Bedrock over the AWS private network without traversing the public internet. This satisfies data residency and network isolation requirements common in financial services and healthcare.
+
+- A. Shield Advanced provides DDoS protection; it does not control network routing for Bedrock API calls.
+- C. CloudFront is a content delivery network; it is not used to privatise Bedrock API access.
+- D. WAF with an ALB filters HTTP traffic at the application layer for web workloads; it does not route Bedrock SDK calls through a private network.
+
+</details>
+
+### S20 (Multiple response — choose TWO)
+
+A solutions architect is selecting a foundation model for a new application. The requirement states: *low inference latency for real-time chat, moderate accuracy acceptable, and minimum cost per token*. Which TWO model selection trade-offs should guide the choice?
+
+- A. Prefer a smaller model — smaller models generally have lower latency and lower cost per token than larger models
+- B. Choose the largest available model to maximise accuracy, regardless of latency
+- C. Prefer a model available via on-demand pricing rather than Provisioned Throughput to avoid upfront commitment
+- D. Prioritise a text-only model over a multimodal model if the use case only involves text, as multimodal models typically cost more per token
+- E. Always choose the model with the highest ROUGE score on public benchmarks
+
+<details><summary>Answer &amp; explanation</summary>
+
+**Correct: A and D — Smaller model and text-only model for latency, cost, and modality fit.**
+
+Model size is the primary driver of both inference latency and per-token cost; a smaller model that meets accuracy requirements will be faster and cheaper. When the task involves text only, choosing a text-only model avoids the additional per-token cost that multimodal models carry. These two choices directly satisfy low latency, moderate accuracy, and minimum cost.
+
+- B. The largest model maximises accuracy but is the most expensive and slowest — the opposite of the requirements.
+- C. On-demand vs Provisioned Throughput is a pricing-plan decision, not a model *selection* trade-off; it does not help choose between models.
+- E. ROUGE measures n-gram overlap for summarisation tasks; it is not a general-purpose accuracy benchmark and does not predict latency or cost.
+
+</details>
+
+---
+
 ## Score guide
 
 Score yourself on **first-attempt** answers (no peeking). Multiple-response counts as correct only if you selected *every* required option and no extras.
 
-| First-attempt score (of ~80) | Readiness |
+| First-attempt score (of ~100) | Readiness |
 |---|---|
-| 90–100% (72+) | Strong. You are exam-ready; do one timed full-length practice test to confirm stamina. |
-| 80–89% (64–71) | On track. Review the specific "why-wrong" notes you missed, especially service-selection swaps (Bedrock vs SageMaker, RAG vs fine-tuning, Clarify vs Model Monitor, A2I vs Ground Truth). |
-| 70–79% (56–63) | Borderline. The real exam passes at 700/1000 (~70%), so this is too thin a margin. Re-study the 2 weakest domains and redo those questions. |
-| Below 70% (<56) | Not yet ready. Go back to the domain concept files (01–05), then return to this bank. Focus on Domains 2 and 3 (52% of the exam combined). |
+| 90–100% (90+) | Strong. You are exam-ready; do one timed full-length practice test to confirm stamina. |
+| 80–89% (80–89) | On track. Review the specific "why-wrong" notes you missed, especially service-selection swaps (Bedrock vs SageMaker, RAG vs fine-tuning, Clarify vs Model Monitor, A2I vs Ground Truth). |
+| 70–79% (70–79) | Borderline. The real exam passes at 700/1000 (~70%), so this is too thin a margin. Re-study the 2 weakest domains and redo those questions. |
+| Below 70% (<70) | Not yet ready. Go back to the domain concept files (01–05), then return to this bank. Focus on Domains 2 and 3 (52% of the exam combined). |
 
 **Highest-leverage reflexes to drill before exam day:**
 - Bedrock (managed FM apps, RAG, Agents, Guardrails) vs SageMaker (build/train/host your own ML).

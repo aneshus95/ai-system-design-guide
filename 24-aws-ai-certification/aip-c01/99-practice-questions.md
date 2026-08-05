@@ -922,7 +922,7 @@ AWS documentation explicitly tags two capabilities as "Standard tier only": (1) 
 An enterprise is building a Bedrock application where different teams should be able to invoke models but NOT be able to create or delete Guardrails or Knowledge Bases. Which IAM approach BEST enforces this separation?
 
 - **A.** Attach `AmazonBedrockFullAccess` to developer roles and rely on Guardrails to block misuse.
-- **B.** Create a custom IAM policy that allows `bedrock:InvokeModel` and `bedrock:Converse` but explicitly denies `bedrock:CreateGuardrail`, `bedrock:DeleteGuardrail`, `bedrock:CreateKnowledgeBase`, and `bedrock:DeleteKnowledgeBase`.
+- **B.** Create a custom IAM policy that allows `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` but explicitly denies `bedrock:CreateGuardrail`, `bedrock:DeleteGuardrail`, `bedrock:CreateKnowledgeBase`, and `bedrock:DeleteKnowledgeBase`.
 - **C.** Use resource-based policies on the Bedrock service to restrict admin operations.
 - **D.** Configure a VPC endpoint policy that blocks CreateGuardrail API calls.
 
@@ -930,7 +930,7 @@ An enterprise is building a Bedrock application where different teams should be 
 
 **Correct: B.**
 
-The correct IAM approach is to write a custom policy that allows only the inference actions developers need (`InvokeModel`, `Converse`) and explicitly denies the administrative actions (`CreateGuardrail`, `DeleteGuardrail`, `CreateKnowledgeBase`, `DeleteKnowledgeBase`). Explicit denies override any allows, enforcing the separation.
+The correct IAM approach is to write a custom policy that allows only the inference actions developers need (`InvokeModel`, `InvokeModelWithResponseStream` — which also authorize the `Converse`/`ConverseStream` APIs) and explicitly denies the administrative actions (`CreateGuardrail`, `DeleteGuardrail`, `CreateKnowledgeBase`, `DeleteKnowledgeBase`). Explicit denies override any allows, enforcing the separation.
 
 - **A** is wrong — `AmazonBedrockFullAccess` grants all Bedrock permissions including administrative ones.
 - **C** is wrong — Bedrock does not use resource-based policies on the service itself (unlike S3 bucket policies).

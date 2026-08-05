@@ -124,7 +124,7 @@ The event stream emits `messageStart`, `contentBlockStart`, `contentBlockDelta` 
 
 ### 1.5 Structured output / Tool use via `toolConfig`
 
-The Converse API handles function calling through the `toolConfig` block. The model emits a `toolUse` content block when it wants to call a tool; you execute the function and return a `toolResult` block. As of **2026, strict schema enforcement** means tool requests must satisfy your JSON Schema — the model cannot hallucinate fields that are not in the schema.
+The Converse API handles function calling through the `toolConfig` block. The model emits a `toolUse` content block when it wants to call a tool; you execute the function and return a `toolResult` block. The model returns tool inputs conforming to the JSON Schema you declare in `inputSchema`, which sharply reduces malformed or out-of-schema tool calls — though you should still validate the input before executing, as with any external input.
 
 ```python
 tools = [
@@ -272,7 +272,7 @@ Parameterise prompts as strings with placeholders (`{{customer_name}}`, `{{produ
 
 **Action group → Lambda contract:**
 
-The agent sends a structured JSON event to your Lambda specifying `apiPath`, `httpMethod`, `parameters`, and `requestBody`. Your Lambda must return a response matching the OpenAPI schema. One Lambda per action group handles all operations defined in that group (up to 11 API operations per action group). ([AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/agents-lambda.html))
+The agent sends a structured JSON event to your Lambda specifying `apiPath`, `httpMethod`, `parameters`, and `requestBody`. Your Lambda must return a response matching the OpenAPI schema. One Lambda per action group handles all operations defined in that group. ([AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/agents-lambda.html))
 
 ```python
 # Lambda handler skeleton for a Bedrock Agent action group
@@ -304,13 +304,13 @@ For deterministic, auditable multi-step flows (e.g., "validate → enrich → su
 
 ### 3.2 Amazon Bedrock AgentCore — the production path (2026)
 
-[Amazon Bedrock AgentCore](https://aws.amazon.com/blogs/aws/introducing-amazon-bedrock-agentcore-securely-deploy-and-operate-ai-agents-at-any-scale/) is the managed production runtime for AI agents, announced in preview and reaching GA (Harness component) June 17, 2026. It is metered across **twelve components**:
+[Amazon Bedrock AgentCore](https://aws.amazon.com/blogs/aws/introducing-amazon-bedrock-agentcore-securely-deploy-and-operate-ai-agents-at-any-scale/) is the managed production runtime for AI agents. It is built from a set of individually-billed managed components — **Runtime, Memory, Gateway, Identity, Browser, Code Interpreter, Observability, Evaluations, and Policy**; the managed agent **harness** reached general availability on June 17, 2026. The core components:
 
 | Component | What it does |
 |---|---|
-| **Runtime** | Serverless, session-isolated execution environment for agent code; fast cold starts + extended async runtime |
+| **Runtime** | Serverless, session-isolated execution environment for agent code; supports long (multi-hour) async execution and the A2A protocol |
 | **Memory** | Two-tier (session + long-term) context store; you control what the agent remembers across sessions |
-| **Gateway** | Transforms existing REST APIs and Lambda functions into MCP-compatible agent tools; server-side execution cut median tool-latency from ~180 ms → ~95 ms (Feb 2026) |
+| **Gateway** | Transforms existing REST APIs and Lambda functions — and connects to existing MCP servers — into agent-compatible tools; supports IAM and OAuth authorization. Server-side tool execution reduces tool-call round-trip latency versus client-side orchestration |
 | **Browser** | Managed browser instances for web automation (scraping, form-filling, UI testing) |
 | **Code Interpreter** | Isolated sandbox to execute LLM-generated code (Python, shell) safely |
 | **Identity** | Built-in OAuth/OIDC so agents can authenticate to downstream services without custom auth code |
@@ -389,7 +389,7 @@ print(result)
 > - **Open-source, model-agnostic agent SDK + MCP** → **Strands Agents**
 > - **Deterministic multi-step workflow** alongside an agent → add **Step Functions** for the state machine; let the agent handle the NL reasoning
 > - **Tool integration standard across frameworks** → **MCP**
-> - AgentCore Gateway + server-side tool execution cuts tool-round-trip latency roughly in half vs. client-side orchestration
+> - AgentCore Gateway executes tools server-side, reducing tool-round-trip latency vs. client-side orchestration (and can wrap existing REST/Lambda or connect to existing MCP servers)
 
 ---
 

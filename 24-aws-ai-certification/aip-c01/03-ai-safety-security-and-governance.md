@@ -240,9 +240,8 @@ Amazon Bedrock follows standard AWS IAM. The key permission actions to know:
 
 | Action | Purpose |
 |---|---|
-| `bedrock:InvokeModel` | Call a foundation model synchronously |
-| `bedrock:InvokeModelWithResponseStream` | Streaming inference |
-| `bedrock:Converse` / `bedrock:ConverseStream` | Converse API (multi-turn) |
+| `bedrock:InvokeModel` | Call a foundation model synchronously — **also authorizes the `Converse` API** |
+| `bedrock:InvokeModelWithResponseStream` | Streaming inference — **also authorizes `ConverseStream`** |
 | `bedrock:GetFoundationModel` | Describe a model |
 | `bedrock:ListFoundationModels` | List available models |
 | `bedrock:CreateGuardrail` / `bedrock:ApplyGuardrail` | Guardrail management and evaluation |

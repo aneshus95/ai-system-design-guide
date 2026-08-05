@@ -432,7 +432,7 @@ The Converse API (`Converse` and `ConverseStream`) is the purpose-built interfac
 A team is implementing function calling in a Bedrock Agents workflow. The agent should call an external weather API when a user asks about weather. The developer defines the tool in the agent's action group. At runtime, the agent returns a `ReturnControl` event instead of calling the Lambda function directly. What does this mean and how should the developer respond?
 
 - **A.** The agent failed; the developer must redeploy the action group.
-- **B.** `ReturnControl` means the agent has decided which tool to invoke and is returning the tool name and parameters to the calling application, which must execute the tool itself and return the result via `resumeSession`.
+- **B.** Return of control means the agent has decided which tool to invoke and is returning the tool name and parameters to the calling application, which must execute the tool itself and return the result via a subsequent `InvokeAgent` call (`sessionState.returnControlInvocationResults`).
 - **C.** `ReturnControl` means the model needs more context; the developer must append additional system prompt instructions.
 - **D.** `ReturnControl` is a streaming artifact that can be ignored; the final answer will follow.
 
@@ -440,11 +440,11 @@ A team is implementing function calling in a Bedrock Agents workflow. The agent 
 
 **Correct: B.**
 
-`ReturnControl` (also called "inline agent" or "code interpreter return") is a Bedrock Agents feature where the agent delegates tool execution back to the calling application rather than invoking a Lambda itself. The application is responsible for executing the tool and then calling `resumeSession` (or `InvokeAgent` with the `sessionState.returnControlInvocationResults`) to pass the tool output back. This pattern is used when the developer wants to control tool execution in-process.
+**Return of control** (the `returnControl` field in the `InvokeAgent` response) is a Bedrock Agents feature where the agent delegates tool execution back to the calling application instead of invoking a Lambda itself. The response returns the API/function name and parameters plus a unique `invocationId`. The application executes the tool, then makes a **subsequent `InvokeAgent` call passing the output in `sessionState.returnControlInvocationResults`** (reusing the same `invocationId` and `actionGroup`). This pattern is used when the developer wants to control tool execution in-process rather than via a Lambda action group.
 
-- **A** is wrong — `ReturnControl` is a valid, intentional design pattern.
-- **C** is wrong — `ReturnControl` is an explicit protocol event, not a signal for more context.
-- **D** is wrong — `ReturnControl` is a terminal event in that step; the agent is paused awaiting the tool result.
+- **A** is wrong — return of control is a valid, intentional design pattern, not a failure.
+- **C** is wrong — return of control is an explicit protocol response, not a signal for more context.
+- **D** is wrong — the agent is paused awaiting the tool result; the response must be supplied via the next `InvokeAgent` call, not ignored.
 
 </details>
 
@@ -1041,17 +1041,17 @@ A company wants to evaluate whether switching from on-demand Bedrock inference t
 - **A.** PT is always cheaper than on-demand regardless of request volume.
 - **B.** PT is billed per model unit (MU) per hour; at sustained high utilization (24/7), PT becomes more cost-effective than on-demand because reserved capacity amortizes the hourly rate.
 - **C.** PT is cheaper only for batch inference jobs, not for real-time inference.
-- **D.** PT eliminates all token charges; you only pay the hourly MU rate.
+- **D.** PT is billed per input/output token like on-demand, but with an automatic volume discount applied at month-end.
 
 <details><summary>Answer & explanation</summary>
 
 **Correct: B.**
 
-Provisioned Throughput provides dedicated model-invocation capacity billed per MU per hour. For sustained, consistently high traffic (24/7 at 1,000 RPM), the amortized hourly MU cost becomes lower than per-token on-demand pricing. PT is the right fit for "flat, sustained, interactive traffic." At low or variable utilization, PT can cost more than on-demand.
+Provisioned Throughput provides dedicated model-invocation capacity billed per model unit (MU) per hour, typically with a 1-month or 6-month commitment. For sustained, consistently high traffic (24/7 at 1,000 RPM), the amortized hourly MU cost becomes lower than per-token on-demand pricing. PT is the right fit for "flat, sustained, interactive traffic." At low or variable utilization, PT can cost more than on-demand.
 
 - **A** is wrong — at low utilization, PT overhead exceeds on-demand savings.
 - **C** is wrong — PT is designed for real-time inference; batch inference has its own separate pricing.
-- **D** is wrong — PT pricing covers the capacity reservation; token-based metrics still apply for tracking, though billing is by the hour rather than per token.
+- **D** is wrong — PT is billed **per model unit per hour** for reserved capacity (with a term commitment), *not* per token with a month-end discount.
 
 </details>
 

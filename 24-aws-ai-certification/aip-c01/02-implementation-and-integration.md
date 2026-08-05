@@ -475,6 +475,91 @@ Trains on **unlabelled** domain text to bake vocabulary, facts, and style into t
 
 ## 5. Integration Patterns
 
+### 5.0 Bedrock inference types — end-to-end flows
+
+Amazon Bedrock exposes **three inference types**, plus **Provisioned Throughput** as a capacity/billing mode layered on top of the real-time types. Knowing the exact flow of each — and when to reach for it — is a recurring AIP-C01 scenario. ([Bedrock batch inference](https://docs.aws.amazon.com/bedrock/latest/userguide/batch-inference.html))
+
+| Inference type | API | Sync / async | Latency | Cost | Best for |
+|---|---|---|---|---|---|
+| **Synchronous (real-time)** | `InvokeModel` / `Converse` | Synchronous | Full answer in seconds | Per-token (on-demand) | Interactive single-turn Q&A, classification, extraction |
+| **Streaming (real-time)** | `InvokeModelWithResponseStream` / `ConverseStream` | Synchronous, streamed | First token in ms | Per-token (on-demand) | Chat UIs, copilots, voice — anything where perceived latency matters |
+| **Batch (asynchronous)** | `CreateModelInvocationJob` | Asynchronous | Minutes–hours | **~50% of on-demand** | Bulk, non-urgent jobs: nightly summaries, dataset labelling, embeddings backfill |
+| **Provisioned Throughput** *(capacity mode)* | same real-time APIs via `provisionedModelArn` | Synchronous | Consistent, no shared-pool contention | Hourly per **model unit (MU)** + term commitment | Steady high-volume production; **required for custom/fine-tuned models** |
+
+> **Key distinction:** Bedrock has **no separate native "asynchronous endpoint"** like SageMaker's async inference. **Batch inference is the native async mode.** The "asynchronous invocation" pattern in §5.2 (SQS → Lambda → Bedrock) is an *application-level* pattern that wraps **synchronous** calls — it is not a distinct Bedrock inference type.
+
+#### Flow 1 — Synchronous (on-demand) invocation
+
+```
+Client
+  │  build messages[] + inferenceConfig
+  ▼
+Converse / InvokeModel  ──►  Bedrock  ──►  runs model to completion
+  │                                             │
+  │◄──────────── full response (one payload) ◄──┘
+  ▼
+Parse output["message"]["content"][0]["text"]
+```
+One request, one blocking response. Simplest path; the caller waits for the entire generation.
+
+#### Flow 2 — Streaming invocation
+
+```
+Client
+  │  call ConverseStream
+  ▼
+Bedrock opens an event stream ──►  messageStart
+                                   contentBlockStart
+                                   contentBlockDelta  ← text chunk ┐
+                                   contentBlockDelta  ← text chunk │ render as they arrive
+                                   contentBlockDelta  ← text chunk ┘
+                                   contentBlockStop
+                                   messageStop  (+ usage/metrics)
+```
+Same synchronous request, but tokens arrive incrementally — the UI renders partial output immediately, cutting *perceived* latency. Monitor `TimeToFirstToken` in CloudWatch (streaming APIs only).
+
+#### Flow 3 — Batch inference (asynchronous job)
+
+```
+1. Prepare input JSONL in S3   (one record per line, minimum 100 records)
+      { "recordId": "0001", "modelInput": { …Converse or InvokeModel body… } }
+2. CreateModelInvocationJob(
+        modelId, roleArn,
+        inputDataConfig  = s3://bucket/in/,
+        outputDataConfig = s3://bucket/out/ )   ──►  returns jobArn
+3. Bedrock runs the job asynchronously on a SEPARATE batch quota (~50% of on-demand price)
+4. Track status:  Submitted → Validating → InProgress → Completed / Failed / Stopped
+      • poll GetModelInvocationJob(jobArn), or
+      • trigger on an EventBridge status-change event
+5. Read output JSONL from S3:
+      { "recordId": "0001", "modelInput": {…}, "modelOutput": {…} }
+      (records keyed by recordId so you can rejoin to inputs)
+```
+No persistent endpoint; you submit files and collect results later. Ideal when latency tolerance is minutes-to-hours and cost matters. **Prompt caching is not available with batch.**
+
+#### Flow 4 — Provisioned Throughput (capacity mode over real-time)
+
+```
+1. PurchaseProvisionedModelThroughput(
+        modelId, modelUnits, commitmentDuration )   ──►  provisionedModelArn
+        (term commitment, e.g. 1-month or 6-month; custom/fine-tuned models require PT)
+2. Invoke with modelId = provisionedModelArn using the SAME
+   Converse / InvokeModel / …Stream APIs  (Flows 1 & 2 unchanged)
+3. Billed per model unit per hour for the term — regardless of traffic —
+   giving reserved, contention-free throughput and predictable cost
+```
+> **⚠ ARN pitfall:** you must pass the **`provisionedModelArn`** as `modelId`. Passing the base foundation-model ID leaves your reserved capacity idle while you keep paying on-demand rates.
+
+> **🎯 On the exam**
+>
+> - **Interactive answer, wait for full text** → **synchronous** `Converse`/`InvokeModel`.
+> - **"UI hangs before anything appears" / typing-style UX** → **streaming** `ConverseStream`.
+> - **Large, non-urgent, cost-sensitive job (10K+ prompts)** → **batch inference** (`CreateModelInvocationJob`, ~50% off, S3 in/out, min 100 records).
+> - **Steady 24/7 high volume, or invoking a fine-tuned/custom model** → **Provisioned Throughput** (via `provisionedModelArn`).
+> - **"Bedrock async endpoint that scales to zero"** is a distractor — that's SageMaker; Bedrock's async path is **batch inference**.
+
+---
+
 ### 5.1 Synchronous invocation
 
 The caller blocks until the model responds. Use for:

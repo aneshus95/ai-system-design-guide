@@ -159,6 +159,42 @@ flowchart TB
 | **Asynchronous** | Large payloads / long inference (video, big docs) | Payloads up to **1 GB**, processing up to **1 hour**; request & response via **S3** | Pay for instance; **can scale to zero** when idle | Client must poll or use **SNS** notifications |
 | **Serverless** | Intermittent/unpredictable traffic, dev/test | Payload up to **4 MB**, up to **60 s** processing | Pay **per use**, no idle charge | **Cold starts** add latency |
 
+📥 **Input flow for each type** — *where the input comes from and how it reaches the model:*
+
+**Real-time** — the client sends the input **inline in the request** (small payload), gets the prediction back **in the same synchronous response**:
+```mermaid
+flowchart LR
+    C["Client app"] -->|"input inline in request<br/>(payload ≤ 6 MB, synchronous)"| EP["Real-time endpoint<br/>(always-on instance)"]
+    EP -->|"prediction in the response (ms)"| C
+```
+
+**Batch Transform** — the input is a **whole dataset already in S3**; the job reads it, scores it, writes results back to S3, then tears down (no endpoint):
+```mermaid
+flowchart LR
+    S3in["S3: input dataset<br/>(file/prefix, GBs)"] -->|"job reads input"| BT["Batch Transform job<br/>(instances spin up)"]
+    BT -->|"writes predictions"| S3out["S3: output"]
+    BT -.->|"job ends → instances removed"| X["no persistent endpoint"]
+```
+
+**Asynchronous** — the client **uploads the large input to S3 first**, then calls `InvokeEndpointAsync` with the **S3 URI** (not the data); the request is **queued**, the result lands in S3, and SNS notifies on completion:
+```mermaid
+flowchart LR
+    C["Client"] -->|"1 upload large input"| S3in["S3: input (≤ 1 GB)"]
+    C -->|"2 InvokeEndpointAsync(S3 input URI)"| Q["Async endpoint queue"]
+    Q --> EP["Endpoint processes<br/>(up to 1 hr)"]
+    EP -->|"3 writes result"| S3out["S3: output"]
+    EP -->|"4 success/error"| SNS["SNS notification"]
+```
+
+**Serverless** — the client sends the input **inline in the request** (like real-time), but compute is **provisioned on demand** (cold start if idle), then scales back to zero:
+```mermaid
+flowchart LR
+    C["Client"] -->|"input inline in request<br/>(payload ≤ 4 MB, synchronous)"| SL["Serverless endpoint<br/>(cold start if idle → scale up)"]
+    SL -->|"prediction (≤ 60 s), then scales to zero"| C
+```
+
+> **Input-path tell:** if the input is **inline in the request** → **real-time** or **serverless** (small payloads); if the input comes **from S3** → **Batch Transform** (whole dataset, no endpoint) or **Asynchronous** (one large payload by S3 URI, queued, result to S3).
+
 🎯 **On the exam — reflexes:**
 - "Score millions of records overnight, no endpoint needed" → **Batch Transform**.
 - "Immediate response, steady traffic" → **Real-time endpoint**.

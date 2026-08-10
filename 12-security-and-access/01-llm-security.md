@@ -20,6 +20,10 @@ Security in LLM systems is fundamentally different from traditional application 
 
 ### New Threat Categories
 
+> **Why (the rationale):** LLMs collapse the boundary between code and data — user-supplied text is processed by the same model that executes instructions, creating injection, leakage, and agency threats that have no direct analogue in traditional web applications.
+> **When to use:** Apply LLM-specific threat modeling from the first production deployment; unlike classic web vulns, these threats cannot be fully mitigated after the fact by adding a WAF.
+> **Nuances & gotchas:** OWASP Top 10 for LLMs is a useful taxonomy but is not exhaustive — the threat model evolves as models gain more capabilities and agentic features; static, periodic security review is no longer sufficient in a world where AI-driven offensive tooling is in the wild.
+
 LLMs introduce unique security challenges:
 
 | Threat | Description | Traditional Equivalent |
@@ -50,6 +54,10 @@ LLMs introduce unique security challenges:
 ## Prompt Injection
 
 ### What Is Prompt Injection
+
+> **Why (the rationale):** LLMs cannot natively distinguish between system instructions and user-supplied data — both are text in the same channel — so an attacker who controls any text in the context window can attempt to hijack the model's behavior.
+> **When to use:** Treat prompt injection defenses as mandatory, not optional, for any LLM system that processes user-controlled or externally-retrieved text; the threat is not theoretical — it is the OWASP #1 LLM vulnerability.
+> **Nuances & gotchas:** No mitigation fully eliminates prompt injection — models can be socially engineered regardless of delimiters and instruction hierarchies; defense in depth (input sanitization + instruction hierarchy + output filtering + capability gating) is the only realistic strategy; regex-based sanitization is easily bypassed by encoding, paraphrasing, or multi-step attacks.
 
 Attacker input is interpreted as instructions rather than data.
 
@@ -181,6 +189,10 @@ def filter_output(response: str) -> str:
 
 ### Sources of Leakage
 
+> **Why (the rationale):** LLMs memorize training data and operate over sensitive context (system prompts, RAG documents, conversation history) — any of these can be extracted by a sufficiently motivated user or automated attacker, creating data breach risk without any traditional code vulnerability.
+> **When to use:** Treat all LLM context as potentially leakable and design retrieval, logging, and multi-tenant systems with that assumption; scrub PII from training data before fine-tuning and log only hashed content in audit logs.
+> **Nuances & gotchas:** System prompt confidentiality through instruction alone is not a security control — models can be coerced into revealing instructions; RAG leakage is the highest-risk in multi-tenant systems because the vector DB filter is the only barrier between tenants, and a bug there is a cross-tenant data breach.
+
 | Source | Risk | Example |
 |--------|------|---------|
 | Training data | Model memorizes sensitive data | PII, secrets in training |
@@ -262,6 +274,10 @@ def check_system_prompt_leak(response: str, system_prompt: str) -> bool:
 ## Output Security
 
 ### Insecure Output Handling
+
+> **Why (the rationale):** LLM outputs are untrusted user-like strings that happen to look plausible — passing them directly to `exec()`, `db.execute()`, or `render_template_string()` creates the same injection vulnerabilities as trusting raw user input.
+> **When to use:** Treat LLM output as untrusted at every integration boundary; use structured outputs (JSON schemas) to constrain what the model can return, then validate and sanitize before acting on it.
+> **Nuances & gotchas:** Even "structured" LLM output (JSON) can contain injection payloads in string fields; sandboxed code execution, parameterized queries, and escaped rendering are all still needed — structured output restricts format, not content safety.
 
 LLM output should not be trusted.
 
@@ -439,6 +455,12 @@ class SecureToolExecutor:
 ## Defense in Depth
 
 ### Layered Security Architecture
+
+> **Why (the rationale):** No single LLM security control is sufficient — prompt injection bypasses input sanitization, jailbreaking bypasses instruction hierarchies, and indirect injection bypasses both; only layered independent defenses provide meaningful assurance.
+> **When to use:** Structure every production LLM pipeline through all six layers (input validation → injection detection → context security → generation → output validation → safe handling); the cost is modest overhead, the payoff is that multiple independent bypass attempts are needed to cause harm.
+> **Nuances & gotchas:** Layering defenses adds latency at each step — fast classifiers (PromptArmor-class, under 1% FP/FN) at the edge minimize this; defense in depth does NOT mean each layer is redundant — each catches a different attack class and all are needed.
+
+
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

@@ -135,6 +135,10 @@ Always propose a **baseline** (rule-based or logistic regression) before complex
 
 ## Recommendation System
 
+> **Why (the rationale):** Users cannot browse millions of items; a recommender surfaces the small set most likely to be relevant, directly driving engagement and retention — one of the highest-ROI ML applications.
+> **When to use:** Any platform with a large item catalog and user interaction history. Two-stage retrieve→rank becomes necessary once the catalog exceeds ~10k items and real-time scoring of all items is infeasible.
+> **Nuances & gotchas:** Collaborative filtering suffers from the cold-start problem (no history for new users/items). Implicit feedback (clicks, plays) is abundant but noisy — a click ≠ satisfaction. Position bias in training data (items shown first get more clicks) must be corrected with IPS or randomization. Optimizing click-through can create filter bubbles; add diversity constraints to the ranking objective.
+
 **Prompt**: "Design a recommendation system for a video/music streaming platform."
 
 **Plain English**: You can't score all N million items for every user on every page load — too slow. So you do it in two stages: first *retrieve* a small candidate set (~1000), then *rank* just those carefully.
@@ -216,6 +220,10 @@ User's Network Posts (thousands)
 
 ## Fraud / Anomaly Detection
 
+> **Why (the rationale):** Fraud is adversarial, rare (<0.5% of transactions), and constantly evolving — requiring a hybrid of hard rules (for known patterns) and adaptive ML (for novel patterns), with strict latency requirements and asymmetric error costs.
+> **When to use:** Any payment, authentication, or trust-and-safety system where the cost of missed fraud vastly exceeds the cost of false positives. Real-time streaming inference is required; batch scoring is too slow.
+> **Nuances & gotchas:** Severe class imbalance (fraud ~0.1–0.5%) means PR-AUC, not ROC-AUC, is the right metric. Label delay is real — fraud is confirmed days to weeks later; naive training on recent data creates "censored label" bias. Adversarial adaptation: fraudsters observe your blocks and adjust; model must be retrained frequently and champion/challenger'd. GNN-based features on transaction graphs catch ring fraud that tabular features miss.
+
 **Prompt**: "Design a real-time fraud detection system for a payment platform."
 
 **Plain English**: Fraud is rare (<0.5% of transactions) and constantly evolving. You need a hybrid: rules catch known patterns instantly, ML catches unknown patterns, and humans review edge cases.
@@ -262,6 +270,10 @@ Transaction Event
 
 ## Ad CTR Prediction
 
+> **Why (the rationale):** In ad auctions, predicted CTR directly determines which ad is shown (eCPM = P(click) × bid) — a 0.1% AUC improvement translates to significant revenue; both accuracy and calibration are critical because uncalibrated probabilities distort auction prices.
+> **When to use:** Any ad serving system performing real-time auction scoring at scale. Logistic regression on hashed features remains a strong baseline; upgrade to DeepFM when feature interaction modeling is needed.
+> **Nuances & gotchas:** CTR of 1–2% means severe class imbalance — use negative downsampling but then mandatory Platt scaling to recalibrate probabilities before feeding into the auction. Logging bias: only shown ads get labels, so the model never sees counterfactuals. Train/val split must be temporal — a random split leaks future CTR patterns. Calibration is as important as AUC because mispredicted probabilities directly distort bid landscapes.
+
 **Prompt**: "Design a click-through rate prediction system for a search/social ad platform."
 
 **Plain English**: For each ad auction, you need to estimate P(user clicks this ad) within ~150 ms across billions of daily requests. The model output feeds directly into the auction — a 0.1% AUC improvement can mean millions in revenue.
@@ -300,6 +312,10 @@ Ad Request (user, query, context)
 ---
 
 ## Customer Churn Prediction
+
+> **Why (the rationale):** Retaining an existing customer is cheaper than acquiring a new one; predicting imminent churn before cancellation allows targeted intervention — but only if the right customers are targeted (persuadables, not inevitable churners).
+> **When to use:** Subscription products with observable behavioral signals (logins, feature usage, support tickets). Batch scoring is sufficient; run nightly and pipe scores to CRM or intervention engine.
+> **Nuances & gotchas:** Predicting who will churn ≠ predicting who will respond to an intervention. Without uplift modelling you waste budget on sure churners (who will leave anyway) and sure stayers (who didn't need outreach). Observation window and prediction horizon must be carefully defined — look-ahead leakage is common if feature engineering uses data from within the churn window. SHAP explanations are needed to justify personalized intervention selection.
 
 **Prompt**: "Design an ML system to predict which customers will cancel their subscription in the next 30 days."
 
@@ -520,6 +536,10 @@ Applicant Data
 ---
 
 ## Online vs Batch Serving, Feature Stores, and Drift
+
+> **Why (the rationale):** The choice of serving mode — batch (precompute), online (per request), or streaming (per event) — determines latency, freshness, infrastructure cost, and which features are even computable; it is the single most consequential architectural decision in ML system design.
+> **When to use:** Batch for applications where staleness is acceptable and cost/simplicity matter (churn, risk scoring, nightly recs). Online for request-time decisions requiring fresh context (search ranking, pricing, ETA). Streaming when events must be acted on within seconds (fraud, live anomaly detection).
+> **Nuances & gotchas:** Training-serving skew is the #1 silent killer of production ML — features computed differently in training vs serving cause the model to see a distribution it never trained on. A feature store solves this by defining transformations once and serving them identically to both. Batch systems are operationally simpler but predictions go stale; online systems add latency, infra complexity, and a new failure mode if the feature-serving path breaks.
 
 ### Online vs Batch
 

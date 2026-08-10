@@ -80,6 +80,10 @@ You need to measure multiple dimensions independently.
 
 ### Exact Match
 
+> **Why (the rationale):** When there is exactly one correct answer (classification labels, multiple-choice, entity extraction), exact match is the fastest and most objective quality signal.
+> **When to use:** Multiple-choice benchmarks, classification tasks, structured extraction where the value must be bit-for-bit correct (e.g., ISO date formats, codes).
+> **Nuances & gotchas:** Exact match fails the moment two valid phrasings exist ("US" vs. "United States"); don't use for free-text answers even if the domain is constrained — the metric will severely undercount correct answers.
+
 Simplest approach, rarely sufficient alone:
 
 ```python
@@ -102,6 +106,10 @@ def keyword_match(prediction: str, required_keywords: list[str]) -> float:
 
 ### Semantic Similarity
 
+> **Why (the rationale):** Paraphrased correct answers should score highly — embedding similarity captures meaning equivalence that exact-match misses, making it useful for loose comparison tasks.
+> **When to use:** Paraphrase detection, approximate answer matching, diversity measurement across candidates; a useful complement to exact match, not a replacement.
+> **Nuances & gotchas:** High cosine similarity does NOT mean factually correct — a confidently wrong answer paraphrasing a correct one will score high; never use semantic similarity as the sole correctness signal for factual tasks.
+
 ```python
 def semantic_similarity(prediction: str, reference: str) -> float:
     pred_embedding = embed(prediction)
@@ -113,6 +121,10 @@ def semantic_similarity(prediction: str, reference: str) -> float:
 **Limitation:** High similarity does not mean correct
 
 ### ROUGE (Summarization)
+
+> **Why (the rationale):** ROUGE provides a fast, reference-based signal for whether a summary contains the key vocabulary of the source; it correlates loosely with human quality judgments in aggregate over large evaluation sets.
+> **When to use:** Summarization evaluation as a coarse filter or longitudinal trend signal; useful for catching large regressions but not for fine-grained quality ranking.
+> **Nuances & gotchas:** ROUGE measures n-gram overlap, not semantic content or factual accuracy — a summary can score high by copying the wrong sentences verbatim, or score low by using synonyms while being perfectly accurate; never make deployment decisions based on ROUGE alone.
 
 Measures n-gram overlap:
 
@@ -163,6 +175,10 @@ def evaluate_code(prediction: str, test_cases: list[dict]) -> dict:
 ---
 
 ## LLM-as-Judge
+
+> **Why (the rationale):** Human evaluation is the gold standard but slow and expensive; LLM-as-judge scales subjective quality evaluation to thousands of examples per day at a fraction of the cost, enabling rapid iteration.
+> **When to use:** Rapid development iterations, regression testing, online quality sampling at 1-5% of production traffic; use a stronger model (frontier judge) than the model being evaluated.
+> **Nuances & gotchas:** LLM judges are biased toward verbosity (longer answers score higher regardless of quality), their own model family's style (self-preference), and the first option in pairwise comparisons (positional bias); calibrate against human labels before trusting the scores — an uncalibrated judge can rank a worse model higher; public benchmarks that leaked into training inflate the judge's "agreement" with expected answers rather than measuring real quality.
 
 Use an LLM to evaluate another LLM's outputs.
 
@@ -280,6 +296,10 @@ def calibrated_pairwise_judge(question: str, response_a: str, response_b: str) -
 
 ### When to Use Human Evaluation
 
+> **Why (the rationale):** Human evaluation is the only ground truth for subjective quality — annotators represent the actual users whose satisfaction matters; automated metrics and LLM judges are proxies for this signal, not substitutes.
+> **When to use:** Final quality assessment before launch, safety review of edge cases, calibrating LLM judges (the gold set), and any dimension that automated metrics reliably miss (cultural nuance, subtle harm, domain expertise).
+> **Nuances & gotchas:** Low inter-annotator agreement (kappa < 0.6) means the task is ambiguous or the guidelines are poor — fix the guidelines before collecting more annotations; humans are also biased toward longer, more confident-sounding answers, so calibrate annotators with examples and clear rubrics.
+
 | Use Case | Automate? | Human? |
 |----------|-----------|--------|
 | Rapid iteration | Yes | Spot check |
@@ -343,6 +363,10 @@ def interpret_kappa(kappa: float) -> str:
 ---
 
 ## RAG-Specific Evaluation
+
+> **Why (the rationale):** RAG systems have two separable failure points — the retriever (did we fetch the right context?) and the generator (did the model stay faithful to that context?) — and a single end-to-end quality score cannot localize which component is failing.
+> **When to use:** Any RAG pipeline; measure retrieval quality (precision, recall) and generation quality (faithfulness, relevance) independently so you know whether to fix the retriever or the generator.
+> **Nuances & gotchas:** High faithfulness does NOT mean the answer is correct — it means the answer matches the retrieved context; if the retriever returned wrong documents, a faithful answer is faithfully wrong; always evaluate retrieval quality independently.
 
 ### RAGAS Metrics
 
@@ -472,6 +496,10 @@ eval_dataset = [
 ```
 
 ### Automated Evaluation Pipeline
+
+> **Why (the rationale):** Manual evaluation does not scale with development velocity; an automated pipeline runs on every commit, catches regressions before they reach production, and produces a comparable quality signal across all changes.
+> **When to use:** Any LLM product under active development; run the eval suite in CI on every pull request that changes a prompt, retrieval config, or model version.
+> **Nuances & gotchas:** An eval pipeline is only as good as its dataset — a small, low-diversity eval set will miss the failure modes that matter in production; invest in dataset quality and coverage before optimizing the pipeline itself.
 
 ```python
 class EvaluationPipeline:
@@ -626,6 +654,10 @@ The 2023-2024 playbook ("use GPT-4 as a judge") was good enough for v1 systems b
 
 ### The Layered Judge Architecture
 
+> **Why (the rationale):** Running a frontier judge on every production trace is unaffordable above ~100K req/day; distilled judges (trained on frontier-judge labels) run at ~97% lower cost with ~88-92% agreement, enabling inline evaluation at scale with frontier calibration on a sample.
+> **When to use:** Any production system above low volume; run distilled judges inline on every trace for the taxonomy they cover, frontier judges on 1-5% sample for calibration, and humans on disagreements to maintain ground truth.
+> **Nuances & gotchas:** Distilled judges cover a fixed taxonomy of failure modes — they have no reliable signal on failure modes outside their training distribution; a new attack vector or novel domain-specific failure will produce default scores that look fine while the real failure goes undetected.
+
 ```mermaid
 flowchart TD
     A[Production traffic] --> B[Inline cheap distilled judges]
@@ -686,6 +718,10 @@ Sister benchmarks:
 In practice, the pass^k metric is the most actionable. A Pass^1 of 70% and a Pass^4 of 12% says "the agent works on the easy path but cannot recover from any small perturbation." That is exactly the signal production teams need before rolling out an agent at scale.
 
 ### Agent-as-Judge: Trajectory Grading
+
+> **Why (the rationale):** Long-horizon agents fail in ways the final answer cannot reveal — right answer via dangerous path, right answer via runaway cost, right answer after self-jailbreaking; only grading the trajectory catches these.
+> **When to use:** Any agentic system where tool calls, intermediate states, and reasoning steps matter for safety, efficiency, or correctness — not just the final output; essential before rolling out an agent at scale.
+> **Nuances & gotchas:** Trajectory grading is expensive (an auditor agent replays every step) and requires structured logging of every action; it does NOT replace final-answer evaluation — it adds a layer on top; "reasoning-action mismatch" (agent says one thing, does another) is the most common trajectory failure and the hardest to catch with any other method.
 
 LLM-as-judge scored the final answer. Agent-as-judge scores the **trajectory**: the sequence of tool calls, intermediate states, retries, and reasoning steps the agent went through.
 

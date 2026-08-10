@@ -24,6 +24,10 @@ Attention is the core innovation that enables transformers. This chapter covers 
 
 Attention allows each position in a sequence to gather information from all other positions. Unlike recurrence (which passes information step by step), attention creates direct connections.
 
+> **Why (the rationale):** RNNs require information to propagate through many sequential hidden states, causing gradient vanishing and making long-range dependencies unreliable; attention provides a direct, differentiable path from any token to any other token in a single operation.
+> **When to use / when it matters:** The fundamental cost driver of transformer inference — attention is O(n²) in sequence length, meaning doubling context quadruples attention compute; every long-context optimization (Flash Attention, GQA, sparse attention) exists because of this baseline cost.
+> **Nuances & gotchas:** Attention does NOT guarantee that the model actually *uses* long-range information just because it can *access* it — in practice, models exhibit "lost in the middle" degradation where information in the middle of a long context is attended to less than information at the start or end.
+
 **Mental model for distributed systems engineers:**
 - RNN: Message passing along a chain
 - Attention: Pub/sub where every node can query every other node
@@ -51,6 +55,10 @@ V = x @ W_v  # [batch, seq_len, d_v]
 ## Scaled Dot-Product Attention
 
 The fundamental attention operation:
+
+> **Why (the rationale):** Dot-product similarity is computationally efficient (matrix multiply) and differentiable; the softmax converts raw scores to a probability distribution so output is a convex combination of values, keeping representations bounded; scaling by √d_k is necessary to prevent softmax saturation as head dimension grows.
+> **When to use / when it matters:** This is the exact formula that every attention variant modifies; knowing it is prerequisite for understanding Flash Attention (same math, different memory layout), GQA (same math, shared K/V), and MLA (same math, compressed K/V).
+> **Nuances & gotchas:** The n×n score matrix is the bottleneck — it requires O(n²) memory when materialized; for n=100K this is 10 billion floats per layer per head, which is why Flash Attention avoids materializing it entirely.
 
 ```python
 def scaled_dot_product_attention(Q, K, V, mask=None):
@@ -99,6 +107,10 @@ scaled = unscaled / np.sqrt(d)  # Magnitude ~ 1
 ### Causal Masking
 
 For autoregressive generation, each position can only attend to previous positions:
+
+> **Why (the rationale):** Without causal masking, the model could "see the answer" during training by attending to future tokens, trivially minimizing the next-token prediction loss without learning anything meaningful; the mask enforces the same left-to-right constraint at train time that applies at generation time.
+> **When to use / when it matters:** Applies to all decoder-only models (GPT, Claude, Llama) during both training and inference; encoder-only models (BERT) use no causal mask and allow full bidirectional attention, which is why they cannot generate text autoregressively.
+> **Nuances & gotchas:** The causal mask does NOT slow down training — setting future positions to −∞ before softmax is a cheap operation; the sequential *inference* constraint (you must generate token t before token t+1) is an inherent property of the autoregressive formulation, not of the mask itself.
 
 ```python
 def create_causal_mask(seq_len):
@@ -219,6 +231,10 @@ mat     [○    ●    ○    ●    ●    □ ]
 
 Standard attention is O(n^2) in sequence length. Many variants reduce this:
 
+> **Why (the rationale):** At 128K context the n×n score matrix alone requires ~65 GB per layer per head in FP16, making standard attention physically infeasible; efficient variants trade away some or all pairwise interactions to achieve practical long-context operation.
+> **When to use / when it matters:** Choosing an efficient attention variant is a core architectural decision for long-context applications; Flash Attention is the universal first choice (exact, faster), sparse/linear attention trade quality for further memory savings.
+> **Nuances & gotchas:** Flash Attention still has O(n²) *compute* — it only achieves O(n) *memory* via tiling; truly sub-quadratic compute requires approximate methods (sparse/linear attention) that sacrifice some quality; Mamba (state-space) achieves O(n) in both but has different quality tradeoffs on tasks requiring precise long-range retrieval.
+
 ### Sparse Attention
 
 Attend only to a subset of positions rather than all:
@@ -273,6 +289,10 @@ attention = (Q @ (K.T @ V))  # Associativity trick
 
 Flash Attention is the state-of-the-art implementation that achieves O(n) memory while computing exact attention.
 
+> **Why (the rationale):** Standard attention requires reading and writing an n×n matrix to slow GPU HBM on every layer; Flash Attention reorders computation so intermediate results stay in fast on-chip SRAM, dramatically reducing HBM memory traffic — the real bottleneck for GPU speed.
+> **When to use / when it matters:** Flash Attention is the default in every modern serving stack (vLLM, TGI, TensorRT-LLM) and is transparent to API users; relevant when reasoning about why long-context models are practical, or when comparing hardware for inference workloads.
+> **Nuances & gotchas:** Flash Attention is NOT an approximation — it computes mathematically identical results to standard attention; the speedup comes purely from IO-efficiency, not from reducing FLOPs; it does NOT reduce *compute* cost (still O(n²) FLOPs), only *memory* and *memory bandwidth* cost, so it does not help if compute (GPU cores) is the bottleneck.
+
 ### The Problem It Solves
 
 Standard attention requires materializing the n x n attention matrix:
@@ -314,6 +334,10 @@ Introduced by DeepSeek (V2/V3), **MLA is the modern alternative to GQA** for ext
 
 Instead of just grouping heads, MLA compresses the Key and Value vectors into a **low-dimensional latent space** before storing them in the cache.
 
+> **Why (the rationale):** GQA reduces KV cache by sharing heads across groups (8× typical); MLA goes further by compressing the full K/V projections into a low-rank latent vector (~5% of MHA size), achieving extreme cache reduction while maintaining quality superior to GQA by retaining more information per parameter.
+> **When to use / when it matters:** Relevant when evaluating DeepSeek-family models for production deployment or when designing systems where KV cache memory is the primary constraint; MLA essentially eliminates KV cache as the VRAM bottleneck for the models that use it.
+> **Nuances & gotchas:** MLA requires specific "Decoupled RoPE" to apply positional encodings after decompression — incompatible with standard RoPE; the latent representation must be decompressed at query time which adds a small compute overhead; as of 2025–2026, MLA is only in DeepSeek models — most other frontier models still use GQA.
+
 ```
 Query (Up-projected) ────────┐
                              ▼
@@ -336,6 +360,11 @@ Key, Value (Down-projected) ─▶ [Low-dim Latent Cache] ─▶ [Output]
 
 ### Context Caching (System-level)
 API providers (OpenAI, Gemini, Anthropic) now offer **Context Caching**. 
+
+> **Why (the rationale):** Many production workloads send the same long system prompt or document with every request; recomputing the KV tensors for that prefix on every call wastes GPU compute and inflates TTFT; caching the prefix KV tensors reduces both latency and cost for these repeated-prefix patterns.
+> **When to use / when it matters:** High value for use cases with a stable, long prefix — RAG with a fixed knowledge base, document Q&A on the same document, multi-turn conversation with a long system prompt; less valuable for highly variable prompts where the cached prefix changes on every request.
+> **Nuances & gotchas:** Context caching is NOT free — providers charge a reduced rate for cache reads and a storage fee for cache retention; the prefix must be *exactly* identical (byte-for-byte) to hit the cache; even one character difference triggers a full cache miss and recomputation; cached content still counts toward the context window limit.
+
 - **How it works**: Pre-computes and stores the KV tensors for a long "prefix" (e.g., a 100k token law book).
 - **Benefit**: Reduces TTFT (Time to First Token) by 90% and cost by 50-90% for repeated prefixes.
 

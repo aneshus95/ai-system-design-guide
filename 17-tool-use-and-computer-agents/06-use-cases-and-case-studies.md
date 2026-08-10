@@ -23,6 +23,10 @@ Tool-using AI agents have moved from demo to production. The global AI agents ma
 
 Developer productivity is the most mature category. Tools like Claude Code, GitHub Copilot, and Cursor have moved past autocomplete into multi-step agentic workflows.
 
+> **Why (the rationale):** Code execution produces deterministic pass/fail signals (tests pass or fail, code compiles or does not) — this tight feedback loop lets the agent self-correct reliably, making developer tasks the highest-success category for autonomous agents in 2026.
+> **When to use:** Multi-file feature implementation, refactoring, test generation, and CI triage where sandboxed code execution is already available (CI containers) and human review via pull requests serves as a natural approval gate.
+> **Nuances & gotchas:** Agents excel on well-scoped tickets with clear acceptance criteria but fail on vague, open-ended goals — "improve the codebase" produces inconsistent results; agent-generated code requires the same review standards as human code; cost scales with repo size and context window usage for large codebases.
+
 ### Code Generation and Refactoring
 
 | Use Case | Tool Pattern | Production Metrics |
@@ -49,7 +53,11 @@ Agents that interact with CI/CD pipelines through tool calls (not just generatin
 
 ## Category 2: Business Process Automation
 
-Document processing, data entry, and reporting represent the highest-volume enterprise use case. These are repetitive, rule-heavy tasks where agents excel.
+Document processing, data entry, and reporting represent the highest-volume enterprise use case.
+
+> **Why (the rationale):** High volume + low variance + measurable ROI makes this the business case that drives enterprise adoption — 85% straight-through processing on invoice extraction pays for itself quickly against manual headcount.
+> **When to use:** Repetitive, rule-heavy document processing (invoices, contracts, expense reports) where success criteria are binary (data matches or does not, totals reconcile or do not) and volume justifies the integration investment.
+> **Nuances & gotchas:** Agents amplify data quality problems — garbage in at 10× speed; a misread invoice amount flowing into accounting creates audit exposure; screen-scraping agents for legacy ERPs break when the UI changes; always implement dual extraction and reconciliation checks for financial data, and route exceptions (mismatches, low-confidence extractions) to a human review queue rather than auto-approving. These are repetitive, rule-heavy tasks where agents excel.
 
 ### Document Processing
 
@@ -93,6 +101,10 @@ Agents using computer use (screen interaction) for legacy systems that lack APIs
 
 Support, sales, and onboarding agents are the most visible deployments but carry the highest reputational risk.
 
+> **Why (the rationale):** Tier 0/1/2 support routing (full automation → agent-assisted → human with copilot) dramatically reduces handling time while keeping humans in the loop for complex or high-stakes cases — ServiceNow documented 80% autonomous handling with a 52% reduction in complex case resolution time.
+> **When to use:** High-volume, structured support workflows (password resets, order status, FAQ) where responses can be validated against approved templates; use agent-assisted (not fully autonomous) for billing disputes and complaints where tone and accuracy matter for brand reputation.
+> **Nuances & gotchas:** Customer-facing agents are one hallucination away from a PR crisis — output validation against approved templates, hard limits on what the agent can commit to (no discounts, no SLA promises without approval), and an instant kill switch routing to human are non-negotiable; HITL gates are useless if reviewers rubber-stamp — monitor approval rates and flag anomalous 100% approval patterns.
+
 ### Customer Support
 
 ServiceNow documented 80% autonomous handling of customer support inquiries and a 52% reduction in time needed for complex case resolution, generating $325 million in annualized value across their deployment. The pattern that works:
@@ -127,6 +139,10 @@ Customer-facing agents are one hallucination away from a PR crisis. Production d
 ## Category 4: IT Operations
 
 Monitoring, incident response, and infrastructure management. This category has high potential but requires the most careful permission scoping.
+
+> **Why (the rationale):** Runbook execution and log correlation are exactly the kind of high-volume, rule-following tasks agents handle well — and the cost of a missed alert or slow incident response is concrete and measurable.
+> **When to use:** Read-only monitoring (log analysis, metric correlation, cost analysis) and runbook-driven auto-remediation for known failure modes; escalate novel incidents to humans — agents should not improvise on infrastructure they do not have runbooks for.
+> **Nuances & gotchas:** An agent with `kubectl delete` or `aws ec2 terminate-instances` access can cause an outage in seconds — read-only by default is mandatory, with tiered authorization for escalation; blast radius limits (no production changes without human approval) prevent agent-initiated outages; always require a dry-run preview before any destructive infrastructure operation.
 
 ### Monitoring and Alerting
 
@@ -165,6 +181,10 @@ An agent with `kubectl delete` or `aws ec2 terminate-instances` access can cause
 ## Category 5: Research and Analysis
 
 Data analysis, market research, and competitive intelligence. Agents excel at gathering and synthesizing information from multiple sources.
+
+> **Why (the rationale):** Multi-source synthesis (SQL + web search + document reading) is a high-cognitive-load task that takes humans hours — agents can parallelize source retrieval and produce a structured summary with citations in minutes.
+> **When to use:** Exploratory data analysis, competitive monitoring, and report generation where the output feeds into human decision-making rather than automated downstream actions; source attribution is mandatory so humans can verify claims.
+> **Nuances & gotchas:** Research agents have a correctness problem that other categories do not — when a coding agent writes wrong code, tests fail; when a research agent writes a wrong conclusion, nothing fails and it looks authoritative; every claim must link to a source the agent actually retrieved, and the agent must distinguish between retrieved facts and its own inferences; never allow research outputs to feed automated actions without human validation.
 
 ### Data Analysis
 

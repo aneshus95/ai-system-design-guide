@@ -20,6 +20,10 @@ Building production LLM systems requires understanding deployment options, scali
 
 ### API vs Self-Hosted
 
+> **Why (the rationale):** Choosing between API providers and self-hosted models is the foundational infrastructure decision — API providers eliminate ops burden and GPU procurement cost at low volume; self-hosting gives data-residency control and lower per-token cost at high, predictable volume.
+> **When to use:** Use API providers for prototypes, variable traffic, urgent time-to-market, or volumes under ~1 M queries/month; switch to self-hosting when compliance forbids data leaving your infra, P99 latency must be under ~100 ms, or query volume exceeds ~10 M/month.
+> **Nuances & gotchas:** Self-hosting raw GPU rental is only ~30–40% of true cost — add engineering ops, model updates, and monitoring; the "cheaper at scale" claim often ignores these. Hybrid (self-host for the predictable baseline, API for spikes) is frequently the optimal answer.
+
 | Factor | API Providers | Self-Hosted |
 |--------|---------------|-------------|
 | Setup time | Minutes | Days to weeks |
@@ -58,6 +62,10 @@ def should_use_api(requirements: dict) -> bool:
 
 ### Self-Hosting Options
 
+> **Why (the rationale):** Different self-hosting frameworks make different tradeoffs between ease of setup and raw throughput; choosing the wrong one means leaving significant performance or developer-experience on the table.
+> **When to use:** vLLM for production serving where throughput matters; Ollama/llama.cpp for local dev or CPU-only edge; TensorRT-LLM when you need the absolute best NVIDIA GPU utilization.
+> **Nuances & gotchas:** TensorRT-LLM's performance lead comes with a compilation step per model version and tight NVIDIA lock-in; vLLM's PagedAttention excels on long-context KV-cache utilization but memory overhead grows with concurrent requests.
+
 | Option | Complexity | Performance | Use Case |
 |--------|------------|-------------|----------|
 | vLLM | Medium | Excellent | Production serving |
@@ -72,6 +80,10 @@ def should_use_api(requirements: dict) -> bool:
 
 ### Single Model Serving
 
+> **Why (the rationale):** A gateway in front of a single LLM server centralizes authentication, caching, and rate limiting without requiring application changes, giving you a consistent choke point before you need multi-model complexity.
+> **When to use:** Early-stage or single-use-case products where one model satisfies all request types; still useful because the gateway gives you semantic caching and future flexibility to add models behind it.
+> **Nuances & gotchas:** The gateway itself becomes a single point of failure — it must be made highly available (multiple replicas, health checks) before it becomes load-bearing, or it simply moves the SPOF from the LLM server to the gateway.
+
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │   Client    │────▶│   Gateway   │────▶│  LLM Server │
@@ -84,6 +96,10 @@ def should_use_api(requirements: dict) -> bool:
 ```
 
 ### Multi-Model Serving
+
+> **Why (the rationale):** Running multiple model pools behind a load balancer allows cost optimization (route cheap queries to small models), redundancy (fail over to an alternative provider), and specialization (vision, code, long-context tasks to the right model).
+> **When to use:** When you have at least two distinct workload types with different quality/cost requirements, or when rate limits on a single provider are a recurring production issue.
+> **Nuances & gotchas:** Without automated evals gating routing decisions, "routing simple queries to cheaper models" risks silent quality regressions — users get cheaper but worse responses with no alert fired.
 
 ```
                     ┌─────────────────────────────── │
@@ -100,6 +116,10 @@ def should_use_api(requirements: dict) -> bool:
 ```
 
 ### Model Router Pattern
+
+> **Why (the rationale):** A model router abstracts the "which model?" decision away from application code, enabling cost, latency, and capability optimization at the infrastructure layer without application changes.
+> **When to use:** When you have 3+ distinct query types (simple, complex, code, vision, long-context) and the cost spread between cheapest and most capable model is significant.
+> **Nuances & gotchas:** The fallback chain must be tested independently — a badly ordered fallback (e.g. falling back to a model with lower context limits) can cause secondary failures; also, the classifier itself can be wrong, so monitor routing decisions in production.
 
 ```python
 class ModelRouter:
@@ -149,6 +169,10 @@ class ModelRouter:
 
 ### Horizontal Scaling
 
+> **Why (the rationale):** Horizontal scaling via Kubernetes HPA lets you match capacity to demand automatically, preventing over-provisioning costs at low traffic and avoiding dropped requests at peak.
+> **When to use:** API-provider-backed services (where the "LLM server" is just an API client) or self-hosted services that are stateless per request; scaling is straightforward when state (KV cache) lives outside the pod.
+> **Nuances & gotchas:** CPU-based autoscaling is a poor proxy for LLM server load — GPU utilization or `requests_per_second` is the real signal; scaling in too aggressively causes KV cache eviction thrash and cold-start latency spikes.
+
 ```python
 # Kubernetes HPA config for LLM service
 hpa_config = """
@@ -190,6 +214,10 @@ spec:
 | Large prod | 8+ | Multi-node with pipeline parallel |
 
 ### Queue-Based Architecture
+
+> **Why (the rationale):** A queue decouples request submission from processing, absorbing traffic spikes without dropping requests and enabling worker scaling independent of the user-facing API.
+> **When to use:** Async workloads where the caller does not need an immediate response — batch evaluations, document summarization, offline labeling; also use when LLM processing is slow and you cannot afford long-held HTTP connections.
+> **Nuances & gotchas:** Queue depth alone does not trigger scaling — you need a custom metric (queue length per worker) wired to your autoscaler; poison-pill messages (requests that always fail) will block a queue if there is no dead-letter mechanism.
 
 For high-throughput async workloads:
 
@@ -240,6 +268,10 @@ class AsyncLLMProcessor:
 ## Cost Management
 
 ### Cost Tracking
+
+> **Why (the rationale):** Without per-request cost attribution, a doubling of the LLM bill is invisible until the invoice arrives — you cannot identify which feature, team, or prompt change caused it.
+> **When to use:** From day one, before you have budget concerns; the cost of instrumentation is negligible compared to the cost of debugging unexplained spend spikes after the fact.
+> **Nuances & gotchas:** Hardcoded pricing tables go stale as providers change rates; integrate with the provider's usage API or billing export rather than relying solely on local calculation; output tokens cost materially more (often 3–5×) than input tokens, so a short-looking call can be expensive if it generates verbose output.
 
 ```python
 class CostTracker:
@@ -320,6 +352,10 @@ class BudgetManager:
 
 ### Key Metrics
 
+> **Why (the rationale):** LLM services fail in non-binary ways — a model that responds "successfully" with low-quality output is harder to detect than a 500 error; monitoring must cover quality and cost dimensions that traditional APM tools miss.
+> **When to use:** In every production LLM deployment from the start; add quality and cost metrics alongside standard latency/error-rate dashboards.
+> **Nuances & gotchas:** LLM-as-judge quality scores are themselves probabilistic and can drift if the judge model changes; TTFT (time to first token) is more important than total latency for streaming UX, and the two can move in opposite directions.
+
 ```python
 LLM_METRICS = {
     # Latency
@@ -385,6 +421,10 @@ alerts:
 
 ### Multi-Provider Failover
 
+> **Why (the rationale):** Any single LLM provider will have outages, rate-limit surges, and maintenance windows; hard-coding one provider means your product availability is bounded by that provider's SLA.
+> **When to use:** Any production system where downtime directly impacts revenue or user trust; even a thin two-provider fallback eliminates the most common failure mode (provider-side 5xx or rate limit).
+> **Nuances & gotchas:** Different providers return different response formats and token counts for the same prompt; the fallback must normalize responses or downstream parsing will break on the alternate provider; also log every failover so you can identify systemic provider reliability issues.
+
 ```python
 class MultiProviderClient:
     def __init__(self):
@@ -418,6 +458,10 @@ class MultiProviderClient:
 ```
 
 ### Graceful Degradation
+
+> **Why (the rationale):** When all providers fail, returning a generic error is worse than a cached similar response or a canned fallback — it destroys user trust and often violates uptime SLAs.
+> **When to use:** Any user-facing LLM feature where complete unavailability is worse than a slightly stale or generic response; less important for internal tooling where users understand outages.
+> **Nuances & gotchas:** Semantic similarity threshold for cache-based degradation is tricky — too loose and you serve wrong answers; too tight and the cache never fires; "graceful degradation" does NOT mean silently returning wrong information, so always mark degraded responses in the UI or metadata.
 
 ```python
 class GracefulDegradation:

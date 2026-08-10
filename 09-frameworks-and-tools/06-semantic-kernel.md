@@ -2,6 +2,10 @@
 
 **Semantic Kernel (SK)** is Microsoft's engine for enterprise-grade AI orchestration. It remains the primary bridge for organizations committed to the **Azure/Microsoft ecosystem** and **C#/.NET** architectures, though much of its forward momentum now ships inside the **Microsoft Agent Framework** (the consolidated successor to AutoGen + SK, RC 1.0 February 2026, GA Q2 2026).
 
+> **Why (the rationale):** LangChain and LangGraph are Python-first and feel like external dependencies in a .NET shop — Semantic Kernel is designed to fit natively into enterprise .NET architecture patterns (dependency injection, strong typing, Azure AD integration) that Fortune 500 engineering teams already mandate.
+> **When to use:** Choose Semantic Kernel when the organization is already on Azure/.NET, requires deep integration with Microsoft security (Entra ID, Managed Identities), or has C# as the primary production language; for greenfield Python-only or startup projects LangGraph is the more mature choice.
+> **Nuances & gotchas:** SK's roadmap is now absorbing into the Microsoft Agent Framework — new feature development is increasingly happening there rather than in SK directly; teams starting new projects should evaluate the Agent Framework rather than assuming SK is the latest Microsoft recommendation.
+
 ## Table of Contents
 
 - [Enterprise DNA](#dna)
@@ -20,6 +24,10 @@ While LangChain is favored by startups, Semantic Kernel is favored by **Banks an
 - **Strong Typing**: First-class support for C# types makes it highly reliable in large-scale mission-critical systems.
 - **Security**: Deep integration with Azure Active Directory (Microsoft Entra ID) and Managed Identities.
 
+> **Why (the rationale):** Enterprise teams cannot introduce a framework that bypasses their existing DI container, type system, or identity provider — SK speaks the same architectural language as the rest of a .NET enterprise stack, reducing friction and compliance risk.
+> **When to use:** Use SK's enterprise DNA features (DI, Entra ID, App Insights) when building AI capabilities that must pass the same architectural review board as the rest of the enterprise platform — not just as a "side project" AI tool.
+> **Nuances & gotchas:** The enterprise patterns (DI, strong typing) add verbosity — a simple RAG chain in SK is significantly more boilerplate than in LangChain; this overhead is justified for mission-critical systems but is overkill for internal tooling or prototypes.
+
 ---
 
 ## Plugins and Planners
@@ -27,6 +35,10 @@ While LangChain is favored by startups, Semantic Kernel is favored by **Banks an
 1. **Kernel Functions**: The basic unit of logic (Native code or LLM prompts).
 2. **Plugins**: A collection of functions (e.g., a "GitHub Plugin" or an "SQL Plugin").
 3. **Planners**: SK's planners have evolved from simple ReAct to **Hierarchical Planners** that can coordinate long-running business processes across multiple days.
+
+> **Why (the rationale):** The Plugin registry gives the LLM a structured catalogue of discoverable capabilities — rather than dumping all tools into a flat prompt, the Planner queries the registry and selects only what is needed for the current task.
+> **When to use:** Use Plugins to organise capabilities by domain (a `CalendarPlugin`, a `CRMPlugin`) so the planner can reason about which domain is relevant without being overwhelmed by a flat list of 100+ functions.
+> **Nuances & gotchas:** SK's Planners auto-generate execution plans, which means the plan can be incorrect or unsafe without explicit validation — always implement a human-in-the-loop approval step or a plan validator before executing multi-step plans on production systems; Hierarchical Planners in particular can produce deeply nested plans that are hard to audit.
 
 ---
 
@@ -36,6 +48,10 @@ Semantic Kernel uses **Connectors** to abstract away the underlying infrastructu
 - **Universal Connectors**: One interface for OpenAI, Mistral, and local Onyx models.
 - **Vector Store Abstraction**: Seamlessly switch between Azure AI Search, Pinecone, and Qdrant without changing the core business logic.
 
+> **Why (the rationale):** Connector abstractions prevent hard-coded vendor dependencies in business logic — you can migrate from Azure AI Search to Qdrant by swapping a single registration in the DI container, without touching the planner or plugin code.
+> **When to use:** Use the Vector Store Abstraction from day one even if you only have one vector DB now — the abstraction cost is negligible and it de-risks future migrations as cost or capability requirements change.
+> **Nuances & gotchas:** Connector abstractions leak — different vector stores have different consistency guarantees, query latencies, and filtering capabilities; the abstraction makes swapping easy but does NOT mean all backends are interchangeable in behaviour, so test with the actual production backend before going live.
+
 ---
 
 ## Multi-Language Support
@@ -43,6 +59,10 @@ Semantic Kernel uses **Connectors** to abstract away the underlying infrastructu
 SK is one of the few major frameworks that treats C# and Python as equals.
 - **The Pattern**: Develop and prototype in Python; deploy the core orchestration in C# for performance and type-safety.
 - **Logic Sharing**: Shared prompt templates (.yaml) that work across both languages.
+
+> **Why (the rationale):** Most enterprise organizations have mixed-language teams — Python for data scientists and ML engineers, C# for backend service developers; SK lets both share prompt templates and plugin definitions rather than maintaining parallel implementations.
+> **When to use:** Use the Python-prototype → C#-production pattern when your ML team builds and evaluates the pipeline in Python but the production system must live in a .NET microservice for compliance or performance reasons.
+> **Nuances & gotchas:** C# and Python SK are NOT feature-identical — the Python SDK typically lags the C# SDK by one or two minor versions, and some advanced planner features are C#-only; always verify feature parity for your specific use case before committing to the cross-language pattern.
 
 ---
 

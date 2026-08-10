@@ -32,6 +32,10 @@ Before 2017, sequence modeling relied on recurrent architectures (RNNs, LSTMs) t
 
 The Transformer architecture, introduced in "Attention Is All You Need" (Vaswani et al., 2017), solved both problems by replacing recurrence with self-attention.
 
+> **Why (the rationale):** RNNs could not parallelize across time steps and struggled to propagate gradients over long sequences; the Transformer eliminates recurrence entirely so every token pair communicates directly and training can be massively parallelized on GPUs.
+> **When to use / when it matters:** Whenever you are reasoning about why modern LLMs train faster, scale better, or handle long context differently than LSTM-era models; also the foundation for every architecture tradeoff in this guide.
+> **Nuances & gotchas:** Parallelism applies during *training* (all tokens processed at once); at inference the decoder still generates one token at a time — parallelism only helps prefill, not decode latency.
+
 **Mental model for distributed systems engineers:**
 Think of recurrence like a single-threaded request pipeline where each step depends on the previous. Self-attention is like a fully connected graph where every node can query every other node in parallel.
 
@@ -61,6 +65,10 @@ flowchart LR
 ## Architecture Variants
 
 Three main variants emerged based on which parts of the original Transformer are used:
+
+> **Why (the rationale):** Different tasks need different information flow: generation requires causal (left-to-right) masking so the model cannot cheat by looking at future tokens, while classification benefits from seeing the full sequence bidirectionally.
+> **When to use / when it matters:** Choosing the wrong variant for a task (e.g., using a decoder-only model for classification without fine-tuning) wastes capacity and degrades quality; matters when selecting a base model for fine-tuning or embedding.
+> **Nuances & gotchas:** "Encoder-only" models cannot generate text autoregressively; "decoder-only" models can perform classification tasks but typically need fine-tuning — the boundary is blurrier in practice than the table implies.
 
 | Architecture | Attention Type | Examples | Best For |
 |--------------|---------------|----------|----------|
@@ -117,6 +125,10 @@ While decoder-only dominated for years, there has been a partial return to encod
 
 MoE replaces the dense Feed-Forward Network (FFN) with multiple "experts" and a "router" that selects which experts process a given token.
 
+> **Why (the rationale):** Dense models spend FLOPs uniformly across all parameters for every token; MoE decouples *memory cost* (storing all experts) from *compute cost* (activating only the top-k experts per token), enabling dramatically larger total capacity at the same inference latency.
+> **When to use / when it matters:** Relevant whenever you are comparing serving cost, memory requirements, or quality of frontier models — a "1.6T parameter" MoE claim means very different things for VRAM sizing vs. latency than a 1.6T dense model.
+> **Nuances & gotchas:** You must still load *all* expert weights into VRAM (memory cost = total params), only *compute* is sparse; routing collapse is a real training failure mode that requires auxiliary loss; expert parallelism across GPUs introduces inter-node communication overhead that can bottleneck throughput.
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │                 MoE Layer (Decoder)                 │
@@ -164,6 +176,10 @@ flowchart TD
 
 The original Chinchilla laws (2022) focused on being **Training-Optimal**: finding the best model size for a given training budget.
 
+> **Why (the rationale):** Chinchilla optimizes for minimizing training compute on a one-time run; inference-optimal thinking recognizes that serving a model to millions of users means the per-token inference cost over the model's lifetime dwarfs the training cost, so a smaller model trained longer is economically superior.
+> **When to use / when it matters:** Directly affects which model you choose for a high-volume production deployment; explains why Llama 3 8B at 15T+ tokens can outperform larger models trained at the Chinchilla point.
+> **Nuances & gotchas:** "Inference-optimal" does NOT mean the model reaches peak possible quality — it trades some quality ceiling for dramatically lower serving cost; the optimal point shifts depending on request volume (low-traffic systems may still prefer Chinchilla-optimal models).
+
 The industry has now shifted to **Inference-Optimal** scaling:
 - **Over-training**: Training smaller models (e.g., Llama 3 8B) on massive data (15T+ tokens) far beyond the Chinchilla point.
 - **Why?**: The cost of inference over millions of users dwarfs the one-time training cost. A 7B model trained for 10x longer is cheaper to serve than a 70B model trained at the Chinchilla point.
@@ -173,6 +189,10 @@ The industry has now shifted to **Inference-Optimal** scaling:
 ## Native Multimodality
 
 Older models used **Vision Adapters** (connecting a frozen CLIP-style vision encoder to an LLM). Frontier models (GPT-5.2, Gemini 3) are **Native Multimodal**.
+
+> **Why (the rationale):** Adapter-based approaches train the LLM and vision encoder in largely separate stages, creating a misalignment between visual and language representations; native training from the start lets the model learn a unified token space and develops stronger spatial reasoning and cross-modal grounding.
+> **When to use / when it matters:** Relevant when choosing a model for tasks requiring precise visual understanding (charts, diagrams, spatial relationships) vs. simple image captioning where adapters may be sufficient.
+> **Nuances & gotchas:** "Native multimodal" does NOT mean the model was pretrained on equal amounts of text and image data — text still dominates; visual tokenization costs (images as hundreds of tokens) can quickly consume context windows and inflate API costs.
 
 - **Shared Vocabulary**: Visual tokens and text tokens exist in the same latent space.
 - **Uniform Transformer**: The same blocks process both pixels and text.
@@ -305,6 +325,10 @@ The O(n²) term comes directly from the n × n score matrix: every token attends
 
 Instead of single attention, modern transformers use multiple "heads" that attend to different aspects in parallel.
 
+> **Why (the rationale):** A single attention head is forced to blend all relational patterns (syntax, coreference, positional) into one representation; multiple heads each operate in a lower-dimensional subspace and specialize independently, providing a richer ensemble of perspectives that is then merged.
+> **When to use / when it matters:** Matters when evaluating model expressiveness or debugging attention patterns; the head count determines KV cache size (MHA) vs. GQA configurations which directly affects serving memory.
+> **Nuances & gotchas:** More heads does NOT linearly improve quality — there is diminishing return, and many heads in trained models attend to near-identical patterns or can be pruned with minimal quality loss; what matters more is the total dimension (d_model), not head count alone.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Multi-Head Attention                      │
@@ -335,6 +359,10 @@ Instead of single attention, modern transformers use multiple "heads" that atten
 
 **Critical for production systems**: Standard multi-head attention requires storing separate K and V for each head in the KV cache. GQA shares K and V across groups of heads.
 
+> **Why (the rationale):** KV cache grows as `2 × layers × heads × head_dim × seq_len` bytes per request; full MHA with 64 heads balloons the cache to tens of GBs per request, capping batch size and thus throughput; GQA reduces cache by the head-group ratio (typically 8×) with negligible quality loss.
+> **When to use / when it matters:** The single most impactful serving optimization in modern LLMs; any time you are estimating VRAM budgets, batch sizes, or concurrent user capacity, you must know whether a model uses MHA, GQA, or MQA.
+> **Nuances & gotchas:** GQA does NOT reduce prefill compute (Q still has full heads); it only shrinks the *KV cache stored after prefill*; MQA (all queries share one KV head) reduces cache maximally but causes measurable quality degradation for complex tasks.
+
 | Attention Type | K,V per Query | KV Cache Reduction | Examples |
 |----------------|---------------|-------------------|----------|
 | Multi-Head (MHA) | 1:1 | Baseline | GPT-3 |
@@ -353,6 +381,10 @@ This directly affects batch size and therefore throughput.
 ## Position Encodings
 
 Self-attention is permutation-invariant. Without position information, "dog bites man" and "man bites dog" would be identical. Position encodings inject sequence order.
+
+> **Why (the rationale):** The QK^T dot product is a set operation — it is unchanged if you shuffle the rows — so without position information the model has no concept of "before" or "after"; position encodings break this symmetry by making each token's representation depend on where it appears.
+> **When to use / when it matters:** Position encoding choice directly determines whether a model can handle sequences longer than its training context; RoPE vs. ALiBi vs. learned embeddings differ significantly in extrapolation ability, which matters for long-context deployment.
+> **Nuances & gotchas:** "Good extrapolation" for RoPE/ALiBi means quality degrades gracefully beyond training length — it does NOT mean perfect performance; all position schemes show some quality degradation at lengths significantly beyond training; extending context often requires additional fine-tuning (e.g., RoPE scaling / YaRN).
 
 ### Sinusoidal (Original Transformer)
 
@@ -424,6 +456,10 @@ Where m is a head-specific slope and distance is |pos_q - pos_k|.
 
 Each transformer layer has a feed-forward network (FFN) that processes each position independently:
 
+> **Why (the rationale):** Attention aggregates information *across* positions but applies a linear combination of values; the FFN provides the per-position non-linear transformation that allows the model to compute complex functions of the attended information — it is where most factual knowledge is thought to be stored.
+> **When to use / when it matters:** FFN size (via the expansion ratio and activation choice) determines the bulk of parameter count (~2/3 of each layer); understanding FFN is key when sizing models, comparing SwiGLU vs. GELU costs, or reasoning about MoE which replaces the FFN with expert networks.
+> **Nuances & gotchas:** The FFN is position-*wise* — it does NOT allow tokens to communicate; all cross-token interaction happens in attention, not the FFN; SwiGLU's 3-projection design adds ~50% FFN parameters vs. standard 2-projection FFN, so models using SwiGLU often reduce the expansion ratio (2.7× instead of 4×) to keep total parameters equivalent.
+
 ```python
 def feed_forward(x):
     hidden = activation(x @ W1 + b1)  # Expand: d → 4d
@@ -464,6 +500,10 @@ output = (gate * hidden) @ W_down
 ## Layer Normalization
 
 Layer normalization stabilizes training by normalizing activations:
+
+> **Why (the rationale):** Without normalization, activations can grow or shrink exponentially as they pass through many layers, causing vanishing or exploding gradients; LayerNorm rescales each token's activation to zero mean and unit variance, keeping the network in a trainable regime.
+> **When to use / when it matters:** Pre-LN vs. Post-LN placement is the most impactful normalization decision; Pre-LN (modern standard) enables stable training of 100+ layer models without warmup, while Post-LN requires careful initialization and is rarely used for new models.
+> **Nuances & gotchas:** LayerNorm normalizes across the *feature* (d_model) dimension, not the batch or sequence dimension — this is why it works well for variable-length sequences; RMSNorm drops mean-centering entirely and is 10–15% faster with equivalent training stability, making it the current default in Llama, Mistral, and most frontier models.
 
 ```python
 def layer_norm(x, gamma, beta):

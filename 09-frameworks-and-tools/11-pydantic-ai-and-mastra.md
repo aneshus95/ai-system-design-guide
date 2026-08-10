@@ -17,6 +17,10 @@ By May 2026 the agent framework debate has stopped being "LangGraph or LlamaInde
 
 ## What These Frameworks Are
 
+> **Why (the rationale):** Older frameworks (LangChain, LlamaIndex) accepted "string in, string out" as the agent boundary — valid for prototypes but a production liability where schema drift between the LLM output and downstream code causes silent failures. Pydantic AI and Mastra enforce types at the agent boundary to eliminate that class of bug.
+> **When to use:** Any service that must guarantee the shape of LLM output (structured decisions, data extraction, tool calls) and already uses Pydantic (Python) or Zod/TypeScript for schema validation elsewhere in the stack.
+> **Nuances & gotchas:** Both frameworks are newer and have smaller ecosystems than LangChain/LangGraph — fewer community integrations, fewer Stack Overflow answers; if you need breadth of vector stores, loaders, or document processors, LangChain's ecosystem still dominates.
+
 Both Pydantic AI and Mastra grew out of frustration with framework lock-in and untyped prompt-stitching. They focus on the same set of ideas:
 
 - The agent loop is **defined by code**, not by a YAML / JSON graph.
@@ -29,6 +33,10 @@ The differences are mostly stack-shaped: one targets Python services that alread
 ---
 
 ## Pydantic AI: Typed Agents in Python
+
+> **Why (the rationale):** Pydantic AI eliminates schema drift by deriving the LLM-facing tool schema from the same Python function signature and docstring that defines the tool's implementation — one source of truth instead of a manually-kept JSON schema that can diverge.
+> **When to use:** Python services already using Pydantic for HTTP validation (FastAPI is the canonical case) where you want the same model to define the HTTP boundary, LLM output type, and eval scorer's expected output.
+> **Nuances & gotchas:** The `Graph` API for multi-agent coordination exists but is less mature than LangGraph's checkpoint system — for complex supervisor patterns with time-travel debugging, LangGraph still wins; Pydantic AI is the right choice when agent complexity is "one LLM + a few typed tools," not a network of cooperating agents.
 
 ### Current State
 
@@ -92,6 +100,10 @@ The [Pydantic AI evals docs](https://ai.pydantic.dev/evals/) describe a typical 
 ---
 
 ## Mastra: TypeScript-First Agents
+
+> **Why (the rationale):** Mastra provides the TypeScript/Node equivalent of Pydantic AI's typed-agent model, adding a `mastra dev` local playground and Vercel-style one-command deploy — removing the need to build a test frontend or wire your own observability to iterate on agents in the browser.
+> **When to use:** TypeScript-first teams (Next.js, Node, Cloudflare Workers, Bun) who want typed agents with streaming UI, suspend/resume human-approval workflows, and a managed deploy path without leaving the JS ecosystem.
+> **Nuances & gotchas:** Elastic License v2 prohibits offering Mastra itself as a managed SaaS product, which is irrelevant for most internal deployments but matters for ISVs; the ecosystem is still small (~22K GitHub stars, growing) — expect to build more integrations yourself compared to LangChain.
 
 ### Current State
 

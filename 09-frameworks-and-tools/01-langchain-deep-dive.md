@@ -2,6 +2,10 @@
 
 LangChain is no longer just a "prompting library." It has matured into a **Modular Ecosystem** for building production-grade LLM applications. LangGraph (which graduated to v1.0 in late 2025 and is the default runtime for all LangChain agents) handles the stateful orchestration. **LCEL (LangChain Expression Language)** remains the fastest way to build composable chains.
 
+> **Why (the rationale):** LangChain eliminates the boilerplate of wiring prompts, models, tools, and output parsers together manually — its Runnable interface provides a unified, composable abstraction that works for everything from a single LLM call to a multi-step agentic pipeline.
+> **When to use:** Use LangChain when you need rapid prototyping with 500+ integrations, want LCEL's built-in streaming/parallelism, or need a production path that layers into LangGraph and LangSmith without switching ecosystems.
+> **Nuances & gotchas:** LangChain's abstractions are great for prototyping but can obscure control flow in production — many teams graduate to raw LangGraph or direct SDK calls once they understand the system; the `langchain-community` package is a dependency-hell risk and should be avoided in critical paths in favour of specific partner packages.
+
 ## Table of Contents
 
 - [The LangChain Stack](#stack)
@@ -21,11 +25,19 @@ The ecosystem is now split into three distinct layers:
 2. **LangChain Community/Partner**: Integrations for 500+ databases, models, and tools.
 3. **LangGraph**: The stateful orchestration layer (covered in the next chapter).
 
+> **Why (the rationale):** The tiered split solves the original monolith problem — teams can depend only on `langchain-core` for stable abstractions and pull in just the provider packages they actually use, keeping the dependency tree small and cold-start fast.
+> **When to use:** Reach for `langchain-core` + a partner package for any new service; add `langchain` (the convenience layer) only in notebooks or prototypes that need prebuilt retrievers/chains.
+> **Nuances & gotchas:** `langchain-community` still exists but is explicitly discouraged in production critical paths because of its broad, unstable dependency tree — the split only helps if you actually respect the tier boundaries.
+
 ---
 
 ## LCEL: Programming with Pipes
 
 LangChain Expression Language (LCEL) uses the `|` operator to create a **Directed Acyclic Graph (DAG)** of execution.
+
+> **Why (the rationale):** LCEL replaces manual `asyncio.gather` calls and custom streaming generators — the pipe operator wires async, parallel, and streaming behaviour automatically so developers focus on logic rather than plumbing.
+> **When to use:** Use LCEL for any linear-to-moderately-branching chain (RAG, single-agent tool use, structured extraction); switch to LangGraph when you need cycles, durable state, or human-in-the-loop pauses.
+> **Nuances & gotchas:** LCEL DAGs are acyclic by design — you cannot express retry loops or conditional back-edges; for those patterns LangGraph is required. Also, implicit parallelism means errors from one branch do not automatically cancel others unless you handle exceptions explicitly.
 
 ```python
 # Standard RAG chain
@@ -48,12 +60,24 @@ chain = (
 ### 1. Runnables
 The "Base Class" for everything in LangChain. Runnables provide a unified interface for `.invoke`, `.batch`, and `.stream`.
 
+> **Why (the rationale):** A single interface means every component — models, prompts, retrievers, tools — can be composed, parallelized, or swapped without changing the calling code.
+> **When to use:** Always; Runnables are the foundation of every LCEL chain and LangGraph node, so this abstraction is unavoidable when using LangChain.
+> **Nuances & gotchas:** Runnables add a thin but non-zero overhead versus raw function calls — in latency-sensitive inner loops (e.g., thousands of batch calls) profile before assuming it is negligible.
+
 ### 2. Tools & Tool-Calling
 LangChain has first-class support for **MCP (Model Context Protocol)**.
 - You can turn any MCP server into a LangChain `BaseTool`.
 
+> **Why (the rationale):** MCP support means tool definitions are portable across models and frameworks — you write the tool once as an MCP server and any compliant runtime (LangChain, LangGraph, Claude Desktop) can call it.
+> **When to use:** Use `BaseTool` / MCP when building tools that must work across multiple agent frameworks or models; use `@tool` decorator for simple Python-only tools that do not need portability.
+> **Nuances & gotchas:** MCP servers are networked processes — they add round-trip latency and require the server to be running; for in-process tools the overhead is unnecessary and `@tool` is simpler.
+
 ### 3. Output Parsers
 While early systems used regex, modern code uses `.with_structured_output()` which utilizes the model's native JSON capability (OpenAI `.json_mode` or Anthropic `tools`).
+
+> **Why (the rationale):** `.with_structured_output()` leverages the model's native constrained-generation capability, producing far more reliable structured data than regex or string-splitting post-processing.
+> **When to use:** Use it whenever the downstream code needs a typed Python object or JSON document; only fall back to regex parsers for models that do not support native tool-call / JSON mode.
+> **Nuances & gotchas:** Native structured output does NOT guarantee schema compliance 100% of the time — models can still produce malformed JSON under edge cases, so always wrap in a try/except and consider a validation retry with `dspy.Assert`-style re-prompting for critical paths.
 
 ---
 
@@ -67,6 +91,10 @@ While early systems used regex, modern code uses `.with_structured_output()` whi
 ## LangChain Modularity Push
 
 By May 2026 the ecosystem has finished its long migration from the monolithic `langchain` import to a tiered structure with clean dependency boundaries. The split exists so teams can pick exactly the surface area they need without dragging in 500+ integrations.
+
+> **Why (the rationale):** The monolithic `langchain` package forced every service to carry hundreds of integration dependencies it did not use; the tiered structure reduces install size, cold-start time, and the surface area for supply-chain vulnerabilities.
+> **When to use:** Follow the tiered posture for any new service started after `langchain-core` v1.0 — existing codebases on 0.3.x should plan migration before the EOL date (Q3 2026).
+> **Nuances & gotchas:** The migration is not automatic — `from langchain.chains import LLMChain` still works via `langchain-classic` but those classes are frozen and will not receive new features; tutorials written before 2025 often import from the wrong tier.
 
 ### Package Tiering as Shipped
 
@@ -83,7 +111,11 @@ By May 2026 the ecosystem has finished its long migration from the monolithic `l
 
 ### Standard JSON Schema Across Validation Libraries
 
-The single biggest change for application code: `with_structured_output()`, `bind_tools()`, and `@tool` now accept any [JSON Schema](https://json-schema.org/) compatible object. That includes:
+The single biggest change for application code: `with_structured_output()`, `bind_tools()`, and `@tool` now accept any [JSON Schema](https://json-schema.org/) compatible object.
+
+> **Why (the rationale):** Previously, every team standardized on Pydantic for LangChain even if they used a different validator elsewhere — JSON Schema acceptance decouples the LLM layer from the validation library, reducing forced dependencies.
+> **When to use:** Use your existing validation library (Pydantic, Zod, Valibot, TypedDict) directly as the schema — there is no longer a reason to add Pydantic to a service that does not otherwise use it.
+> **Nuances & gotchas:** Not all JSON Schema features map 1:1 to what every LLM provider supports — complex `oneOf`/`anyOf` schemas may silently fall back to less-structured output on some models; stick to flat or shallow-nested schemas for maximum portability. That includes:
 
 - **Pydantic v2** (the historical default)
 - **[Zod 4](https://zod.dev/v4)** via `zod-to-json-schema`, used by JavaScript / TypeScript LangChain

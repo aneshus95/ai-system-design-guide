@@ -36,6 +36,10 @@ Four ideas carry the whole architecture:
 
 ## The Players — Driver, Cluster Manager, Executors
 
+> **Why (the rationale):** Separating the driver (planning/scheduling), cluster manager (resource allocation), and executors (compute) lets Spark run on multiple resource managers (YARN, Kubernetes, standalone) without changing application code, and allows the driver to adapt scheduling based on live task progress.
+> **When to use:** Understanding this split is essential for diagnosing failures — driver OOM means your plan is too complex or you collected too much data; executor OOM means your partitions are too large or skewed; cluster manager errors mean resource allocation failed (quota, node capacity).
+> **Nuances & gotchas:** The driver is a single process — if it dies, the job dies; avoid calling `.collect()` on large datasets (it pulls all data into driver memory and causes OOM); the driver's network bandwidth can become a bottleneck when it collects results from many executors.
+
 ```
         YOUR PROGRAM  =  the DRIVER
    ┌────────────────────────────────────┐
@@ -74,6 +78,10 @@ Four ideas carry the whole architecture:
 
 ## RDDs, DataFrames, and Partitions
 
+> **Why (the rationale):** DataFrames add a schema layer that enables Catalyst to optimize your query plan — operations that look identical in code can execute very differently depending on whether Catalyst can see column types and apply pushdown; RDDs bypass all of this.
+> **When to use:** Use DataFrames/SQL for all new code; drop to the RDD API only when you need low-level control unavailable at the DataFrame level (custom serializers, non-tabular data structures).
+> **Nuances & gotchas:** Partitions are the atom of parallelism — too few partitions leave cores idle (under-parallelized); too many partitions create scheduling overhead and tiny tasks; the default post-shuffle partition count of 200 is wrong for most real workloads and must be tuned.
+
 - **RDD (Resilient Distributed Dataset)** — the low-level abstraction: an **immutable, partitioned, distributed** collection of objects with **lineage** for fault tolerance. You rarely use it directly today, but it's what everything compiles down to.
 - **DataFrame / Dataset** — the high-level, table-like API (rows + named columns). It's optimized by the **Catalyst** optimizer and executed by the **Tungsten** engine. **Prefer DataFrames** — you get the optimizer for free; raw RDDs bypass it.
 - **Partition** — a horizontal slice of the data. Data is split into partitions; **each partition is processed by one task on one core.** Partitions are the atom of parallelism.
@@ -91,6 +99,10 @@ Four ideas carry the whole architecture:
 ---
 
 ## Lazy Evaluation and the DAG
+
+> **Why (the rationale):** By deferring execution until an action, Spark sees the entire transformation chain and can optimize it as a whole — pushing filters down to read fewer rows, pruning unused columns, and fusing adjacent narrow transforms into a single pass — which eager execution line-by-line cannot do.
+> **When to use:** Laziness is always on; the key implication is that you should structure your code to let Catalyst see the full plan (avoid breaking the chain with intermediate `.collect()` calls or converting to RDDs mid-pipeline).
+> **Nuances & gotchas:** Lazy evaluation means errors (missing columns, type mismatches) often do not surface until an action fires, making debugging harder; use `df.printSchema()` and `df.explain()` during development to validate the plan before running expensive jobs.
 
 Spark operations come in two flavors:
 
@@ -129,6 +141,10 @@ When an action fires, Spark expands the DAG into a concrete hierarchy:
 ---
 
 ## Narrow vs Wide Dependencies (and Why Shuffles Hurt)
+
+> **Why (the rationale):** The narrow/wide distinction determines whether data must cross the network — narrow transforms are free (pipelined on the same machine); wide transforms force a shuffle (disk write + network transfer + deserialization), which is usually the dominant cost in a Spark job.
+> **When to use:** Prefer narrow transformations wherever possible; when you must perform a wide operation (join, groupBy, distinct), do as much filtering and column pruning beforehand to minimize the amount of data that moves across the network.
+> **Nuances & gotchas:** Shuffles are unavoidable for wide operations but are manageable — the key levers are reducing data volume before the shuffle, using `reduceByKey` (partial local combine) over `groupByKey` (shuffles all values), broadcasting small tables to avoid the large-table shuffle entirely, and letting AQE coalesce post-shuffle small partitions automatically.
 
 This is the single most-tested Spark concept. It's about how a child partition depends on parent partitions.
 
@@ -173,6 +189,10 @@ That disk-write → network-fetch → disk-read round trip is exactly why you mi
 
 ## Fault Tolerance via Lineage
 
+> **Why (the rationale):** Replicating data across machines for fault tolerance would double or triple memory requirements; lineage-based recomputation is cheaper because only the lost partition needs to be recomputed, not the whole dataset.
+> **When to use:** Lineage is automatic — no action needed; the key decision is when to *checkpoint* to truncate a very long lineage chain (iterative ML jobs, graph algorithms) so recovery does not replay hundreds of steps.
+> **Nuances & gotchas:** Lineage recomputation re-reads source data, which may be slower or more expensive than re-reading an intermediate checkpoint if the original source is slow (e.g., S3); for iterative algorithms, checkpoint periodically rather than relying on full lineage replay for recovery.
+
 Spark does **not** replicate data across machines to survive failures. Instead, every RDD/DataFrame remembers **how it was computed** — its **lineage** (the chain of transformations from the source). If an executor dies and a partition is lost, Spark **recomputes just that partition** by replaying its lineage from the last available data.
 
 ```
@@ -187,6 +207,10 @@ Spark does **not** replicate data across machines to survive failures. Instead, 
 ---
 
 ## Catalyst, Tungsten, and AQE
+
+> **Why (the rationale):** Without Catalyst, DataFrames would execute literally as written with no optimization; without Tungsten, every operator would incur JVM overhead and GC pressure; without AQE, static planning assumptions about data shape (partition count, join side sizes) are often wrong and cause avoidable shuffles and skew.
+> **When to use:** These are always active for DataFrame/SQL code; the actionable implication is to use DataFrames (not RDDs), keep statistics current (run `ANALYZE TABLE`), and enable AQE (`spark.sql.adaptive.enabled=true`, the default in Spark 3.2+).
+> **Nuances & gotchas:** Catalyst cannot optimize what it cannot see — UDFs (user-defined functions) are opaque black boxes that block predicate pushdown and other rewrites; prefer built-in Spark functions over UDFs wherever possible for this reason.
 
 These three are how DataFrame code becomes fast machine work — and they're favorite senior-level interview probes.
 
@@ -220,6 +244,10 @@ The headline: **in-memory computing + whole-plan optimization** is why Spark is 
 
 ## Performance Levers That Matter in Interviews
 
+> **Why (the rationale):** Most Spark performance problems fall into a handful of categories (shuffle volume, skew, partition imbalance, missing cache); knowing the lever for each lets you diagnose and fix jobs systematically rather than by trial and error.
+> **When to use:** Profile every job with the Spark UI (stage timings, shuffle read/write bytes, task duration distribution) before tuning — the lever to pull is determined by what the profiler shows, not by guessing.
+> **Nuances & gotchas:** Data skew is the most insidious problem because 99% of tasks finish quickly while one straggler task holds up the entire stage; cache/persist only data that is reused across multiple actions — caching data used only once wastes memory and can evict more valuable cached data.
+
 - **Minimize shuffles.** Prefer `reduceByKey` over `groupByKey` (it combines locally first). Filter and select columns **early** to shrink data before wide operations.
 - **Broadcast joins.** When one table is small (~≤10s of MB), broadcast it to every executor so the big table is **not shuffled** at all. AQE can do this automatically; you can also hint it.
 - **Right-size partitions.** Too few → under-parallelized and huge tasks; too many → scheduling overhead. Repartition before heavy wide ops; coalesce before writing to avoid tiny files.
@@ -230,6 +258,10 @@ The headline: **in-memory computing + whole-plan optimization** is why Spark is 
 ---
 
 ## Spark in the Cloud — AWS Glue, EMR, Databricks
+
+> **Why (the rationale):** Raw Spark cluster management (node provisioning, OS patching, Spark version upgrades) is high operational overhead; managed services abstract this away so engineers can focus on the data pipeline rather than the infrastructure.
+> **When to use:** AWS Glue for serverless periodic ETL (pay-per-second, no cluster ops, ideal for jobs that run infrequently); Amazon EMR when you need persistent clusters, deep config control, or heavy customization; Databricks when you want the fastest Spark runtime (Photon) plus Delta Lake and collaborative notebooks.
+> **Nuances & gotchas:** AWS Glue's serverless model has cold-start overhead (executor provisioning) that matters for low-latency needs; Databricks pricing is higher than raw EMR but its Photon engine and Delta Lake integration can offset cost at scale; all three still require the same Spark optimization knowledge — the managed layer does not fix skew, bad partition counts, or missing broadcast hints.
 
 Most teams don't run raw Spark clusters anymore; they use managed Spark:
 

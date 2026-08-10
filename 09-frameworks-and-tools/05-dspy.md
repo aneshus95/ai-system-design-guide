@@ -2,6 +2,10 @@
 
 **DSPy** has become the industry reference for high-reliability AI systems. It represents a paradigm shift from "Prompt Engineering" (trial and error) to **Prompt Compilation** (automated optimization), and benchmarks consistently show a 10-40% quality lift over hand-tuned prompts.
 
+> **Why (the rationale):** Hand-crafted prompts are brittle — they break when the model updates, require expert intuition to improve, and do not generalize across models; DSPy replaces the human optimizer with a data-driven search loop that produces reproducible, model-agnostic pipelines.
+> **When to use:** Choose DSPy when prompt quality is the bottleneck, when you need the same pipeline to work well across multiple models (Claude, GPT, Llama), or when you need provable reliability guarantees backed by eval metrics rather than subjective review.
+> **Nuances & gotchas:** DSPy adds a compile step that can cost 100-500 LLM calls upfront — it is not suitable for one-off scripts or rapidly-changing requirements; also, DSPy optimizes for the metric you define, so a poorly-chosen metric will produce confidently-wrong optimized prompts.
+
 ## Table of Contents
 
 - [The Programming Paradigm](#paradigm)
@@ -21,11 +25,19 @@ DSPy treats an LLM application like a **Neural Network**.
 - **The Signature**: A declarative specification of what the module does (Input -> Output).
 - **The Optimizer**: A process that finds the best "Weights" (Prompts) for the module based on a metric.
 
+> **Why (the rationale):** Treating prompts as learnable weights rather than hand-written strings makes the system principled — you define the objective function and let optimization find the best expression, just as you would train a model layer.
+> **When to use:** Adopt this paradigm when building any system where quality must be measurable and reproducible — research pipelines, high-stakes extraction tasks, or any pipeline that will be re-compiled as models change.
+> **Nuances & gotchas:** The neural-network analogy has limits — DSPy does not update actual model weights (no fine-tuning); it only optimizes the prompt text fed to a frozen model; for tasks where prompt optimization is insufficient, actual fine-tuning is the next step.
+
 ---
 
 ## Signatures: Describing the Task
 
 Instead of writing a 100-line prompt, you write a **Signature**:
+
+> **Why (the rationale):** Signatures separate the task definition ("what should this do") from the prompt implementation ("how to phrase it") — the optimizer handles the phrasing, freeing the developer to focus on the task semantics.
+> **When to use:** Write a Signature for every discrete LLM task in your pipeline, even trivial ones — the declarative form makes it easy to swap modules, chain them, and compile them independently.
+> **Nuances & gotchas:** Signature docstrings are not just documentation — they are passed to the optimizer as seed instructions, so a vague or misleading docstring will degrade the quality of compiled prompts; treat them with the same care you would a system prompt.
 ```python
 class ResearchAssistant(dspy.Signature):
     """Answer the question by synthesizing the provided web context."""
@@ -44,6 +56,10 @@ class ResearchAssistant(dspy.Signature):
 2. **Bayesian Optimization**: DSPy runs the proposed prompts against a small training set and scores them using a metric.
 3. **Selection**: It picks the prompt that maximizes your metric (e.g., Factuality score).
 
+> **Why (the rationale):** Bayesian search finds near-optimal prompts with far fewer LLM calls than exhaustive grid search — MIPROv2 is both cost-efficient and more thorough than a human manually testing 5-10 variations.
+> **When to use:** Use MIPROv2 when you have a well-defined metric and at least 50-100 labeled training examples; for smaller datasets start with the simpler `BootstrapFewShot` optimizer before escalating to MIPROv2.
+> **Nuances & gotchas:** MIPROv2 compilation is not free — budget 200-500 LLM calls per optimization run; re-run it when the underlying model changes or when your evaluation metric shifts significantly, otherwise the compiled prompt may be optimizing for an outdated objective.
+
 ---
 
 ## Assertions and Constraints
@@ -52,12 +68,20 @@ DSPy allows for **Hard and Soft Assertions**.
 - `dspy.Suggest(...)`: If the model fails a check (e.g., "The answer must be under 50 words"), DSPy **automatically re-prompts** the model with the failure reason to correct itself.
 - `dspy.Assert(...)`: If a hard constraint is broken (e.g., "Must not contain PII"), the execution stops and enters a recovery state.
 
+> **Why (the rationale):** Assertions encode safety and quality constraints directly in the pipeline logic rather than as post-processing checks — the system self-corrects at the point of failure rather than propagating bad output downstream.
+> **When to use:** Use `dspy.Assert` for non-negotiable safety constraints (no PII, valid JSON output); use `dspy.Suggest` for quality preferences (conciseness, tone) where a re-prompt is acceptable but not mandatory.
+> **Nuances & gotchas:** Each failed `dspy.Suggest` triggers at least one additional LLM call — in a tight retry loop with a hard-to-satisfy constraint this can multiply costs 3-5x; cap the retry count and monitor the assertion failure rate in production to detect when a constraint has become systematically impossible to satisfy.
+
 ---
 
 ## Managing Model Drift
 
 When OpenAI or Anthropic releases a weight update, hand-crafted prompts often break.
 - **The 2025 Solution**: With DSPy, you simply **Re-compile**. The optimizer finds the new "optimal" tokens for the updated model architecture, maintaining consistency without human labor.
+
+> **Why (the rationale):** Model updates are frequent and unpredictable — re-compilation converts a potential production outage (broken prompts) into a scheduled engineering task (re-run the optimizer), which is far easier to manage operationally.
+> **When to use:** Trigger re-compilation when a model provider announces a weight update or when your evaluation metrics drop by more than a pre-defined threshold (e.g., >5% on your gold dataset).
+> **Nuances & gotchas:** Re-compilation does NOT guarantee that the new compiled prompt will match the old one's behaviour on edge cases — always run your full evaluation suite after re-compilation before deploying to production; treat it like a new model release, not a hotfix.
 
 ---
 

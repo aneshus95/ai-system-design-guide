@@ -44,6 +44,10 @@ The whole art: **the shape of the loss curve decides which mistakes the model tr
 
 ### MSE — Mean Squared Error (L2)
 
+> **Why (the rationale):** Penalizing squared errors is mathematically equivalent to assuming Gaussian noise on the target — the MLE estimator under that assumption is the mean, which MSE minimizes; its smooth, everywhere-differentiable surface gives gradient descent clean, strong signals.
+> **When to use:** Default regression loss when outliers are few and large errors deserve extra punishment; when you need clean, convex gradients; when the target has roughly Gaussian residuals.
+> **Nuances & gotchas:** A single large outlier can dominate the entire loss (error is squared), pulling the fit toward it and away from the majority of points. RMSE (not MSE) is interpretable because it shares units with the target. MSE fits the conditional mean — if you want a different statistic, use a different loss.
+
 ```
  MSE = (1/n) Σ (yᵢ − ŷᵢ)²
 ```
@@ -53,6 +57,10 @@ The whole art: **the shape of the loss curve decides which mistakes the model tr
 - **Cons:** **very sensitive to outliers** (one huge error dominates the sum); squared units aren't interpretable (report **RMSE** for that); implicitly assumes Gaussian noise.
 
 ### MAE — Mean Absolute Error (L1)
+
+> **Why (the rationale):** Penalizing absolute errors treats all deviations proportionally — equivalent to fitting the conditional median, which is robust to outliers because large errors are not amplified by squaring.
+> **When to use:** When the target distribution has heavy tails or genuine outliers you don't want to over-penalize; when the metric in production is MAE (e.g., demand forecasting, delivery time); when interpretability ("off by X units on average") matters.
+> **Nuances & gotchas:** Non-differentiable at zero (the kink) — gradient-based optimizers must use subgradients, which converge slower and less precisely near the optimum. The constant gradient magnitude also means the model takes equally large steps whether the error is 0.01 or 100, slowing fine-grained convergence. Use Huber loss if you want MAE-style robustness with MSE-style near-zero precision.
 
 ```
  MAE = (1/n) Σ |yᵢ − ŷᵢ|
@@ -75,6 +83,10 @@ The whole art: **the shape of the loss curve decides which mistakes the model tr
 
 ### Huber (Smooth L1)
 
+> **Why (the rationale):** Combines MSE's smooth quadratic behavior near zero (precise, fast convergence) with MAE's linear robustness in the tails (resistant to outliers) — the best-of-both-worlds loss for regression with occasional outliers.
+> **When to use:** When data has outliers but you still want smooth, precise gradients near the minimum; in object detection (bounding box regression in SSD/YOLO uses Smooth L1 for this reason); as a drop-in replacement for MSE on noisy tabular regression.
+> **Nuances & gotchas:** Requires tuning the threshold δ — if set too small, acts like MAE everywhere; too large, acts like MSE everywhere. If you don't want to tune δ, Log-Cosh gives similar behavior without a threshold hyperparameter.
+
 ```
  Huber = ½(y−ŷ)²            if |y−ŷ| ≤ δ      (quadratic near 0)
          δ·|y−ŷ| − ½δ²      otherwise          (linear in the tails)
@@ -96,6 +108,10 @@ The whole art: **the shape of the loss curve decides which mistakes the model tr
 
 ### Quantile (Pinball) Loss
 
+> **Why (the rationale):** Enables asymmetric error penalties and probabilistic forecasting — by choosing τ, you directly predict any quantile (e.g., the 90th percentile), giving you uncertainty bounds and cost-sensitive predictions.
+> **When to use:** Demand forecasting (the cost of stockout ≠ cost of overstock → use asymmetric τ); any application needing prediction intervals; when the conditional distribution is skewed and the mean is a poor summary.
+> **Nuances & gotchas:** Need to train one model per quantile (or use a multi-output model); quantile crossing (the 90th percentile prediction falling below the 10th) is a known pathology — use isotonic regression post-hoc to fix. Not differentiable at zero (like MAE), requiring subgradients. MAPE is undefined when actuals are zero; prefer quantile loss for intermittent demand.
+
 ```
  L_τ = max( τ·(y−ŷ), (τ−1)·(y−ŷ) )      for target quantile τ ∈ (0,1)
 ```
@@ -109,6 +125,10 @@ The whole art: **the shape of the loss curve decides which mistakes the model tr
 ## Classification Losses
 
 ### Binary Cross-Entropy / Log Loss
+
+> **Why (the rationale):** A proper scoring rule that incentivizes the model to output true probabilities — it penalizes confident wrong predictions with infinite loss (log(0) → ∞), ensuring the gradient is strongest exactly when corrections are most needed.
+> **When to use:** Binary classification with a sigmoid output; any time calibrated probabilities are needed downstream (e.g., feeding CTR scores into an ad auction). The default classification loss.
+> **Nuances & gotchas:** Extremely sensitive to confidently mislabeled examples — a single label with p→0 explodes the loss. Always feed raw logits into `BCEWithLogitsLoss` (numerically stable log-sum-exp trick) rather than first applying sigmoid then computing log. Under heavy class imbalance, each minority positive is overwhelmed by many negatives — use class weighting or focal loss. Label noise is amplified by the log penalty.
 
 ```
  BCE = −[ y·log(p) + (1−y)·log(1−p) ]         p = predicted P(class=1)
@@ -130,6 +150,10 @@ The whole art: **the shape of the loss curve decides which mistakes the model tr
 
 ### Hinge Loss (SVM)
 
+> **Why (the rationale):** Produces a maximum-margin decision boundary by penalizing points within the margin, while contributing zero loss for points already correctly classified beyond it — this margin maximization is what gives SVMs their strong generalization guarantees.
+> **When to use:** Support Vector Machines; when you want a sparse solution (only support vectors influence the boundary); when the margin-based geometric interpretation is valuable; for multi-class structured prediction (structured hinge / Crammer-Singer SVM).
+> **Nuances & gotchas:** Outputs scores (not probabilities) — requires Platt scaling to get calibrated probabilities. Not differentiable at the hinge point — requires subgradient methods. Not naturally suited to neural networks where cross-entropy is more standard and produces better gradients. Does not handle multi-label outputs directly.
+
 ```
  Hinge = max(0, 1 − y·ŷ)                      y ∈ {−1, +1}
 ```
@@ -139,6 +163,10 @@ The whole art: **the shape of the loss curve decides which mistakes the model tr
 - **Cons:** **outputs scores, not probabilities**; not differentiable at the hinge (use subgradients); less natural for deep nets than cross-entropy.
 
 ### Focal Loss
+
+> **Why (the rationale):** With extreme class imbalance (e.g., 1000 background patches per object in object detection), standard cross-entropy's gradient is dominated by easy negatives that the model already classifies correctly — focal loss suppresses their contribution so training focuses on the hard, rare positives.
+> **When to use:** Severe class imbalance (typically >100:1) where even class-weighted cross-entropy is insufficient; dense object detection (RetinaNet); fraud/medical anomaly detection with extreme imbalance.
+> **Nuances & gotchas:** Adds two hyperparameters (γ and class weight α) that need tuning. Overkill for mild imbalance — class-weighted BCE is simpler and usually sufficient. γ = 0 recovers standard BCE. Sensitive to γ choice: too high ignores most training signal; too low approaches BCE.
 
 ```
  Focal = −(1 − p)^γ · log(p)                  γ > 0 focusing parameter

@@ -79,6 +79,10 @@ Start Here
 
 ### Key Selection Factors
 
+> **Why (the rationale):** Model selection is a multi-dimensional tradeoff — optimizing for only one axis (e.g., benchmark quality) while ignoring rate limits or cost often produces a system that performs well in testing but fails under production load or budget.
+> **When to use:** Evaluate all five factors before any production model commitment; revisit them when traffic doubles or a new model generation ships.
+> **Nuances & gotchas:** Rate limits are the most commonly overlooked factor — a model with better benchmarks may be useless if your P99 throughput hits 429 errors; negotiate rate limit increases before launch, not during an outage.
+
 | Factor | Weight | Considerations |
 |--------|--------|----------------|
 | **Agentic Reliability** | High | Tool-calling accuracy, multi-step planning |
@@ -188,6 +192,10 @@ Assume 1M queries/month, 1K input tokens + 500 output tokens per query:
 
 ### Reliability Patterns
 
+> **Why (the rationale):** LLM providers have real outages, rate-limit spikes, and latency degradation events — a single-provider dependency turns a provider's 99.9% uptime into your system's worst-case availability; multi-provider failover is the standard production pattern.
+> **When to use:** Implement multi-provider failover for any user-facing production system; for internal batch jobs, a single provider with retry/backoff is usually sufficient.
+> **Nuances & gotchas:** Different providers have different output styles — routing the same prompt to Anthropic vs OpenAI as a fallback can produce noticeably different responses; test your fallback paths in shadow mode to ensure downstream parsing and UX hold up.
+
 ```python
 class ReliableModelClient:
     def __init__(self):
@@ -273,6 +281,10 @@ class ModelRouter:
 ```
 
 ### Cascade Pattern (2025 Refinement)
+
+> **Why (the rationale):** Cascading to a cheaper model first and escalating only on low confidence gives you the cost profile of the cheap model for most queries while preserving quality for the minority that genuinely need a frontier model — often 50–70% cost savings with minimal quality loss.
+> **When to use:** Adopt the cascade pattern when query complexity is bimodal (most queries are simple, a tail are hard) and you can define a reliable quality check or confidence threshold to decide when to escalate.
+> **Nuances & gotchas:** The escalation check itself adds latency and cost — if most queries escalate anyway, the cascade is net-negative; measure your escalation rate in shadow mode before committing to the pattern in production.
 
 **The Logic**: Never use a 70B model for a task a 1B model can do. Use a "Router" to score confidence.
 

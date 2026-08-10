@@ -105,6 +105,10 @@ Before investing hours in any course, post, or notebook:
 
 ## Surviving Churn: Pin, Lock, Isolate
 
+> **Why (the rationale):** AI framework packages release breaking changes on the scale of weeks, not quarters — without exact version pins and a committed lockfile, any `pip install` or `npm install` can silently pull a breaking version and break production or your learning environment overnight.
+> **When to use:** Apply this discipline from the first commit of every project; retroactively adding pins after breakage is painful because you must identify which version last worked.
+> **Nuances & gotchas:** Pinning only direct dependencies is not enough — LlamaIndex's "abstract class" error is caused by transitive dependency drift; use a full lockfile tool (`uv`, `poetry`, `pip-compile`) that captures all transitive versions, and always upgrade LlamaIndex or LangChain integration packages as a set, never one at a time.
+
 The discipline that prevents "worked yesterday, broken today":
 
 - **Pin exact versions.** A loose, unversioned `llama-index` is the single biggest cause of surprise breakage. At minimum, `==`-pin your direct dependencies.
@@ -116,6 +120,10 @@ The discipline that prevents "worked yesterday, broken today":
 ---
 
 ## Framework vs Raw SDK vs Thin Layer
+
+> **Why (the rationale):** The original value proposition of LangChain and LlamaIndex was abstracting inconsistent provider APIs — but tool calling and structured outputs have now converged across the major SDKs, shrinking that value while the churn cost remains unchanged, making the raw SDK + thin wrapper a viable production pattern for many teams.
+> **When to use:** Raw SDK when you make a handful of model calls or write library code that will be consumed by others (stable surface, no transitive framework dep). Framework when you genuinely need the breadth (dozens of vector store integrations, batteries-included RAG). Thin layer for production systems: insulate call sites from provider specifics behind your own interface.
+> **Nuances & gotchas:** The more a framework layer hides things you must understand to debug (retrieval ranking, token budgeting, the tool-call loop), the riskier it is in production — leaky abstractions force you to understand internals anyway, now through a thicker stack trace.
 
 A live 2026 question, because the original reason frameworks existed has partly evaporated. When LangChain and LlamaIndex appeared, provider APIs were inconsistent and a unifying layer paid for itself. Since then, tool/function calling and structured outputs have converged into native, similar features across the major provider SDKs, so the framework's abstraction value has shrunk while its churn cost has not.
 
@@ -144,6 +152,10 @@ This is the core of learning durably. The half-life of a framework *API* is roug
 ---
 
 ## Migrating When You Must Upgrade
+
+> **Why (the rationale):** Big-bang framework migrations fail because there are too many simultaneous breakage points to debug at once; incremental migration with bridge packages keeps the application running throughout.
+> **When to use:** Triggered by a security vulnerability in the pinned version, a new feature unavailable in the current version, or end of support for the current major — not just because a newer version exists.
+> **Nuances & gotchas:** A migration that compiles and passes import checks but silently changes retrieval quality or agent success rate is a regression — always confirm behavior with an eval harness, not just a "does it start" check.
 
 When you do have to move a real codebase forward:
 

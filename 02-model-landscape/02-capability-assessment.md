@@ -21,6 +21,10 @@ This chapter covers how to evaluate and compare model capabilities for your spec
 
 ### The Benchmark Problem
 
+> **Why (the rationale):** Public benchmarks give a fast, zero-cost baseline for filtering obviously weak models, but they measure a fixed task distribution that rarely matches your production query mix — relying on them alone leads to selecting the wrong model for your use case.
+> **When to use:** Use public benchmarks for initial elimination of clearly weaker candidates; switch to your own eval dataset for the final selection decision between the top 2–3 models.
+> **Nuances & gotchas:** Benchmark contamination is widespread — models may have seen test questions during training, inflating scores; an MMLU or HumanEval leader can underperform a lower-ranked model on your specific domain, so always eval on your own data before committing.
+
 Public benchmarks (MMLU, HumanEval, GSM8K) have limitations:
 
 | Issue | Impact |
@@ -48,6 +52,10 @@ customers' questions about our product documentation?"
 
 ### Dimension 1: Task Performance
 
+> **Why (the rationale):** Measuring task performance on your actual query distribution is the only reliable signal for model selection — generic benchmarks aggregate across domains that may not overlap with yours at all.
+> **When to use:** Run task-specific evaluation before every model upgrade decision and after any significant distribution shift in your user queries.
+> **Nuances & gotchas:** Long-context recall often drops sharply past the 50% window depth even for models marketed as "1M context" — always test your actual document lengths and query positions, not just the advertised context limit.
+
 | Task Type | Evaluation Approach | Key Metric |
 |-----------|---------------------|------------|
 | **Autonomous Coding** | CWE/SWE-bench (Verified) | % issues resolved autonomously |
@@ -57,6 +65,10 @@ customers' questions about our product documentation?"
 | **Native Multimodal** | Interleaved Vision/Voice/Text | Sync accuracy across modalities |
 
 ### Dimension 2: Agentic Mastery
+
+> **Why (the rationale):** Single-turn benchmark scores don't capture the compounding failure modes of agentic loops — a model with 90% per-step accuracy accumulates errors over 10 steps and may fail the task entirely, which only shows up in end-to-end trajectory evaluation.
+> **When to use:** Evaluate agentic mastery whenever the system executes multi-step plans, calls external tools, or runs autonomously for more than one turn; don't rely on chat benchmark scores as a proxy.
+> **Nuances & gotchas:** Error recovery quality varies dramatically between models — a model that gracefully retries a failed tool call is often more valuable than one with a higher raw success rate that fails silently; test adversarial scenarios (tool errors, conflicting information) as well as happy-path scenarios.
 
 How well does the model use tools and follow multi-step instructions?
 
@@ -103,6 +115,10 @@ Production systems use **Model Arbitration**: a small model (Gemini 3.1 Flash, C
 
 ## Internal Elo-based Evaluation
 
+> **Why (the rationale):** Rubric scores on a 1–5 scale drift as judges (human or LLM) calibrate differently over time, making score comparisons across weeks unreliable; pairwise Elo sidesteps this by only requiring a relative judgment ("which is better?") rather than an absolute one.
+> **When to use:** Switch to Elo when you are running ongoing model comparisons (e.g., canary releases, A/B tests) or when rubric scores from different raters are inconsistent; Elo is overkill for one-time model selection with a small team.
+> **Nuances & gotchas:** Elo rankings depend on the judge model's own biases — an LLM judge tends to prefer longer, more confident-sounding answers and its own style of writing; use diverse judge models or human spot-checks to detect systematic bias.
+
 **Moving beyond static rubrics.**
 Rubrics (1-5 scales) are prone to "judge fatigue" and "score drifting." Modern systems use **Pairwise Elo** for internal golden sets.
 
@@ -134,6 +150,10 @@ With 2M+ context windows, simple "needle-in-a-haystack" is no longer enough. We 
 ---
 
 ## Building Custom Evaluations
+
+> **Why (the rationale):** A custom eval set grounded in your actual production traffic is the only way to know whether a model change will help or hurt your users — it converts subjective "feels better" into a measurable, reproducible signal.
+> **When to use:** Build a custom eval before the first production model selection, then expand it after every significant incident or quality complaint; reuse the same set across model versions to track regression.
+> **Nuances & gotchas:** 20 test cases is not enough — statistical noise can make a worse model appear better; aim for 100+ cases stratified by difficulty and category, and run each case multiple times at temperature > 0 to measure variance, not just mean accuracy.
 
 ### Step 1: Define Evaluation Criteria
 
@@ -382,6 +402,10 @@ Model C (Llama 3.1 70B) for high-volume, cost-sensitive paths
 ---
 
 ## A/B Testing Models
+
+> **Why (the rationale):** Offline evaluation on a static dataset can't capture real user behavior signals — users may phrase queries differently in production, context may vary, and business metrics (conversion, resolution rate) only show up in live traffic.
+> **When to use:** A/B test when you have enough traffic (1000+ queries/day), clear success metrics, and acceptable risk of exposing some users to a lower-quality model; don't A/B test safety-critical systems where a bad output has serious consequences.
+> **Nuances & gotchas:** Statistical significance requires larger sample sizes than most teams expect — detecting a 5% quality difference at 95% confidence typically needs several thousand samples per variant; end the test too early and you may ship a worse model confidently.
 
 ### When to A/B Test
 

@@ -20,6 +20,10 @@ Understanding the cost structure of LLM systems is essential for production plan
 
 ### Token-Based Pricing
 
+> **Why (the rationale):** Token-based pricing aligns cost with actual compute consumed and lets you project costs precisely before deployment — but output tokens costing 2–5× more than input tokens means verbose generation styles multiply costs faster than longer prompts do.
+> **When to use:** Model costs at the request level (`input_tokens × rate + output_tokens × rate`) before choosing a model; re-run the calculation for your top 2–3 candidates at realistic token counts from production logs, not assumed averages.
+> **Nuances & gotchas:** Internal "thinking tokens" in extended-reasoning models are billed even though they are never shown to the user — a single hard reasoning request can cost 5–10× what the visible output suggests; always set a `budget_tokens` cap and monitor actual vs expected token spend.
+
 Most LLM APIs charge per token:
 
 ```
@@ -32,6 +36,10 @@ Cost = (input_tokens × input_rate) + (output_tokens × output_rate)
 - Some providers offer batch discounts
 
 ### Tiered Pricing
+
+> **Why (the rationale):** Volume tiers reward predictable high-spend customers and give enterprises leverage to negotiate below-list pricing — the difference between standard and enterprise rates can be 20–40% at $50K+/month spend.
+> **When to use:** Request tiered or enterprise pricing once monthly spend exceeds $10K; build in an abstraction layer so you can switch providers if negotiations stall.
+> **Nuances & gotchas:** Tiered discounts apply to the specific provider's price, not to the total cost of operating the system — factor in vector DB, monitoring, and engineering costs before assuming a volume discount makes the economics work.
 
 Some providers offer volume discounts:
 
@@ -235,6 +243,10 @@ costs = project_monthly_cost(
 
 ## Cost Optimization Strategies
 
+> **Why (the rationale):** The single highest-leverage cost reduction in any LLM system is matching query complexity to model tier — sending 70% of simple queries to a 10–50× cheaper model while preserving quality for hard queries typically cuts total spend by 50–70%.
+> **When to use:** Apply cost optimization strategies in order of effort: model routing first (highest ROI, medium effort), then context caching (low effort for large shared prompts), then prompt compression, then batch processing for non-real-time work.
+> **Nuances & gotchas:** Over-aggressive routing that sends too many queries to cheap models silently degrades quality — always monitor quality metrics per model tier, not just average cost; a 5% quality drop that causes 2% more support escalations may cost more than the routing savings.
+
 ### Strategy 1: Model Routing
 
 Route requests to appropriate model tiers:
@@ -376,6 +388,10 @@ response = model.generate(
 
 ## Context Caching Economics
 
+> **Why (the rationale):** When the same long system prompt or knowledge base prefix is reused across many requests, caching it means paying a one-time write fee and then a 90% discounted cache-hit rate for all subsequent calls — breaking even after roughly 2 uses and saving significantly at scale.
+> **When to use:** Enable context caching whenever you have a shared prefix longer than ~10K tokens that is reused across at least 3 requests; at high cache-hit rates (>80%), input costs can drop by 60–90%.
+> **Nuances & gotchas:** Cache TTL is short (5 minutes or 1 hour depending on tier) — if your traffic is bursty or low-volume, the cache may expire before it pays back its write fee; also, changing even one token in the cached prefix invalidates the entire cache, so keep system prompts and retrieved context separate.
+
 **The "Golden Rule" for RAG (still true in 2026).**
 If you have a fixed system prompt or a shared knowledge base (prefix) larger than 10,000 tokens, **Context Caching** is mandatory.
 
@@ -391,6 +407,10 @@ If your long prefix is used by **more than 2 users**, caching it is strictly che
 ---
 
 ## Self-Hosting & GPU Cloud Arbitrage
+
+> **Why (the rationale):** At high volume, the per-token API markup over raw GPU compute becomes the dominant cost — self-hosting trades that markup for upfront GPU spend and engineering overhead, which only breaks even if you have sustained high utilization (>40%) and an ops team to run it.
+> **When to use:** Evaluate self-hosting when monthly API spend exceeds $10K; commit to it when spend exceeds $30–50K/month, you have a stable workload profile, and at least one ML infrastructure engineer available.
+> **Nuances & gotchas:** GPU cloud arbitrage (moving workloads to cheapest available spot instances) saves up to 60% on compute but adds operational complexity and interruption risk — only viable for fault-tolerant batch workloads, not latency-sensitive user-facing inference.
 
 **The Reserved vs. Serverless Tradeoff:**
 
@@ -464,6 +484,10 @@ Choose self-hosting when:
 ---
 
 ## Total Cost of Ownership
+
+> **Why (the rationale):** Comparing only API costs between options ignores engineering time, vector DB, monitoring, and downtime risk — a "cheaper" self-hosted option can be more expensive in TCO once you account for 0.5–1.0 FTE to operate it.
+> **When to use:** Always compute TCO when the self-host vs. API decision is on the table, when a major model change is planned, or when budget reviews ask for AI infrastructure cost breakdowns.
+> **Nuances & gotchas:** Engineering cost is the most underestimated TCO component — a junior engineer at $150K/year costs more than $12K/month in loaded cost, which exceeds the API spend breakeven for many medium-volume systems; factor in the opportunity cost of that engineering time too.
 
 ### TCO Components
 

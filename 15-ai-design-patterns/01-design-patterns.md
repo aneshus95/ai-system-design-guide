@@ -18,6 +18,10 @@ This chapter catalogs common patterns for building AI systems, similar to design
 
 ### Pattern: Naive RAG
 
+> **Why (the rationale):** Naive RAG gets a working retrieval system in hours with minimal infrastructure, establishing a quality baseline that proves whether retrieval even helps before you invest in a more complex pipeline.
+> **When to use:** Use for MVPs, proof-of-concepts, and when your document set is small and relatively uniform in quality; if your initial recall@5 is already above 80%, naive RAG may be sufficient for production.
+> **Nuances & gotchas:** Naive RAG silently degrades when the corpus grows or when queries are ambiguous — there is no reranking to rescue a noisy top-K, and the "lost in the middle" effect can bury the most relevant chunk; treat it as a baseline to beat, not a permanent solution.
+
 The simplest RAG implementation:
 
 ```
@@ -37,6 +41,10 @@ Query → Embed → Search → Top K → Stuff into prompt → Generate
 ---
 
 ### Pattern: Advanced RAG
+
+> **Why (the rationale):** Query rewriting, hybrid search, and reranking each address a specific failure mode of naive RAG — vocabulary mismatch, keyword vs. semantic retrieval gaps, and noisy top-K results — delivering 10–15% precision gains that directly translate to fewer hallucinations.
+> **When to use:** Adopt Advanced RAG when naive RAG's precision is too low for production, when documents are diverse or uneven in quality, or when users ask complex multi-part questions that naive retrieval handles poorly.
+> **Nuances & gotchas:** Each added stage adds latency (reranking alone adds 100–200ms) and an additional failure point; the query rewriting LLM call itself costs tokens and can introduce drift — measure end-to-end latency and quality before and after each stage to confirm the tradeoff is worth it.
 
 Enhanced pipeline with multiple stages:
 
@@ -73,6 +81,10 @@ class AdvancedRAG:
 ---
 
 ### Pattern: Parent-Child Retrieval
+
+> **Why (the rationale):** Small chunks produce higher-precision embedding matches (less noise dilutes the vector) while large chunks give the generator the surrounding context it needs to answer accurately — parent-child indexing lets you have both simultaneously.
+> **When to use:** Use when documents have natural hierarchical structure (sections → paragraphs, articles → passages) and when retrieval precision is high but generated answers lack necessary context; also helpful when documents contain dense, inter-dependent information.
+> **Nuances & gotchas:** Parent chunks can be very large — if multiple child hits resolve to the same parent, you may end up stuffing the same large block into the context multiple times; deduplicate by parent ID and cap the number of unique parents returned.
 
 Retrieve small chunks, return larger parent chunks:
 
@@ -114,6 +126,10 @@ class ParentChildRetriever:
 
 ### Pattern: Self-RAG
 
+> **Why (the rationale):** Not every query needs retrieval — a model asking to retrieve for "What is 2+2?" wastes compute; Self-RAG lets the model skip retrieval when its parametric knowledge is sufficient, and self-critique the answer when it does retrieve.
+> **When to use:** Use Self-RAG when your query mix is heterogeneous (some questions require real-time facts, others are general knowledge) and when retrieval latency is a concern; less useful when virtually all queries need retrieval.
+> **Nuances & gotchas:** Self-RAG adds multiple LLM calls per query (retrieval assessment, relevance check, support check) — latency and cost multiply accordingly; the model's own judgment about when to retrieve can be miscalibrated, so monitor cases where it skips retrieval and hallucinates.
+
 Model decides when and what to retrieve:
 
 ```python
@@ -150,6 +166,10 @@ class SelfRAG:
 ---
 
 ### Pattern: Corrective RAG (CRAG)
+
+> **Why (the rationale):** When the local corpus is incomplete or stale, standard RAG silently generates an answer from poor sources; CRAG grades each retrieved document and falls back to web search, making retrieval quality an explicit, correctable signal rather than a hidden failure mode.
+> **When to use:** Use CRAG when your document corpus has known gaps (e.g., fast-moving domains, recent events) or when low-quality retrieval causing hallucinations is the dominant quality problem; skip it when the corpus is comprehensive and well-maintained.
+> **Nuances & gotchas:** Grading each document adds LLM calls (latency and cost) and the grader itself can be wrong — an ambiguous document marked "irrelevant" can cause CRAG to trigger an unnecessary and slow web search; tune the grading prompt carefully and measure false-negative rates.
 
 Evaluate and correct retrieval quality:
 
@@ -195,6 +215,10 @@ class CorrectiveRAG:
 
 ### Pattern: ReAct
 
+> **Why (the rationale):** Interleaving thought and action lets the model update its plan after each observation — this is critical for multi-step tasks where earlier results should change what the model does next, which pure planning-then-execution cannot handle.
+> **When to use:** Use ReAct for general-purpose agents with moderate task complexity, when explainability of decisions matters (the thought steps are auditable), and when tasks may require dynamic replanning mid-execution.
+> **Nuances & gotchas:** ReAct agents can get stuck in repetitive thought-action loops when a tool fails repeatedly — always enforce a maximum step limit and monitor for loop patterns; the verbosity of the thought steps also consumes context quickly in long tasks.
+
 Interleaved reasoning and acting:
 
 ```
@@ -211,6 +235,10 @@ See [Agent Architectures](../07-agentic-systems/01-agent-fundamentals.md) for im
 ---
 
 ### Pattern: Plan-and-Execute
+
+> **Why (the rationale):** Separating planning from execution lets you use a powerful model for high-level decomposition and a cheaper or specialized model for each atomic execution step — improving both quality and cost for complex multi-step tasks.
+> **When to use:** Use for complex tasks that benefit from upfront decomposition (e.g., research workflows, codebase migrations, multi-document synthesis) where the full task can be reasoned about before any tools are called.
+> **Nuances & gotchas:** The initial plan may be wrong or become stale mid-execution — always implement re-planning logic triggered by unexpected tool results; a plan that locks in all steps upfront can be brittle in dynamic environments where early results change the appropriate next action.
 
 Create a plan first, then execute steps:
 
@@ -257,6 +285,10 @@ class PlanAndExecuteAgent:
 
 ### Pattern: Critic/Verifier
 
+> **Why (the rationale):** A single LLM generation has an inherent blind spot — it can't reliably catch its own errors from the same weight configuration; a separate critic call (even using the same model) provides a different sampling trajectory that catches a meaningful fraction of mistakes.
+> **When to use:** Use when output quality is critical and the task has clear, checkable success criteria (code that must compile, facts that can be verified, reasoning that must be self-consistent); accept the extra latency only when the quality gain justifies it.
+> **Nuances & gotchas:** Critics can be sycophantic — they tend to approve the generator's output more often than warranted; use explicit rubric prompts and require the critic to identify at least one issue before approving; also cap iterations to avoid infinite revision loops.
+
 One agent generates, another critiques:
 
 ```python
@@ -289,6 +321,10 @@ class CriticPattern:
 ---
 
 ### Pattern: Hierarchical Agents
+
+> **Why (the rationale):** A single flat agent trying to handle diverse subtasks with one prompt degrades on all of them; specialist workers with focused prompts and tools outperform generalists, and the manager layer enables parallelization that cuts wall-clock time dramatically.
+> **When to use:** Use when the task spans multiple clearly distinct domains (research + coding + writing), when subtasks can run in parallel, and when you have the operational maturity to monitor multiple concurrent agent executions.
+> **Nuances & gotchas:** The manager's decomposition quality is the system's bottleneck — a bad plan assignment sends work to the wrong worker and results are hard to recover; also, communication between workers through the manager creates a coordination overhead that can slow things down compared to a well-tuned flat agent for simpler tasks.
 
 Manager delegates to specialist workers:
 
@@ -326,6 +362,10 @@ class ManagerAgent:
 
 ### Pattern: Cascading Models
 
+> **Why (the rationale):** Most query distributions are bimodal — a large fraction of easy queries can be handled by a cheap model, and only a tail requires a frontier model; cascading automatically exploits this distribution to minimize average cost while preserving quality where it matters.
+> **When to use:** Use when you can measure or predict query complexity reliably (via a classifier or confidence score) and when the cost delta between tiers is at least 5–10×; don't cascade if most queries end up escalating anyway.
+> **Nuances & gotchas:** The complexity classifier is a single point of failure — miscategorizing hard queries as simple silently degrades output quality with no visible error; monitor escalation rate and quality per tier separately, and set a quality threshold below which the cascade aborts and escalates automatically.
+
 Route to cheapest sufficient model:
 
 ```python
@@ -357,6 +397,10 @@ class ModelCascade:
 ---
 
 ### Pattern: Speculative Execution
+
+> **Why (the rationale):** Large models are slow because they generate one token at a time sequentially; speculative drafting lets a small fast model propose several tokens in parallel, then the large model verifies a whole batch at once — reducing wall-clock time while producing the large model's output quality.
+> **When to use:** Use when TTFT and throughput are critical constraints and you have an aligned smaller model available; works best for predictable generation patterns (code, structured output) where the draft model has a high acceptance rate.
+> **Nuances & gotchas:** The speedup depends entirely on the draft acceptance rate — if the large model rejects most drafts, the overhead of running two models exceeds the savings; acceptance rates below ~70% typically make speculative decoding net-negative compared to direct large-model generation.
 
 Draft with small model, verify with large:
 
@@ -395,6 +439,10 @@ class SpeculativeExecution:
 ---
 
 ### Pattern: Caching Layers
+
+> **Why (the rationale):** Repeated or semantically equivalent queries are common in production (FAQ-style questions, repeated analysis of the same document) — caching eliminates the per-token cost and latency of regenerating identical responses, often cutting 20–40% of total spend with no quality impact.
+> **When to use:** Use exact-match caching for FAQ or templated queries; layer semantic caching on top when users paraphrase the same intent; only enable caching where staleness is acceptable (not for real-time data or personalized responses).
+> **Nuances & gotchas:** Semantic cache threshold tuning is critical — too low (0.85) returns irrelevant cached answers for semantically similar but actually different queries; too high (0.99) misses most paraphrases; test the threshold on real production query pairs before deploying.
 
 Multi-level caching strategy:
 
@@ -436,6 +484,10 @@ class CachingLLM:
 
 ### Pattern: Retry with Fallback
 
+> **Why (the rationale):** LLM API errors (rate limits, transient 5xx, timeouts) are frequent enough in production that a single-provider system will have visible user-facing failures; a prioritized fallback list ensures the system stays up even during provider incidents.
+> **When to use:** Always implement retry with fallback for any user-facing production system; for internal batch jobs, simple retry with exponential backoff is usually sufficient.
+> **Nuances & gotchas:** Provider outputs are not interchangeable — routing the same prompt to OpenAI as a fallback for Anthropic can produce structurally different responses that break downstream parsers; test all fallback paths against your response schema before enabling them.
+
 ```python
 class RetryWithFallback:
     async def generate(self, query: str) -> str:
@@ -460,6 +512,10 @@ class RetryWithFallback:
 ---
 
 ### Pattern: Circuit Breaker
+
+> **Why (the rationale):** Without a circuit breaker, a failing provider receives a flood of retry requests that worsen its recovery and add latency for every user; the circuit breaker detects sustained failure and immediately routes traffic to the fallback, giving the primary time to recover.
+> **When to use:** Implement alongside retry-with-fallback for any provider that has been a source of cascading failures; configure the failure threshold based on normal error rates — too low and you open the circuit on transient spikes, too high and you fail too many requests before triggering.
+> **Nuances & gotchas:** The half-open state (testing if the provider recovered) must be handled carefully — sending a burst of test traffic can re-trigger the failure; probe with a single request per reset interval rather than resuming full traffic.
 
 ```python
 class CircuitBreaker:
@@ -493,6 +549,10 @@ class CircuitBreaker:
 ---
 
 ### Pattern: Bulkhead
+
+> **Why (the rationale):** Without isolation, a slow or failing component (e.g., a long-running agentic task) can exhaust all available threads and starve faster components (e.g., a simple RAG query), making the entire system appear degraded even though only one workload type is overloaded.
+> **When to use:** Use bulkheads whenever you have mixed workload types with very different latency profiles sharing the same infrastructure — at minimum, separate agent workloads (slow, expensive) from RAG workloads (fast, cheap).
+> **Nuances & gotchas:** Setting bulkhead sizes requires load testing — too small and you artificially throttle valid traffic; too large and the isolation benefit disappears; start with a ratio proportional to your expected traffic mix and tune from production metrics.
 
 Isolate failures between components:
 

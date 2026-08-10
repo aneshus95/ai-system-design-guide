@@ -81,6 +81,10 @@ A decoder-only transformer (the architecture used by GPT, Claude, Llama) consist
 
 Convert token IDs to dense vectors:
 
+> **Why (the rationale):** Token IDs are arbitrary integers with no numerical meaning; the embedding table maps each ID to a learned dense vector that encodes semantic properties, allowing the model to generalize across tokens with similar meanings through vector geometry.
+> **When to use / when it matters:** The embedding table is a significant memory cost for large vocabularies (128K vocab × 8192 d_model × 2 bytes = ~2 GB for Llama 70B), and it is typically tied to the LM head output projection — understanding this coupling matters when reasoning about weight tying vs. untied embeddings in model sizing.
+> **Nuances & gotchas:** Embedding lookup is just an indexed matrix read — it does NOT do any computation beyond fetching a row; the semantic structure is entirely a product of training, not of the lookup operation itself; at inference, the embedding layer is memory-bound (reading ~2 GB of weights per token), not compute-bound.
+
 ```python
 class TokenEmbedding(nn.Module):
     def __init__(self, vocab_size, d_model):
@@ -126,6 +130,10 @@ x = token_embeddings + position_embeddings(positions)
 ### Pre-Norm Structure
 
 Modern transformers use pre-normalization:
+
+> **Why (the rationale):** The pre-norm + residual pattern creates a "highway" of identity connections through the network — the residual bypasses each sublayer and carries gradients directly to early layers, enabling stable training of 100+ layer models without vanishing gradients.
+> **When to use / when it matters:** This exact pattern is why you can train 80-layer models (Llama 70B) without gradient explosion; the sublayer only needs to learn the *delta* (residual), not a full transformation, which reduces the effective learning difficulty.
+> **Nuances & gotchas:** The residual connection does NOT make the model "skip" layers in inference — all layers run on every forward pass; the highway is only for *gradients* during training; removing residual connections from a trained model would cause catastrophic quality degradation.
 
 ```python
 class TransformerBlock(nn.Module):
@@ -261,6 +269,11 @@ class LMHead(nn.Module):
 ## Untied vs. Tied Embeddings
 
 **Standard Pattern (GPT-3, Llama 2):** Weight Tying
+
+> **Why (the rationale):** Weight tying forces the input embedding space and the output prediction space to be identical, saving `vocab_size × d_model` parameters (potentially billions); the intuition is that if a token's input representation is good, it should also be a good prediction target.
+> **When to use / when it matters:** A meaningful parameter-count and VRAM difference for large vocabularies — at 128K vocab and d_model=8192, untying adds ~2B parameters; matters for comparing parameter counts across model architectures and for understanding why Llama 3 reports higher total params than its architecture alone would suggest.
+> **Nuances & gotchas:** Tying enforces that the space where the model "reads" tokens and the space where it "writes" predictions are the same vector space — this constraint can hurt multilingual and code models where input understanding and output generation benefit from different representations; untied embeddings improve perplexity but cost more memory.
+
 - Output head shares weights with input embeddings.
 - **Pro**: Saves memory (vocab_size * hidden_dim).
 - **Con**: Forces input and output latent spaces to be identical, which can be suboptimal.
@@ -350,6 +363,10 @@ Total ≈ 12 * n_layers * d_model^2 (for d_ff = 4 * d_model, MHA)
 ### Scaling Laws
 
 The Chinchilla scaling law suggests optimal allocation:
+
+> **Why (the rationale):** Scaling laws reveal that model quality improves predictably as a power law of compute, model size, and data; Chinchilla showed that prior models (GPT-3) were undertrained relative to their size, and that doubling training data is roughly as effective as doubling model size for the same compute budget.
+> **When to use / when it matters:** Guides architectural decisions about model size vs. data budget; more practically, explains why modern models "over-train" beyond the Chinchilla point to optimize for serving cost rather than training efficiency.
+> **Nuances & gotchas:** Scaling laws describe *average* behavior across many runs — they are empirical estimates with significant uncertainty; they do NOT predict specific capabilities or emergent behaviors; the Chinchilla optimal point assumes training cost is what you minimize, which is not true when you amortize inference cost over millions of requests.
 
 ```
 D (data tokens) ≈ 20 * N (parameters)

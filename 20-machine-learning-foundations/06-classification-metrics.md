@@ -36,6 +36,10 @@ This is the **confusion matrix**. The two errors are *not* equal — a false ala
 
 ## Precision — "Can I Trust a Yes?"
 
+> **Why (the rationale):** When a false alarm (FP) is costly — spam filter blocking legitimate email, fraud flag freezing a valid account, a recommendation showing an irrelevant result — you want to maximize the trustworthiness of every positive prediction, measured by precision.
+> **When to use:** Optimize for precision when the cost of a false positive is high and you can afford to miss some real positives: spam detection, false-positive fraud blocks, content recommendation quality, ad relevance.
+> **Nuances & gotchas:** Precision can be gamed by being extremely conservative (only predict "positive" when near-certain) — you get perfect precision but terrible recall and miss almost everything real. Always pair precision with recall; use F1 or the PR curve for a holistic view.
+
 ```
  Precision = TP / (TP + FP)
 ```
@@ -50,6 +54,10 @@ Of everything you **flagged as positive**, how many were actually positive.
 ---
 
 ## Recall — "Did I Catch Everything?"
+
+> **Why (the rationale):** When a miss (FN) is costly — cancer undetected, fraud uncaught, a security threat not flagged — you want to maximize coverage of all real positives, measured by recall.
+> **When to use:** Optimize for recall when the cost of missing a true positive is high: cancer/disease detection, fraud/security detection, critical safety defect identification, any scenario where "missing it" causes harm.
+> **Nuances & gotchas:** Recall can be trivially maximized by predicting "positive" for everything — 100% recall, 0% precision. Always pair with precision. Recall is equivalent to the True Positive Rate (TPR) and Sensitivity — the same quantity used as the y-axis of the ROC curve.
 
 ```
  Recall = TP / (TP + FN)         (also called Sensitivity or True Positive Rate)
@@ -84,6 +92,10 @@ You almost always trade one for the other, so you **choose the threshold based o
 
 ## F1 — One Balanced Number
 
+> **Why (the rationale):** A single metric is needed to rank models or set an optimization objective; F1 uses the harmonic mean to balance precision and recall so that a model must be good at both — not just one — to score well.
+> **When to use:** Imbalanced classes where accuracy misleads; when you need a single number to compare models or tune a threshold; classification leaderboards. Use Fβ (β>1 boosts recall weight) when misses are more costly than false alarms.
+> **Nuances & gotchas:** F1 = 0 if either precision or recall is 0 — it cannot be gamed by extremes. F1 is threshold-dependent; report at the business-relevant operating threshold, not 0.5. For extreme imbalance, PR-AUC is more informative than F1 at a single threshold because it summarizes across all thresholds. Macro vs micro vs weighted F1 differ significantly on multi-class problems.
+
 ```
  F1 = 2 · (Precision · Recall) / (Precision + Recall)     ← harmonic mean
 ```
@@ -95,6 +107,10 @@ You almost always trade one for the other, so you **choose the threshold based o
 ---
 
 ## ROC-AUC — Separability Across All Thresholds
+
+> **Why (the rationale):** Provides a threshold-free measure of ranking quality — the probability that the model scores a random positive higher than a random negative — enabling model comparison without committing to an operating point.
+> **When to use:** Comparing models during development; roughly balanced classes; when you want to understand separability before picking a threshold; binary classification baselines. AUC = 1 is perfect; 0.5 is random.
+> **Nuances & gotchas:** On heavily imbalanced datasets, ROC-AUC can be misleadingly optimistic because the large TN count keeps FPR artificially low — a model can have AUC 0.95 while completely failing on the rare positive class. In that case use PR-AUC. AUC < 0.5 means the model is ranking backwards — flip predictions for a free performance improvement.
 
 Precision, recall, and F1 all depend on **one chosen threshold**. ROC-AUC steps back and asks: **how good is the model regardless of threshold?**
 
@@ -122,6 +138,10 @@ Precision, recall, and F1 all depend on **one chosen threshold**. ROC-AUC steps 
 ---
 
 ## PR-AUC — For the Rare Class
+
+> **Why (the rationale):** Ignores true negatives entirely (unlike ROC) and focuses exclusively on the positive class — making it the honest metric when positives are rare and TN abundance would otherwise inflate ROC-AUC.
+> **When to use:** Any severe class imbalance scenario: fraud detection, disease diagnosis, rare-event anomaly detection, defect detection. The empirical rule: if the positive class is <5% of the dataset, prefer PR-AUC over ROC-AUC.
+> **Nuances & gotchas:** A random classifier on imbalanced data has a PR-AUC equal to the base positive rate (e.g., 0.01 for 1% positives) — not 0.5 like ROC-AUC. This makes PR-AUC harder to interpret as an absolute number but more honest about performance on the minority class. Always report the baseline (positive rate) alongside PR-AUC.
 
 **The ROC-AUC trap:** on **heavily imbalanced** data, ROC-AUC can look **flatteringly high** because the huge pile of true negatives makes the False Positive Rate tiny no matter what. It hides poor performance on the rare positive class.
 

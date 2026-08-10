@@ -39,6 +39,10 @@ Source: [Sculley et al., "Hidden Technical Debt in ML Systems" (NeurIPS 2015)](h
 
 ## Deployment Modes — Batch vs Online vs Streaming
 
+> **Why (the rationale):** When predictions happen determines the entire infrastructure — latency budget, feature freshness, cost, and failure modes; choosing the wrong mode is an architectural mistake that's expensive to fix later.
+> **When to use:** Batch when inputs are known ahead of time and staleness is acceptable (nightly churn scores, risk reports). Online when the user is waiting and fresh context is needed (search ranking, pricing). Streaming when you must react to live events within seconds (fraud detection, live anomaly).
+> **Nuances & gotchas:** Most teams underestimate the complexity jump from batch to online — online serving adds a feature-serving path (Redis/DynamoDB) that can fail independently, a new latency budget to hit, and training-serving skew risk. Hybrid architectures (batch-trained, served online using precomputed + real-time features) are the practical sweet spot for most use cases.
+
 The first production decision: *when* do predictions happen? This drives everything else (latency, infra, cost).
 
 ```
@@ -105,6 +109,10 @@ Source: [scikit-learn — model persistence](https://scikit-learn.org/stable/mod
 
 ## Feature Stores & Training-Serving Skew
 
+> **Why (the rationale):** Features computed differently in training and serving cause the model to see a distribution at inference that differs from what it was trained on — the offline metrics look great while the model degrades in production, silently.
+> **When to use:** Any system with non-trivial feature engineering, especially when different teams own the training pipeline and serving infrastructure. Mandatory when features involve aggregations, joins, or lookups that could drift between environments.
+> **Nuances & gotchas:** Training-serving skew is insidious because there is no error — the model serves normally, just on slightly wrong inputs. Logging the features actually served (not re-computing them) and training on those logs is the gold standard. Point-in-time correctness in the offline store is critical to avoid temporal leakage during training; using the current feature value instead of the value at the label timestamp is a subtle and common bug.
+
 **The single most common reason a great offline model fails in production: training-serving skew** — features computed *differently* in training vs serving, so the model sees a distribution it never trained on. Symptom: **offline metrics improve while online metrics stall or regress.**
 
 A **feature store** is the fix — one system that defines features once and serves them to both training and inference:
@@ -165,6 +173,10 @@ Source: [MLflow Model Registry](https://mlflow.org/docs/latest/ml/model-registry
 
 ## Monitoring in Production
 
+> **Why (the rationale):** ML models decay silently — no exception is thrown when accuracy degrades. Without monitoring, you ship a "green" system that is increasingly making wrong predictions until a business metric collapses.
+> **When to use:** From day one of production. At minimum: operational health (latency/errors), data quality (schema/nulls), and prediction distribution drift. Add ground-truth accuracy tracking as labels arrive.
+> **Nuances & gotchas:** The hardest and most important thing to monitor — model accuracy on ground truth — is often unavailable in real time because labels are delayed (fraud disputes: months; medical outcomes: years). Monitor prediction drift as a cheap early warning. A large share of apparent "drift" in dashboards is actually pipeline bugs (broken ETL, wrong null-fill, schema change) — investigate the pipeline before blaming the model. Silent failures (model serves fine but degrades decisions) are why monitoring cannot be optional.
+
 You monitor **four layers**, easiest-and-cheapest to hardest:
 
 1. **Operational health** — latency (p50/p95/p99), throughput, error rate, uptime, resource/cost. Standard SRE.
@@ -183,6 +195,10 @@ Tools: **Evidently** (OSS), **Arize**, **WhyLabs**, **Fiddler** (+ explainabilit
 ---
 
 ## Drift — Data, Concept & Label
+
+> **Why (the rationale):** Models are trained on a historical snapshot of the world; as the world changes, the model's assumptions become stale — causing accuracy to decay even if no code changes are made.
+> **When to use (detection):** Monitor continuously in production. Use PSI/KS for input drift, prediction distribution monitoring for early warning, and accuracy vs ground-truth when labels arrive. Investigate all three before deciding whether to retrain.
+> **Nuances & gotchas:** The three types require different responses: data drift (P(X) shifts) → retrain on fresh data; concept drift (P(Y|X) shifts) → may need re-framing or feature re-engineering, not just retraining; label/prior shift (P(Y) shifts) → recalibrate probabilities. Seasonal patterns cause false drift alerts if you compare across seasons rather than same-season year-over-year. Sudden drift (a competitor launch, a regulatory change) needs faster response than a scheduled retraining cadence provides.
 
 Models decay because they're **static artifacts trained on a snapshot of a moving world.** The joint distribution `P(X, Y)` drifts. Three precise types (know *which factor moves*):
 
@@ -216,6 +232,10 @@ Source: [Model drift & retraining guide](https://futureagi.com/blog/model-vs-dat
 ---
 
 ## Release Strategies for ML
+
+> **Why (the rationale):** Unlike regular software (where a green CI/CD pipeline is sufficient), ML releases must validate model quality on real traffic — which requires staged rollout because quality signals (labels, business metrics) are delayed and you need time to observe them safely.
+> **When to use:** Every model update. Shadow deployment for zero-risk validation; canary for incremental traffic ramp with auto-rollback; A/B for rigorous business-metric measurement; blue-green for instant rollback capability.
+> **Nuances & gotchas:** A model that wins an A/B test on the primary metric can still be blocked by a guardrail metric (latency regressed, cost increased, fairness worsened) — always define guardrails before the experiment. Shadow deployment validates real-time behavior without serving the model, but cannot catch quality issues (model output is never evaluated against ground truth in shadow mode). Auto-rollback must be triggered on SLO breach, not manual review, because model decay can be slow and subtle.
 
 **The ML twist:** unlike regular software, you're validating **model quality**, not just uptime — and quality signals (labels) are often delayed. So the rollout is staged to limit blast radius:
 

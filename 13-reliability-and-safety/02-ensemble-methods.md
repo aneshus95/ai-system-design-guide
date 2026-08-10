@@ -40,6 +40,10 @@ Ensembles improve reliability through redundancy and diversity.
 
 ### Panel of LLM Judges (PoLL)
 
+> **Why (the rationale):** Any single judge model has systematic biases (self-preference, verbosity preference, style preference); a diverse panel averages out individual biases and signals low-confidence cases through inter-judge disagreement.
+> **When to use:** High-stakes evaluations, benchmark creation, or when a single-judge score is driving a consequential decision (model selection, safety review); not cost-justified for routine production quality sampling.
+> **Nuances & gotchas:** Diversity of model families matters more than individual judge quality — a panel of three GPT variants has correlated bias and provides much less value than Claude + GPT-4 + Gemini; low inter-judge agreement is a signal the rubric is ambiguous, not just that models disagree.
+
 Multiple diverse models score the same output:
 
 ```python
@@ -86,6 +90,10 @@ class PanelOfJudges:
 
 ### Pairwise Comparison with Positional Debiasing
 
+> **Why (the rationale):** Absolute scoring is noisy and hard to calibrate across different evaluators; pairwise comparison is more sensitive to small quality differences and is the basis of human preference arenas like LMArena.
+> **When to use:** When you need to rank two candidate responses or compare system A vs. system B; the gold standard for preference-based quality measurement.
+> **Nuances & gotchas:** Models prefer the first option 60-70% of the time (positional bias) — always run both orderings; a "win" that only holds in one position is not a real win; this approach does NOT produce absolute quality scores, only relative rankings.
+
 Models prefer the first option 60-70% of the time. Always run both orderings:
 
 ```python
@@ -122,6 +130,10 @@ async def pairwise_compare_debiased(model, response_a: str, response_b: str, cri
 ## Generation Ensembles
 
 ### Self-Consistency (Majority Voting)
+
+> **Why (the rationale):** A model that reaches the same answer via multiple independent reasoning paths is more likely to be correct than one that gives a confident answer through a single path; variance in answers signals hallucination risk.
+> **When to use:** Tasks with extractable, verifiable answers — math, classification, short-form QA; not useful for open-ended generation where no two valid answers are "equal."
+> **Nuances & gotchas:** Accuracy gain is roughly 5-15% and requires k=5-10 samples at the cost of k× compute; too-low temperature produces insufficient diversity (defeating the purpose) while too-high temperature adds noise — 0.5-0.8 is the practical range; this does NOT improve factual grounding, only answer consistency.
 
 Generate multiple reasoning paths, vote on the final answer:
 
@@ -182,6 +194,10 @@ class SelfConsistencyDecoder:
 **Best for:** Math, logic, coding with verifiable answers. Accuracy gain: 5-15%.
 
 ### Best-of-N with Reward Model
+
+> **Why (the rationale):** For open-ended generation there's no majority-vote signal; a reward model provides the scoring function that makes selection tractable, trading compute for output quality.
+> **When to use:** Creative generation, open-ended explanations, code with many valid formulations; when you have or can train a reliable reward model; N=4-8 for interactive, N=16-64 for batch offline.
+> **Nuances & gotchas:** Reward hacking is real — a model can exploit weaknesses in the reward model to score high while being worse in practice; use a reward model ensemble with conservative aggregation (25th percentile, not mean) to resist this; if sample diversity is low, Best-of-N wastes N× compute.
 
 Generate N candidates, score with reward model, return best:
 
@@ -255,6 +271,10 @@ class BestOfNSampler:
 
 ### Multi-Agent Debate
 
+> **Why (the rationale):** A single model accepts its own hallucinated claims; adversarial critique from a different model forces the reasoning to be externally justifiable, reducing hallucination on fact-critical answers.
+> **When to use:** Fact verification, reducing hallucinations in complex multi-step answers, high-stakes reasoning where the cost of error exceeds the 6× compute overhead; 2-3 rounds is optimal.
+> **Nuances & gotchas:** Models from the same family share the same hallucinations and biases — debate between GPT-4 variants is far less effective than debate between diverse model families; more than 3 rounds shows diminishing returns and the models often converge regardless of correctness.
+
 Multiple models critique each other iteratively:
 
 ```python
@@ -320,6 +340,10 @@ Provide your final answer.
 **Best for:** Fact verification, reducing hallucinations in complex answers.
 
 ### Mixture of Agents (MoA)
+
+> **Why (the rationale):** Different models have different strengths and blind spots; an aggregator synthesizing diverse proposals produces a higher-quality result than any single model alone, especially for complex multi-domain tasks.
+> **When to use:** Complex synthesis (research reports, multi-domain analysis), when you have access to diverse model families, and when 5-8× compute overhead is acceptable relative to the value of higher quality.
+> **Nuances & gotchas:** The aggregator model must be capable enough to synthesize conflicting proposals coherently — a weak aggregator can produce a muddled output worse than the best proposer alone; unlike debate, MoA does not force adversarial critique so proposers' shared errors can simply be averaged in.
 
 Layered architecture where multiple models feed into aggregators:
 

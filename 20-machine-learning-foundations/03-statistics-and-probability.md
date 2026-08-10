@@ -99,6 +99,10 @@ E[gain] = 0.5 × ($4) + 0.5 × (−$1) = $2 − $0.50 = **$1.50 per flip → Yes
 
 ## Bayes' Theorem
 
+> **Why (the rationale):** Provides the principled way to update beliefs in light of new evidence by combining a prior (what you knew before) with the likelihood (how well the evidence fits the hypothesis), producing a posterior — the foundation of Bayesian inference and probabilistic ML.
+> **When to use:** Any time you have prior domain knowledge to incorporate (spam filtering, medical diagnosis, A/B test analysis with early stopping, Bayesian optimization). Essential whenever base rates matter.
+> **Nuances & gotchas:** The base-rate fallacy is the most common exam trap: even a very accurate test will produce mostly false positives for a rare event because the prior (disease prevalence) dominates. P(H|E) ≠ P(E|H) — confusing them is a classic mistake (prosecutor's fallacy). The posterior is only as good as the prior; a wrong prior can dominate with small data.
+
 **Formula:**
 
 P(H | E) = [ P(E | H) × P(H) ] / P(E)
@@ -202,6 +206,10 @@ As the number of trials n → ∞, the sample mean X̄ converges to the true pop
 
 ## Hypothesis Testing
 
+> **Why (the rationale):** Provides a principled, reproducible framework for deciding whether an observed difference is real or could plausibly have occurred by chance under the null hypothesis — essential for A/B tests, model comparisons, and scientific claims.
+> **When to use:** Whenever you observe a difference and need to decide if it's statistically meaningful: A/B tests, feature importance tests, comparing two model performances. Choose the right test based on data type, number of groups, and distributional assumptions.
+> **Nuances & gotchas:** Statistical significance ≠ practical significance — a massive sample can make a trivially small effect p < 0.05. The p-value is NOT the probability the null is true; it's P(data this extreme | H₀ is true). Reducing α reduces Type I errors but raises Type II errors (lower power). Pre-register hypotheses before running the test to avoid p-hacking.
+
 ### The Framework
 
 1. State **H₀** (null): the default assumption (e.g., "the new feature has no effect").
@@ -290,6 +298,10 @@ For 95% CI: z* = 1.96.
 
 ## A/B Testing
 
+> **Why (the rationale):** Randomized controlled experimentation is the only way to establish causal lift from a product change — without random assignment, confounders make it impossible to know if an observed improvement was caused by the change or by external factors.
+> **When to use:** Any product change where you want to measure causal impact on a user metric; before fully rolling out a new model, feature, or UI change. Essential when the business metric (retention, revenue) may not track the proxy ML metric.
+> **Nuances & gotchas:** Peeking (checking p-value before reaching the planned sample size) inflates the false positive rate well above the nominal α — the most common A/B testing mistake. Network effects (users influencing each other) break the independence assumption; use cluster-level randomization. Novelty effects inflate early treatment metrics. Always check for SRM (sample ratio mismatch) before trusting results. Multiple metric testing requires correction (Bonferroni or FDR).
+
 A/B testing is structured hypothesis testing applied to product decisions. It is the single most frequently tested experimentation topic in DS interviews.
 
 ### Design Flow
@@ -355,6 +367,10 @@ Spurious correlations are everywhere: ice cream sales correlate with drowning ra
 ---
 
 ## MLE vs MAP
+
+> **Why (the rationale):** MLE finds the parameter value most consistent with the observed data; MAP adds a prior to incorporate domain knowledge and regularize the estimate — the bridge between frequentist point estimation and full Bayesian inference.
+> **When to use:** MLE when you have lots of data and no strong prior; MAP when data is sparse and you have meaningful prior beliefs. MAP with a Gaussian prior = Ridge regression; with Laplace prior = Lasso — connecting Bayesian estimation to regularization.
+> **Nuances & gotchas:** MLE overfits on small datasets because it takes the data at face value with no skepticism. MAP is only a point estimate — it misses uncertainty in the posterior; full Bayesian inference computes the entire posterior distribution but is computationally expensive. MAP reduces to MLE when the prior is uniform — a useful sanity check.
 
 Both are methods for estimating model parameters.
 

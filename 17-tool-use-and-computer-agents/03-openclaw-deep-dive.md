@@ -193,7 +193,11 @@ This means you can have a work assistant on Slack, a personal assistant on Whats
 
 ### How Skills Work
 
-Skills are the mechanism by which OpenClaw gains capabilities beyond basic conversation. Each skill is a directory containing a `SKILL.md` file with YAML frontmatter (metadata) and markdown instructions (behavior).
+Skills are the mechanism by which OpenClaw gains capabilities beyond basic conversation.
+
+> **Why (the rationale):** Markdown-based SKILL.md files let non-engineers extend the agent's capabilities without touching core code — the community ecosystem (44,000+ skills on ClawHub) accelerates capability adoption far faster than a monolithic plugin system.
+> **When to use:** Extend the agent with domain-specific behavior (DevOps monitoring, home automation, email triage) or override defaults for a specific workspace without modifying the core agent runtime.
+> **Nuances & gotchas:** Skills are loaded selectively (trigger-keyword matching), not all at once — a skill that never fires in your workflows is silently ignored; the open marketplace has minimal security review, and community skills have contained supply-chain attacks (malicious scripts, data exfiltration) — always sandbox and audit third-party skills before production use. Each skill is a directory containing a `SKILL.md` file with YAML frontmatter (metadata) and markdown instructions (behavior).
 
 ```
 ~/.openclaw/skills/
@@ -448,7 +452,11 @@ A critical architectural decision: the Gateway maintains **one unified memory sy
 
 ### Security Philosophy
 
-OpenClaw's security model assumes a "personal assistant" threat model: one trusted operator, potentially multiple agents. The priorities are:
+OpenClaw's security model assumes a "personal assistant" threat model: one trusted operator, potentially multiple agents.
+
+> **Why (the rationale):** A layered permission model (channel auth → agent tool allowlist → sandbox policy → elevated access) limits blast radius even when the underlying LLM is manipulated — the goal is defense-in-depth, not relying on model safety alone.
+> **When to use:** Apply the full layered model for any deployment beyond a single developer testing locally; always configure channel allowlists, run sub-agents in Docker sandbox, and never expose the Gateway to the internet without authenticated reverse proxy.
+> **Nuances & gotchas:** The default localhost trust model is dangerous behind improperly configured reverse proxies — external attackers can gain full agent access; prompt injection via external inputs (email body, invoice description) is the primary real-world attack vector, as demonstrated in the logistics case study; model-level safety reasoning is NOT a substitute for tool allowlists and sandbox isolation. The priorities are:
 
 1. **Identity first**: Who can talk to the bot?
 2. **Scope next**: Where is the bot allowed to act?
@@ -521,6 +529,10 @@ With `network: "none"`, a sandboxed sub-agent cannot make outbound requests, can
 ---
 
 ## Deployment Patterns
+
+> **Why (the rationale):** OpenClaw is designed to run on minimal hardware (512 MB RAM, any OS), so the deployment pattern choice is primarily about access control and reliability, not compute capacity.
+> **When to use:** Local npm for quick personal testing; Docker (recommended) for daily use with persistent state and restart-on-failure; Cloud VPS for always-on assistant that survives laptop sleep/shutdown.
+> **Nuances & gotchas:** Docker gives container-level isolation for the Gateway process but does NOT sandbox agent-generated code on the host unless the explicit sandbox compose profile is used; the $4–6/month VPS option exposes the Gateway to the internet — always add Nginx with auth and Cloudflare in front before any remote access.
 
 ### Option 1: Local Development (Fastest Start)
 
@@ -650,6 +662,10 @@ server {
 ---
 
 ## Performance Optimization and Scaling
+
+> **Why (the rationale):** LLM attention scales quadratically with context — every loaded skill, memory file, and conversation turn adds to the token budget that must be processed on every message, directly increasing latency and cost.
+> **When to use:** Apply context management proactively (limit to 100K tokens, disable unused skills, start new conversations for long tasks) before hitting slowdowns rather than reactively after latency degrades.
+> **Nuances & gotchas:** Disabling thinking/chain-of-thought roughly halves processing time for simple tasks but degrades accuracy on complex multi-step reasoning — route simple tasks (reminders, lookups) to faster, smaller models and reserve full reasoning for complex tasks; context compression (summarizing old history) can lose critical earlier context, so restart conversations rather than relying purely on summarization for long-running workflows.
 
 ### Memory Guidelines
 

@@ -23,6 +23,10 @@ Every tool-use agent in 2026 -- from OpenClaw to Claude Code to Cursor's Backgro
 
 The most widely deployed pattern in production. The LLM decides which tool to call and with what arguments; a framework executes the call; results are fed back into the conversation for the next reasoning step.
 
+> **Why (the rationale):** Converts an LLM from a text generator into a deterministic action executor — structured JSON calls are auditable, validatable, and fast (50–200 ms/call) compared to any screen-scraping alternative.
+> **When to use:** Any time the target system has a stable API or can be wrapped as an MCP server; this is the default choice and should be preferred over vision-based or code-execution patterns whenever possible.
+> **Nuances & gotchas:** The model can hallucinate tool names and argument values even with a tight schema — always validate with Pydantic/Zod and use `strict: true`; loading 50+ tool schemas degrades selection accuracy, so use Dynamic Manifests; untrusted tool output can carry prompt injection — treat every tool return value as adversarial data.
+
 ### Architecture
 
 ```
@@ -132,6 +136,10 @@ if response.stop_reason == "tool_use":
 
 The model sees a screenshot of the screen, reasons about what to do, and emits a low-level action (click, type, scroll). The environment executes the action, takes a new screenshot, and the loop repeats. This is how Claude Computer Use and Open Interpreter's Computer API work.
 
+> **Why (the rationale):** Provides a universal automation layer for any GUI application — no API contract, no SDK, no DOM access needed; the model reasons from pixels just as a human would.
+> **When to use:** No API exists (legacy mainframes, thick-client ERP), anti-bot protections block DOM automation, visual judgment is required, or the workflow spans multiple unrelated desktop apps.
+> **Nuances & gotchas:** Computer-use is general but slow (1–3 s/action), expensive (screenshots consume large image token budgets), and brittle (coordinate clicks fail on resolution or font changes) — prefer function calling for every step that has an API; always run inside a sandboxed VM; screenshots sent to the LLM provider may contain sensitive data visible on screen.
+
 ### Architecture
 
 ```
@@ -234,6 +242,10 @@ while True:  # The vision-action loop
 
 The user describes a task in natural language. The LLM generates code. The code runs on the local machine (or in a sandbox). The output is observed, and the LLM either generates more code or provides the final answer. This is how Open Interpreter and parts of Claude Code work.
 
+> **Why (the rationale):** Full system access via code is more flexible than any fixed tool schema — the agent can accomplish almost any task expressible in Python, bash, or JS, and self-corrects by observing stdout/stderr.
+> **When to use:** Data analysis, file processing, system administration, or any task where the operation space is too broad to enumerate as discrete tool schemas and the agent needs to compose low-level operations.
+> **Nuances & gotchas:** Unsandboxed execution on the host is a real risk — a bad or injected LLM output runs immediately; the permission gate is the primary safety mechanism and must not be disabled in multi-user or unattended contexts; the self-correcting loop can exceed iteration budgets if the model cannot converge on a working solution.
+
 ### Architecture
 
 ```
@@ -315,6 +327,10 @@ class CodeExecutionAgent:
 
 Instead of one agent with many tools, you have multiple specialized agents that each own a subset of tools. An orchestrator routes tasks to the right agent. This is the "microservices revolution" for agents.
 
+> **Why (the rationale):** Specialization reduces context bloat (each agent sees only its relevant tools), enables cost optimization (cheaper models execute, frontier models plan), and isolates blast radius (a compromised data agent cannot invoke the code agent's bash tool).
+> **When to use:** Tasks that span multiple domains (code + data + web), high-volume workloads where Plan-and-Execute cost savings (~87%) matter, or security requirements that demand strict tool isolation between sub-tasks.
+> **Nuances & gotchas:** Inter-agent message passing introduces a new attack surface — schema validation on every hop is mandatory (the compliance case study lost three filings due to malformed jurisdiction codes with no inter-agent schema); orchestrator complexity grows fast and debugging cross-agent failures is harder than single-agent debugging.
+
 ### Architecture
 
 ```
@@ -367,6 +383,10 @@ The 2026 trend is treating agent cost optimization as a first-class concern, sim
 
 This is the most consequential architecture decision for any tool-use agent.
 
+> **Why (the rationale):** Sandbox isolation limits the blast radius of a bad LLM output — even if the model generates `rm -rf /` or a prompt-injected payload executes, it cannot reach the host OS, other tenants, or production credentials.
+> **When to use:** Sandboxed execution is required for any multi-tenant deployment, any system processing untrusted external data, or any production deployment; unsandboxed is acceptable only for single-user, supervised, trusted environments where the user watches every action.
+> **Nuances & gotchas:** Standard Docker shares the host kernel — a kernel exploit can escape the container; Firecracker microVMs or gVisor are the minimum for untrusted AI-generated code; the OpenClaw security crisis (135,000 exposed instances) demonstrated that "personal assistant" deployments routinely become public-internet-accessible servers without operator awareness.
+
 ### Comparison
 
 ```
@@ -403,6 +423,10 @@ Sandboxed-by-default with escape hatches. The OpenClaw security crisis (135,000 
 ## State Management Across Tool Calls
 
 Agents need to maintain state between tool calls. The strategy depends on the agent's lifecycle and use case.
+
+> **Why (the rationale):** Without explicit state management, every tool call is isolated — the agent cannot accumulate context across steps, leading to repeated lookups and incoherent multi-step behavior.
+> **When to use:** Choose the lightest state model that meets the use case: ephemeral conversation state for single-turn tasks, session state (working directory, open files) for multi-step tasks within one session, persistent state (files/DB) only when cross-session memory is genuinely required.
+> **Nuances & gotchas:** Persistent agent memory is an attack surface — poisoned memory entries (Lakera AI's 2025 memory injection attack) can corrupt future reasoning; always tag memory entries with provenance and confidence, and never store security-critical policies in learned memory rather than hardcoded system prompts.
 
 ### State Management Patterns
 
@@ -444,6 +468,10 @@ class AgentSession:
 ## Error Handling and Retry Patterns
 
 Tool calls fail. Networks time out. APIs return errors. Code throws exceptions. A production agent needs systematic error handling.
+
+> **Why (the rationale):** An agent without error taxonomy conflates transient failures (retry) with permission errors (surface to user) and logic errors (re-plan), causing unnecessary retries, masked bugs, and runaway cost.
+> **When to use:** Implement the self-correction loop for all agentic tool use; set a hard max retries (3 for transient, 5 for self-correction) and a catastrophic handler that cleans up sandbox state — never leave it to the model to decide when to give up.
+> **Nuances & gotchas:** The self-correction loop is powerful but can burn tokens fast — a model stuck on a test it cannot fix will retry indefinitely without a hard iteration cap; never auto-retry permission errors (this masks access control problems and can trigger security alerts).
 
 ### Error Taxonomy
 
@@ -507,6 +535,10 @@ This is how Claude Code, OpenHands, and Cline handle test failures: run tests, s
 ## MCP Integration Patterns
 
 MCP has become the standard protocol for tool integration in 2026. Here are the key patterns for integrating MCP into agent architectures.
+
+> **Why (the rationale):** MCP standardizes tool discovery and invocation across any LLM provider — write a tool server once (TypeScript or Python SDK) and any MCP-compatible client can call it without custom integration code per provider.
+> **When to use:** Any new tool integration in 2026; MCP is the default choice over custom function-calling schemas for shared or enterprise tool infrastructure due to its standardized auth, discovery, and transport.
+> **Nuances & gotchas:** MCP currently lacks three critical production primitives — identity propagation (no standardized per-user auth pass-through), adaptive tool budgeting (no protocol-level cost caps), and structured error semantics (each server defines its own error format); the Gateway pattern is the current workaround for enterprise deployments, adding latency but enabling centralized audit and rate limiting.
 
 ### Pattern A: Direct MCP Connection
 

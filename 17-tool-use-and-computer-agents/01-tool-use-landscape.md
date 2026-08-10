@@ -59,6 +59,10 @@ The key insight for 2026: these categories are converging. Claude Code is a clou
 
 Agents that run on the user's own hardware. The LLM call may go to the cloud, but the agent process, memory, and tool execution are local.
 
+> **Why (the rationale):** Keeps all data and execution on hardware the user controls, eliminating vendor lock-in and third-party data exposure — critical for privacy-sensitive or regulated workloads.
+> **When to use:** Single-user environments where data sovereignty, offline capability, or AGPL/MIT licensing flexibility matter more than managed scaling.
+> **Nuances & gotchas:** Security responsibility is entirely on the operator — unsandboxed local execution (OpenClaw, Open Interpreter) means a bad LLM output can damage the host OS; no managed isolation is provided by default.
+
 **Key properties:**
 - Full filesystem access on the user's machine
 - Persistent memory stored locally (SQLite, JSON, Markdown)
@@ -70,6 +74,10 @@ Agents that run on the user's own hardware. The LLM call may go to the cloud, bu
 ### 2. Cloud Agents (Vendor-Hosted, API-Driven)
 
 Agents that run in vendor-managed cloud environments. Code execution happens in sandboxed VMs or containers.
+
+> **Why (the rationale):** Vendor handles sandboxing, scaling, and infrastructure, letting teams deploy capable agents without building and operating container orchestration themselves.
+> **When to use:** Multi-tenant products, teams without DevOps capacity, or when per-session sandbox isolation (Firecracker, E2B) is a hard requirement.
+> **Nuances & gotchas:** You trade data control and portability for operational simplicity — vendor AUP changes (e.g., the April 2026 Anthropic OpenClaw incident) can be operationally equivalent to an outage; multi-provider abstraction is mandatory.
 
 **Key properties:**
 - Sandboxed execution (Docker, Firecracker VMs, E2B)
@@ -83,6 +91,10 @@ Agents that run in vendor-managed cloud environments. Code execution happens in 
 
 Agents embedded directly in code editors. They have deep understanding of project structure, open files, and editor state.
 
+> **Why (the rationale):** Developer workflow is already in the editor; tight integration means the agent sees the same files, diffs, and test output the developer does, eliminating context-switching friction.
+> **When to use:** Professional software development where inline diff application, project-aware completions, and PR workflows matter; less suited to non-coding automation.
+> **Nuances & gotchas:** Background agents (Cursor, Claude Code) operate asynchronously on cloned repos — they do NOT have live access to your local uncommitted changes unless explicitly synced; model quality varies by provider and cannot be swapped as freely as in model-agnostic tools.
+
 **Key properties:**
 - Tight integration with editor UI (inline diffs, tab completion)
 - Codebase indexing via embeddings or AST parsing
@@ -94,6 +106,10 @@ Agents embedded directly in code editors. They have deep understanding of projec
 ### 4. Computer-Use Agents (Vision-Based, GUI-Driven)
 
 Agents that interact with software the way humans do -- by looking at screenshots and clicking.
+
+> **Why (the rationale):** Enables automation of any GUI application without requiring a dedicated API — the only option for legacy systems, thick-client software, or cross-application desktop workflows.
+> **When to use:** No structured API exists, anti-bot measures block DOM-based scrapers, or the workflow spans multiple desktop applications that share no integration layer.
+> **Nuances & gotchas:** Computer-use is general but slow (1–3 s/action), brittle (coordinate-based clicks break on resolution or layout changes), and expensive (each screenshot adds significant image tokens) — always prefer a direct API when one exists; require a sandboxed VM, never run on a production workstation.
 
 **Key properties:**
 - Model sees screenshots, decides mouse/keyboard actions
@@ -109,7 +125,11 @@ Agents that interact with software the way humans do -- by looking at screenshot
 
 ### What It Is
 
-OpenClaw is a self-hosted, open-source personal AI assistant created by Austrian developer Peter Steinberger. Originally published as "Clawdbot" in November 2025, it was renamed to OpenClaw in January 2026. It exploded from 0 to 346,000 GitHub stars in under five months, surpassing React as GitHub's most-starred software project on March 3, 2026.
+OpenClaw is a self-hosted, open-source personal AI assistant created by Austrian developer Peter Steinberger.
+
+> **Why (the rationale):** Gives LLMs persistence (cross-session memory), agency (code/file execution via the PI Agent), and reach (24+ messaging platforms) — all self-hosted so the user controls data and can swap underlying LLM providers.
+> **When to use:** Personal AI assistant use cases where the primary interface is a messaging app the user already has, and where single-operator trust model and AGPL-3.0 license are acceptable.
+> **Nuances & gotchas:** Unsandboxed host execution by default means a prompt-injected skill or crafted external input can damage the host OS; the ClawHub marketplace has minimal security review — always sandbox sub-agents and audit third-party skills before installation. Originally published as "Clawdbot" in November 2025, it was renamed to OpenClaw in January 2026. It exploded from 0 to 346,000 GitHub stars in under five months, surpassing React as GitHub's most-starred software project on March 3, 2026.
 
 **By the numbers (May 2026):**
 - 346,000+ GitHub stars
@@ -178,7 +198,11 @@ OpenClaw's rapid growth has outpaced security practices. As of May 2026, over 13
 
 ### What It Is
 
-OpenHands (formerly OpenDevin) is an open-source autonomous AI software engineer. Licensed under MIT, it can modify code, execute commands, browse the web, and interact with APIs. Unlike tools that suggest code snippets, OpenHands clones repositories, runs terminal commands, executes tests, and debugs errors inside sandboxed Docker containers.
+OpenHands (formerly OpenDevin) is an open-source autonomous AI software engineer.
+
+> **Why (the rationale):** Per-session Docker sandbox isolation and MIT licensing make it the enterprise-friendly alternative to unsandboxed local agents for autonomous software development — the agent can run tests, install packages, and execute shell commands without touching the host.
+> **When to use:** Autonomous dev tasks (repo cloning, test-driven bug fixes, multi-file refactoring) where sandboxed execution, browser automation via BrowserGym, and cloud scaling (Kubernetes) are required.
+> **Nuances & gotchas:** Session-based state means work is lost on container teardown unless explicitly committed to git; CodeAct 1.0 performs best on well-scoped tickets — vague, long-horizon goals cause it to wander or exceed iteration budgets. Licensed under MIT, it can modify code, execute commands, browse the web, and interact with APIs. Unlike tools that suggest code snippets, OpenHands clones repositories, runs terminal commands, executes tests, and debugs errors inside sandboxed Docker containers.
 
 ### Architecture: Event-Stream + Sandboxed Runtime
 
@@ -237,7 +261,11 @@ OpenHands (formerly OpenDevin) is an open-source autonomous AI software engineer
 
 ### What It Is
 
-Open Interpreter is a local code execution agent that provides a ChatGPT-like terminal interface. Instead of showing code and asking you to run it, Open Interpreter asks for permission and then executes it directly on your machine with full access to your local files.
+Open Interpreter is a local code execution agent that provides a ChatGPT-like terminal interface.
+
+> **Why (the rationale):** Provides a conversational interface for data analysis and system tasks that would otherwise require writing scripts — the NL-to-code-to-execute loop with a human approval gate is accessible to non-engineers.
+> **When to use:** Single-user local automation, data analysis, and file processing where the user is watching and can approve each code block; works offline with Ollama for privacy-critical scenarios.
+> **Nuances & gotchas:** Unsandboxed by default — a bad LLM output runs directly on the host; Docker sandboxing is optional but not the default; NOT suitable for unattended production workflows or multi-user environments. Instead of showing code and asking you to run it, Open Interpreter asks for permission and then executes it directly on your machine with full access to your local files.
 
 ### Architecture
 
@@ -298,7 +326,11 @@ Best for data analysis, file manipulation, and system administration tasks where
 
 ### What It Is
 
-Claude Computer Use is an Anthropic API feature that allows Claude to control a desktop via screenshots, mouse movements, keyboard input, and application interaction. Introduced in October 2024 as a beta, it has evolved significantly. As of May 2026, Sonnet 4.6 reaches 72.5% on OSWorld-Verified, up from 14.9% at launch, with Opus 4.7 pushing further on agentic coding benchmarks (64.3% SWE-bench Pro).
+Claude Computer Use is an Anthropic API feature that allows Claude to control a desktop via screenshots, mouse movements, keyboard input, and application interaction.
+
+> **Why (the rationale):** Enables automation of any desktop or web GUI without requiring a structured API — one model call controls any application, including legacy systems that have never had programmatic access.
+> **When to use:** Legacy system integration, cross-application desktop workflows, QA testing of graphical interfaces, or any scenario where Playwright/Selenium is blocked or infeasible.
+> **Nuances & gotchas:** Vision-based automation is general but slow and brittle — each action takes 1–3 s, screenshots carry high token cost, and coordinate-based clicks fail when UI layouts or resolutions differ; always run inside a sandboxed VM and prefer the `bash` or `text_editor` tools over mouse clicks when either is sufficient. Introduced in October 2024 as a beta, it has evolved significantly. As of May 2026, Sonnet 4.6 reaches 72.5% on OSWorld-Verified, up from 14.9% at launch, with Opus 4.7 pushing further on agentic coding benchmarks (64.3% SWE-bench Pro).
 
 ### The Vision-Action Loop
 
@@ -355,7 +387,11 @@ Claude Computer Use is an Anthropic API feature that allows Claude to control a 
 
 ### What It Is
 
-Claude Code is Anthropic's agentic coding tool that lives in the terminal. It reads your codebase, edits files, runs commands, and integrates with development tools. It shipped publicly in May 2025 and crossed $2.5 billion ARR by February 2026.
+Claude Code is Anthropic's agentic coding tool that lives in the terminal.
+
+> **Why (the rationale):** Tight integration with the developer's local environment (git, bash, file system) lets the agent gather context, make changes, run tests, and verify results without leaving the terminal — the gather-act-verify loop closes the feedback cycle autonomously.
+> **When to use:** Professional software development tasks where you want the agent working inside your actual repo with real test runs and git operations; especially powerful for multi-file refactors, debugging, and CI triage.
+> **Nuances & gotchas:** Runs with the permissions of the terminal user — there is no sandbox by default; destructive bash commands (rm, git reset) execute immediately unless allow/deny rules are configured; subagent spawning and worktree isolation add parallelism but also multiply cost and token consumption. It reads your codebase, edits files, runs commands, and integrates with development tools. It shipped publicly in May 2025 and crossed $2.5 billion ARR by February 2026.
 
 ### Architecture
 

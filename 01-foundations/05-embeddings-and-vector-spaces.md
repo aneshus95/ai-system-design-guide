@@ -23,6 +23,10 @@ Embeddings are dense vector representations of text that capture semantic meanin
 
 Embeddings map discrete text (words, sentences, documents) to continuous vector spaces where semantic similarity corresponds to geometric proximity.
 
+> **Why (the rationale):** Discrete text cannot be directly searched by meaning — you can only check exact string matches; mapping text to vectors makes semantic similarity a geometric operation (angle or distance), enabling efficient approximate nearest-neighbor search across millions of documents.
+> **When to use / when it matters:** Embeddings are the core of every RAG system, semantic search engine, and recommendation system powered by text; the choice of embedding model, dimensionality, and similarity metric directly determines retrieval quality and system cost.
+> **Nuances & gotchas:** Embeddings do NOT encode absolute meaning — they encode *relative* similarity within the distribution of texts the model was trained on; an embedding model trained on English Wikipedia will cluster scientific concepts differently than one trained on customer support transcripts; always evaluate embeddings on *your* data distribution.
+
 **Key properties:**
 - Similar meanings are close together
 - Relationships can be encoded as vector operations (king - man + woman = queen)
@@ -77,6 +81,10 @@ Modern embedding models are trained specifically for sentence/document embedding
 
 Standard retrieval embedding architecture:
 
+> **Why (the rationale):** Documents must be indexed offline before any query arrives; the bi-encoder architecture makes this possible by encoding query and document independently — you pre-compute all document embeddings once and store them, then at query time only compute one query embedding and do an ANN lookup.
+> **When to use / when it matters:** Bi-encoders are the right choice for first-stage retrieval over large corpora (millions to billions of documents) where O(n) cross-encoder scoring would be prohibitively slow; use cross-encoder only for re-ranking a small candidate set (top 100).
+> **Nuances & gotchas:** The bi-encoder's independence assumption is a fundamental limitation — the query and document embeddings are computed without seeing each other, so nuanced relevance signals that require joint understanding (negation, exact phrase matching) are systematically underrepresented; this is why a cross-encoder re-ranker often significantly improves precision.
+
 ```
 Document -> Encoder -> Document Embedding
 Query    -> Encoder -> Query Embedding
@@ -97,6 +105,10 @@ Alternative that processes query and document together:
 [Query, Document] -> Encoder -> Relevance Score
 ```
 
+> **Why (the rationale):** Joining query and document in one forward pass allows full attention between every query token and every document token, capturing relevance signals (negation, exact match, conditional meaning) that a bi-encoder cannot because it processes them separately.
+> **When to use / when it matters:** Use for reranking top-K results from a bi-encoder first stage; justified when retrieval precision is critical (legal, medical, high-stakes) and latency budget is > 50ms for the reranking step.
+> **Nuances & gotchas:** Cross-encoders cannot scale to large corpora because they require a full forward pass per query-document pair — retrieving from 1M documents would require 1M model calls per query; they also cannot be used for semantic search or similarity (no standalone document embedding exists).
+
 **Properties:**
 - More accurate (sees both together)
 - Cannot pre-compute: O(n) inference for n documents
@@ -109,6 +121,10 @@ Alternative that processes query and document together:
 ### Contrastive Learning
 
 Most modern embedding models use contrastive learning:
+
+> **Why (the rationale):** Contrastive loss directly optimizes for the retrieval objective — making relevant pairs closer and irrelevant pairs farther apart in the embedding space; this is more targeted than language modeling loss (which optimizes for next-token prediction, not similarity).
+> **When to use / when it matters:** Understanding the training objective explains why embedding models excel at retrieval but cannot generate text; it also explains why hard negatives matter so much — easy negatives (random text) provide weak gradient signal, while hard negatives (plausible-but-wrong documents) force the model to learn fine-grained distinctions.
+> **Nuances & gotchas:** Contrastive training is highly sensitive to negative quality and batch size — larger batches provide more in-batch negatives and consistently improve embedding quality; temperature (τ) is a critical hyperparameter that controls discrimination sharpness; models trained without hard negatives tend to produce embeddings that are not competitive on retrieval benchmarks.
 
 ```python
 # Simplified contrastive loss
@@ -156,6 +172,10 @@ This improves performance by specifying the intended use.
 ### Cosine Similarity
 
 Most common for text embeddings:
+
+> **Why (the rationale):** Text embedding models produce vectors of varying magnitudes depending on text length and content; cosine similarity normalizes away magnitude and measures only the *direction* (angle) in the embedding space, which corresponds to semantic similarity rather than verbosity.
+> **When to use / when it matters:** Default metric for all text retrieval; when embeddings are already L2-normalized (most modern APIs normalize by default), cosine similarity is mathematically equivalent to dot product and is faster to compute.
+> **Nuances & gotchas:** Cosine similarity assumes the angular structure of the embedding space captures semantics — this is only true if the model was trained with a cosine/dot-product objective; some models produce embeddings optimized for Euclidean distance and will perform poorly if you apply cosine similarity; always check the model card's recommended metric.
 
 ```python
 def cosine_similarity(a, b):
@@ -248,6 +268,10 @@ def euclidean_distance(a, b):
 
 Matryoshka Representation Learning (MRL) trains embeddings such that prefixes of the full embedding are also meaningful:
 
+> **Why (the rationale):** Standard embeddings require you to store and search the full-dimension vector for every document; MRL adds auxiliary training losses at multiple prefix lengths, enabling a single model to provide a spectrum of quality-cost tradeoffs — cheaper short vectors for fast first-stage retrieval, full vectors for precision reranking.
+> **When to use / when it matters:** High value in two-stage retrieval pipelines (retrieve 1000 with 128-d, rerank top 100 with 1024-d) and cost-sensitive applications where storage is a constraint; only available with models explicitly trained with MRL (e.g., text-embedding-3 from OpenAI, Nomic-embed-text-v1.5).
+> **Nuances & gotchas:** Truncating a standard (non-MRL) embedding to fewer dimensions does NOT produce a valid shorter embedding — it produces garbage; quality degrades gracefully with MRL but NOT linearly — there is a "floor" below which shortening causes significant precision loss (typically below 128–256 dimensions for retrieval tasks).
+
 ```python
 full_embedding = model.encode(text)  # 1024 dimensions
 
@@ -305,6 +329,10 @@ response = client.embeddings.create(
 ## Quantization for Scale
 
 To handle billions of vectors, **Binary** and **Scalar (Int8)** quantization are now standard.
+
+> **Why (the rationale):** Storing 1 billion float32 embeddings at 1024 dimensions requires ~4 TB of memory — beyond any single server; quantization trades a small amount of retrieval precision for massive storage reduction, making billion-scale embedding indexes practical on commodity hardware.
+> **When to use / when it matters:** Relevant for production systems at scale (tens of millions of documents and above); at smaller scale (under 10M documents), float32 or int8 is fine and the complexity of binary quantization is not warranted.
+> **Nuances & gotchas:** Binary quantization (1 bit/dim) introduces significant information loss (~5–10% MTEB drop) that requires a two-stage pipeline (binary for recall, float32 for precision reranking) to recover; NOT all embedding models produce binary-quantization-friendly embeddings — models must be specifically trained or evaluated for this use case (e.g., Cohere embed-v3).
 
 | Type | Data Size | Memory Savings | Quality Loss | Supported By |
 |------|-----------|----------------|--------------|--------------|
@@ -421,6 +449,10 @@ Embeddings are not comparable across:
 - Different models
 - Different versions of the same model
 - Sometimes different API calls (some APIs have non-determinism)
+
+> **Why (the rationale):** Each model learns its own geometric structure through training; there is no universal coordinate system for meaning, so an embedding from model A and an embedding from model B occupy entirely different vector spaces and their dot product is meaningless.
+> **When to use / when it matters:** Any time you update your embedding model — a common mistake is to partially re-embed a corpus while keeping old embeddings for unchanged documents; mixed-model indexes produce completely broken retrieval results because the old and new vectors live in different spaces.
+> **Nuances & gotchas:** Even minor version updates to the same model (e.g., a silent API change) can produce incompatible embeddings; always pin model versions in production and version-stamp all stored embeddings; "similar cosine scores" between embeddings from different models are coincidental and NOT meaningful.
 
 ### Consequences
 

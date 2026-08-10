@@ -19,6 +19,10 @@ Once you depend on multiple models and your traffic is non-trivial, a single pro
 
 ## What an AI Gateway Is
 
+> **Why (the rationale):** Without a gateway, every service that calls an LLM independently manages keys, retries, rate-limit handling, and observability — turning an N-providers × M-concerns glue problem into scattered duplicated logic across the codebase.
+> **When to use:** Once you have 3+ models or providers in use, multiple teams sharing model access, or recurring rate-limit errors — the "Do You Need a Gateway Yet?" section below gives the full decision signals.
+> **Nuances & gotchas:** A gateway centralizes auth, routing, limits, and caching but introduces a new single point of failure and an extra network hop; it must be made highly available with externalized state before it becomes load-bearing, or it simply relocates your SPOF.
+
 An AI gateway (also LLM gateway, LLM proxy, or LLM router) is a **control plane between your applications and model providers**, exposing one consistent (almost always OpenAI-compatible) API and centralizing the cross-cutting concerns that would otherwise be smeared across every service.
 
 | Job | What it does |
@@ -41,6 +45,10 @@ The mental model: a gateway converts an `N providers x M concerns` glue problem 
 
 ## Routing Strategies
 
+> **Why (the rationale):** A single routing strategy cannot simultaneously optimize for cost, latency, quality, and reliability; choosing the right level of routing complexity depends on what variable you are trying to control.
+> **When to use:** Start with static or task-based routing (near-zero overhead, easy to reason about); add semantic routing when query intent is heterogeneous and hard to express as a taxonomy; add cascade routing when cost reduction at scale outweighs the double-spend risk on escalated queries.
+> **Nuances & gotchas:** Routing to a cheaper model saves cost but risks quality regressions without automated evals to gate the routing decision; cascade escalation rate is the live cost variable — a cascade that escalates most traffic saves little; LLM-as-router adds an LLM call with its own cost and failure surface on top of the query being routed.
+
 Routing strategies form a ladder of increasing complexity and overhead. As a rough sense of scale (vendor/practitioner figures, order-of-magnitude only): rule-based routing adds under ~1ms, embedding/semantic routing ~5ms, and heavier ML classifiers or an LLM-as-router ~50-100ms, all against typical model latencies of 500-2000ms.
 
 | Strategy | Decides by | Best for | Overhead | Failure modes |
@@ -62,6 +70,10 @@ Routing and fallback compose: route for cost/quality/latency on the happy path, 
 
 ## Fallback and Reliability
 
+> **Why (the rationale):** Rate-limit and capacity errors are the top production failure mode for LLM APIs; fallback chains convert a hard provider outage into a transparent retry on an alternate backend, turning a user-visible error into an invisible infrastructure event.
+> **When to use:** Any production system where a single provider's 429 or 5xx would cause user-visible downtime; at minimum, have a second provider or a degraded-mode fallback configured from day one.
+> **Nuances & gotchas:** Blind retries amplify outages by adding load at the moment the provider is already overloaded — backoff, jitter, honoring `Retry-After`, and circuit breakers are what separate a gateway that fixes rate limits from one that worsens them; only retry 429 and 5xx, never 400-class client errors.
+
 This is the section that answers the Datadog data directly: rate limits cause most production failures, and fallback machinery is the antidote.
 
 **Fallback chains** retry a request against the next provider/model whenever the primary returns a *retryable* failure (429 rate limit, 5xx, timeout, model-not-found). Only retry 429 and 5xx-class errors; never retry 400-class client errors, which just waste quota.
@@ -77,6 +89,10 @@ The caution to internalize: **blind retries amplify outages** by adding load dur
 ---
 
 ## The 2026 Tool Landscape
+
+> **Why (the rationale):** The gateway tool landscape has matured enough that building custom retry/fallback/key-management logic from scratch is rarely justified — purpose-built gateways encode years of hard-won production patterns.
+> **When to use:** Self-hosted (LiteLLM, Kong, Envoy) when data residency is required or you need deep control and have platform-team bandwidth; managed (OpenRouter, Portkey, Cloudflare) when you want the capabilities without owning the infrastructure.
+> **Nuances & gotchas:** Self-hosted gateways require you to make them highly available or they become the SPOF; managed gateways mean data transits a third party and you inherit their availability as a hard dependency — evaluate this against your compliance posture before adopting.
 
 Treat versions and exact feature claims as point-in-time, and note that several comparison figures below come from vendor marketing.
 

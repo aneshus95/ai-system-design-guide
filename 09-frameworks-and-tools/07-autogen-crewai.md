@@ -21,7 +21,15 @@ CrewAI is built around the concept of a **Process**.
 - **Tasks**: Explicit goals with specific outputs.
 - **Process Orchestration**: Sequential, Hierarchical, or Consensual (Consensus-based).
 
+> **Why (the rationale):** CrewAI removes the boilerplate of wiring agents together by providing opinionated role/task/process abstractions, letting teams stand up cooperative agent teams in hours rather than days.
+> **When to use:** Business-process automation where the workflow structure is known in advance — content pipelines, data analysis, report generation — and you need fast time-to-working-prototype.
+> **Nuances & gotchas:** The role metaphor is intuitive but hides failure modes: if one agent produces bad output, downstream agents silently propagate the error; CrewAI's abstractions make it hard to insert custom error-recovery logic compared to a raw graph approach.
+
 ### CrewAI Flows
+
+> **Why (the rationale):** Flows solve the problem of chaining multiple Crews together — without Flows, passing state between crews requires custom glue code; Flows give that glue a declarative, event-driven structure.
+> **When to use:** Multi-stage pipelines where each stage is a full Crew (e.g., research → write → review → publish) and you need deterministic control over what triggers what.
+> **Nuances & gotchas:** Flows are still declarative and share CrewAI's opacity problem — a failed intermediate crew can be hard to restart mid-flow; you lose the fine-grained retry control that LangGraph's checkpoint system provides.
 
 CrewAI **Flows** add a **state-machine layer** on top of the classic Crew pattern:
 
@@ -64,6 +72,10 @@ CrewAI v1.13 marks a turning point toward enterprise production readiness:
 
 ## Microsoft Agent Framework (AutoGen's Successor)
 
+> **Why (the rationale):** Microsoft unified two fragmented products (AutoGen's conversational multi-agent patterns + Semantic Kernel's enterprise session/telemetry/type-safety) to eliminate the painful choice between developer velocity and production-grade features.
+> **When to use:** Enterprise .NET or Python shops that need graph-based multi-agent workflows, built-in state persistence for long-running tasks, and strong Azure/multi-provider model support — especially as a migration target for existing AutoGen deployments.
+> **Nuances & gotchas:** RC1 as of February 2026 means the API surface is still stabilizing; migration from AutoGen requires mapping `AssistantAgent`→`Agent` and `GroupChat`→`Workflow`, and new Semantic Kernel concepts (filters, sessions) add learning overhead. Avoid starting new AutoGen projects — use the Agent Framework directly.
+
 ### The Merger: AutoGen + Semantic Kernel = Agent Framework
 
 Microsoft retired AutoGen as a standalone product in late 2025 and merged it with Semantic Kernel into the unified **Microsoft Agent Framework**. Release Candidate 1.0 shipped in February 2026, with GA targeted for Q2 2026.
@@ -73,6 +85,10 @@ Microsoft retired AutoGen as a standalone product in late 2025 and merged it wit
 - **From Semantic Kernel**: Enterprise-grade session management, type safety, filters, telemetry, and extensive model/embedding support
 
 ### Migration Path
+
+> **Why (the rationale):** Keeping AutoGen on security-only patches gives existing deployments a safe runway while the Agent Framework GA stabilizes, avoiding a forced "big bang" migration.
+> **When to use:** Migrate when starting a net-new project (use Agent Framework immediately) or when your AutoGen deployment needs a new feature that will never land in the old codebase.
+> **Nuances & gotchas:** AutoGen's `GroupChat` patterns map conceptually to Agent Framework `Workflow`, but the semantics differ enough that a mechanical find-replace migration will break behavior — review the official migration guide and run an eval harness before switching in production.
 
 AutoGen continues to receive bug fixes and security patches, but **new features go exclusively into the Agent Framework**. Microsoft provides an official migration guide. If starting a new project, use the Agent Framework directly.
 
@@ -106,9 +122,17 @@ workflow = Workflow(
 
 ## The Agent SDK Landscape
 
+> **Why (the rationale):** Each major lab ships its own SDK to expose model-specific capabilities (tool loops, guardrails, streaming) with first-class support, removing the thin-adapter overhead that cross-provider frameworks add.
+> **When to use:** Use the lab SDK that matches your primary model provider when you are committed to that provider and want the lowest integration friction and best access to cutting-edge model features.
+> **Nuances & gotchas:** Lab SDKs create vendor lock-in at the agent layer; mitigate by keeping orchestration logic in a framework-neutral layer (LangGraph, custom thin wrapper) and using MCP for tools and A2A for cross-agent coordination.
+
 Every major AI lab now ships its own agent framework. The landscape as of May 2026:
 
 ### Claude Agent SDK (Anthropic)
+
+> **Why (the rationale):** Exposes the same proven tools and agent loop powering Claude Code as a library, so teams get file/code/command capabilities without implementing the agent loop from scratch.
+> **When to use:** Building autonomous coding or tool-heavy agents on Anthropic API in Python or TypeScript, especially when you need Bedrock/Vertex/Azure deployment.
+> **Nuances & gotchas:** Tightly coupled to Anthropic models; the built-in tools assume a file-system-oriented coding workflow and may require wrapping for non-coding tasks.
 
 The Claude Agent SDK (renamed from Claude Code SDK) provides the same tools, agent loop, and context management that power Claude Code, available as a library in Python and TypeScript.
 
@@ -119,6 +143,10 @@ The Claude Agent SDK (renamed from Claude Code SDK) provides the same tools, age
 
 ### OpenAI Agents SDK
 
+> **Why (the rationale):** Provides a minimal, native-Python/TypeScript abstraction for multi-agent handoffs and guardrails without the overhead of a full orchestration framework.
+> **When to use:** Quick multi-agent prototypes or production systems running on OpenAI models where simplicity and first-class guardrails matter more than framework neutrality.
+> **Nuances & gotchas:** Handoff-based routing works well for flat peer-to-peer architectures but lacks the explicit state graph of LangGraph; complex conditional branching requires custom logic.
+
 OpenAI's lightweight framework for multi-agent workflows using native Python/TypeScript constructs:
 
 - **Handoff-based**: Agents delegate to each other using `Handoff(TargetAgent)`, no central supervisor needed
@@ -127,6 +155,10 @@ OpenAI's lightweight framework for multi-agent workflows using native Python/Typ
 - **Realtime agents**: Voice agent support with gpt-realtime-1.5
 
 ### OpenAI AgentKit
+
+> **Why (the rationale):** Reduces the build-and-ship friction for teams who want a managed visual canvas, eval loop, and governance layer rather than hand-coding every orchestration detail.
+> **When to use:** Teams fully committed to OpenAI infrastructure who want to iterate on multi-agent products quickly and need a unified admin surface for connectors and governance.
+> **Nuances & gotchas:** Convenience comes at the cost of control — the visual builder abstracts the agent loop in ways that are hard to override; when you need full loop control or self-hosted runtime, drop to the raw Agents SDK or a framework-neutral option.
 
 AgentKit is OpenAI's higher-level toolset that sits on top of the Responses API and Agents SDK. Where the Agents SDK is code-first, AgentKit targets teams who want to assemble and ship agents with less plumbing:
 
@@ -143,6 +175,10 @@ The Apps SDK extends the **Model Context Protocol** so an MCP server can ship a 
 
 ### Google Agent Development Kit (ADK)
 
+> **Why (the rationale):** Provides a multi-language, natively A2A-aware framework optimized for Google Cloud deployment, removing the integration work of connecting agents to Vertex AI and the broader Google ecosystem.
+> **When to use:** Teams building on Google Cloud / Gemini who need multi-language support (Python, TypeScript, Java, Go) and want managed Vertex AI Agent Engine hosting.
+> **Nuances & gotchas:** Despite being model-agnostic, the deepest integrations and best support target Gemini; cross-vendor scenarios may require bridging through A2A, and the ecosystem is smaller than LangGraph's.
+
 Google's framework optimized for the Google ecosystem but model-agnostic:
 
 - **Multi-language**: Python, TypeScript, Java, Go (all at 1.0+ as of May 2026)
@@ -155,6 +191,10 @@ Google's framework optimized for the Google ecosystem but model-agnostic:
 ---
 
 ## Swarms and P2P
+
+> **Why (the rationale):** Peer-to-peer handoff removes the central supervisor as a single point of failure and enables more natural routing — each agent decides who handles the next step, mirroring how expert teams escalate within themselves.
+> **When to use:** Systems with well-defined agent specializations where any agent can plausibly determine the right next handler; e.g., a support platform with specialist agents (billing, technical, sales).
+> **Nuances & gotchas:** Without a central supervisor, emergent routing can be opaque and hard to trace; cycles ("A hands off to B hands off to A") require explicit termination conditions and turn limits to prevent infinite loops.
 
 Both frameworks (and the broader SDK landscape) have adopted **Swarm Patterns**.
 - **The Handoff**: Instead of a central supervisor, agents "Hand off" the conversation to the most relevant expert.

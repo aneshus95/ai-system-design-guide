@@ -24,6 +24,10 @@ This chapter covers the practical engineering of tool-use agents: designing tool
 
 The tool schema is the contract between the LLM and your system. A well-designed schema reduces hallucinated arguments, prevents misuse, and makes the model's tool selection more reliable.
 
+> **Why (the rationale):** The model has no runtime introspection of your system — the schema IS the model's understanding of what a tool does and how to call it; a vague or ambiguous schema directly causes hallucinated arguments and wrong tool selection.
+> **When to use:** Every tool exposed to an LLM needs a schema; invest most in the `description` field (when to use, when NOT to use, argument examples) — this has more impact on model behavior than any other schema element.
+> **Nuances & gotchas:** Function calling does NOT eliminate hallucinated arguments — the model can generate syntactically valid JSON that is semantically wrong (e.g., an account ID that does not exist); always validate at both schema level (Pydantic/Zod) and business level (does this ID exist?); use `strict: true` in production to eliminate type mismatches; avoid "god tools" with a generic `action` parameter — split into atomic tools or selection accuracy degrades.
+
 ### Anatomy of a Good Tool Definition
 
 ```json
@@ -87,6 +91,10 @@ Good Tool Design:                    Bad Tool Design:
 ## MCP Server Creation
 
 An MCP server is a standalone process that exposes tools, resources, and prompts to any MCP-compatible client (Claude, GPT, Llama-based agents). You write the server once and any LLM can use it.
+
+> **Why (the rationale):** MCP decouples tool implementation from LLM provider — the same server works with Claude, GPT, and open-source models, eliminating per-provider integration code and enabling tool reuse across teams and products.
+> **When to use:** Any new tool that will be shared across multiple agents or teams, or that might be used with different LLM providers; use stdio transport for local tools (IDE plugins, desktop agents) and Streamable HTTP for cloud-shared tools.
+> **Nuances & gotchas:** MCP servers run as separate processes — if the server crashes, the agent silently loses that tool and may hallucinate its output rather than reporting failure; implement health checks and explicit error returns; the server inherits no sandbox from the agent — it runs with the permissions of the process that spawned it, so scoped credentials and least-privilege must be enforced at the server level.
 
 ### MCP Architecture
 
@@ -161,6 +169,10 @@ Both SDKs follow the same pattern: create a server, register tools with typed sc
 ## Tool Registration and Discovery
 
 In production, agents need to discover available tools dynamically rather than hardcoding them.
+
+> **Why (the rationale):** Loading all tool schemas upfront degrades model reasoning — each irrelevant schema consumes context window space that the model must parse, reducing effective reasoning capacity and increasing selection confusion.
+> **When to use:** Use Dynamic Discovery (Tool Search) when the tool catalog exceeds ~15 tools; for small catalogs (<10 tools), static registration is simpler and has lower latency; use domain-partitioned MCP servers (one per functional area) to bound catalog size naturally.
+> **Nuances & gotchas:** Dynamic discovery adds a latency overhead (an extra embedding-search or LLM call before the main call); if the discovery search returns the wrong tools, the agent will either fail silently or hallucinate; always log which tools were selected at discovery time so you can tune the discovery query when accuracy drops.
 
 ### Static Registration
 
@@ -252,6 +264,10 @@ return "Found Jane Smith (ACC-123, jane@acme.com) and John Doe (ACC-456, john@ac
 
 Real tasks require multiple tools called in sequence. There are two composition patterns:
 
+> **Why (the rationale):** Each round-trip to the LLM for a tool call adds latency and cost — choosing the right composition pattern (LLM-orchestrated vs. programmatic vs. server-side) directly determines task latency and token spend.
+> **When to use:** LLM-orchestrated for branching/conditional logic where intermediate results determine the next step; programmatic for linear chains where the LLM can write the control flow in one shot; server-side for fixed, well-understood multi-step workflows the LLM should not need to reason about.
+> **Nuances & gotchas:** LLM-orchestrated chaining is N round-trips — a 5-step task at 2 s/call takes 10 s minimum; programmatic tool calling collapses this to 1 call but the model must generate correct code for the entire chain in one shot, which fails on complex branching logic; server-side composition hides intermediate results from the model, which prevents it from adapting if a sub-step produces unexpected output.
+
 ### Pattern 1: LLM-Orchestrated Chaining
 
 The LLM decides which tool to call next based on previous results:
@@ -324,6 +340,10 @@ To make your API callable by any LLM, expose it via FastAPI with Pydantic models
 
 ## Testing Tool-Use Agents
 
+> **Why (the rationale):** Tool-use agents have three distinct failure modes (wrong tool selected, wrong arguments, right tool but task not completed) that map to three separate testing layers — conflating them into a single end-to-end test makes root cause analysis impossible.
+> **When to use:** Run unit tests on every commit, integration tests on every deployment to staging, and eval suites on every model version bump or tool schema change; a 2% drop in tool selection accuracy after a schema change is the signal to revise the description, not retrain the model.
+> **Nuances & gotchas:** Eval suites must include negative cases ("What is the meaning of life?" should call zero tools) — models that call tools on every prompt are a common failure mode that only negative cases catch; evals are expensive (real LLM calls), so prioritize the highest-risk tools (write operations, financial transactions) rather than exhaustive coverage.
+
 ### Three Testing Layers
 
 ```
@@ -373,6 +393,10 @@ For each case, measure: tool selection accuracy (right tool?), argument quality 
 ## Observability for Tool Use
 
 Every tool call should log: trace/span IDs, timestamp, tool name, input args, output size, latency, status, model used, token usage, and session ID.
+
+> **Why (the rationale):** Tool calls are the agent's actions in the real world — without observability you cannot answer "why did the agent do that?", detect prompt injection in production, or identify which schema changes degraded accuracy.
+> **When to use:** Implement structured logging from day one, not as an afterthought; use OpenTelemetry spans to capture the full chain from user request → LLM call → tool call → backend response so failures can be traced end-to-end.
+> **Nuances & gotchas:** Logging tool input args can expose PII and credentials in your log store — apply field-level redaction for sensitive parameters (passwords, API keys, SSNs) before writing to logs; "hallucinated argument" rate above 2% is a leading indicator of schema quality problems, not model capability problems — fix the description first.
 
 ### Key Metrics
 

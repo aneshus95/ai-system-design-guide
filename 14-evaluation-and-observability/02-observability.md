@@ -38,6 +38,10 @@ LLM systems add:
 
 ### Logging
 
+> **Why (the rationale):** LLM interactions are non-deterministic and often irreproducible; without structured logs of what prompt was sent and what was received, diagnosing a quality issue or compliance incident is nearly impossible.
+> **When to use:** Every LLM API call in production; log request ID, model and parameters, token counts, latency, and content hash (not raw content if privacy-sensitive) as a minimum set.
+> **Nuances & gotchas:** Logging raw prompts and completions creates a privacy risk and can expose PII; hash or redact sensitive content in the operational log and store full content in a separate access-controlled store; log immutably (append-only) for compliance — mutable logs are not audit evidence.
+
 ```python
 class LLMLogger:
     def log_request(
@@ -88,6 +92,10 @@ class LLMLogger:
 
 ### Metrics
 
+> **Why (the rationale):** Metrics enable dashboards, alerting, and trend analysis at high volume where reading individual logs is infeasible; they are the primary signal for detecting outages, cost spikes, and quality drift at scale.
+> **When to use:** All production LLM systems; collect at minimum: request rate, error rate, latency percentiles, token counts, cost, and sampled quality scores.
+> **Nuances & gotchas:** LLM quality is NOT captured by operational metrics alone — a system can be fast and available while producing bad answers; quality must be a first-class metric, not an afterthought; sampled quality scores are a Gauge (point-in-time), not a Counter.
+
 ```python
 from prometheus_client import Counter, Histogram, Gauge
 
@@ -135,6 +143,10 @@ quality_score = Gauge(
 ```
 
 ### Traces
+
+> **Why (the rationale):** Multi-stage LLM pipelines (RAG: embed → search → rerank → generate) have latency and errors that span multiple components; traces connect the stages so a slow p99 can be pinpointed to the exact step rather than the whole pipeline.
+> **When to use:** Any pipeline with two or more stages; use OpenTelemetry spans named for each pipeline step so traces are portable across observability vendors.
+> **Nuances & gotchas:** Traces without attributes are useless for debugging — attach model name, token counts, retrieval scores, and result counts to spans; don't trace every request at full fidelity in high-volume production (sampling at 1-10% for detailed traces is standard).
 
 End-to-end tracing for RAG pipelines:
 
@@ -212,6 +224,10 @@ async def rag_query(query: str) -> str:
 ## Quality Monitoring
 
 ### Sampling Strategy
+
+> **Why (the rationale):** Evaluating 100% of production requests with an LLM judge is prohibitively expensive; random sampling at 1-5% provides a statistically significant quality signal at a fraction of the cost.
+> **When to use:** Always; run quality evaluation asynchronously so it doesn't add to user-perceived latency; bias sampling toward low-confidence responses and edge cases for better coverage.
+> **Nuances & gotchas:** A 1-5% sample needs several hundred evaluated requests per day to detect meaningful quality changes; at very low traffic volumes, increase the sample rate to 10-20% to get enough signal; stratify sampling by use case and user segment, not purely random, to catch category-specific regressions.
 
 ```python
 class QualitySampler:
@@ -292,6 +308,10 @@ class QualityDriftDetector:
 ---
 
 ## Cost Tracking
+
+> **Why (the rationale):** LLM costs scale directly with token usage and are invisible in standard infrastructure billing; without real-time cost attribution, a single bad prompt or runaway agent can generate thousands of dollars in API charges before anyone notices.
+> **When to use:** Every production system; track per-request cost by model, attribute to user/team/use-case, and alert on anomalous spikes (2× rolling average is a useful threshold).
+> **Nuances & gotchas:** Output tokens cost more than input tokens (often 3-5×) — an unusually long output is a larger cost signal than an unusually long input; cached prompt tokens cost significantly less with prompt caching enabled — account for this when projecting costs from dev to production.
 
 ### Real-Time Cost Calculation
 

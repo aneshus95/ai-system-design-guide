@@ -71,6 +71,10 @@ The landscape of AI frameworks has consolidated significantly over the past year
 
 ## Build vs. Buy vs. Framework
 
+> **Why (the rationale):** Frameworks impose dependency sprawl, deep stack traces, and update churn that are only justified when the problem they solve (state persistence, optimization, multi-step retrieval) would require weeks of equivalent custom engineering.
+> **When to use a framework:** When the non-trivial CS problem is already solved by the framework and the integration cost is lower than building it. When to build custom: when your logic is simple LLM calls, a 50-line wrapper beats a framework with 50 transitive dependencies.
+> **Nuances & gotchas:** "Framework Bloat" is subtle — the framework may solve the stated problem but introduce hidden costs: version churn, opaque debugging, leaky abstractions that force you to understand internals anyway. Evaluate the debug experience before committing.
+
 As a Staff Engineer, you must resist **Framework Bloat**.
 
 - **Use a Framework** when it solves a **Non-Trivial Computer Science Problem** (e.g., State persistence, Bayesian prompt optimization, Vector-Graph linking).

@@ -26,6 +26,10 @@ SQL is the single most-tested practical skill in Data Science and Data Engineeri
 
 ## What SQL Is (Declarative)
 
+> **Why (the rationale):** A declarative language lets the query optimizer choose the most efficient execution plan based on statistics, indexes, and data distribution — something you would need to re-implement and re-tune manually in an imperative loop.
+> **When to use:** SQL is the right tool whenever data lives in a relational or columnar store and the operation maps to set-based transformations; it is not the right tool for complex procedural logic, recursion beyond simple tree traversal, or operations requiring external API calls per row.
+> **Nuances & gotchas:** "Declarative" means you describe the result, but the execution plan still matters — writing logically correct SQL that causes a full table scan on a billion-row table is a performance failure; understanding the planner is what separates correct SQL from efficient SQL.
+
 SQL is **declarative**: you describe *what* you want, not *how* to get it. You write "give me total sales per region, only regions over $1M, sorted high to low," and the database's **query planner** figures out the actual steps (which index to use, join order, etc.). Contrast with Python, where you write the loop yourself.
 
 That's the mental shift: **you specify the result; the engine decides the algorithm.** Which is exactly why understanding the *logical execution order* matters more than any single keyword.
@@ -83,6 +87,10 @@ LIMIT 10;                           -- top 10 only
 
 ## Aggregations, GROUP BY & HAVING
 
+> **Why (the rationale):** GROUP BY exists to answer "one number per group" questions by collapsing many rows into summary rows — the only way to get per-category statistics without resorting to correlated subqueries.
+> **When to use:** Use GROUP BY + aggregate whenever you need summary statistics per category; use HAVING (not WHERE) when the filter condition involves the aggregate result itself.
+> **Nuances & gotchas:** Every column in SELECT must either be in GROUP BY or inside an aggregate — selecting a non-grouped column is either an error or picks an arbitrary row's value (MySQL's non-standard behavior); `WHERE` cannot reference aggregates (they do not exist yet at that execution step), which is one of the most common SQL beginner errors.
+
 **Aggregate functions** collapse many rows into one number: `COUNT`, `SUM`, `AVG`, `MIN`, `MAX`.
 
 **`GROUP BY`** splits rows into buckets and applies the aggregate **per bucket**:
@@ -105,6 +113,10 @@ ORDER BY avg_salary DESC;
 ---
 
 ## JOINs
+
+> **Why (the rationale):** JOINs are the mechanism for relating normalized data across tables; choosing the wrong JOIN type silently changes result semantics (INNER drops unmatched rows; LEFT keeps them as NULLs) — the choice is a business logic decision, not just a performance one.
+> **When to use:** Use INNER when you only care about rows that exist in both tables; use LEFT when you need all rows from the left table regardless of whether a match exists (e.g., "all customers, even those with no orders").
+> **Nuances & gotchas:** Putting a right-table filter condition in `WHERE` on a LEFT JOIN silently converts it to an INNER JOIN (NULL rows are dropped by the WHERE filter); put the condition in the `ON` clause instead to preserve unmatched left rows; CROSS JOIN is rarely intentional — a missing join condition creates a Cartesian product.
 
 A JOIN combines rows from two tables on a matching key. The intuition is **set overlap** — which rows to keep when the key does/doesn't match:
 
@@ -142,6 +154,10 @@ WHERE  o.amount > 100 OR o.amount IS NULL;
 
 ## Subqueries
 
+> **Why (the rationale):** Subqueries allow composing query results inline without materializing intermediate tables — scalar subqueries provide a single computed value, `IN` subqueries match against a set, and correlated subqueries enable per-row comparisons against aggregates.
+> **When to use:** Use non-correlated subqueries freely; prefer correlated subqueries only when the logic cannot be expressed as a JOIN or window function, since they re-execute per outer row.
+> **Nuances & gotchas:** Correlated subqueries are a common performance trap — a subquery that runs once per outer row turns an O(N) query into O(N²); most correlated subqueries can and should be rewritten as JOINs or window functions; `NOT IN` with a subquery that can return NULL silently returns an empty result set — use `NOT EXISTS` instead.
+
 A query nested inside another. Three flavors:
 
 - **Scalar subquery** — returns one value, used inline:
@@ -165,6 +181,10 @@ A query nested inside another. Three flavors:
 ---
 
 ## CTEs (WITH)
+
+> **Why (the rationale):** CTEs replace deeply nested subquery pyramids with named, readable steps — each step can be understood and verified independently, making complex queries maintainable; recursive CTEs enable tree/graph traversal that is otherwise impossible in standard SQL.
+> **When to use:** Use CTEs whenever a subquery is referenced more than once, when nesting exceeds two levels, or when the query involves a recursive structure (org charts, bill-of-materials, graph paths).
+> **Nuances & gotchas:** CTEs are NOT automatically materialized in most databases (Postgres, BigQuery) — the optimizer may inline and re-execute the CTE for every reference; if a CTE is expensive and referenced multiple times, use a temp table or force materialization to avoid redundant computation.
 
 A **Common Table Expression** is a named temporary result you define up front with `WITH`, then reference like a table. It's the readability workhorse — break a complex query into named steps instead of nesting subqueries five deep:
 
@@ -195,6 +215,10 @@ WHERE  e.salary > d.avg_sal;      -- earns above their dept average
 ---
 
 ## Window Functions — Made Visual
+
+> **Why (the rationale):** Window functions solve the class of problems that need both per-row detail and a group-level aggregate simultaneously — running totals, rankings, period-over-period comparisons — which GROUP BY cannot provide because it collapses rows.
+> **When to use:** Whenever you need to annotate each row with an aggregate or rank from its peer group without losing the individual row; canonical use cases are top-N per group, deduplication, running totals, and lag/lead comparisons.
+> **Nuances & gotchas:** Window functions run at the SELECT step — after WHERE — so you cannot filter on a window function result in WHERE; you must wrap the query in a CTE and filter on the outer level; also, window functions do NOT collapse rows unlike GROUP BY — if you want one-row-per-group you still need GROUP BY.
 
 Window functions are the highest-value advanced topic (~40% of hard SQL questions), and also the most-misunderstood. Let's build the picture from actual rows.
 
@@ -287,6 +311,10 @@ SELECT * FROM ranked WHERE rn <= 3;    -- top 3 earners per department
 
 ## Window Frames (Moving Windows)
 
+> **Why (the rationale):** The frame clause lets you define a custom subset of the partition to aggregate over — enabling fixed-size sliding windows (moving averages) and pinned-start growing windows (running totals) from the same function syntax.
+> **When to use:** Use `ROWS BETWEEN N PRECEDING AND CURRENT ROW` for fixed-size moving windows (e.g., 7-day rolling average); use `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` for running totals; use `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING` for a whole-partition aggregate on every row.
+> **Nuances & gotchas:** The default frame when you add `ORDER BY` inside `OVER()` is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`, not `ROWS` — `RANGE` lumps tied ORDER BY values into the same frame, so two rows with the same date both get the full sum up to that date rather than a strict row-by-row running total; use `ROWS` explicitly when you need strict per-row behavior.
+
 **The mental model: the current row is "me".** A window function walks down the rows one at a time. For each row (**"me"**), the **frame clause** (`ROWS BETWEEN … AND …`) draws a **box** of rows around me — and the function computes over whatever's *inside the box*. Everything is counted relative to me:
 
 ```
@@ -373,6 +401,10 @@ SELECT id FROM banned_users;     -- active users who aren't banned
 
 ## CASE & NULL Handling
 
+> **Why (the rationale):** CASE is the only conditional expression in SQL and is essential for feature engineering (bucketing continuous values), conditional aggregation (pivoting), and handling business-rule exceptions inline in a query without multiple passes over the data.
+> **When to use:** Use CASE for conditional logic inside SELECT, aggregate functions, and ORDER BY; use COALESCE to provide defaults for NULL values in any expression.
+> **Nuances & gotchas:** NULL means "unknown" — `NULL = NULL` evaluates to unknown (not true), so equality comparisons against NULL always silently fail; `NOT IN` with a subquery that returns any NULL returns zero rows (because "x not in {1, NULL}" is unknown); `COUNT(col)` skips NULLs while `COUNT(*)` does not — this difference silently changes aggregate results when the column has missing data.
+
 **`CASE`** is SQL's if/else — huge for feature engineering and pivoting:
 
 ```sql
@@ -438,6 +470,10 @@ CROSS JOIN LATERAL (
 ---
 
 ## Query Optimization Deep Dive
+
+> **Why (the rationale):** The query planner picks the execution strategy — which indexes to use, which join algorithm, which order to apply filters — based on statistics; writing queries the planner can understand (sargable predicates, selective early filters, avoiding `SELECT *`) is what separates fast queries from slow ones.
+> **When to use:** Always run `EXPLAIN ANALYZE` on any query that is slow or operates on large tables before adding indexes or rewriting; optimization without profiling is guessing.
+> **Nuances & gotchas:** Adding an index does not guarantee it is used — non-sargable predicates (functions on the indexed column, implicit type casts) make the index invisible to the planner; stale table statistics (`ANALYZE` not run recently) cause the planner to pick wrong join algorithms or not use indexes it should.
 
 The mental model: **SQL is declarative, so a query optimizer/planner turns your query into an execution plan.** Optimization is about helping the planner pick a *fast* plan — mostly by using indexes well and avoiding full scans of huge tables.
 

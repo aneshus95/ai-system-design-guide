@@ -2,6 +2,10 @@
 
 While LangChain focuses on "Orchestration," **LlamaIndex** is the master of **Data-Centric AI**. It has evolved from a RAG library into a framework for **Workflows** and **Agentic Data Manipulation**.
 
+> **Why (the rationale):** LangChain's retrieval abstractions are general-purpose; LlamaIndex goes deeper on the data side — richer node metadata, more retriever types (property graph, keyword, tree, summary), and native LlamaParse/LlamaCloud integrations that LangChain treats as adapters.
+> **When to use:** Choose LlamaIndex when the dominant complexity is data ingestion, multimodal parsing, or advanced retrieval (hybrid search, property graphs, reranking); choose LangChain/LangGraph when the dominant complexity is agent control flow, multi-agent delegation, or durable state.
+> **Nuances & gotchas:** LlamaIndex is retrieval-first, not orchestration-first — its Workflows framework is powerful but less mature than LangGraph for complex multi-agent scenarios with time-travel debugging or human-in-the-loop approvals; many production architectures use both in tandem, with LlamaIndex as the data plane and LangGraph as the control plane.
+
 ## Table of Contents
 
 - [The Data Framework Philosophy](#philosophy)
@@ -21,6 +25,10 @@ LlamaIndex is built on the belief that **the data is more important than the mod
 - **The Node**: Every chunk of data is a "Node" with rich metadata (relationships, summaries, and parent-child links).
 - **The Retriever**: LlamaIndex provides the most diverse set of retrievers (Summary, Knowledge Graph, Tree, and Keyword).
 
+> **Why (the rationale):** Most RAG failures are data failures, not model failures — richer node metadata (parent links, summaries, relationships) lets retrievers make smarter relevance decisions that plain vector similarity cannot.
+> **When to use:** Use the Node + Retriever model any time you have structured or semi-structured data (tables, hierarchical documents, entity graphs) where pure vector similarity will miss important relational context.
+> **Nuances & gotchas:** Richer metadata increases storage and indexing cost — not every use case justifies property graphs or tree indices; start with basic vector RAG and upgrade to richer index types only when you can demonstrate a measurable recall improvement.
+
 ---
 
 ## LlamaIndex Workflows
@@ -28,6 +36,10 @@ LlamaIndex is built on the belief that **the data is more important than the mod
 In late 2024, LlamaIndex introduced **Workflows**, its answer to LangGraph.
 - **Event-Driven Architecture**: Nodes communicate by emitting `Events`.
 - **Concurrency**: Workflows are natively async and handle large-scale parallel data processing better than linear chains.
+
+> **Why (the rationale):** Event dispatch decouples producers from consumers — adding a new processing branch is just adding a new Event type and a step that consumes it, with no central router to modify.
+> **When to use:** Use Workflows when your data pipeline has high natural parallelism (e.g., processing 1,000 PDFs in parallel, fan-out embedding across chunks) that event-driven fan-out handles more cleanly than LangGraph's node/edge model.
+> **Nuances & gotchas:** The event-driven model makes sequential, tightly-coupled logic harder to express than in LangGraph's explicit edge graph — if your workflow is mostly linear with a few branches, LangGraph's model is actually simpler to read and maintain.
 
 ```python
 # Conceptual Workflow
@@ -46,6 +58,10 @@ class RAGWorkflow(Workflow):
 2. **Context-Aware Splitters**: Grouping text by "Meaning" rather than "Token count" (using smaller LLMs to find optimal breakpoints).
 3. **Dynamic Pathing**: The retriever decides *which* index to query based on the complexity of the question.
 
+> **Why (the rationale):** Fixed-size chunking and pure vector similarity fail on relational and hierarchical questions; property graphs + context-aware splitting preserve semantic coherence and structural relationships that embeddings alone cannot capture.
+> **When to use:** Reach for property graphs when users ask relational questions ("who wrote this document?", "which projects are related?"); use context-aware splitters for long-form documents where meaning crosses sentence boundaries.
+> **Nuances & gotchas:** Context-aware splitting calls a small LLM on every chunk boundary — this adds cost and latency to the ingestion pipeline; for large corpora (>1M chunks) the LLM-based splitting cost may be prohibitive and rule-based heuristics are a pragmatic fallback.
+
 ---
 
 ## LlamaCloud and Managed Ingestion
@@ -53,6 +69,10 @@ class RAGWorkflow(Workflow):
 For enterprise scale, LlamaIndex focuses on **LlamaCloud**.
 - **Managed Ingestion**: Handling PDF parsing, OCR, and Table extraction as a service.
 - **Parsing as a Model**: Using Vision-LLMs (Gemini 3.1 Pro, Claude Opus 4.7, GPT-5.5) to "Understand" layouts instead of using rule-based parsers.
+
+> **Why (the rationale):** Building a reliable high-throughput document ingestion pipeline (PDF with tables, scanned images, mixed layouts) is months of infrastructure work — LlamaCloud turns it into an API call.
+> **When to use:** Use LlamaCloud when document parsing quality or throughput is a bottleneck — especially for scanned PDFs, complex tables, or multimodal documents where open-source parsers (pdfminer, pypdf) consistently fail.
+> **Nuances & gotchas:** LlamaCloud is a paid managed service — cost scales with document volume; for simple text-only PDFs a rule-based parser is cheaper and faster; also, Vision-LLM parsing is slower than rule-based parsing, so it is not suitable for real-time ingestion pipelines.
 
 ---
 
@@ -62,11 +82,19 @@ LlamaIndex treats agents as **high-level retrievers**.
 - You can "wrap" a complex LlamaIndex query engine as a tool and give it to a LangGraph agent.
 - **Benefit**: The agent gets "Smart Data Access" without needing to know the technical details of the vector DB or Graph schema.
 
+> **Why (the rationale):** Exposing a complex multi-step retrieval pipeline as a single tool call gives the orchestrating agent a clean interface — it reasons about "what data do I need" without having to encode retrieval implementation details in its prompt.
+> **When to use:** Use this pattern when you have an existing LlamaIndex RAG pipeline that should be consumed by a LangGraph supervisor agent — it avoids rewriting retrieval logic and provides a clean abstraction boundary.
+> **Nuances & gotchas:** Wrapping a query engine as a tool hides retrieval failures from the agent — if the tool returns empty or incorrect context, the agent has no signal to retry with a different strategy unless you explicitly surface retrieval quality metadata in the tool's return value.
+
 ---
 
 ## LlamaIndex Workflows: Event-Driven Application Framework
 
-The pitch in 2024 was "Workflows is our LangGraph." The pitch today is different: Workflows is a general-purpose event-driven framework for any AI application, with RAG as one possible use. Today `llama-index-core` ships Workflows as the primary application surface, while the index / retriever classes have moved into integration packages around it ([LlamaIndex workflows docs](https://developers.llamaindex.ai/python/framework/understanding/workflows/)). One naming subtlety worth pinning down: the **Workflows** package reached 1.0 in mid-2025 and is now on a 2.x line as a standalone package, while the core `llama-index` framework itself remains on the 0.x line (around 0.14.x in mid-2026). For how this kind of version churn breaks tutorials and how to survive it, see [Navigating Framework Churn](12-navigating-framework-churn.md).
+The pitch in 2024 was "Workflows is our LangGraph." The pitch today is different: Workflows is a general-purpose event-driven framework for any AI application, with RAG as one possible use.
+
+> **Why (the rationale):** The shift from query-engine-first to Workflow-first acknowledges that real AI applications involve more than retrieval — they need human-in-the-loop gates, streaming updates, and stateful multi-step pipelines that a query engine API cannot express.
+> **When to use:** Use the Workflow abstraction for any LlamaIndex pipeline with more than two sequential steps, parallel fan-out, or human approval requirements; the `@step` + `Event` pattern scales better than deeply nested query engine calls.
+> **Nuances & gotchas:** The `llama-index` framework (0.x) and the Workflows package (2.x) are on different version lines — tutorials written for Workflows 1.x may not work on 2.x; always pin both versions explicitly and check the changelog when upgrading. Today `llama-index-core` ships Workflows as the primary application surface, while the index / retriever classes have moved into integration packages around it ([LlamaIndex workflows docs](https://developers.llamaindex.ai/python/framework/understanding/workflows/)). One naming subtlety worth pinning down: the **Workflows** package reached 1.0 in mid-2025 and is now on a 2.x line as a standalone package, while the core `llama-index` framework itself remains on the 0.x line (around 0.14.x in mid-2026). For how this kind of version churn breaks tutorials and how to survive it, see [Navigating Framework Churn](12-navigating-framework-churn.md).
 
 ### What Changed Architecturally
 

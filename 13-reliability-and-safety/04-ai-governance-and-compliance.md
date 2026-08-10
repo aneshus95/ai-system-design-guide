@@ -19,6 +19,10 @@ This chapter is time-sensitive. Dates and enforcement status are given **as of J
 
 ## The EU AI Act
 
+> **Why (the rationale):** The EU AI Act is binding law with fines up to the greater of €35M or 7% of global turnover; it applies whenever a system is placed on the EU market or its output reaches EU users, regardless of where the company is based.
+> **When to use:** Classify every AI system or feature against the risk tiers before building; the classification determines the compliance burden and whether you are a provider, deployer, or both.
+> **Nuances & gotchas:** The downstream developer who fine-tunes, rebrands, or repurposes a third-party model for a high-risk use becomes the legal "provider" (Article 25) and inherits the full conformity burden — don't assume using a third-party model insulates you from provider obligations.
+
 Regulation (EU) 2024/1689 is the world's first comprehensive AI law, structured by **risk tier**:
 
 - **Prohibited** (unacceptable risk): social scoring, manipulative or subliminal techniques, untargeted facial-recognition scraping, workplace and school emotion recognition, certain biometric uses. Banned outright.
@@ -47,6 +51,10 @@ The delay of high-risk obligations is the **"Digital Omnibus"** simplification p
 
 ## NIST AI RMF and the GenAI Profile
 
+> **Why (the rationale):** The NIST AI RMF provides a structured, voluntary framework for building an internal AI governance program; it doubles as evidence of due diligence for enterprise buyers and regulators in the absence of binding US federal law.
+> **When to use:** As the structural backbone for your internal AI risk program; use the GenAI Profile (NIST AI 600-1) as the enumerated checklist of GenAI-specific risks to map controls against.
+> **Nuances & gotchas:** The RMF is a how-to-organize framework, not a what-you-must-do law — it does not specify hard requirements or timelines; use it alongside the EU AI Act (which does) for a complete compliance picture.
+
 The **NIST AI Risk Management Framework** (AI 100-1, Jan 2023) is voluntary but the de-facto US baseline, built on four functions: **Govern** (org-level policy and accountability, cross-cutting), **Map** (establish context and categorize the system), **Measure** (benchmark and track risks), and **Manage** (prioritize, treat, monitor, respond).
 
 The **Generative AI Profile** (NIST AI 600-1, Jul 2024) is a companion that enumerates 12 GenAI risk categories and maps suggested actions back to the RMF core. The categories include confabulation (hallucination), data privacy, harmful bias, information integrity (synthetic media), information security (where prompt injection lives), intellectual property, dangerous content, CBRN information, human-AI configuration, and value-chain/third-party risk. It is the cleanest checklist for "what could go wrong with a GenAI system," and it lines up with the threats in [LLM Security](../12-security-and-access/01-llm-security.md).
@@ -54,6 +62,10 @@ The **Generative AI Profile** (NIST AI 600-1, Jul 2024) is a companion that enum
 ---
 
 ## ISO 42001 and Assurance
+
+> **Why (the rationale):** Enterprise and regulated buyers increasingly require third-party assurance that an AI vendor has systematic governance; ISO 42001 provides a certifiable, auditor-recognized signal, much as ISO 27001 does for information security.
+> **When to use:** When selling AI products into regulated industries (finance, healthcare, government); pair with SOC 2 to cover operational security controls — the 2026 pattern is SOC 2 + ISO 42001 with harmonized controls to avoid duplicate effort.
+> **Nuances & gotchas:** ISO 42001 certifies that an organization *has* a governance process, not that any specific model or deployment is safe; it is organizational-level assurance, not product-level assurance — don't conflate the two in customer conversations.
 
 **ISO/IEC 42001:2023** is the first certifiable AI Management System standard, structured like ISO 27001 (Plan-Do-Check-Act, leadership, risk and impact assessments, a set of AI controls). It certifies *organizational governance* ("do you have a system?"), not a per-model technical property, and is increasingly used as due-diligence evidence toward the EU AI Act and as a procurement signal. **SOC 2** remains the dominant US assurance attestation for security and operational controls but does not cover AI-specific risk by itself. The common 2026 pattern for AI vendors selling into regulated buyers is **SOC 2 plus ISO/IEC 42001**, with controls harmonized to avoid duplicate work.
 
@@ -68,6 +80,10 @@ That leaves a **state patchwork**. The Colorado AI Act (the first comprehensive 
 ---
 
 ## What Engineers Actually Implement
+
+> **Why (the rationale):** Governance requirements map directly onto engineering artifacts engineers already produce (logs, evals, CI pipelines, incident runbooks); the goal is to emit compliance evidence as a byproduct of existing practices rather than building a parallel compliance process.
+> **When to use:** Start with risk classification and the cards stack on every new AI system or feature; add the rest incrementally, prioritizing the controls that carry the highest legal exposure for your tier and role.
+> **Nuances & gotchas:** "We already have logs" does NOT mean you have a compliant audit trail — immutability, tamper-evidence, retention period, and the specific fields logged (model version, tool calls, retrieved context, decision outcomes) are all part of the requirement; audit what you already log against the actual standard.
 
 The practical core. Map each regulatory concept to a concrete artifact or control you already understand.
 

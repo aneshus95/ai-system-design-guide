@@ -43,6 +43,10 @@ Production LLM systems need robust reliability patterns beyond basic retry logic
 
 ### Exponential Backoff with Jitter
 
+> **Why (the rationale):** Transient failures (rate limits, network hiccups) succeed on retry; immediate re-attempts overwhelm a recovering provider and escalating delays give it time to recover.
+> **When to use:** Any retryable error class (rate limits, timeouts, 5xx); always distinguish retryable from non-retryable errors before applying.
+> **Nuances & gotchas:** Without jitter, all clients retry simultaneously after the same delay, creating thundering-herd re-avalanche; jitter spreads the load; do NOT retry non-retryable errors (auth failures, context-too-long) — it wastes quota and never succeeds.
+
 ```python
 import random
 import asyncio
@@ -134,6 +138,10 @@ class LLMRetryPolicy:
 ---
 
 ## Circuit Breaker
+
+> **Why (the rationale):** When a provider is down, retrying every request wastes latency and resources on guaranteed failures; a circuit breaker fails fast during outages, preserving availability and giving the provider time to recover.
+> **When to use:** Any integration with an external LLM provider; pair with multi-provider failover so an open circuit triggers routing to the backup, not just a fast failure.
+> **Nuances & gotchas:** A circuit breaker does NOT replace retry logic — they solve different problems (systemic vs. transient failure); set the failure threshold carefully — too sensitive and the circuit trips on normal noise, too lenient and you bleed latency during real outages.
 
 ### Implementation
 
@@ -247,6 +255,10 @@ class ResilientLLMClient:
 
 ## Bulkhead Pattern
 
+> **Why (the rationale):** Without isolation, a batch processing surge can exhaust the shared concurrency pool and starve real-time user requests; separate resource pools prevent workloads from interfering with each other.
+> **When to use:** Any system with mixed workload priorities (real-time vs. batch, critical vs. best-effort); size each bulkhead for its workload, not as an even split of total capacity.
+> **Nuances & gotchas:** Bulkheads do NOT automatically rebalance — idle real-time capacity cannot help batch jobs; this is intentional (isolation is the goal); if you need dynamic sharing, use weighted fair queuing instead.
+
 ### Isolating Resources
 
 ```python
@@ -316,6 +328,10 @@ class BulkheadedLLMClient:
 ---
 
 ## Timeout Strategies
+
+> **Why (the rationale):** LLM generation time is proportional to output length and varies with load — a fixed long timeout wastes latency on stuck requests while a fixed short timeout kills slow-but-valid long responses.
+> **When to use:** Set connection, read, and total timeouts as independent layers; use adaptive timeouts that adjust to observed p99 latency in preference to fixed values.
+> **Nuances & gotchas:** Adaptive timeouts can slowly drift upward during degraded provider performance, effectively turning off timeout protection — clamp to a hard maximum; streaming responses need per-chunk timeouts, not just total timeouts, or a stalled stream will appear alive indefinitely.
 
 ### Layered Timeouts
 
@@ -397,6 +413,10 @@ class AdaptiveTimeout:
 
 ## Graceful Degradation
 
+> **Why (the rationale):** A partial response with reduced capability is nearly always better than a complete outage; defining degradation levels in advance means the fallback behavior is tested and predictable, not improvised during an incident.
+> **When to use:** Any production system with tiered capability (RAG + large model being the full tier, direct generation with small model being minimal); define the degradation ladder before launch, not during an incident.
+> **Nuances & gotchas:** Degradation must be observable — if you silently serve the minimal pipeline users notice quality drops but engineers see no alert; log and metric the degradation level explicitly; never let degradation become permanent — it should trigger investigation, not become the default.
+
 ### Degradation Levels
 
 ```python
@@ -457,6 +477,10 @@ class GracefulDegrader:
 
 ## Multi-Provider Failover
 
+> **Why (the rationale):** Any single LLM provider will have outages; multi-provider failover eliminates this single point of failure and is the primary mechanism for achieving 99.9%+ availability in LLM systems.
+> **When to use:** Any production system with an availability SLO above ~99%; configure primary, secondary, and tertiary providers with independent circuit breakers so a failed primary automatically routes to the backup.
+> **Nuances & gotchas:** Different providers have different context window sizes, system prompt formats, and tool-calling APIs — failover is NOT transparent without an abstraction layer; test failover paths explicitly, not just in theory.
+
 ### Provider Manager
 
 ```python
@@ -501,6 +525,10 @@ class ProviderManager:
 ```
 
 ### Request Hedging
+
+> **Why (the rationale):** Tail latency on LLM APIs is heavy and unpredictable; hedging (starting a backup request after a delay) reduces p99 latency by racing providers and using whichever answers first.
+> **When to use:** Latency-critical paths where p99 matters more than cost; hedge delay should be ~p50 latency so most requests complete without spawning the backup, but slow outliers get a rescue.
+> **Nuances & gotchas:** Hedging increases cost because both requests complete work up to the cancellation point; do NOT apply to stateful or write operations where two executions would cause duplicate side effects; cancel the losing request promptly.
 
 ```python
 class HedgedRequest:

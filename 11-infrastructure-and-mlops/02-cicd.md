@@ -19,6 +19,10 @@ Deploying LLM applications requires adapting traditional CI/CD practices for AI-
 
 ### What Makes LLM Deployments Different
 
+> **Why (the rationale):** Traditional CI/CD assumes deterministic, binary-testable software; LLM deployments change quality probabilistically across prompt, model, data, and parameter dimensions, requiring a fundamentally different pipeline design.
+> **When to use:** Apply LLM-specific CI/CD as soon as you have any production prompt that could change — even a single-model, single-prompt system needs golden set tests and a quality gate before deploying changes.
+> **Nuances & gotchas:** You cannot achieve 100% pass rate on LLM tests — the pipeline must be statistical; setting thresholds too high blocks every deployment, too low lets regressions through silently.
+
 | Traditional CI/CD | LLM CI/CD |
 |-------------------|-----------|
 | Binary tests (pass/fail) | Probabilistic evaluation |
@@ -102,6 +106,10 @@ Deploying LLM applications requires adapting traditional CI/CD practices for AI-
 
 ### Stage 1: Static Validation
 
+> **Why (the rationale):** Syntax errors, missing fields, and token-limit violations are trivially detectable without any LLM call; catching them here costs milliseconds versus dollars in later stages.
+> **When to use:** Always; this is the cheapest gate and has no false positives for well-defined prompt schemas.
+> **Nuances & gotchas:** Static validation catches structural errors but cannot catch semantic issues (a grammatically valid prompt that instructs the model to do the wrong thing); do not mistake passing static validation for "the prompt is correct."
+
 ```python
 class PromptValidator:
     def validate(self, prompt_config: dict) -> ValidationResult:
@@ -160,6 +168,10 @@ class PromptUnitTests:
 
 ### Stage 3: Golden Set Tests
 
+> **Why (the rationale):** Golden sets provide a fast, reproducible regression signal against known input/output pairs — the closest thing to deterministic testing available for an LLM pipeline.
+> **When to use:** For any pipeline where there are known "must-handle" examples (critical user paths, safety scenarios, edge cases that caused past regressions); target at least 50–200 curated examples.
+> **Nuances & gotchas:** Golden sets go stale — if the product evolves but the golden set does not, you are testing the old behavior; also, a golden set that uses LLM-as-judge for evaluation introduces a second LLM's failure mode into the gate.
+
 ```python
 class GoldenSetRunner:
     def __init__(self, golden_set: list[dict]):
@@ -201,6 +213,10 @@ class GoldenSetRunner:
 ```
 
 ### Stage 4: LLM Evaluation
+
+> **Why (the rationale):** LLM-as-judge evaluation catches subtle quality regressions across a broader eval set that golden set exact-match tests cannot cover — it scales human-equivalent judgment to hundreds of examples per pipeline run.
+> **When to use:** After golden set tests pass; sample from a larger eval set (10–20%) to balance cost vs signal; use this stage for quality dimensions like relevance, accuracy, and helpfulness that resist exact-match testing.
+> **Nuances & gotchas:** The judge model itself has biases (e.g., prefers verbose answers, prefers its own style); evaluator and pipeline should not use the same model; sampled evaluation means high-variance results — use statistical thresholds and track trends, not individual run scores.
 
 ```python
 class LLMEvaluationStage:
@@ -294,6 +310,10 @@ QUALITY_THRESHOLDS = {
 
 ### Canary Deployment
 
+> **Why (the rationale):** LLM quality issues often only manifest on real user queries that eval sets do not cover; a canary exposes the new version to a small fraction of real traffic first, limiting blast radius of a quality regression.
+> **When to use:** For any system prompt or model version change that passed evaluation but has not been validated on the full distribution of production queries; start at 5% and increment based on observed metrics.
+> **Nuances & gotchas:** Canary bake time must be long enough to collect statistically meaningful quality samples — 30 minutes may be fine for error rate but insufficient for quality scoring on low-traffic systems; also, canary traffic must be representative, not just internal/test users.
+
 ```python
 class CanaryDeployer:
     def __init__(
@@ -332,6 +352,10 @@ class CanaryDeployer:
 
 ### Shadow Deployment
 
+> **Why (the rationale):** Shadow mode lets you evaluate a new version against 100% of real traffic with zero user exposure — you collect real-world comparison data before committing any users to the change.
+> **When to use:** For high-risk changes (model version upgrades, major system prompt rewrites) where you want a full production traffic evaluation period before even a 5% canary; especially valuable when your eval set may not cover the tail of production queries.
+> **Nuances & gotchas:** Shadow deployment doubles inference cost (both versions run); divergence rate alone does not tell you which version is better — you still need an eval layer to interpret the differences; shadow mode does NOT test latency from the user's perspective since only the primary response is returned.
+
 ```python
 class ShadowDeployer:
     async def shadow_test(
@@ -360,6 +384,10 @@ class ShadowDeployer:
 ## Rollback Procedures
 
 ### Automated Rollback
+
+> **Why (the rationale):** Manual rollback depends on someone noticing and acting quickly; automated rollback enforces a maximum blast-radius window for any bad deployment without human reaction time.
+> **When to use:** Whenever you have well-defined, measurable rollback triggers (error rate, latency, quality threshold) and a known-good previous version to roll back to; the key is having clear thresholds agreed on before the deploy, not chosen under pressure during an incident.
+> **Nuances & gotchas:** Automated rollback does NOT fix the underlying problem — it buys time; rolling back a model version also rolls back any quality improvements it had; quality-based rollback on sampled scoring can fire false positives if the sample is too small, so set thresholds conservatively and require sustained degradation over multiple observation windows.
 
 ```python
 class AutoRollback:

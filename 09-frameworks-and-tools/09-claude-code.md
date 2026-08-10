@@ -21,6 +21,10 @@ Claude Code is Anthropic's **terminal-native autonomous coding agent**. Unlike I
 
 ## What Claude Code Is
 
+> **Why (the rationale):** Claude Code solves the "last mile" problem of AI coding tools — completion tools (Copilot) make the developer faster, but Claude Code removes the developer from the loop entirely for well-scoped tasks, enabling batch automation (bug fixes, test generation) in CI pipelines.
+> **When to use:** Bounded, repeatable coding tasks where the acceptance criterion is clear (tests pass, lint clean) and human review is applied at the PR stage — not open-ended exploration or architectural design.
+> **Nuances & gotchas:** Locked to Anthropic models; cost scales with task complexity (a 30-turn refactor can cost $1.50+); runaway loops are real without `max_turns`; CLAUDE.md quality is the single biggest lever on output quality.
+
 Released by Anthropic in early 2025, Claude Code is:
 
 - **A CLI tool**: `claude` command in your terminal
@@ -46,6 +50,10 @@ claude -p "Add unit tests for all functions in src/utils.py" --output-format jso
 ---
 
 ## Core Architecture
+
+> **Why (the rationale):** The bash + text_editor + MCP tool triad gives Claude Code a closed feedback loop — it can write code, run it, read the output, and fix failures without leaving the agent loop, which is what makes it genuinely autonomous rather than just generative.
+> **When to use:** The architecture works best when the test runner is fast and deterministic; slow or flaky tests break the loop's verify-fix cycle and burn tokens on noise.
+> **Nuances & gotchas:** The bash session is persistent within a turn but resets between headless invocations — environment variables set in one `claude -p` call are not available to the next; script setup commands into CLAUDE.md or the prompt to avoid silent environment drift.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -132,6 +140,10 @@ Full desktop control (screenshots, mouse, keyboard) — used for browser testing
 ---
 
 ## The CLAUDE.md Manifest Pattern
+
+> **Why (the rationale):** Without CLAUDE.md, the agent treats every project as a generic codebase, guessing at test commands, coding standards, and forbidden patterns — leading to slow, inconsistent results. CLAUDE.md converts a general agent into a project-specialist with zero prompt overhead per task.
+> **When to use:** Any project with more than one Claude Code session; invest in CLAUDE.md before the second task, not after things go wrong.
+> **Nuances & gotchas:** CLAUDE.md is injected into every session's context, so overly verbose files waste tokens on every invocation; keep it concise (architecture, commands, hard rules) and use nested CLAUDE.md files in subdirectories for module-specific constraints rather than bloating the root file.
 
 The `CLAUDE.md` file is the **single most important pattern** for using Claude Code productively. It injects persistent project context into every Claude Code session.
 
@@ -240,6 +252,10 @@ result = asyncio.run(run_coding_task(
 
 ## Sub-Agents and Parallelism
 
+> **Why (the rationale):** A single agent context window is a hard limit on how much code it can reason about at once; sub-agents parallelize across modules, cutting wall-clock time and avoiding context overload on large codebases.
+> **When to use:** Codebases over ~50K lines with genuinely independent parallel work (no shared state between modules being changed simultaneously); coordinate via the main agent reviewing and merging results.
+> **Nuances & gotchas:** Sub-agents don't share memory — if two sub-agents touch the same shared utility, they can produce conflicting edits; always decompose tasks to ensure zero overlap in file ownership before dispatching.
+
 Claude Code supports **sub-agent dispatch** for large codebases:
 
 ```
@@ -262,6 +278,10 @@ Each sub-agent runs in parallel, then the main agent reviews and merges the resu
 ---
 
 ## Custom MCP Integration
+
+> **Why (the rationale):** MCP extends Claude Code beyond the file system to any system that matters — databases, task trackers, documentation APIs — without modifying the agent loop; the tool is just another MCP server.
+> **When to use:** When the agent repeatedly needs data from an external system (DB schema, live docs, issue tracker) that can be served as an MCP tool; avoids copy-pasting context into prompts manually.
+> **Nuances & gotchas:** Each MCP server is a separate process that must be running when Claude Code starts; misconfigured MCP servers fail silently and the agent proceeds without the tool — validate MCP connectivity separately before production CI runs.
 
 Claude Code reads MCP servers from `~/.claude/config.json` or `.claude/mcp.json`:
 
@@ -297,6 +317,10 @@ With this config, Claude Code can:
 ---
 
 ## Safety and Permission Model
+
+> **Why (the rationale):** Autonomous agents that can run shell commands need graduated trust levels — always-on permission for safe read/test operations removes friction, while requiring approval for destructive or network operations prevents catastrophic mistakes.
+> **When to use:** Tighten permissions for CI/headless usage (pre-approve safe commands, block everything else); loosen to "ask per-turn" only during interactive exploration sessions.
+> **Nuances & gotchas:** The permission model is only as safe as the deny list you write — omitting a destructive pattern (e.g., `git push --force`) means Claude can execute it without asking; always run in a Docker container or sandboxed VM as the defense-in-depth layer regardless of permission config.
 
 Claude Code has a **layered permission model**:
 
@@ -340,6 +364,10 @@ Blocked            Never runs          Network calls outside allowlist
 ---
 
 ## Production Use: CI Pipelines
+
+> **Why (the rationale):** Headless mode enables Claude Code as an automated software engineer in CI — triggered by GitHub labels or issue webhooks, it fixes bugs or generates tests and opens PRs for human review, compressing the time from issue-filed to code-ready.
+> **When to use:** High-volume, bounded, repeatable tasks (bug fixes from labelled issues, test generation for uncovered modules) where the task can be described in a prompt and success is measurable by tests passing.
+> **Nuances & gotchas:** CI cost accumulates quickly — at 100 runs/day the bill can reach $75-150/day; enforce `max_turns`, route simple tasks to cheaper models (Haiku), and gate AI-fix labels to avoid runaway spending on malformed issue descriptions.
 
 ### GitHub Actions Integration
 

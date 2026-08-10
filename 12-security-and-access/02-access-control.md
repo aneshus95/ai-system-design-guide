@@ -41,6 +41,10 @@ Secure access control is essential for multi-user and multi-tenant LLM applicati
 
 ### API Key Authentication
 
+> **Why (the rationale):** API keys are the simplest, most universally supported mechanism for server-to-server authentication — they require no user interaction, are easy to scope, and can be revoked instantly if compromised.
+> **When to use:** For programmatic service-to-service access and developer integrations; pair with OAuth/JWT for user-level flows where the identity must be associated with a human session.
+> **Nuances & gotchas:** Never store the raw key — store only its hash; the raw key should be returned exactly once on creation and never again; rate-limit failed auth attempts to prevent brute force, and revoke immediately on any suspicion of compromise.
+
 ```python
 class APIKeyAuthenticator:
     def __init__(self, key_store):
@@ -111,6 +115,10 @@ class JWTAuthenticator:
 
 ### Role-Based Access Control (RBAC)
 
+> **Why (the rationale):** RBAC simplifies permission management by grouping users with similar needs into named roles — changing a role's permissions updates all holders at once rather than editing each user individually.
+> **When to use:** When your user population naturally maps to a small set of roles with stable permission sets; ideal for multi-tier SaaS (starter/professional/enterprise) with clearly bounded capabilities per tier.
+> **Nuances & gotchas:** RBAC does NOT handle fine-grained per-resource access (e.g. "user can access documents from their tenant only") — use ABAC or explicit tenant filtering for that; a wildcard admin role is a blast-radius risk if the admin credential is compromised.
+
 ```python
 class RBACAuthorizer:
     ROLE_PERMISSIONS = {
@@ -130,6 +138,10 @@ class RBACAuthorizer:
 ```
 
 ### Attribute-Based Access Control (ABAC)
+
+> **Why (the rationale):** ABAC enables dynamic, context-aware access decisions that static roles cannot express — e.g. "allow access to this document only if the user's tenant matches the document's tenant AND the user's clearance level meets the document's classification AND the request comes from within the allowed IP range."
+> **When to use:** When access decisions depend on combinations of subject, resource, action, and environment attributes that would require an explosion of roles to encode in RBAC.
+> **Nuances & gotchas:** ABAC policy engines add latency per authorization check; complex policy sets are harder to audit and reason about than RBAC — consider whether the added expressivity is worth the operational complexity before adopting.
 
 ```python
 class ABACAuthorizer:
@@ -183,6 +195,10 @@ class ModelAccessControl:
 ## Tenant Isolation
 
 ### Data Isolation Patterns
+
+> **Why (the rationale):** In a shared-infrastructure multi-tenant system, a single missing filter at any data access point is a cross-tenant data breach; isolation must be enforced at the database query level, not post-retrieval.
+> **When to use:** Any system where multiple customers share the same vector store, cache, or LLM pipeline; tenant_id must be a mandatory filter at every data access point, not an optional parameter.
+> **Nuances & gotchas:** Post-retrieval filtering (retrieve all results, then filter by tenant) is a critical mistake — the data has already been fetched into memory and could be exposed through logs, error messages, or prompt context before the filter runs; always push the tenant_id filter to the database query itself.
 
 ```python
 class TenantIsolatedVectorStore:
@@ -268,6 +284,10 @@ class TenantIsolatedCache:
 
 ### Key Lifecycle
 
+> **Why (the rationale):** API keys are long-lived credentials that must be rotatable, revocable, and scope-limited; managing them well limits the damage window when a key is leaked and enables least-privilege access patterns.
+> **When to use:** Issue scoped keys (not omnipotent keys) from day one; build rotation and revocation into the system before launch, not as an afterthought after the first credential leak incident.
+> **Nuances & gotchas:** Key rotation without a grace period causes authentication outages for clients that have not yet migrated; but a grace period that is too long means the old (potentially compromised) key is active for days — 7 days is a common balance; audit every key operation (create, revoke, rotate) for forensic traceability.
+
 ```python
 class APIKeyManager:
     KEY_PREFIX = "llm_"
@@ -352,6 +372,10 @@ class KeyRotator:
 ## Audit and Compliance
 
 ### Audit Logging
+
+> **Why (the rationale):** LLM systems process sensitive queries and access controlled documents; an audit trail is required for regulatory compliance (SOC 2, HIPAA, GDPR) and is essential for forensic investigation after a security incident.
+> **When to use:** Log every LLM request with user, tenant, model, token counts, cost, and hashed content from the first production deployment; never log raw prompt/response content unless strictly necessary (PII risk in logs).
+> **Nuances & gotchas:** Hashing content for privacy means you cannot reconstruct what was said — if you ever need to investigate a specific response, you need a separate controlled audit store with full content under strict access controls; audit log integrity must be protected (append-only, tamper-evident) so it cannot be deleted after an incident.
 
 ```python
 class AuditLogger:

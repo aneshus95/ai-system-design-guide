@@ -24,6 +24,10 @@ This chapter covers how LLMs generate text at inference time, the computational 
 
 LLMs generate text autoregressively: one token at a time, using all previous tokens as context.
 
+> **Why (the rationale):** Language is inherently sequential — the next word depends on all previous words; autoregressive generation models this dependency directly by conditioning each prediction on the full prior context, enabling coherent long-form text without any post-hoc fixing.
+> **When to use / when it matters:** The autoregressive constraint is the fundamental reason generation is sequential and cannot be parallelized (unlike prefill); it drives the TTFT vs. TPS distinction, the KV cache design, and the appeal of speculative decoding to amortize this cost.
+> **Nuances & gotchas:** Autoregressive generation has no backtracking — each token choice is permanent; errors early in generation propagate forward, which is why beam search, temperature, and top-p settings matter; the model does NOT "know" how long its response will be when it starts generating.
+
 ```
 Input: "The quick brown"
 Step 1: Generate "fox" -> "The quick brown fox"
@@ -64,6 +68,10 @@ Inference has two distinct phases with different characteristics:
 
 Processes the entire input prompt in parallel.
 
+> **Why (the rationale):** All prompt tokens are already known before generation starts, so they can be processed as a batch with full parallelism — each position computes attention over all other positions simultaneously; this produces the initial KV cache that all decode steps will reuse.
+> **When to use / when it matters:** Prefill compute scales with prompt length and determines TTFT; long system prompts, large retrieved contexts (RAG), or few-shot examples all increase prefill time and therefore user-perceived latency before any output appears.
+> **Nuances & gotchas:** Prefill is compute-bound (GPU cores are the bottleneck), so throwing more memory bandwidth at it does not help; the only ways to reduce TTFT are shorter prompts, faster GPUs, or prefix caching for repeated prompt prefixes; prefill does NOT benefit from GQA (GQA only reduces KV cache storage, which matters in decode).
+
 ```
 Input: "The quick brown fox" (4 tokens)
 
@@ -83,6 +91,10 @@ Prefill:
 ### Decode Phase
 
 Generates one token at a time.
+
+> **Why (the rationale):** Each new token depends on all previous tokens (including just-generated ones), so generation must proceed step by step; on each step only the new token's Q/K/V projections are computed, while all previous tokens' K/V are read from the KV cache — this is why the KV cache exists.
+> **When to use / when it matters:** Decode is memory-bandwidth-bound (loading the KV cache from HBM dominates), so optimization focuses on reducing cache size (GQA) and increasing batch size (to amortize bandwidth cost across more requests simultaneously).
+> **Nuances & gotchas:** Decode throughput (TPS) is largely determined by GPU memory bandwidth, not raw FLOP count — a faster GPU with the same memory bandwidth will NOT improve TPS significantly; batching multiple requests together is the primary lever because it reads the same model weights once while generating tokens for many users simultaneously.
 
 ```
 Decode step 1:
@@ -121,6 +133,10 @@ Decode step 2:
 ## Sampling Strategies
 
 After computing logits, we need to select the next token. Different strategies produce different outputs.
+
+> **Why (the rationale):** The model outputs a probability distribution over the entire vocabulary; how you sample from that distribution is a design choice that trades off determinism, diversity, and quality — no single strategy is universally best.
+> **When to use / when it matters:** Sampling strategy selection is a product decision as much as a technical one; wrong settings (e.g., high temperature for structured JSON output) cause malformed responses that break downstream parsing; default API settings are often reasonable but should be tuned per use case.
+> **Nuances & gotchas:** Temperature and top-p are applied *before* the token is sampled, so they interact — temperature reshapes the distribution, top-p then truncates it; setting temperature=0 makes generation deterministic (greedy) regardless of top-p; NOT all model APIs implement these parameters identically.
 
 ### Greedy Decoding
 
@@ -261,6 +277,10 @@ for seq in stop_sequences:
 **The current standard for high-bandwidth serving.**
 
 Speculative decoding uses a smaller "draft model" to predict multiple future tokens in a single step, which the larger "target model" then verifies in parallel.
+
+> **Why (the rationale):** Decode is bottlenecked by the sequential one-token-per-step constraint and by HBM bandwidth; speculative decoding breaks this by generating k candidate tokens with a cheap draft model and verifying all k in *one* large-model forward pass — if the large model agrees, you get k tokens for the cost of approximately one.
+> **When to use / when it matters:** Most beneficial when output token distribution is predictable (code, structured text, repetitive patterns) and when there is headroom in GPU compute vs. memory bandwidth; less effective for highly creative/unpredictable generation where the draft is rejected frequently.
+> **Nuances & gotchas:** Speculative decoding produces *identical output distribution* to non-speculative decoding when the rejection sampling is done correctly — it is NOT an approximation; if the draft model is too slow or too often rejected, speculative decoding can be *slower* than baseline; the speedup depends heavily on the acceptance rate, which varies significantly by task and domain.
 
 ```
 Draft Model (Small): Predicts 5 tokens -> "The", "quick", "brown", "fox", "jumps"
@@ -454,6 +474,10 @@ responses = model.generate_batch(batch)
 **Continuous Batching (Iteration-level Scheduling):**
 Unlike static batching, continuous batching injects new requests as soon as any request in the batch hits an EOS token. This increases throughput by up to 20x.
 
+> **Why (the rationale):** Static batching waits for the *longest* request in a batch to finish before admitting new work, leaving GPU idle after shorter requests complete; continuous batching reclaims that idle capacity immediately by inserting new requests at the token level, dramatically improving GPU utilization.
+> **When to use / when it matters:** Continuous batching is the default in all modern serving frameworks (vLLM, TGI) and is critical when request lengths vary widely; a system using static batching with mixed short and long requests will have poor GPU utilization and significantly lower throughput.
+> **Nuances & gotchas:** Continuous batching increases throughput but NOT per-request latency — short requests finish faster, but long requests in the same batch may experience higher latency due to GPU sharing with incoming requests; PagedAttention is typically required alongside continuous batching to handle the variable KV cache sizes efficiently.
+
 **Prefix Caching (RAD-O):**
 Caches the KV tensors of common prefixes (e.g., system prompts, few-shot examples).
 - **TTFT Reduction**: 90%
@@ -463,6 +487,10 @@ Caches the KV tensors of common prefixes (e.g., system prompts, few-shot example
 
 **Scenario:** Serving 1000 different fine-tuned models (adapters) on one base model.
 **The Challenge:** Loading 1000 separate models would take terabytes of VRAM.
+
+> **Why (the rationale):** Fine-tuning produces specialized variants of a base model; serving each variant as a separate full model copy would multiply VRAM requirements by the number of variants; LoRA adapters (~10–100 MB each) applied to one shared base model make multi-tenant fine-tuned serving practical.
+> **When to use / when it matters:** Directly relevant to SaaS platforms that offer per-customer fine-tuned models, A/B testing of model variants, or prompt-specific adapter specialization; without Multi-LoRA, each variant requires its own GPU allocation.
+> **Nuances & gotchas:** LoRA adapter swapping adds latency — fetching adapters from host RAM or SSD during the forward pass is slower than VRAM access; S-LoRA batches different adapters in the same forward pass using specialized CUDA kernels, but this only works when the base model is identical for all adapters in the batch; adapters cannot be mixed within a single request.
 
 **The Solution (LoRAX / S-LoRA):**
 1. Load one base model in VRAM.

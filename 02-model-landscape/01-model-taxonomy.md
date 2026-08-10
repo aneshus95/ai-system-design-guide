@@ -30,6 +30,10 @@ This chapter provides a comprehensive guide to the model landscape as of **June 
 
 ### By Capability Level (April 2026 Reality)
 
+> **Why (the rationale):** Tiering models by capability lets you match compute cost to task difficulty — routing simple classification to a $0.10/M model and complex reasoning to a $5/M model can cut spend by 60–80% with no quality loss on easy queries.
+> **When to use:** Apply this taxonomy at the routing layer: classify each incoming query first, then dispatch to the appropriate tier rather than always calling the frontier model.
+> **Nuances & gotchas:** Tier labels shift every few months as new releases redefine what "frontier" means; a model that was frontier six months ago may now sit in the "battle-tested" tier at half the price — re-evaluate your routing thresholds after major releases.
+
 | Tier | Characteristics | Examples | Use Case |
 |------|-----------------|----------|----------|
 | **Frontier** | State-of-the-art reasoning, agentic mastery | Claude Fable 5, Claude Opus 4.8, GPT-5.5, Gemini 3.1 Pro, Grok 4.3 | Complex reasoning, coding, production agents |
@@ -39,6 +43,10 @@ This chapter provides a comprehensive guide to the model landscape as of **June 
 | **Reasoning-Heavy** | Extended internal CoT | Claude Opus 4.8 (thinking), GPT-5.5 reasoning, Gemini 3.1 Pro Deep Think, DeepSeek-R1 | Math, code debug, multi-step logic |
 
 ### By Reasoning Mode (2025–2026)
+
+> **Why (the rationale):** Extended thinking improves accuracy on hard problems by letting the model self-correct before outputting, but it adds latency and bills you for internal tokens; knowing which mode a task warrants prevents paying 10× for tasks that don't need it.
+> **When to use:** Use Standard for quick factual lookups or structured extraction; Extended Thinking for multi-step math, code debugging, or planning; Hybrid when query difficulty is unpredictable and you want to gate thinking cost at runtime.
+> **Nuances & gotchas:** Thinking tokens are billed even when not shown to the user — always set a `budget_tokens` cap in production; "over-thinking" simple queries (a model spending 2000 tokens to answer "What is 2+2?") is a real cost leak to monitor.
 
 | Mode | Capability | Models | Use Case |
 |------|------------|--------|----------|
@@ -63,6 +71,10 @@ This chapter provides a comprehensive guide to the model landscape as of **June 
 | Multimodal | Text + Vision (new state of the art on vision tasks per Anthropic) |
 | Benchmarks | State of the art on nearly all tested benchmarks per Anthropic; highest frontier score on Cognition's FrontierCode, highest on the Hebbia Finance Benchmark, ViBench, and CursorBench. Standard numeric scores (SWE-bench, GPQA) were not published in the launch post. |
 | Released | June 9, 2026 (GA on Claude API, Claude Platform on AWS, Amazon Bedrock, Vertex AI, Microsoft Foundry) |
+
+> **Why (the rationale):** Fable 5 makes Mythos-class capability (previously restricted to ~11 vetted partners) available to all developers by pairing it with conservative output safeguards — solving the "I need the best reasoning but can't get partner access" problem.
+> **When to use:** Route only your hardest, ceiling-bound tasks here — long-horizon agentic work, complex vision analysis, or tasks where capability matters more than unit cost; at 2× Opus 4.8 pricing ($10/$50), sending routine queries is wasteful.
+> **Nuances & gotchas:** Under 5% of sessions silently fall back to Opus 4.8 on sensitive topics and the 30-day data retention requirement may trigger compliance review; there is no Fable-tier fast mode or published batch/cache discount at launch — verify the pricing page before committing.
 
 **What it is:** A Mythos-class model made safe for general availability. Until now the Mythos line (SWE-bench Verified 93.9% on Mythos Preview) was restricted to ~11 Project Glasswing partners over dual-use cybersecurity concerns. Fable 5 brings that capability tier to everyone by pairing it with conservative safeguards.
 
@@ -105,6 +117,10 @@ This chapter provides a comprehensive guide to the model landscape as of **June 
 | OSWorld-Verified | 82.3% |
 | Online-Mind2Web | 84% |
 | Released | May 28, 2026 (GA on Claude API, AWS Bedrock, Vertex AI) |
+
+> **Why (the rationale):** Opus 4.8 closes the gap with Fable 5 on most coding and agentic tasks at half the price, while adding Dynamic Workflows that can run hundreds of parallel subagents in a single session — a step-change for codebase-scale work.
+> **When to use:** Prefer Opus 4.8 over Fable 5 when your workload is coding- or agent-heavy and you are cost-sensitive; upgrade to Fable 5 only when raw capability ceiling is the constraint.
+> **Nuances & gotchas:** GPT-5.5 still leads SWE-bench Verified (88.7% vs 88.6%) and Terminal-Bench 2.1 — evaluate on your own task, not just published rankings; the Opus 4.7 tokenizer change means token counts for the same text are ~30% higher than pre-4.7 models, so cached cost comparisons are not directly comparable.
 
 **Best for:** Long-running autonomous coding work in Claude Code, codebase-scale migrations, agentic workflows that need parallel subagents, and workloads where the alignment and honesty gains matter.
 
@@ -375,6 +391,10 @@ While frontier models lead on benchmarks, many enterprise systems rely on **batt
 
 ## Open Source Models
 
+> **Why (the rationale):** Open-weight models eliminate per-token API fees and keep data on-prem; with Llama 4 Maverick and DeepSeek V4 Pro now matching GPT-4o-class quality, the capability-vs-sovereignty tradeoff has narrowed dramatically compared to 2024.
+> **When to use:** Choose open weights when volume exceeds ~500K requests/month (API costs dominate), data residency rules bar external API calls, or you need full fine-tuning control; stay on API when you need frontier-tier quality or lack GPU ops expertise.
+> **Nuances & gotchas:** Self-hosting adds engineering overhead (GPU procurement, model updates, observability) that can exceed API savings at moderate scale — always do a full TCO comparison including 0.5–1.0 FTE engineering cost before committing.
+
 ### Llama 4 Family (Meta) -- NEW April 2026
 
 | Model | Parameters | Context | Architecture | Notes |
@@ -399,6 +419,10 @@ While frontier models lead on benchmarks, many enterprise systems rely on **batt
 **Note:** Llama 3.x remains widely used in production, but Llama 4 Scout/Maverick offer superior performance with lower active parameter counts thanks to MoE.
 
 ### DeepSeek Family
+
+> **Why (the rationale):** DeepSeek V4 Pro/Flash offers frontier-class 1M-context API access at roughly 10× cheaper than Claude Opus ($0.435/$0.87 vs $5/$25 per 1M), with a near-98% cache-hit discount that makes it the dominant choice for high-volume RAG at scale.
+> **When to use:** Use V4 Flash for high-volume classification, summarization, and RAG where prompts are cache-friendly; use V4 Pro when you need stronger reasoning at still-low cost; keep a US-based frontier model available for tasks with data-sovereignty or export-control constraints.
+> **Nuances & gotchas:** DeepSeek is a Chinese company — US export controls and enterprise data policies may prohibit sending data to their API; NIST's CAISI evaluation placed V4 ~8 months behind US frontier on overall capability, so verify on your specific task before assuming parity.
 
 | Model | Parameters | Context | Status | Notes |
 |-------|------------|---------|--------|-------|
@@ -516,6 +540,10 @@ While frontier models lead on benchmarks, many enterprise systems rely on **batt
 
 ## Embedding Models
 
+> **Why (the rationale):** Embedding models convert text into vectors that enable semantic search, clustering, and similarity comparison — the retrieval backbone of every RAG system; choosing the wrong embedding model degrades retrieval quality regardless of how good your generation model is.
+> **When to use:** Pick embedding models based on your domain: multilingual corpus → Cohere embed-v3; maximum MTEB score → Voyage-3 or GTE-Qwen2-7B; cost-sensitive at scale → text-embedding-3-small at $0.02/M; self-hosted with no data-sharing → GTE-Qwen2-7B (open weights).
+> **Nuances & gotchas:** MTEB scores aggregate across many task types — a model leading on MTEB may underperform on your specific domain; always re-embed and re-evaluate when you change embedding models, since stored vectors from a different model are incompatible.
+
 ### API Embedding Models (May 2026)
 
 | Model | Dimensions | Max Tokens | MTEB Score | Cost/1M |
@@ -549,6 +577,10 @@ While frontier models lead on benchmarks, many enterprise systems rely on **batt
 
 ## Model Selection Framework
 
+> **Why (the rationale):** A structured decision tree prevents "default to the most expensive model" — the most common and costly mistake — by forcing explicit evaluation of constraints before model selection.
+> **When to use:** Run through this tree at project start, at major traffic-scale milestones, and after each significant model release cycle; skip it only for throwaway prototypes.
+> **Nuances & gotchas:** Benchmark scores don't predict your task performance — always eval on your own data before committing to a model for production; bigger models aren't always better — a small model plus good retrieval often beats a frontier model on cost and latency for narrow, well-defined tasks.
+
 ### Decision Tree
 
 ```
@@ -577,6 +609,10 @@ What is your primary constraint?
 
 ### Semantic Routing
 
+> **Why (the rationale):** Hard-coded routing rules become stale as query distributions shift; semantic routing classifies queries by meaning using a cheap embedding model, automatically learning which query clusters need which model tier without manual rule maintenance.
+> **When to use:** Adopt semantic routing once you have enough production traffic to identify query clusters (typically 10K+ logged requests) and when the cost delta between tiers justifies the routing overhead.
+> **Nuances & gotchas:** The routing classifier itself adds latency (10–30ms for an embedding call) and can mis-classify ambiguous queries — misrouting hard queries to a cheap model silently degrades quality, so monitor quality metrics per route, not just aggregate scores.
+
 Static decision trees are being replaced by **Semantic Routers**:
 - **How it works**: A small, fast embedding model vectorises the query. If it matches a "known easy" cluster, route to a cheap model (Gemini 3.1 Flash, DeepSeek V4 Flash, Claude Haiku 4.5). If it hits an "agentic/logic" cluster, route to Claude Opus 4.8 or GPT-5.5 with reasoning.
 - **Benefit**: Automates cost-optimization without hardcoded rules.
@@ -585,6 +621,10 @@ Static decision trees are being replaced by **Semantic Routers**:
 ---
 
 ## Sovereign AI and Data Residency
+
+> **Why (the rationale):** GDPR, DPDPA, and sector-specific regulations prohibit sending personal or regulated data to providers in unapproved jurisdictions — ignoring this exposes companies to fines and loss of operating licenses in affected markets.
+> **When to use:** Sovereign deployment is required whenever personal data of EU residents, government data, or data classified under ITAR/export controls is processed; for purely internal or anonymized data, standard global regions are usually acceptable.
+> **Nuances & gotchas:** Sovereign clouds carry a 20–30% cost premium over standard regions and have lower capacity ceilings — factor this into TCO projections; "self-hosted open weights" achieves sovereignty but shifts operational burden entirely to your team, which is only viable with dedicated ML infrastructure staff.
 
 **The 2026 Regulatory Reality:**
 Enterprises must comply with GDPR (EU), DPDPA (India), Saudi Arabia PDPL, and sectoral rules. "Sovereign AI" is now a product category.

@@ -83,6 +83,10 @@ Key rule: **the test set must never influence any preprocessing or tuning decisi
 
 ## Bias-Variance Tradeoff <a name="bias-variance"></a>
 
+> **Why (the rationale):** Every model must balance being too simple (misses the real signal) against being too complex (fits noise); understanding this tradeoff is the foundation for choosing regularization, model complexity, and ensemble strategy.
+> **When to use:** Apply this lens whenever training error and validation error diverge — high gap = overfitting (high variance); both plateau high = underfitting (high bias).
+> **Nuances & gotchas:** Reducing one often increases the other; you can only escape the tradeoff by getting more data (reduces variance without raising bias). Ensemble methods (bagging/boosting) partially break the tradeoff but do not eliminate it.
+
 **Total error = Bias² + Variance + Irreducible noise**
 
 | Term | What it means | Cause |
@@ -123,6 +127,10 @@ Error
 
 ## Regularization — L1, L2, ElasticNet <a name="regularization"></a>
 
+> **Why (the rationale):** Unconstrained models on limited data overfit by assigning large weights to noise; regularization introduces a controlled bias to dramatically reduce variance, improving generalization.
+> **When to use:** Any time the model has more parameters than strictly needed, features are correlated, or validation error diverges from training error. L1 when you want sparse/interpretable models; L2 when features are correlated and you want stability.
+> **Nuances & gotchas:** λ must be tuned — too high underfits. L1 can drop genuinely useful correlated features arbitrarily. ElasticNet is not always better: it adds two hyperparameters and may not outperform either alone if the simpler case applies.
+
 Regularization adds a penalty to the loss function to constrain coefficient magnitude, trading a small increase in bias for a large decrease in variance.
 
 | Method | Penalty added to loss | Effect on weights | Use case |
@@ -155,6 +163,10 @@ Regularization adds a penalty to the loss function to constrain coefficient magn
 ---
 
 ## Linear Regression <a name="linear-regression"></a>
+
+> **Why (the rationale):** Provides the simplest continuous-output model whose coefficients are directly interpretable as per-unit effect sizes — the baseline every regression problem should start with.
+> **When to use:** When the relationship between features and target is approximately linear, features are reasonably independent, residuals are roughly normal and homoscedastic, and interpretability matters.
+> **Nuances & gotchas:** Assumes linearity, independence, normality, and homoscedasticity (LINE); violations bias estimates or inflate standard errors. Highly sensitive to outliers (MSE loss squares them) and multicollinearity (correlated features make individual coefficients unstable and uninterpretable — check VIF). Adding features always raises R² even if useless; use Adjusted R² for model comparison.
 
 **In plain English:** draw the **straight line (or flat plane) that sits as close as possible to all the points**, then read predictions off that line. Each feature gets a slope that says "how much does the outcome move when I nudge this feature."
 
@@ -205,6 +217,10 @@ Violations → biased or inefficient estimates. Fixes: log/Box-Cox transform, ad
 
 ## Logistic Regression <a name="logistic-regression"></a>
 
+> **Why (the rationale):** Extends linear regression to binary classification by mapping scores to calibrated probabilities via the sigmoid; coefficients remain interpretable as log-odds (exponentiate for odds ratios).
+> **When to use:** Binary classification baseline; when you need well-calibrated probabilities, fast inference, or regulatory interpretability (credit, medicine). Excellent on high-dimensional sparse data (text/CTR) where simpler beats complex.
+> **Nuances & gotchas:** Assumes a linear decision boundary in feature space — fails on non-linear patterns without manual feature engineering. Sensitive to outliers and multicollinearity like linear regression. Odds ratio ≠ probability change; an odds ratio of 2 doubles the odds but the probability change depends on where you are on the S-curve — a classic interview trap.
+
 **In plain English:** it's linear regression bent through an **S-curve (sigmoid)** so the output is squeezed into a **probability between 0 and 1**. The straight-line part scores how strongly the evidence points to class 1; the S-curve turns that score into "% chance."
 
 **Model:** P(y=1|x) = σ(wᵀx + b) where σ(z) = 1/(1+e⁻ᶻ) (sigmoid)  
@@ -225,6 +241,10 @@ Despite the name, logistic regression is a **classification** algorithm. It is l
 
 ## Decision Trees <a name="decision-trees"></a>
 
+> **Why (the rationale):** Provides a fully interpretable, rule-based model that handles mixed data types, non-linear relationships, and interactions without any feature scaling.
+> **When to use:** When interpretability is paramount (regulatory review, explaining individual decisions), data is mixed-type tabular, or as the base learner in ensembles.
+> **Nuances & gotchas:** Single trees have very high variance — a small change in training data can produce a completely different tree. Prone to overfitting without pruning or depth limits. Gini and entropy splits are biased toward high-cardinality features. Trees cannot extrapolate beyond the range of training data (predict the max seen value for out-of-range inputs).
+
 **Idea:** Recursively split the feature space using axis-aligned cuts that maximise "purity" of the resulting child nodes.
 
 **Split criteria:**
@@ -244,6 +264,10 @@ Despite the name, logistic regression is a **classification** algorithm. It is l
 ---
 
 ## Random Forests — Bagging <a name="random-forests"></a>
+
+> **Why (the rationale):** Fixes the high-variance weakness of single decision trees by averaging many decorrelated trees — variance shrinks while bias stays low, giving strong out-of-the-box performance on tabular data.
+> **When to use:** Strong default for tabular/structured data when you want accuracy without heavy tuning; noisy datasets; when you need OOB validation without a held-out set; when a single tree overfits badly.
+> **Nuances & gotchas:** Less interpretable than a single tree (need SHAP or permutation importance). Built-in feature importance is biased toward high-cardinality continuous features. Slower to predict than a single model (must score all trees). Does not extrapolate beyond training data range. Cannot beat gradient boosting on clean data with enough tuning effort.
 
 **In plain English:** instead of trusting one opinionated decision tree, **ask hundreds of slightly different trees and take a vote**. Each tree sees a different random slice of the data and features, so their individual mistakes cancel out — wisdom of the crowd.
 
@@ -267,6 +291,10 @@ Training data
 ---
 
 ## Gradient Boosting & XGBoost — Boosting <a name="gradient-boosting"></a>
+
+> **Why (the rationale):** Sequentially reduces bias by fitting each new tree to the residuals of the current ensemble — produces state-of-the-art accuracy on tabular data, dominating Kaggle and production ML for structured problems.
+> **When to use:** Clean, well-labeled tabular data where accuracy matters most; churn/fraud/CTR/credit scoring; when you have time to tune hyperparameters. XGBoost/LightGBM is the near-universal choice over vanilla GBM.
+> **Nuances & gotchas:** Sensitive to noisy labels (boosting amplifies mislabeled examples). More prone to overfitting than random forest if `n_estimators` is too high without regularization. Sequential training is harder to parallelize (though split-finding within each tree is parallelized in XGBoost). Learning rate and `n_estimators` must be co-tuned — low LR needs more trees. Requires more hyperparameter effort than Random Forest for comparable results.
 
 **In plain English:** build trees **one after another, where each new tree focuses on fixing the mistakes the previous ones made**. It's like a student reviewing only the questions they got wrong on each pass — slowly grinding the error down. (Random forest builds trees *in parallel and votes*; boosting builds them *in sequence to correct*.)
 
@@ -306,6 +334,10 @@ For m = 1 to M:
 
 ## Support Vector Machines <a name="svm"></a>
 
+> **Why (the rationale):** Finds the maximum-margin boundary which provably generalizes better in high-dimensional spaces; the kernel trick lets it learn non-linear boundaries without explicitly computing high-dimensional feature maps.
+> **When to use:** High-dimensional, low-sample-count problems (text classification, bioinformatics); when the feature space is large relative to training data; when a clear margin separates classes. RBF kernel for general non-linear tasks.
+> **Nuances & gotchas:** Does not scale well — training is O(n²) to O(n³) in the number of samples; impractical for n > ~100k. Must scale features (distance-based). Probability outputs require Platt scaling (expensive). C and kernel hyperparameters need careful tuning. Output is scores, not probabilities by default. Largely replaced by gradient boosting on tabular data and deep learning on images/text.
+
 **In plain English:** find the **widest possible "street" between the two classes** and put the boundary down the middle. Only the points right on the curb (the **support vectors**) matter — everything else is ignored. A wider street generalizes better.
 
 **Goal:** Find the hyperplane that maximises the **margin** (gap) between the two classes.
@@ -335,6 +367,10 @@ For m = 1 to M:
 
 ## K-Nearest Neighbours <a name="knn"></a>
 
+> **Why (the rationale):** A non-parametric, instance-based learner requiring no training phase — makes predictions purely from the local neighborhood, capturing complex decision boundaries without any assumptions about the data distribution.
+> **When to use:** Small datasets; when the decision boundary is complex and local; as a quick sanity-check baseline; in recommendation systems (item-to-item similarity). Small K for complex boundaries, larger K for smoother ones.
+> **Nuances & gotchas:** All computation is at inference time (O(n) per query unless using ANN index) — too slow for large datasets. Must scale features — unscaled features dominate distance. Curse of dimensionality hits hard: in high dimensions all points become nearly equidistant, breaking the "nearest" concept. K must be tuned; even K avoids ties.
+
 **In plain English:** *"you are the company you keep."* To classify a new point, **look at the K closest known points and copy the majority** — no training, no equation, just "what are my neighbours?"
 
 **Idea:** To classify a new point, find its K nearest training points (by Euclidean / cosine distance) and return the majority class (or mean for regression).
@@ -348,6 +384,10 @@ For m = 1 to M:
 ---
 
 ## Naive Bayes <a name="naive-bayes"></a>
+
+> **Why (the rationale):** Extremely fast generative classifier that performs well with small labeled data because the conditional independence assumption acts as a strong regularizer — often the right first model for text classification.
+> **When to use:** Text/spam classification with bag-of-words features; when you have very little labeled data; real-time classification where inference speed is critical; multi-class problems with many features.
+> **Nuances & gotchas:** The independence assumption almost never holds (words in a sentence are correlated) yet the classifier is shockingly robust to it. Calibrated probabilities are poor — NB tends to push probabilities toward 0 and 1. Zero-frequency problem: if a feature value never appears in training for a class, the probability collapses to 0 — fix with Laplace (add-1) smoothing. With large data, logistic regression usually outperforms it.
 
 **In plain English:** for each class, ask *"how typical are these feature values for this class?"*, **multiply those likelihoods together**, and pick the class with the highest score. "Naive" = it pretends the features are independent (e.g. treats each word in an email separately), which is wrong but works shockingly well for text.
 
@@ -368,6 +408,10 @@ P(y|x₁,…,xₙ) ∝ P(y) · Π P(xᵢ|y)
 
 ## K-Means Clustering <a name="k-means"></a>
 
+> **Why (the rationale):** The simplest and most scalable unsupervised partitioning algorithm — assigns each point to its nearest centroid and iterates to convergence, enabling customer segmentation, data compression, and anomaly detection without labels.
+> **When to use:** When you expect roughly spherical, similarly-sized clusters; as a fast baseline before more complex clustering (DBSCAN, GMM); for quantizing embeddings or initializing EM.
+> **Nuances & gotchas:** K must be specified in advance (use elbow plot or silhouette score). Sensitive to initialization — always use k-means++ (the default in sklearn). Assumes spherical, similarly-sized clusters — fails on elongated, unequal-density, or non-convex shapes. Sensitive to outliers (outliers pull centroids). Non-deterministic: run multiple times and pick the best. Distances are meaningless without feature scaling.
+
 **In plain English:** drop **K flags** on the map, let every point join its nearest flag, then **move each flag to the center of its crowd**, and repeat until the flags stop moving. You end up with K groups, each represented by its center point.
 
 **Algorithm:**
@@ -383,6 +427,10 @@ P(y|x₁,…,xₙ) ∝ P(y) · Π P(xᵢ|y)
 ---
 
 ## PCA & Dimensionality Reduction <a name="pca"></a>
+
+> **Why (the rationale):** Reduces feature dimensionality to combat the curse of dimensionality, remove noise, and speed up downstream models — by projecting data onto the directions of maximum variance.
+> **When to use:** High-dimensional numeric features with correlated predictors; preprocessing for algorithms sensitive to dimensionality (KNN, SVM); visualization (t-SNE/UMAP for 2D/3D); removing multicollinearity before linear regression.
+> **Nuances & gotchas:** PCA maximizes variance, not predictive power — the most informative direction for predicting a label may be a low-variance direction that PCA discards (use supervised LDA instead). Components are linear combinations of features and lose interpretability. Must standardize features first — PCA is scale-sensitive. t-SNE/UMAP are for visualization only; using them for modeling is a mistake because they don't preserve global structure reliably and distances are distorted.
 
 **In plain English:** **rotate the data to the angle where it's most spread out**, then keep only those few "most informative" directions and throw away the rest. Like photographing a 3-D object from the angle that shows the most detail, then working with the flat photo — you lose a little, but keep the essentials in far fewer numbers.
 
@@ -424,6 +472,10 @@ As the number of features grows, the volume of the feature space grows exponenti
 ---
 
 ## Cross-Validation <a name="cross-validation"></a>
+
+> **Why (the rationale):** A single train/val split produces a noisy performance estimate that depends on which samples happened to land in each partition; CV averages over many splits for a more reliable, lower-variance estimate.
+> **When to use:** Every time you select features, tune hyperparameters, or compare models on limited data. Use Stratified k-Fold for imbalanced classes; time-series split for temporal data; grouped k-Fold when rows from the same entity must stay together.
+> **Nuances & gotchas:** The golden rule: fit all preprocessing (scalers, imputers, encoders, feature selectors) inside each training fold — never on the full dataset. Leaking the validation set into preprocessing makes CV estimates optimistically biased. Nested CV is required when tuning hyperparameters inside the CV loop to avoid optimistic bias on the outer estimate. k=5 or 10 is standard; LOO is rarely worth the cost except for tiny datasets.
 
 **Why?** A single train/val split has high variance — the split you happened to pick affects results. CV averages over many splits for a more reliable estimate.
 

@@ -52,6 +52,10 @@ Sources: [CRISP-DM](https://www.datascience-pm.com/crisp-dm-2/) · [Microsoft TD
 
 ## Stage 1 — Problem Framing
 
+> **Why (the rationale):** The most common cause of failed ML projects is solving the wrong problem — optimizing the ML metric while the business needle doesn't move, or applying ML where a rule/SQL query would suffice. Getting the framing right is worth more than any modeling choice downstream.
+> **When to use:** Before touching any data. Spend disproportionate time here — a clearly framed problem with a trusted label and a business-metric link will succeed even with a mediocre model; a poorly framed problem with a perfect model ships useless.
+> **Nuances & gotchas:** The proxy label is almost never the true business metric — "video shared" ≠ "video is good." Defining a label that leaks the outcome (e.g., including post-event data) is the most dangerous and most common mistake. Frame the task type carefully: classification fixes thresholds into the model; regression leaves them flexible but requires the model to know your product threshold.
+
 **The intuition:** before *any* data, turn a fuzzy business goal into a crisp, measurable ML problem — and check ML is even the right hammer.
 
 - **Is ML the right tool at all?** If a rule, heuristic, or SQL query solves it, **don't use ML**. ML earns its cost only when the pattern is complex, changing, and hard to hand-code. ([Google — ML framing](https://developers.google.com/machine-learning/problem-framing/ml-framing))
@@ -65,6 +69,10 @@ Sources: [CRISP-DM](https://www.datascience-pm.com/crisp-dm-2/) · [Microsoft TD
 ---
 
 ## Stage 2 — Data Collection & Understanding
+
+> **Why (the rationale):** "Garbage in, garbage out" — no model can overcome data that is unrepresentative, mislabeled, or improperly split; how you collect and split data determines whether your offline metrics can be trusted.
+> **When to use:** Every project. The most critical decision here is the split strategy: temporal splits for time-ordered data, grouped splits for correlated rows (same user/patient). A random split on temporal data leaks the future and inflates every metric.
+> **Nuances & gotchas:** Data leakage is the unifying danger at this stage: target leakage (feature encodes the answer), temporal leakage (future data used as a predictor), and preprocessing leakage (fitting scalers on the whole dataset before splitting). The symptom of all three is validation scores that look suspiciously good and collapse in production. Labeling cost is usually the true feasibility constraint, not model complexity.
 
 **The intuition:** get the data that can actually answer the question — and set up the splits so you don't fool yourself later.
 
@@ -100,6 +108,10 @@ Sources: [Data leakage (scikit-learn common pitfalls)](https://scikit-learn.org/
 
 ## Stage 4 — Data Prep & Feature Engineering
 
+> **Why (the rationale):** Features are the model's view of the world — the right engineered feature (a ratio, a time-since-event, a rolling aggregate) often provides more lift than switching from logistic regression to a deep network. This stage is where domain expertise creates the most leverage.
+> **When to use:** Every project. Feature engineering is not optional — even tree-based models that handle raw features benefit from domain-informed transformations. Good features shrink the search space for modeling and make models more interpretable.
+> **Nuances & gotchas:** The leakage rule must be enforced here: fit every transformer (imputer, scaler, encoder, selector) on the training fold ONLY, then apply to val/test. Fitting on the full dataset before splitting is one of the most common mistakes in practice and produces optimistically biased metrics. Use sklearn Pipelines to make this enforcement mechanical. Training-serving skew — transformations applied differently at serving than training — is the #1 cause of good offline / bad online models.
+
 **The intuition:** models are only as good as their features — and **this stage eats the most time** (surveys range 15–80%; ~45% is the most defensible figure — it's consistently the single largest, least-loved phase).
 
 - **Operations:** cleaning, imputation, encoding (one-hot/target/ordinal), scaling, feature creation, feature selection, dimensionality reduction.
@@ -113,6 +125,10 @@ Sources: [Data leakage (scikit-learn common pitfalls)](https://scikit-learn.org/
 
 ## Stage 5 — Modeling
 
+> **Why (the rationale):** The model converts features into predictions; starting with a baseline (majority-class or linear model) proves the pipeline works, sets a bar to beat, and reveals whether added complexity genuinely helps or just adds engineering cost.
+> **When to use:** After features are prepared and the baseline is in place. Cross-validate inside a pipeline to get an unbiased estimate. Track every experiment — params, metrics, artifacts — so results are reproducible.
+> **Nuances & gotchas:** The classic mistake is tuning on the test set (or a single val split that acts as a de facto test set). Hyperparameter tuning must happen inside the CV loop (nested CV for unbiased estimates). Always use time-aware or group-aware CV when data structure demands it — a random k-Fold on time-series data leaks the future and optimistically inflates all metrics.
+
 **The intuition:** **baseline first, always** — then earn every bit of added complexity.
 
 - **Start with a dumb baseline** (`DummyClassifier` = majority class; or a simple logistic/linear model). It (a) sets the bar a complex model must beat, (b) proves the end-to-end pipeline works, (c) reveals whether complexity actually helps. A fancy model that barely beats "predict the mean" is a red flag.
@@ -125,6 +141,10 @@ Sources: [Data leakage (scikit-learn common pitfalls)](https://scikit-learn.org/
 ---
 
 ## Stage 6 — Evaluation
+
+> **Why (the rationale):** A model that improves the ML metric without moving the business metric is useless; evaluation must verify that (a) the right metric was chosen for the error costs, (b) performance holds across subgroups, and (c) the improvement clears a meaningful bar.
+> **When to use:** After every model training and before any deployment decision. Always slice metrics by subgroup — overall accuracy can hide catastrophic failure on minority segments or protected attributes.
+> **Nuances & gotchas:** Accuracy misleads on imbalanced classes — use precision/recall/F1/PR-AUC. Threshold selection is a separate decision from model selection: don't default to 0.5; pick the operating point from the business cost of each error type. Fairness definitions (demographic parity, equal opportunity, equalized odds) can conflict — a model satisfying one may violate another.
 
 **The intuition:** a single accuracy number is almost never the answer — evaluate against the **business goal**, and look *under* the aggregate.
 

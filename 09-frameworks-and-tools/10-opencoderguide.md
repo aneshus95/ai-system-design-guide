@@ -50,9 +50,17 @@ The coding AI landscape has three distinct layers:
 
 ## Open-Weight Coding Models
 
+> **Why (the rationale):** Open-weight models remove the two blockers that prevent enterprises from using closed API models at scale: data-privacy requirements (no code leaves the network) and per-token cost at high volume.
+> **When to use:** When compliance mandates on-premises execution, when volume exceeds ~500 tasks/day and self-hosting becomes cost-competitive, or when fine-tuning on domain-specific code (internal DSLs, proprietary frameworks) is needed.
+> **Nuances & gotchas:** The quality gap between the best open models (Qwen2.5-Coder-32B) and frontier closed models (Claude Sonnet 4.6) is real but narrowing for completions; for complex multi-file agentic tasks, the gap is still meaningful and should be benchmarked on your specific workload before switching.
+
 These models can be self-hosted, fine-tuned, and deployed without any API dependency.
 
 ### Qwen2.5-Coder (Alibaba)
+
+> **Why (the rationale):** Provides the strongest commercially-licensed open coding model family for self-hosted deployments, from a 1.5B edge model to a 32B model that approaches frontier closed-model quality.
+> **When to use:** Best open choice for general self-hosted coding tasks; 32B for quality-first deployments (needs 2× A100), 7B for cost-sensitive or single-GPU setups, 1.5B for edge/on-device.
+> **Nuances & gotchas:** Apache 2.0 license permits commercial use freely; benchmark on SWE-bench-style tasks for your codebase before assuming HumanEval+ scores translate to agentic task quality — function completion benchmarks overstate agentic ability.
 
 A strong open-source coding model family. As of May 2026, the open-source coding leaders are Qwen 3.6 Coder and DeepSeek V4 Pro; Qwen 2.5 Coder remains a popular pick for self-hosted deployments on smaller hardware:
 
@@ -81,6 +89,10 @@ response = model.generate("def fibonacci(n: int) -> list[int]:")
 
 ### DeepSeek-Coder-V2 (DeepSeek)
 
+> **Why (the rationale):** MoE architecture means only ~21B parameters activate per token from a 236B total model, giving frontier-quality reasoning at significantly lower inference cost than a dense model of equivalent benchmark performance.
+> **When to use:** Competitive programming, algorithmic tasks, or any workload where reasoning depth matters and you have hardware that can run the full model (the Lite at 16B is workable on a single node).
+> **Nuances & gotchas:** Chinese-owned model — some enterprise security policies restrict its use for proprietary code; check your organization's third-party AI policy before deploying.
+
 | Model | Parameters | Architecture | HumanEval+ |
 |-------|------------|-------------|------------|
 | DeepSeek-Coder-V2-Instruct | 236B (MoE) | MoE | 90.2% |
@@ -92,6 +104,10 @@ response = model.generate("def fibonacci(n: int) -> list[int]:")
 - Open weights; strong Chinese language support
 
 ### StarCoder2 (BigCode / Hugging Face)
+
+> **Why (the rationale):** Trained on permissively licensed code with a fully open BigCode OpenRAIL-M license, making it the safest open choice for teams worried about training data IP; optimized for low-latency IDE completions.
+> **When to use:** IDE autocompletion, low-latency self-hosted inference, or teams where the model's training data provenance must be fully auditable.
+> **Nuances & gotchas:** 16K context window is limiting for agentic tasks that require reading entire files; use Qwen2.5-Coder for agentic workflows and StarCoder2 specifically for completion-focused use cases.
 
 | Model | Parameters | Context | Notes |
 |-------|------------|---------|-------|
@@ -136,7 +152,15 @@ Competitive programming / algorithmic?
 
 ## AI-Native IDEs
 
+> **Why (the rationale):** AI-native IDEs embed the agent loop directly in the editing environment, eliminating the context-switching cost of moving between a terminal agent and an editor — developers see the changes as they are applied, enabling faster review and steering.
+> **When to use:** Daily development work where the developer wants to stay in the editing experience, with AI assistance ranging from completions to multi-file agentic edits; contrast with headless agents (Claude Code SDK) for batch/CI use.
+> **Nuances & gotchas:** IDE agents have medium autonomy by design — they require user confirmations for file changes in most modes, so they are not suitable replacements for headless CI agents; choose based on the human-in-loop level your workflow requires.
+
 ### Cursor
+
+> **Why (the rationale):** Cursor's multi-file Composer + predictive Tab completions give the highest-quality interactive AI editing experience among IDE tools, with model flexibility (any frontier model) and a familiar VS Code interface.
+> **When to use:** Frontend/full-stack developers who spend most time in the editor and want the best AI-assisted editing quality; teams willing to pay $20/mo per developer for IDE-level productivity gains.
+> **Nuances & gotchas:** Closed-source — your code is sent to Cursor's servers (Privacy Mode available but worth confirming for regulated industries); the underlying editing model is tightly coupled to Cursor's infrastructure, meaning behavior can change on Cursor releases regardless of the underlying LLM.
 
 **Website:** cursor.sh | **Base:** VS Code fork | **Pricing:** $20/mo Pro
 
@@ -156,6 +180,10 @@ Cursor is the leading AI-native IDE. Key capabilities:
 **Limitations**: Closed-source; your code is sent to Cursor's servers (they offer a Privacy Mode).
 
 ### Windsurf (by Codeium)
+
+> **Why (the rationale):** Windsurf offers a Cursor-comparable experience with a free tier and full model flexibility, lowering the adoption barrier for teams not ready to commit to a paid subscription or to a single model provider.
+> **When to use:** Teams that want AI-native IDE features on a budget, or developers who regularly switch between model providers and want that flexibility without lock-in.
+> **Nuances & gotchas:** The free tier has usage limits that can surprise users mid-session; Flows (deterministic agentic sequences) are Windsurf-specific and not interoperable with other agent frameworks if you later want to migrate workflow logic.
 
 **Website:** codeium.com/windsurf | **Base:** VS Code fork | **Pricing:** Free tier + $15/mo Pro
 
@@ -201,7 +229,15 @@ Antigravity is Google's agentic development platform, the successor to the Gemin
 
 ## Open-Source Coding Agents
 
+> **Why (the rationale):** Open-source agents give teams full control over the execution environment, model choice, and code handling — critical for regulated industries where proprietary SaaS agents cannot process the code.
+> **When to use:** Enterprise security teams requiring auditability; teams wanting to self-host in CI pipelines; developers who want model flexibility without a subscription.
+> **Nuances & gotchas:** Open-source agents typically score 10-15% below Claude Code on SWE-bench Verified with the same model backend, because Claude Code's agent loop has been more extensively tuned; the quality gap narrows significantly when paired with the best available models (Claude Sonnet 4.6 / Opus 4.7).
+
 ### OpenHands (formerly OpenDevin)
+
+> **Why (the rationale):** OpenHands provides the most complete open-source autonomous agent stack (controller, Docker sandbox, browser, file editor) with a web UI and REST API, making it the reference open alternative to Claude Code.
+> **When to use:** Self-hosted CI pipelines, teams with open-source or data-privacy requirements, or any scenario where you need to swap models (Claude, GPT, local Ollama) behind the same agent framework.
+> **Nuances & gotchas:** Docker-in-Docker is required; the REST API is less battle-tested than Claude Code's SDK for high-volume CI; SWE-bench scores (~55-60%) are meaningfully below Claude Code (~87%) — validate on your actual workload.
 
 **GitHub:** github.com/All-Hands-AI/OpenHands | **License:** MIT
 
@@ -240,6 +276,10 @@ OpenHands Controller
 
 ### Aider
 
+> **Why (the rationale):** Aider's git-native design means every agent change is committed incrementally with a clean message, producing a reviewable audit trail that other agents (which dump changes as a blob diff) don't provide; the context map lets it reason about cross-file dependencies without overwhelming context.
+> **When to use:** CLI-first developers who want full git history as the agent works; iterative refactoring tasks where auditability of each change matters; model-agnostic setups needing any OpenAI-compatible backend.
+> **Nuances & gotchas:** No CI/headless REST API (pure CLI); the codebase context map adds startup overhead on large repos; voice mode is a novelty for most production use cases.
+
 **GitHub:** github.com/paul-gauthier/aider | **License:** Apache 2.0
 
 Terminal-first, git-native coding agent:
@@ -271,6 +311,10 @@ aider --model claude-3-7-sonnet-20250219
 ```
 
 ### Cline (VS Code Extension)
+
+> **Why (the rationale):** Cline brings full autonomous coding into VS Code for free, with per-action permission prompts that keep humans in the loop on every shell command — the safest autonomous agent model for developers new to agentic workflows.
+> **When to use:** Developers who want Cursor-like autonomy inside VS Code without a subscription, with full model flexibility (local Ollama included) and native MCP support.
+> **Nuances & gotchas:** Per-action prompts become fatiguing for long tasks; no headless/CI mode makes it unsuitable for batch automation; MCP support is strong but the extension's permission model can conflict with corporate VS Code policies.
 
 **GitHub:** github.com/cline/cline | **License:** Apache 2.0
 

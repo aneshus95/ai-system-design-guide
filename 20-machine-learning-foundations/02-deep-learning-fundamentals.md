@@ -35,6 +35,10 @@ This chapter covers the core building blocks every Data Scientist is expected to
 
 ## The Perceptron and MLP
 
+> **Why (the rationale):** Stacking non-linear layers allows the network to learn hierarchical feature representations — each layer composes simpler features from the previous one, enabling the approximation of arbitrarily complex functions (Universal Approximation Theorem).
+> **When to use:** When input data has complex non-linear structure that classical ML models underfit; when you have enough labeled data and compute to train many parameters; as the backbone for CNNs, RNNs, and Transformers.
+> **Nuances & gotchas:** Without non-linear activations, any number of stacked linear layers collapses to a single linear transformation — depth buys nothing. MLPs on raw tabular data often underperform tree-based models because they lack inductive biases for structured feature interactions.
+
 A **perceptron** is a single neuron: it takes a weighted sum of inputs, adds a bias, and passes the result through an activation function.
 
 ```
@@ -98,6 +102,10 @@ The chain rule is what makes this tractable: you only need local gradients at ea
 
 ## Activation Functions
 
+> **Why (the rationale):** Without non-linearities, the entire network collapses to a single linear transformation regardless of depth; activations are what give neural networks their ability to approximate complex functions.
+> **When to use:** ReLU (default for hidden layers in most networks); GELU (Transformers/BERT/GPT); Sigmoid (binary classification output only); Softmax (multi-class output); Leaky ReLU/ELU when dying ReLU is a problem.
+> **Nuances & gotchas:** Sigmoid and Tanh saturate in their extremes, producing near-zero gradients that cause vanishing gradients in deep networks — avoid in hidden layers of deep nets. ReLU "dies" when a neuron permanently receives negative pre-activations (its gradient is always 0) — Leaky ReLU and proper initialization mitigate this. GELU is smoother than ReLU and empirically better in Transformers but slightly more expensive to compute.
+
 Non-linearities allow networks to approximate any function (Universal Approximation Theorem). Without them, a deep network is just a linear model.
 
 | Function | Formula | Range | Key Property |
@@ -143,6 +151,10 @@ GELU: similar to ReLU but slightly negative for small negative x, smooth curve
 
 ## Optimizers
 
+> **Why (the rationale):** Plain gradient descent is too slow (full batch) or too noisy (single-sample SGD); modern optimizers add momentum and adaptive per-parameter learning rates to converge faster and more reliably on the high-dimensional, non-convex loss surfaces of deep networks.
+> **When to use:** AdamW for Transformers and most modern DL; SGD with momentum for CNNs on image classification (where fine-tuned SGD often generalizes better); RMSProp for RNNs with non-stationary gradients.
+> **Nuances & gotchas:** Adam converges faster but can generalize slightly worse than SGD with momentum on some image tasks (sharp vs flat minima). AdamW fixes a subtle bug in Adam where weight decay is not equivalent to L2 regularization — always prefer AdamW for Transformers. Adam's β₁/β₂ hyperparameters rarely need changing from defaults (0.9/0.999). Choosing too large a learning rate causes divergence; too small causes extremely slow convergence or trapping in bad local minima.
+
 All gradient-based optimizers answer the same question: given the gradient, how should I update the weights?
 
 | Optimizer | Key Idea | Weakness |
@@ -186,6 +198,10 @@ The learning rate `η` controls the step size. Too large → diverges. Too small
 ---
 
 ## Vanishing and Exploding Gradients
+
+> **Why (the rationale):** In deep networks, gradients are the product of many local Jacobians through the chain rule; with sigmoid/tanh activations those factors are <1 (vanishing) or can be >1 repeatedly (exploding), making early layers learn negligibly slowly or not at all.
+> **When to use (mitigation):** Use ReLU activations and He initialization to prevent vanishing; add residual (skip) connections for very deep networks; apply gradient clipping (e.g. `clip_grad_norm_`) for RNNs prone to exploding gradients.
+> **Nuances & gotchas:** Vanishing is the more insidious problem — the network trains without errors but early layers never update. Batch/Layer normalization implicitly helps by keeping activation magnitudes in a stable range. Residual connections give gradients a direct additive path, not just a bypass — the gradient of the shortcut is always 1, guaranteed.
 
 **Vanishing:** Gradients shrink exponentially as they propagate back through many layers, especially with sigmoid/tanh. Early layers learn extremely slowly or not at all.
 
@@ -234,6 +250,10 @@ Random initialization breaks symmetry (all-zeros → all neurons learn the same 
 
 ## Batch Normalization vs Layer Normalization
 
+> **Why (the rationale):** Normalizing activations during training keeps them in a stable numerical range, allowing higher learning rates, reducing internal covariate shift, and providing a mild regularizing effect — dramatically accelerating training of deep networks.
+> **When to use:** Batch Norm for CNNs with large batch sizes; Layer Norm for Transformers and RNNs where batch size may be small or variable, and where train/inference behavior must be identical.
+> **Nuances & gotchas:** Batch Norm is unstable with small batch sizes (statistics are noisy) and behaves differently at train vs inference (uses running statistics at inference — a common source of subtle bugs). Layer Norm has none of these issues and is the standard in Transformers. Both add learnable affine parameters (γ, β) that the network can use to undo the normalization if beneficial.
+
 Both normalize activations to speed up training and improve stability, but they differ in **which axis they normalize over**.
 
 ```
@@ -261,6 +281,10 @@ Feature:                           F1 F2 F3 F4
 ---
 
 ## Dropout
+
+> **Why (the rationale):** Prevents co-adaptation of neurons by randomly disabling them during training — forces the network to learn redundant, robust representations, acting as an implicit ensemble of exponentially many sub-networks.
+> **When to use:** In fully connected layers of deep networks (0.2–0.5 dropout rate); after embedding layers (smaller rate); typically not after the final output layer. Less common in CNNs (use Spatial Dropout instead) and rarely used in Transformers (Layer Norm + weight decay often suffice).
+> **Nuances & gotchas:** Dropout must be disabled at inference — always call `model.eval()` in PyTorch. With inverted dropout (the standard), training activations are scaled by 1/(1−p) so no rescaling is needed at inference. Dropout can hurt small networks or when data is already scarce. It slows convergence since the effective model capacity changes every step.
 
 During training, randomly zero out a fraction `p` of activations at each forward pass. At inference, scale outputs by `(1−p)` (or equivalently use "inverted dropout" by dividing during training).
 
@@ -332,6 +356,10 @@ Loss
 
 ## Convolutional Neural Networks (CNNs)
 
+> **Why (the rationale):** Images have spatial locality (nearby pixels are related) and translation invariance (a cat is a cat regardless of position); weight sharing across positions dramatically reduces parameters versus a fully connected approach, encoding these inductive biases directly.
+> **When to use:** Any spatial data — images, video, audio spectrograms, time series with local patterns. CNNs are the dominant architecture for image classification, object detection, and segmentation (though Vision Transformers are competitive at scale).
+> **Nuances & gotchas:** Output size depends on kernel, stride, and padding — off-by-one errors in the formula are common. Deep CNNs without residual connections suffer vanishing gradients — use ResNet-style architectures beyond ~20 layers. Max pooling loses spatial information (exact position); this is intentional for classification but problematic for segmentation (use U-Net-style skip connections). CNNs do not generalize well to non-grid data.
+
 CNNs exploit the spatial structure of images via **local connectivity** and **weight sharing**.
 
 **Key concepts:**
@@ -370,6 +398,10 @@ Input image
 ---
 
 ## RNNs, LSTMs, and GRUs
+
+> **Why (the rationale):** Sequential data (text, time series, audio) has temporal dependencies — the hidden state allows the network to carry information forward across time steps, unlike feedforward networks that treat each input independently.
+> **When to use:** LSTMs/GRUs for moderate-length sequences where long-range memory matters; GRUs when fewer parameters are preferable (faster training, similar performance). Largely superseded by Transformers for long sequences but still practical for embedded/low-latency scenarios.
+> **Nuances & gotchas:** Vanilla RNNs suffer from vanishing gradients over long sequences — use LSTM or GRU instead. LSTMs are sequential by nature and cannot be parallelized across time steps (slow training). GRUs have fewer parameters than LSTMs; the right choice is empirical. Both require gradient clipping to prevent exploding gradients. For very long sequences (>500 tokens), Transformers dominate because their attention is global and parallelizable.
 
 **RNNs** process sequences by maintaining a hidden state that is updated at each time step:
 
@@ -440,6 +472,10 @@ King − Man + Woman ≈ Queen is the classic example of linear relationships in
 ---
 
 ## Transfer Learning and Fine-Tuning
+
+> **Why (the rationale):** Pre-trained models encode general representations (edges, grammar, semantics) learned from massive data; reusing these weights dramatically reduces labeled data requirements and training time for a new task.
+> **When to use:** Almost always on new tasks — rarely is it worth training from scratch unless you have a very large domain-specific dataset or the target domain is extremely different from pre-training data (e.g., medical imaging from natural images).
+> **Nuances & gotchas:** Fine-tuning requires a lower learning rate than pre-training to avoid catastrophically forgetting the learned representations. Unfreezing too many layers on a tiny target dataset leads to overfitting. Feature extraction (frozen backbone) is safe with tiny datasets. Domain shift matters: fine-tuning a language model trained on English news on medical German still leaves a large gap.
 
 **Transfer learning:** Take a model pre-trained on a large dataset (e.g., ImageNet, large text corpora), and reuse its weights for a new task.
 

@@ -2,6 +2,10 @@
 
 Tokenization is the process of converting text into discrete units (tokens) that models can process. It directly impacts model capabilities, costs, and performance.
 
+> **Why (the rationale):** Neural networks require fixed-size numerical inputs; raw characters are too granular (long sequences, poor compression) and whole words fail on rare/OOV terms — subword tokenization finds the middle ground that balances vocabulary size, sequence length, and coverage.
+> **When to use / when it matters:** Every time you calculate API cost, estimate context window usage, debug unexpected model behavior (character counting, arithmetic, non-English), or design chunking for RAG — tokenization is the root cause of all these concerns.
+> **Nuances & gotchas:** Token count ≠ word count (English averages ~1.3 tokens/word); non-English and code text cost significantly more tokens per semantic unit; the same string tokenizes differently across model families, so you cannot reuse token counts across providers.
+
 ## Table of Contents
 
 - [Why Tokenization Matters](#why-tokenization-matters)
@@ -39,6 +43,10 @@ Because "strawberry" is tokenized as multiple subwords. The model never sees ind
 ### Byte Pair Encoding (BPE)
 
 The most common algorithm. Used by GPT-series, Llama, Claude.
+
+> **Why (the rationale):** BPE produces a compact vocabulary that adapts to the actual frequency distribution of the training corpus — common words become single tokens (efficient), rare words split into familiar subword pieces (robust to OOV).
+> **When to use / when it matters:** The default choice for most LLM tokenizers; relevant when estimating token costs, understanding why model behavior can differ on common vs. rare words, or reasoning about multilingual efficiency.
+> **Nuances & gotchas:** BPE is greedy and deterministic — it cannot recover from suboptimal early merges; the same word tokenizes differently depending on surrounding whitespace and context (e.g., " hello" vs. "hello" produce different tokens); code with underscores and special characters often tokenizes inefficiently because BPE was trained on natural text.
 
 **Training algorithm:**
 1. Start with vocabulary of individual bytes (256 tokens)
@@ -98,6 +106,10 @@ The final vocabulary is the ladder of merges it learned. At inference time it ju
 
 Used by BERT-family models.
 
+> **Why (the rationale):** Pure frequency (BPE) can merge common but semantically unrelated pairs just because they co-occur often; WordPiece's likelihood-ratio criterion favors pairs that are *unusually* attracted to each other, producing more linguistically meaningful subword units.
+> **When to use / when it matters:** Matters primarily when working with BERT-family models (classification, NER, embedding) — not directly relevant to GPT/Llama-style generation models which use BPE; the `##` prefix convention is a WordPiece artifact that signals a continuation subword.
+> **Nuances & gotchas:** WordPiece's theoretical advantage over BPE in linguistic meaningfulness does NOT consistently translate to better downstream task performance; in practice, the training data distribution and vocabulary size matter more than the merge criterion.
+
 **Key difference from BPE:**
 - BPE: Merge based on frequency
 - WordPiece: Merge based on likelihood improvement
@@ -133,6 +145,10 @@ BPE would only know "playing is frequent." WordPiece additionally knows "play an
 ### Unigram (SentencePiece)
 
 Used by T5, ALBERT, some multilingual models.
+
+> **Why (the rationale):** BPE and WordPiece can get "stuck" with suboptimal early merges because they build greedily; Unigram starts from all possible substrings and prunes toward the target size using a probabilistic model, allowing it to find a globally better vocabulary and offer multiple valid segmentations for data augmentation.
+> **When to use / when it matters:** Commonly encountered when working with T5-family models or multilingual models like mT5 and XLNet; subword regularization (sampling alternative segmentations during training) is uniquely enabled by Unigram's probabilistic design.
+> **Nuances & gotchas:** Unigram is slower to train than BPE because it repeatedly evaluates the full vocabulary's likelihood; it does NOT guarantee better downstream task quality than BPE — empirical differences are small and task-dependent.
 
 **Training algorithm:**
 1. Start with large candidate vocabulary
@@ -231,6 +247,10 @@ text = "cafe"  # Becomes bytes, then BPE operates on bytes
 
 Special tokens handle structural information outside normal text:
 
+> **Why (the rationale):** Special tokens encode structural signals (start/end of sequence, turn boundaries, role separators) that are not present in pre-training text but are essential for supervised fine-tuning and instruction following; the model must learn to attend to them for correct behavior.
+> **When to use / when it matters:** Critical when constructing prompts programmatically — using the wrong chat template or omitting special tokens is a leading cause of degraded outputs from open-source models; always use the model's official `apply_chat_template` function rather than string concatenation.
+> **Nuances & gotchas:** Special tokens are added to the vocabulary with their own embeddings initialized independently of BPE merges; they are NOT in pre-training data, so the model's understanding of them comes entirely from fine-tuning — using an instruction-tuned model without its expected special tokens can cause unpredictable behavior.
+
 | Token | Purpose | Example |
 |-------|---------|---------|
 | BOS | Beginning of sequence | Signals start of generation |
@@ -275,6 +295,10 @@ Hi there!<|im_end|>
 
 Tokenizers trained primarily on English have poor efficiency for other languages:
 
+> **Why (the rationale):** BPE merges are driven by corpus frequency; an English-dominated training corpus produces a vocabulary where English words get single-token representations while non-English scripts get fragmented into bytes or rare characters, requiring many more tokens for equivalent meaning.
+> **When to use / when it matters:** Directly affects API cost and context window efficiency for non-English applications; at GPT-2-era tokenizers, Chinese text used ~2.5× more tokens than equivalent English — frontier tokenizers (128k–200k vocab) close this gap significantly but do not eliminate it.
+> **Nuances & gotchas:** Multilingual "efficiency" varies by language family — languages with Latin scripts close to English fare much better than logographic (Chinese/Japanese) or right-to-left (Arabic/Hebrew) scripts; always measure actual token counts with the target tokenizer for your specific language before committing to a cost estimate.
+
 | Language | Tokens for "Hello" | Tokens for equivalent greeting |
 |----------|-------------------|-------------------------------|
 | English | 1 ("Hello") | - |
@@ -307,6 +331,10 @@ Tokenizers trained primarily on English have poor efficiency for other languages
 ## Multimodal Tokenization (pixels-to-tokens)
 
 Modern native multimodal models do not just "see" images; they tokenize them.
+
+> **Why (the rationale):** Converting images and audio into discrete token sequences allows the transformer to process all modalities through the same attention mechanism without architectural changes — the same QKV attention that connects text tokens connects visual and audio tokens too.
+> **When to use / when it matters:** Critical for understanding cost and context window usage in multimodal applications — a single high-resolution image can consume hundreds of tokens, which at 128K context means a few dozen images can fill the entire window.
+> **Nuances & gotchas:** Image token count is NOT proportional to semantic complexity — a blank white image costs as many tokens as a detailed diagram; video costs scale linearly with frame rate and duration and can become prohibitively expensive; audio tokenization via discrete codecs (EnCodec) adds lossy compression artifacts that differ from text tokenization errors.
 
 ### Image Tokenization (Vision Transformers)
 Images are split into patches (e.g., 14x14 pixels). Each patch is passed through a vision encoder (like SigLIP) to produce a single visual token.

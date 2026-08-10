@@ -19,6 +19,10 @@ The anchor finding that frames the whole chapter, from Datadog's 2026 State of A
 
 ## The Cost Model
 
+> **Why (the rationale):** LLM spend does not behave like SaaS compute cost — it is a cost-of-goods item where every request has a variable token cost, so without a layered model you cannot predict, attribute, or control spend.
+> **When to use:** Model cost per layer from the first production deployment; agentic workloads especially need cost-per-task tracking because cost-per-call radically understates true spend when agents take multiple steps.
+> **Nuances & gotchas:** Extended-thinking / reasoning tokens are billed at the output rate but do not appear in the visible response — a "short" call can cost an order of magnitude more than its visible output suggests; always instrument token usage at the API response level, not by counting prompt characters.
+
 Pricing is quoted per million tokens, split input versus output, and **output costs materially more than input**, commonly 3-5x and sometimes more, because generation is autoregressive and compute-bound while input is a parallel prefill pass. (Current per-model prices live in [Pricing and Costs](../02-model-landscape/03-pricing-and-costs.md); they deflate fast, so model the *structure*, not the cents.)
 
 Every request decomposes into stacked spend layers. Modeling each separately is what makes cost predictable and attributable:
@@ -49,6 +53,10 @@ with caching applied as a discount on the cacheable input fraction.
 
 ## Caching: The Top Cost Lever
 
+> **Why (the rationale):** System prompts are ~69% of input tokens and are static — paying full price for them on every request is pure waste; provider prefix caching eliminates this cost for the cached prefix at 50–90% discount.
+> **When to use:** Enable prompt caching immediately for any system with a non-trivial system prompt, tool definitions, or few-shot examples; also layer exact-match and semantic caching on top for repeated user queries.
+> **Nuances & gotchas:** The 50–90% saving applies only to the cached prefix, not the whole bill; any change near the front of the prompt invalidates the entire downstream cache (no timestamps, request IDs, or per-call nonces in the cached region); where a write premium exists, caching only pays after a break-even number of reads — instrument cache-hit rate per call as a first-class metric.
+
 This is the headline lever precisely because of the anchor stat: the layer that is ~69% of input tokens (the system prompt) is static and ideal for caching, yet only ~28% of calls cache it. The gap between potential and actual is the biggest, cheapest saving available.
 
 **Provider prefix caching** lets you pay a steep discount on a repeated prompt prefix. The discounts are reported in the range of roughly 50% (OpenAI, automatic above a threshold, no write fee) to ~90% (Anthropic, explicit `cache_control` breakpoints with a small write premium that breaks even after a couple of reads) to ~75% (Google). The crucial caveat to state plainly when teaching: the headline "50-95% savings" applies to the **cached prefix only**, not the whole bill.
@@ -65,6 +73,10 @@ Distinct from prefix caching, **exact-match and semantic caching** serve whole r
 
 ## Batch and Async Economics
 
+> **Why (the rationale):** Roughly half the cost of offline AI workloads (evals, backfills, labeling, summarization) is avoidable by using batch APIs — the work is the same, but not having a human waiting allows the provider to schedule it cheaply.
+> **When to use:** Any workload where no human or downstream system is waiting on the token in real time — evaluation suites, regression tests, bulk classification, backfills after a prompt change, A/B testing prompt variants.
+> **Nuances & gotchas:** Batch API has a completion ceiling (~24 hours) so it is not a drop-in for anything latency-sensitive; provisioned throughput is only economical at high, steady utilization — at variable or low utilization, pay-per-token (including batch) is cheaper.
+
 Both OpenAI and Anthropic offer a roughly **50% discount on batch processing** (input and output), asynchronous, with a completion ceiling around 24 hours. The decision rule is simple: **use batch whenever no human or system is waiting on the token.** High-value batch workloads include evaluation and regression suites, bulk classification and labeling, corpus-scale summarization and document processing, backfills after a prompt or model change, and A/B testing prompt variants. For the entire offline tier of a product, not batching leaves about half the money on the table.
 
 The third lane is **provisioned/reserved throughput** (AWS Bedrock Provisioned Throughput, Azure OpenAI PTUs): reserved capacity at an hourly rate regardless of usage, reported to save on the order of 15-70% on sustained workloads, economical only at high, predictable utilization. The mental model mirrors cloud compute: pay-per-token (including batch) for spiky or uncertain demand, and reserved capacity once utilization is high and steady.
@@ -72,6 +84,10 @@ The third lane is **provisioned/reserved throughput** (AWS Bedrock Provisioned T
 ---
 
 ## The FinOps Discipline
+
+> **Why (the rationale):** Inference is 80–90% of total GenAI spend in most deployments; without attribution, showback, and unit economics, engineering teams cannot tell which features earn their cost or why the bill doubled.
+> **When to use:** Implement spend attribution (tags per team/feature/model) from the first production deployment; graduate from showback to chargeback once tag quality is trustworthy.
+> **Nuances & gotchas:** FinOps tools and gateways give real-time per-request control, but outcome-based pricing (charging per resolved ticket) only works if you know your cost per resolution first — pricing before measuring unit economics is a business risk, not just a finance problem.
 
 The FinOps Foundation's framing: **inference is 80-90% of total GenAI spend** in many deployments, so the discipline centers on per-request inference economics, not training. The operational core:
 
@@ -84,6 +100,10 @@ The FinOps Foundation's framing: **inference is 80-90% of total GenAI spend** in
 ---
 
 ## Structural Cost Decisions
+
+> **Why (the rationale):** Per-call tuning (shorter prompts, `max_tokens` caps) moves cost by 10–30%; structural decisions (model tier, self-host vs API, RAG vs long context, distillation) move it by 2–50× — the leverage gap is enormous.
+> **When to use:** Revisit structural decisions at each order-of-magnitude increase in volume; what is correct at 100K queries/month may be wrong at 10M.
+> **Nuances & gotchas:** Self-hosting break-even calculations that count only GPU rental miss ~60–70% of true cost (engineering ops, model update overhead, monitoring); distillation's 5–40× cost savings apply only to narrow, well-defined tasks where a small model can match frontier quality — it fails on open-ended long-tail work.
 
 These architecture-level choices move cost by 2-50x, beyond per-call tuning:
 

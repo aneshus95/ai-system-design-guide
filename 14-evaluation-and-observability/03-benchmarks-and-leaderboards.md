@@ -166,11 +166,19 @@ This is the part that actually matters. Anyone can read a leaderboard; reading i
 
 ### Saturation
 
+> **Why (the rationale):** A saturated benchmark no longer discriminates between the best models — a 2-point difference in a cluster of 90%+ scores is within prompt-phrasing noise, so the ranking is meaningless.
+> **When to use:** Retire saturated benchmarks from your model selection process; use them only as tier filters ("above X% = frontier class") and switch to harder successors for fine ranking.
+> **Nuances & gotchas:** Saturation is benchmark-specific — MMLU is saturated, HLE is not; don't generalize "AI has solved knowledge" from MMLU saturation; the useful lifespan of a static public benchmark averages under ~2 years.
+
 A benchmark is saturated when the frontier clusters so near the ceiling that score deltas are within noise. MMLU is the canonical case: GPT-4 hit ~86% in early 2023, and the frontier has sat at 86-93% since, so a 2-point "win" is often just a prompt artifact (MMLU scores vary 4-5% across prompt phrasings). The working signal: **when leaders cluster within ~3 points, the rank order is statistical noise, not capability.**
 
 When a benchmark saturates the field responds with (1) harder successors (MMLU then MMLU-Pro then HLE), (2) private or held-out sets, (3) time-gated "live" benchmarks, and (4) composite indices. The median useful lifespan of a static public benchmark is under ~2 years.
 
 ### Contamination
+
+> **Why (the rationale):** Public benchmarks are scraped into pretraining data, so models can score high via memorization rather than genuine capability — the number is inflated relative to actual task performance.
+> **When to use:** Always discount absolute scores on static public benchmarks (MMLU, HumanEval, GSM8K); prefer time-gated benchmarks (LiveCodeBench, SWE-rebench) or private held-out sets for clean scores.
+> **Nuances & gotchas:** Contamination detection methods (n-gram overlap, membership inference) all have failure modes and barely beat random on real pretrained models — you generally cannot prove a specific benchmark was contaminated, only assume it; larger models benefit more from contamination, so the bias is worst at the frontier.
 
 Benchmarks are public and get scraped into pretraining, so models can score high by memorization rather than capability. The evidence is direct: re-deriving HumanEval-style problems (EvoEval) dropped scores ~39% across 51 models; on LiveCodeBench, a model's pass rate fell from ~60% on problems before its cutoff to ~0% after; OpenAI found SWE-bench Verified solutions reproducible verbatim from the task ID. Across multiple-choice QA benchmarks, measured contamination ranges from 1% to 45%, and larger models benefit more from it.
 
@@ -178,9 +186,17 @@ Contamination-resistant designs: **time-gating** (score only on problems release
 
 ### Harness and Scaffold Variance
 
+> **Why (the rationale):** Score variance from harness choice (scaffold, tools, effort level, output-token cap) can exceed the actual capability difference between models; comparing numbers from different harnesses is comparing apples to oranges.
+> **When to use:** Never compare a vendor's self-reported number to another vendor's number or to an independent leaderboard; only compare numbers produced by the same harness on the same infrastructure.
+> **Nuances & gotchas:** More reasoning effort is NOT monotonically better — one large agent study found that higher-effort settings lowered accuracy in 21 of 36 configurations; vendor "high effort" numbers may not represent what you'll deploy.
+
 The same model weights score 10-20 points differently depending on the prompt, whether tools are available, the reasoning effort level, and the agent scaffold. Anthropic measured that infrastructure configuration *alone* (RAM, concurrency, even time-of-day API latency) moved Terminal-Bench results ~6 points. This is why **provider self-reports run higher than independent leaderboards**: labs report the best harness and effort they found for their own model, on uncapped infrastructure. The hard rule that follows: **never compare a provider's number to another provider's number, or to an independent leaderboard.** Only same-harness numbers are comparable. And reasoning effort is not monotonic, more thinking lowered accuracy in 21 of 36 settings in one large agent study, so "high effort" provider numbers are not even comparable to that same model's default-effort independent run.
 
 ### The Leaderboard Illusion
+
+> **Why (the rationale):** Arena Elo is the most-cited model preference signal, but systematic biases (private best-of-many testing, training to the Arena distribution, verbosity preference) mean a top-ranked model may not be the best for your task.
+> **When to use:** As one of three signals for choosing a model for general chat preference (alongside an objective benchmark and an agentic suite); always use the style-controlled board and read the confidence intervals.
+> **Nuances & gotchas:** Arena Elo measures general chat preference, NOT correctness, factuality, or hard reasoning; top-15 models are statistically near-tied within ~15-20 Elo points; don't treat a 10-point Arena lead as a reliable capability advantage.
 
 The central critique of LMArena (Cohere et al., audit of ~2M battles, 243 models) found four problems: providers privately test many variants and publish only the best (Meta tested 27 variants before Llama-4), which violates the unbiased-sampling assumption behind the Elo math; proprietary providers get far more battle data than open models; you can train *to* the Arena distribution for large win-rate gains; and silently deprecated models distort the rankings. LMArena's rebuttal disputes the magnitude (their estimate of the private-testing boost is ~11 Elo, decaying as fresh votes accumulate) and notes the overfitting figure was measured on a static proxy, not the live human board. Present this as **contested but substantiated.**
 
@@ -188,11 +204,19 @@ Either way, the practical guidance is the same: treat Arena Elo as a measure of 
 
 ### The Benchmark-to-Production Gap
 
+> **Why (the rationale):** A public benchmark predicts production performance only when it tests tasks similar to yours, is clean of contamination, and hasn't saturated — in practice all three rarely hold simultaneously.
+> **When to use:** Use public benchmarks to shortlist models (who is frontier class?) and build your own gold set to make the final selection decision.
+> **Nuances & gotchas:** A general capability factor explains only ~50% of benchmark score variance; two models with equal general capability can differ sharply on your specific task — high GPQA does NOT guarantee performance on your domain-specific reasoning.
+
 A public score predicts your production performance only when three conditions hold at once: the benchmark tests tasks similar to yours, the test set is clean of contamination, and the benchmark has not saturated. In practice all three rarely hold. A principal-components analysis of benchmark scores found that a single "general capability" factor explains only ~50% of the variance; the rest is model-family idiosyncrasy and noise, which is why two models with equal general capability can differ sharply on *your* task. High GPQA does not guarantee performance on your domain.
 
 For coding and agents, the best public proxies are GPQA-Diamond and SWE-bench Verified (Aider Polyglot and AIME-style sets also load cleanly on general capability), but only when harness-matched. The conclusion every practitioner reaches: **for your decision, ignore the leaderboard and build evals on your data.** Construct a gold set partitioned across features, scenarios, and personas; use a binary LLM-as-judge calibrated to a domain expert (measured by precision and recall, not raw agreement); and price capability against cost, because no public benchmark contains a cost signal. See [LLM Evaluation](01-llm-evaluation.md) and the eval-pipeline whiteboard exercise in [Whiteboard Exercises](../00-interview-prep/04-whiteboard-exercises.md).
 
 ### Composite Indices
+
+> **Why (the rationale):** Any single benchmark saturates within ~2 years; a weighted composite of diverse benchmarks keeps discriminating as individual components max out and is more resistant to overfitting to a single test.
+> **When to use:** When you need a "which model is generally best" ranking across capability dimensions; use for model shortlisting, not final selection (your own eval data should decide that).
+> **Nuances & gotchas:** Composites inherit their components' flaws — a composite that includes contaminated or saturated benchmarks is still biased; read what each index aggregates and when it was last updated before trusting a ranking.
 
 Because any single benchmark saturates within a year or two, the field ranks frontier models with weighted composites that keep discriminating as components max out and that resist overfitting to one test:
 

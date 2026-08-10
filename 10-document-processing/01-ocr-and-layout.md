@@ -16,6 +16,10 @@ Traditional OCR (Tesseract, specialized engines) has been largely superseded by 
 
 ## The Shift: Traditional OCR vs. Vision-LLMs
 
+> **Why (the rationale):** Traditional OCR reads characters from image patterns; it fails on multi-column layouts, handwriting, rotated text, and complex tables because it has no semantic understanding of what a page means — vision LLMs reason about layout semantically and produce coherent structured output.
+> **When to use:** Vision LLMs for any document with complex layout (multi-column, mixed text/tables/images, handwriting); traditional OCR when you need exact pixel-level bounding boxes, deterministic output, or strict compliance with no hallucination risk.
+> **Nuances & gotchas:** Vision LLMs can hallucinate text that isn't there — a risk that traditional OCR never introduces; for high-stakes character accuracy (legal redaction, medical records), a hybrid pipeline (OCR for bounding boxes, vision LLM for reading-order and structure) is safer than vision LLM alone.
+
 | Feature | Traditional OCR (Tesseract/AWS Textract) | Vision-LLMs (Gemini 3.1 Pro, GPT-5.5, Claude Opus 4.7) |
 |---------|-------------------------------------------|--------------------------------------------------------|
 | **Primary Mechanism** | Character recognition | Visual token understanding |
@@ -27,6 +31,10 @@ Traditional OCR (Tesseract, specialized engines) has been largely superseded by 
 ---
 
 ## Vision-LLM Layout Extraction
+
+> **Why (the rationale):** Rasterizing to images and prompting a vision model to produce structured Markdown preserves reading order, table structure, and hierarchy that text-extraction pipelines destroy — directly improving downstream RAG quality.
+> **When to use:** PDFs with multi-column layouts, embedded tables, mixed images and text; batch workloads where per-page latency of 1-5s is acceptable.
+> **Nuances & gotchas:** Output is non-deterministic — the same page may produce slightly different Markdown on repeated calls; don't diff outputs across runs as a quality check; verify table structures separately since vision models occasionally merge or split columns incorrectly.
 
 The standard workflow is **Screenshot-to-Markdown**.
 1. **Rasterize**: Convert PDF pages to images.
@@ -45,6 +53,10 @@ The standard workflow is **Screenshot-to-Markdown**.
 
 ## Handling Low-Quality Scans
 
+> **Why (the rationale):** Scanned documents from real-world intake (fax, photocopied forms, aged paper) have skew, bleed-through, and handwritten annotations that defeat character-based OCR; semantic understanding allows vision models to recover meaning despite visual noise.
+> **When to use:** Intake pipelines processing physical documents (insurance claims, contracts, medical records); pre-processing steps like deskewing are no longer necessary with frontier vision models.
+> **Nuances & gotchas:** "Robust" is not "perfect" — very low-resolution scans (below ~150 DPI), heavy bleed-through, or completely illegible handwriting will still produce poor output; set a confidence threshold and route uncertain extractions to human review rather than silently producing wrong data.
+
 Modern multimodal models are robust to:
 - **Skew/Rotation**: Automatically corrected in the visual attention layer.
 - **Bleed-through**: The model uses semantic context to "ignore" text from the back of the page.
@@ -53,6 +65,10 @@ Modern multimodal models are robust to:
 ---
 
 ## Cost and Latency Tradeoffs
+
+> **Why (the rationale):** Vision LLM cost scales per page (image tokens), not per character; at high volume the cost difference between a flash-tier model and a frontier model is 6-18× — tier selection is the largest cost lever in a document processing pipeline.
+> **When to use:** Use a fast flash-tier model for high-volume batch processing and route only flagged pages (low confidence, complex layouts) to the more expensive frontier model for a hybrid cost profile.
+> **Nuances & gotchas:** On-premises models (Llama 4 Vision) eliminate per-call cost but require GPU infrastructure with its own utilization and maintenance overhead; the break-even depends heavily on volume and GPU utilization rate, not just API pricing.
 
 | Model Tier | Use Case | Latency | Cost (1K pages) |
 |------------|----------|---------|-----------------|

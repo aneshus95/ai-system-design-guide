@@ -19,6 +19,10 @@ A scoping note: read this if you are building telephony, support, or voice-first
 
 ## The Two Architectures
 
+> **Why (the rationale):** The architecture choice determines the latency floor, debuggability, and cost model for the entire product; getting it wrong means re-architecting after launch, which is expensive.
+> **When to use:** Cascaded pipeline for enterprise, compliance-regulated, and tool-heavy deployments where auditability and provider flexibility matter; speech-to-speech for consumer-facing conversational products where naturalness and lowest interruption latency are the priority.
+> **Nuances & gotchas:** Neither architecture wins latency automatically — a well-tuned cascaded pipeline is competitive with S2S; the real discriminators are debuggability and cost model, not latency ceiling; S2S cost grows with call length because audio history is re-sent each turn.
+
 Every voice agent is one of two shapes.
 
 **Cascaded pipeline:** `mic -> VAD -> streaming STT -> endpointing -> LLM -> streaming TTS -> speaker`. Audio becomes **text** at each boundary, and every stage is a swappable component, often from a different vendor.
@@ -43,13 +47,31 @@ A reality check that applies to both: neither wins latency by default. WebSocket
 
 ## The Pipeline, Component by Component
 
-**Voice Activity Detection (VAD).** The first layer classifies each audio frame as speech or silence in real time. Silero VAD is the de-facto open-source standard, integrated natively in the major frameworks, and adds only about 10-50ms. VAD alone cannot tell a mid-sentence pause from the end of a turn, which is the next problem.
+**Voice Activity Detection (VAD).** 
 
-**Semantic endpointing and turn-taking, the crux.** Two approaches:
+> **Why (the rationale):** Without VAD, the pipeline processes silence and background noise as input, wasting compute and causing spurious transcriptions; VAD gates all downstream processing to speech-only frames.
+> **When to use:** Always — VAD is non-negotiable in any voice pipeline; Silero VAD is the de-facto standard, adding only 10-50ms.
+> **Nuances & gotchas:** VAD alone cannot distinguish a mid-sentence pause from a completed turn (that is endpointing's job); running VAD while TTS is playing is also necessary for barge-in detection — don't disable it during agent speech.
+
+The first layer classifies each audio frame as speech or silence in real time. Silero VAD is the de-facto open-source standard, integrated natively in the major frameworks, and adds only about 10-50ms. VAD alone cannot tell a mid-sentence pause from the end of a turn, which is the next problem.
+
+**Semantic endpointing and turn-taking, the crux.**
+
+> **Why (the rationale):** Every voice agent turn pays the endpointing tax — silence-threshold endpointing adds 600-800ms per turn minimum; learned turn detection that fires on semantic completion can cut this to ~300ms, compounding across every turn in a call.
+> **When to use:** Learned turn detection in any latency-sensitive voice product; silence-threshold endpointing only as a fallback or for very low-volume telephony where latency isn't critical.
+> **Nuances & gotchas:** A too-aggressive turn detector cuts off users mid-sentence (worse than slow); err toward false negatives (slightly late detection) over false positives (interrupting the user) — users tolerate a 200ms extra wait much better than being cut off.
+
+Two approaches:
 - **Silence-threshold endpointing** waits N milliseconds of silence. Simple, but it taxes every single turn: an 800ms timeout adds nearly a full second before the pipeline even starts.
 - **Learned turn detection** reads the partial transcript and predicts whether the thought is semantically complete, firing *before* trailing silence. Concrete 2026 systems include a small transformer turn-detector (a ~135M-parameter model fine-tuned from a small base, running in tens of milliseconds on CPU, with a multilingual variant) and streaming-STT endpointing that emits a learned end-of-turn token with a tunable confidence threshold. The payoff is closing the agent's turn-gap toward ~300ms without cutting users off.
 
-**Barge-in / interruption.** Turn detection stays active *while the agent is speaking*. When the user's track fires VAD, the runtime cancels the active TTS stream, rolls back the interrupted LLM turn, and re-enters STT. WebRTC transport handles interruptions noticeably better than WebSocket because UDP avoids head-of-line blocking on packet loss.
+**Barge-in / interruption.**
+
+> **Why (the rationale):** Without barge-in, the agent ignores interruptions and keeps speaking, which feels robotic and causes callers to hang up; it is the primary naturalness feature that distinguishes a voice agent from an IVR.
+> **When to use:** All voice agents — it is a baseline expectation, not an optional feature; implement it by canceling the TTS stream and rolling back the LLM turn when VAD fires during agent speech.
+> **Nuances & gotchas:** WebRTC (UDP) handles barge-in more reliably than WebSocket (TCP) because head-of-line blocking on packet loss can delay the VAD signal on a TCP connection; don't implement barge-in with a simple "stop if VAD fires" — very brief background noise (a cough, a door) will interrupt the agent constantly; apply a minimum speech duration threshold (~200ms).
+
+Turn detection stays active *while the agent is speaking*. When the user's track fires VAD, the runtime cancels the active TTS stream, rolls back the interrupted LLM turn, and re-enters STT. WebRTC transport handles interruptions noticeably better than WebSocket because UDP avoids head-of-line blocking on packet loss.
 
 **Streaming transcripts.** Streaming STT emits partial transcripts every ~50ms while the user is still talking, so transcription runs in parallel with speech and adds almost nothing after the user stops. Distinguish three STT latencies: partial-transcript, final-transcript (after speech ends), and endpointing latency. Voice agents optimize the last.
 
@@ -58,6 +80,10 @@ A reality check that applies to both: neither wins latency by default. WebSocket
 ---
 
 ## Latency Budgets
+
+> **Why (the rationale):** Below ~700ms end-to-end the agent feels human; above it, callers start interrupting, repeating, or hanging up; managing the latency budget per-stage allows targeted optimization rather than guessing which component to fix.
+> **When to use:** Profile the full pipeline in realistic conditions (not just a lab benchmark) to find the actual bottleneck before optimizing; LLM time-to-first-token is usually the largest controllable cost.
+> **Nuances & gotchas:** Streaming everything (partials, token streaming, chunked TTS) turns the sum of stages into roughly the max — this is the single biggest lever and it is architectural, not a parameter tweak; don't chase per-stage millisecond improvements before enabling full streaming throughout.
 
 In natural human conversation, the gap between one person finishing and the other starting averages **~200ms**. Below roughly 700ms end-to-end an agent feels human; above it, callers start interrupting and repeating. A realistic per-turn budget for a fully-streaming cascade:
 
@@ -89,7 +115,13 @@ Treat specific names, versions, and prices as a point-in-time snapshot.
 
 ## Production Concerns
 
-**ASR errors are the dominant failure.** The benchmark finding worth internalizing: authentication is the bottleneck, because once the agent mishears a name, email, or confirmation code, everything downstream fails. Defenses: confidence thresholds that route low-confidence spans to a clarifying question ("did you say...?"), and custom vocabulary / keyword boosting for names, SKUs, and alphanumerics.
+**ASR errors are the dominant failure.**
+
+> **Why (the rationale):** The entire downstream pipeline — LLM reasoning, tool calls, response — is only as good as the transcript it receives; a misheared name or confirmation code makes every downstream step wrong regardless of model quality.
+> **When to use:** Apply confidence thresholds and clarifying prompts ("did you say...?") on any low-confidence span, especially for names, email addresses, confirmation codes, and numerical amounts — the highest-value but hardest-to-recognize tokens.
+> **Nuances & gotchas:** Word-error rate benchmarks (~6-7% for Deepgram/AssemblyAI) are measured on clean audio — real phone-line audio (8kHz mu-law, background noise, accents) produces significantly higher error rates; benchmark results do not transfer to PSTN telephony without telephony-specific testing.
+
+The benchmark finding worth internalizing: authentication is the bottleneck, because once the agent mishears a name, email, or confirmation code, everything downstream fails. Defenses: confidence thresholds that route low-confidence spans to a clarifying question ("did you say...?"), and custom vocabulary / keyword boosting for names, SKUs, and alphanumerics.
 
 **Tool calls mid-conversation.** Both architectures support function calling. Emit a verbal filler ("let me check that") to cover tool latency so the line is not dead while a tool runs.
 

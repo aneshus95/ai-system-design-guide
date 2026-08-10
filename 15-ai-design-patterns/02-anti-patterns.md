@@ -18,6 +18,10 @@ Recognizing what NOT to do is as important as knowing best practices. This chapt
 
 ### The God Prompt
 
+> **Why it's tempting:** Starting with one prompt that handles everything feels faster than designing a routing layer — and it works fine at demo scale, so the problem isn't visible until production traffic reveals conflicting instructions and context budget exhaustion.
+> **When it bites:** When you add a new use case and it subtly breaks an existing one; when the prompt grows past ~2K tokens and the model starts ignoring early instructions; when you can't improve one task without regressing another.
+> **What to do instead:** Route by intent first (a lightweight classifier or keyword match), then give each handler a focused, short prompt optimized for its single task — each prompt is independently tunable without cross-contamination.
+
 **Problem:** Single massive prompt trying to do everything.
 
 ```python
@@ -56,6 +60,10 @@ class QueryRouter:
 
 ### Single Provider Dependency
 
+> **Why it's tempting:** One provider is simpler to integrate, only requires one API key and one billing relationship, and feels stable when the provider's uptime SLA says 99.9%.
+> **When it bites:** During provider outages (which do happen), during rate-limit spikes at peak traffic, or when a price increase or model deprecation forces an emergency migration you're not prepared for.
+> **What to do instead:** Build a thin abstraction layer from the start (normalize request/response formats) and register at least one backup provider; this costs a few hours up front and saves days during an incident.
+
 **Problem:** Entire system depends on one LLM provider.
 
 ```python
@@ -90,6 +98,10 @@ class LLMClient:
 
 ### Premature Fine-Tuning
 
+> **Why it's tempting:** Fine-tuning sounds like the "professional" solution and promises to teach the model your domain — teams reach for it early when prompt engineering produces inconsistent results.
+> **When it bites:** When you spend weeks collecting and cleaning training data only to find that a well-crafted few-shot prompt achieves the same result; or when the model's base weights shift with a provider update and your fine-tune is stale.
+> **What to do instead:** Exhaust the progression — prompting → few-shot examples → RAG for knowledge gaps → fine-tune only when you have 500+ high-quality examples and a reproducible eval showing fine-tuning beats the simpler approaches.
+
 **Problem:** Fine-tuning before exhausting simpler approaches.
 
 **Why it fails:**
@@ -114,6 +126,10 @@ Consider fine-tuning (with 500+ examples)
 ## RAG Anti-Patterns
 
 ### Retrieve Everything
+
+> **Why it's tempting:** A high top_k feels like a safety net — "if we retrieve 50 documents, the right answer must be in there somewhere" — and it's trivial to implement.
+> **When it bites:** When the model hits the "lost in the middle" effect and ignores the most relevant chunk buried in a sea of loosely related content; when token costs spike because you're stuffing 50K tokens of context for every query.
+> **What to do instead:** Retrieve a large candidate set (20–50), then rerank with a cross-encoder and keep only the top 3–5 chunks above a relevance score threshold — quality over quantity every time.
 
 **Problem:** Retrieving too many documents regardless of relevance.
 
@@ -140,6 +156,10 @@ context = "\n".join([r.text for r in reranked[:5] if r.score > 0.7])
 ---
 
 ### No Chunking Strategy
+
+> **Why it's tempting:** Fixed-size chunking is one line of code and seems to work in initial testing when documents happen to be well-structured.
+> **When it bites:** When a sentence is split mid-way across two chunks, neither chunk embeds correctly, and the retrieval misses the answer entirely even though the text is in the corpus.
+> **What to do instead:** Use semantic-aware chunking that respects sentence and paragraph boundaries with a small overlap (100–200 tokens) between adjacent chunks to preserve context across boundaries.
 
 **Problem:** Arbitrary or no chunking of documents.
 
@@ -168,6 +188,10 @@ chunks = semantic_chunker.chunk(
 ---
 
 ### Ignoring Metadata
+
+> **Why it's tempting:** Pure vector search "just works" for semantic matching — adding metadata filtering feels like premature optimization when you're building an MVP.
+> **When it bites:** When a user asks about a recent policy and the model retrieves a 3-year-old version because semantic similarity is high; or when privileged documents surface for unauthorized users because access control isn't encoded in the retrieval filter.
+> **What to do instead:** Index rich metadata (date, source, document type, access level) from the start and use pre-filter queries — adding these fields retroactively requires re-indexing your entire corpus.
 
 **Problem:** Treating all documents as equal text.
 
@@ -207,6 +231,10 @@ results = vector_db.search(
 ## Agent Anti-Patterns
 
 ### Infinite Loop Risk
+
+> **Why it's tempting:** You want the agent to "keep trying until it succeeds" — and in demos it always finishes in 5 steps, so hard limits feel unnecessary.
+> **When it bites:** In production, an agent hitting an unexpected tool error can retry indefinitely, running up hundreds of dollars in API costs in minutes before anyone notices.
+> **What to do instead:** Enforce hard limits at every level — maximum steps, maximum wall-clock time, maximum total cost per session — and return a graceful partial result rather than running forever.
 
 **Problem:** No termination conditions for agents.
 
@@ -250,6 +278,10 @@ return "Step limit reached"
 
 ### Unsafe Tool Access
 
+> **Why it's tempting:** Giving the agent full tool access makes it more capable in demos — why constrain it when you "trust" the model to behave correctly?
+> **When it bites:** When a misbehaving prompt injection or planning error causes the agent to delete production data, send emails to real users, or exfiltrate information — all operations it had the tools to perform.
+> **What to do instead:** Apply least-privilege from day one — scope each tool to the minimum necessary permissions, require human-in-the-loop confirmation for destructive actions, and log all tool calls for audit.
+
 **Problem:** Giving agents unrestricted tool access.
 
 ```python
@@ -283,6 +315,10 @@ tools = [
 
 ### Agent Without Memory
 
+> **Why it's tempting:** Stateless agents are simpler to build, easier to scale horizontally, and avoid the complexity of managing a session store — and it looks fine when testing single-turn interactions.
+> **When it bites:** When a user refers to "that file I mentioned earlier" and the agent asks them to repeat themselves; or when a multi-turn task requires the agent to remember intermediate results it has already computed.
+> **What to do instead:** Persist session state externally (Redis, database) keyed by session ID — inject the relevant memory into each turn's context rather than passing the entire history, to avoid context bloat.
+
 **Problem:** Agent restarts from scratch every turn.
 
 ```python
@@ -312,6 +348,10 @@ async def handle_message(session_id: str, message: str) -> str:
 ## Prompting Anti-Patterns
 
 ### Vague Instructions
+
+> **Why it's tempting:** "Help the user" feels natural and flexible — over-specifying constraints seems like it might break edge cases you haven't thought of yet.
+> **When it bites:** When the model "helps" in ways you didn't intend — providing legal advice, making refund promises, or generating content outside your product scope — because you never told it not to.
+> **What to do instead:** Write explicit, structured prompts with defined role, allowed actions, prohibited actions, and required output format; test against adversarial inputs to find what the vague version allowed that the specific version blocks.
 
 **Problem:** Ambiguous prompts expecting specific behavior.
 
@@ -353,6 +393,10 @@ Do NOT:
 
 ### No Output Format
 
+> **Why it's tempting:** The model usually produces readable prose that contains the right information — parsing it with a regex or simple string search feels good enough in early testing.
+> **When it bites:** When the model's wording changes slightly between requests (e.g., "on March 5th" vs "March 5, 2024") and your parser breaks; or when the model produces a preamble before the JSON and your parser chokes on the leading text.
+> **What to do instead:** Always specify the exact output format (JSON schema, field names, data types) or use structured-output APIs that enforce the format at the token generation level — never depend on parsing free-form prose for machine-readable data.
+
 **Problem:** Expecting structured output without specifying format.
 
 ```python
@@ -385,6 +429,10 @@ response = await llm.generate(prompt, response_format={"type": "json_object"})
 ## Evaluation Anti-Patterns
 
 ### Vibes-Based Evaluation
+
+> **Why it's tempting:** Looking at a handful of outputs is fast, requires no tooling, and gives confident-sounding signal — "I read 10 responses and they all seemed great."
+> **When it bites:** When a prompt change that looks good on 5 sampled queries causes a 15% regression on the category you didn't spot-check; or when you ship a model upgrade that performs slightly worse on your key use case and you only find out from user complaints weeks later.
+> **What to do instead:** Run systematic eval on 100+ stratified examples before any change; track metrics (accuracy, hallucination rate, format compliance) over time so regressions are caught automatically before they reach users.
 
 **Problem:** "It looks good to me" as the evaluation method.
 
@@ -423,6 +471,10 @@ metrics = {
 
 ### Training on Test Set
 
+> **Why it's tempting:** You only have one labeled dataset, and it feels wasteful not to use all of it for both development and evaluation — and accuracy goes up every iteration, which feels like progress.
+> **When it bites:** When reported accuracy is 95% on the eval set but real-world performance is 70% because the prompt was tuned to the quirks of those specific examples rather than the general task.
+> **What to do instead:** Split data strictly — dev set for iteration, held-out test set evaluated only once at the end; if your dataset is small, use k-fold cross-validation rather than contaminating the test split.
+
 **Problem:** Using evaluation data for development decisions.
 
 ```python
@@ -458,6 +510,10 @@ final_accuracy = evaluate(test_set)
 
 ### No Rate Limiting
 
+> **Why it's tempting:** Adding rate limiting feels like you're punishing good users — and the cost seems manageable in beta when usage is low and predictable.
+> **When it bites:** When a single user (or a scripted attacker) sends thousands of requests in minutes, draining your provider budget for all other users and triggering your API quota cap system-wide.
+> **What to do instead:** Implement per-user rate limits (requests per minute/hour/day) and a per-session cost cap from launch — these protect both your budget and your other users' experience.
+
 **Problem:** Unlimited LLM calls per user.
 
 ```python
@@ -486,6 +542,10 @@ async def generate():
 ---
 
 ### No Caching
+
+> **Why it's tempting:** Caching adds infrastructure complexity and raises concerns about serving stale answers — easier to just always generate fresh.
+> **When it bites:** When 30–40% of your queries are semantically identical FAQ questions and you're paying the full per-token cost each time, plus delivering unnecessary latency to users who could have gotten an instant cached response.
+> **What to do instead:** Layer exact-match caching (zero marginal cost for identical queries) and semantic caching (captures paraphrases) in front of the LLM — only bypass the cache for personalized or real-time queries where freshness matters.
 
 **Problem:** Every identical request hits the LLM.
 

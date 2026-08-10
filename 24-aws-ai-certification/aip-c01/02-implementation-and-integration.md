@@ -29,6 +29,10 @@ See also: [Amazon Bedrock service reference](../services/bedrock.md) · [Amazon 
 
 ### 1.1 `InvokeModel` — the low-level escape hatch
 
+> **Why (the rationale):** `InvokeModel` gives direct access to a model's native request schema, which is needed for capabilities not yet surfaced in the Converse API (e.g., generating embeddings via Titan Embeddings, or using provider-specific features like extended thinking parameters for some models).
+> **When to use:** Embeddings (Titan Embeddings, Cohere Embed), image generation (Titan Image Generator, SDXL), or any model feature not exposed through `Converse`. For all new text-generation and tool-use builds, prefer `Converse`.
+> **Nuances & gotchas:** The request/response body is **model-specific** — a request body that works for Claude will break if you swap to Llama without rewriting it. `InvokeModel` is authorized by `bedrock:InvokeModel` — there is no separate `bedrock:InvokeModel` vs `bedrock:Converse` action; Converse uses the same permission.
+
 [`InvokeModel`](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html) sends a raw JSON body directly to one model. The request shape is model-specific (Claude's body looks different from Llama's), the response is model-specific, and there is no built-in multi-turn history. Use it only when:
 
 - You need a feature not yet in the Converse API (e.g., embeddings via `InvokeModel` on Titan Embeddings).
@@ -41,6 +45,10 @@ See also: [Amazon Bedrock service reference](../services/bedrock.md) · [Amazon 
 ---
 
 ### 1.2 `Converse` and `ConverseStream` — the unified API
+
+> **Why (the rationale):** Before `Converse`, switching between models required rewriting the request body, message format, and tool-use schema for every provider. `Converse` normalizes all of this so you swap `modelId` and nothing else changes — enabling multi-model fallback, A/B testing, and Intelligent Prompt Routing without code changes.
+> **When to use:** Any new text generation, chat, or tool-use build on Bedrock. The only valid reasons to fall back to `InvokeModel` are embeddings, image generation, or a model that doesn't yet support the Messages API.
+> **Nuances & gotchas:** `Converse` is **authorized by `bedrock:InvokeModel`** — there is no separate `bedrock:Converse` IAM action. `ConverseStream` requires `bedrock:InvokeModelWithResponseStream`. The `topK` parameter is NOT in `inferenceConfig` — pass it in `additionalModelRequestFields` for models that support it; failing to do so silently ignores it. Cached tokens do NOT count toward the `inputTokens` field in the response — total input = `inputTokens + cacheReadInputTokens + cacheWriteInputTokens`.
 
 Announced May 2024, [`Converse`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html) is now the **recommended runtime API** for virtually every new build. It provides one normalised request/response shape across every Bedrock model that supports the Messages API.
 
@@ -229,6 +237,10 @@ Parameterise prompts as strings with placeholders (`{{customer_name}}`, `{{produ
 
 ### 2.5 Amazon Bedrock Prompt Management
 
+> **Why (the rationale):** Embedding prompts in application code creates a deployment dependency — every prompt change requires a code deploy, test cycle, and rollback risk. Prompt Management decouples the prompt lifecycle from the code lifecycle, enabling prompt engineers to iterate and roll back independently.
+> **When to use:** Any production application where prompt iteration speed matters, multiple teams share prompts, or you need a traceable audit trail of prompt changes (compliance, debugging). Less necessary for one-off scripts or early prototyping.
+> **Nuances & gotchas:** Prompt **versions are immutable** — you cannot edit a published version; you must update the draft and publish a new version. Rollback means pointing your application's ARN reference to an older version number, not reverting in-place. Prompts are referenced by ARN; if your code hardcodes the version number, you must update it on each release.
+
 [Bedrock Prompt Management](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-management.html) (GA November 2024) is a centralised service for creating, testing, versioning, and sharing prompts:
 
 - **Versions are immutable** — once created a version cannot be modified; update the draft, then cut a new version.
@@ -237,6 +249,10 @@ Parameterise prompts as strings with placeholders (`{{customer_name}}`, `{{produ
 - Decouples prompt engineering from application deployments.
 
 ### 2.6 Amazon Bedrock Flows (Prompt Flows)
+
+> **Why (the rationale):** Complex multi-step GenAI workflows (e.g., retrieve → summarize → classify → route) typically require custom orchestration code that is hard to test and maintain. Bedrock Flows provides a managed, visual alternative where the logic lives in Bedrock as a versioned resource rather than in application code.
+> **When to use:** When you need to chain prompts, Knowledge Bases, and Lambda functions in a reproducible, versionable workflow — especially when non-engineer stakeholders need to inspect or modify the flow logic. For arbitrary code-heavy orchestration, Step Functions or Strands Agents may be more appropriate.
+> **Nuances & gotchas:** Versions are read-only — create a new draft to modify a flow, similar to Lambda aliases. Flows are exposed as an ARN that your application invokes; you cannot call individual nodes directly. Flows do NOT natively support long-running (hours) async execution — for that, use AgentCore Runtime.
 
 [Bedrock Flows](https://aws.amazon.com/bedrock/flows/) is a visual drag-and-drop orchestration builder for chaining prompts, Knowledge Bases, Lambda functions, and other nodes into reproducible workflows:
 
@@ -257,6 +273,10 @@ Parameterise prompts as strings with placeholders (`{{customer_name}}`, `{{produ
 ## 3. Agentic AI
 
 ### 3.1 Amazon Bedrock Agents (Classic)
+
+> **Why (the rationale):** Classic Agents automated multi-step NL-driven tasks by giving a model the ability to call Lambda-backed APIs (action groups) and query Knowledge Bases in a managed ReAct loop — without building the orchestration planner yourself.
+> **When to use:** Only relevant for **maintaining or extending existing Classic Agents** deployed before July 2026. New builds should use AgentCore. Exam questions about "action groups backed by Lambda" and "OpenAPI schema for agent tools" test Classic Agent knowledge.
+> **Nuances & gotchas:** Classic Agents are closed to new customers as of July 30, 2026, but existing agents continue to run. The Lambda action group event shape is specific: `apiPath`, `httpMethod`, `parameters` — your Lambda must return a response matching the declared OpenAPI schema or the agent throws an error. Session memory in Classic Agents is optional and per-session only; there is no built-in long-term memory without custom DynamoDB wiring.
 
 > **Note (July 2026):** AWS has designated Bedrock Agents as "Classic" and closed it to new customers as of July 30, 2026. Existing Classic agents continue to work; **new builds should use AgentCore** (see §3.2). The concepts below still appear on the exam because many production environments run Classic agents.
 
@@ -304,6 +324,10 @@ For deterministic, auditable multi-step flows (e.g., "validate → enrich → su
 
 ### 3.2 Amazon Bedrock AgentCore — the production path (2026)
 
+> **Why (the rationale):** Building production agents requires solving session isolation, long-term memory persistence, tool authentication, and async long-running execution — all before writing any business logic. AgentCore provides these as managed services so teams focus on agent behavior rather than infrastructure.
+> **When to use:** Any new agent build post-July 2026; agents requiring multi-hour async execution (A2A protocol); when managed memory across sessions or OAuth-based tool authentication is needed. AgentCore Gateway is the right answer when you need to expose existing REST APIs or Lambda functions as MCP-compatible tools without a proxy layer.
+> **Nuances & gotchas:** AgentCore components are individually billed (Runtime, Memory, Gateway, Browser, Code Interpreter are separate charges). Gateway executes tools **server-side** — this reduces tool-call round-trip latency compared to classic client-side orchestration. Code Interpreter runs in an isolated sandbox; it does NOT have network access by default. AgentCore Memory has two tiers (session + long-term); you explicitly control what the agent retains across sessions.
+
 [Amazon Bedrock AgentCore](https://aws.amazon.com/blogs/aws/introducing-amazon-bedrock-agentcore-securely-deploy-and-operate-ai-agents-at-any-scale/) is the managed production runtime for AI agents. It is built from a set of individually-billed managed components — **Runtime, Memory, Gateway, Identity, Browser, Code Interpreter, Observability, Evaluations, and Policy**; the managed agent **harness** reached general availability on June 17, 2026. The core components:
 
 | Component | What it does |
@@ -341,6 +365,10 @@ response = agentcore.invoke_agent(
 
 ### 3.3 Strands Agents SDK (open-source)
 
+> **Why (the rationale):** Teams building agents on multiple backends (Bedrock + OpenAI + Anthropic direct) or needing to swap model providers without rewriting agent logic need a model-agnostic SDK. Strands provides that plus first-class MCP support and multi-agent patterns (Graph, Swarm, Workflow) out of the box.
+> **When to use:** When you want to write agent code once and run it against different model backends; when you need native MCP tool support; when you want open-source auditability and community contributions over a managed-only solution.
+> **Nuances & gotchas:** Strands is open-source — AWS provides it but you maintain your own deployment. It integrates natively with AgentCore Runtime and Memory, but using it does NOT automatically give you AgentCore's managed session isolation; you must explicitly wire Strands to AgentCore components. The A2A protocol support enables cross-framework agent interoperability but requires the target agent to also support A2A.
+
 [Strands Agents](https://strandsagents.com/) is AWS's open-source SDK (Python + TypeScript) released May 2025. It is **model-agnostic** — works with Bedrock, Anthropic direct API, OpenAI, Gemini, and others — so teams can swap backends without rewriting agent code.
 
 Key capabilities ([AWS blog](https://aws.amazon.com/blogs/machine-learning/strands-agents-sdk-a-technical-deep-dive-into-agent-architectures-and-observability/)):
@@ -371,6 +399,10 @@ print(result)
 ---
 
 ### 3.4 Model Context Protocol (MCP)
+
+> **Why (the rationale):** Before MCP, every model-tool integration required bespoke glue code per model per tool. MCP standardizes the protocol so any MCP-compatible client (agent) can discover and call any MCP-compatible server (tool) without provider-specific adapters — reducing integration work and enabling a reusable tool ecosystem.
+> **When to use:** When building agents that need to integrate with many different tools or when you want tool integrations to be reusable across different agent frameworks. AgentCore Gateway as MCP proxy is the right answer when you want to expose existing Lambda/REST APIs as MCP tools without rewriting them.
+> **Nuances & gotchas:** MCP is a protocol specification, not a hosted service — you run MCP servers yourself (or use managed MCP-compatible services). Transport options matter: stdio works only for local processes; SSE (HTTP streaming) and WebSocket are needed for remote servers. MCP does not solve authorization natively — AgentCore Identity (OAuth/OIDC) fills that gap for downstream service authentication.
 
 [MCP](https://aws.amazon.com/about-aws/whats-new/2025/10/model-context-protocol-proxy-available) is an open standard (originally from Anthropic, now broadly adopted) for connecting AI models to external context sources and tools via a structured protocol. Think of it as USB-C for AI tools — a single plug that works regardless of which model or framework is running.
 
@@ -429,6 +461,10 @@ Bedrock Knowledge Bases ingest documents (S3, Confluence, SharePoint, web crawl)
 
 ### 4.4 Fine-tuning on Bedrock
 
+> **Why (the rationale):** When the base model consistently underperforms on a specific task format, style, or domain despite extensive prompt engineering, fine-tuning bakes the target behavior into the model weights. The result is typically more consistent output and lower per-request token cost (shorter prompts needed).
+> **When to use:** You have 100+ high-quality labelled (prompt, completion) pairs and the base model still fails on the target task with few-shot examples. Also required when the output format must be rigidly consistent (e.g., fixed JSON schema with specific field names).
+> **Nuances & gotchas:** Fine-tuned models on Bedrock **require Provisioned Throughput** to invoke — you cannot use on-demand pricing for a fine-tuned model. Training data must be in JSONL in S3 in the same account and region. Fine-tuning does NOT grant the model new real-world knowledge; use RAG for that.
+
 Supervised fine-tuning with labelled (`prompt`, `completion`) pairs. Adjusts the model's weights for a specific task or style. Requires a training dataset in S3 (JSONL format), a supported base model, and a training job in Bedrock.
 
 **When to use:** Consistent output format, domain-specific tone, or task the base model performs poorly on even with few-shot examples.
@@ -443,6 +479,10 @@ Trains on **unlabelled** domain text to bake vocabulary, facts, and style into t
 
 ### 4.6 Model distillation on Bedrock
 
+> **Why (the rationale):** Distillation lets you achieve frontier-model quality on your specific task at small-model cost and latency — without manually curating training pairs. The teacher generates the synthetic dataset; you get a task-specialized student that is dramatically cheaper at inference time.
+> **When to use:** When you're currently using a large, expensive model (Claude Opus, Nova Pro) for a high-volume, narrow task and want to reduce cost/latency while preserving quality on that task. Classic exam signal: "we need Claude Opus quality but can't afford it at scale."
+> **Nuances & gotchas:** Distillation requires you to designate a **teacher model** (Bedrock-hosted) and a **student model** — Bedrock generates the synthetic examples automatically; you don't curate them manually. The student's quality is bounded by the teacher's quality on the task. Distillation is not the same as fine-tuning (fine-tuning uses your own labelled data; distillation uses teacher-generated synthetic data). The distilled student still requires Provisioned Throughput for invocation.
+
 [Distillation](https://aws.amazon.com/bedrock/faqs/) transfers knowledge from a large **teacher** model to a smaller **student** model. The teacher generates synthetic labelled examples; the student trains on them. Result: a small, fast, cheap model that approximates the teacher's quality on your task.
 
 **When to use:** You need the quality of a large frontier model but the cost/latency of a small one at high call volume. Classic exam scenario: "We currently use Claude Opus-equivalent quality but are paying too much — how do we keep quality while cutting cost?" → Distillation.
@@ -456,6 +496,10 @@ Trains on **unlabelled** domain text to bake vocabulary, facts, and style into t
 - You want to fine-tune open-weight models on SageMaker and then import them
 
 ### 4.8 Bedrock Custom Model Import
+
+> **Why (the rationale):** Teams that already fine-tuned open-weight models (Llama, Mistral) in SageMaker or on EC2 can bring those weights into Bedrock's API without rebuilding inference infrastructure — getting Bedrock's IAM, PrivateLink, guardrail, and logging stack around custom weights.
+> **When to use:** When you have weights trained or fine-tuned outside of Bedrock and want to invoke them via standard Bedrock APIs (with all associated governance features) without managing SageMaker endpoints.
+> **Nuances & gotchas:** Only specific model architectures are supported — Mistral, Mixtral, Flan, Llama 2/3/3.1/3.2; importing an unsupported architecture fails at import time. Imported custom models also require **Provisioned Throughput** to invoke. Model weights must be exported to S3 in a Bedrock-compatible format from SageMaker; raw training checkpoints may need conversion.
 
 [Custom Model Import](https://docs.aws.amazon.com/bedrock/latest/userguide/import-pre-trained-model.html) lets you bring weights trained or fine-tuned outside Bedrock (SageMaker, EC2, on-premises) into Bedrock's serverless invocation layer. Supported architectures include Mistral, Mixtral, Flan, Llama 2/3/3.1/3.2.
 

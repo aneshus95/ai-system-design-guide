@@ -52,6 +52,10 @@ Guardrails are offered in two **tiers**: *Basic* (default, lower cost) and **Sta
 
 ### 1.1 Content Filters
 
+> **Why (the rationale):** Without content filters, models can produce hate speech, explicit content, or instructions for illegal activities in response to adversarial or accidental prompts. Content filters intercept both inputs (blocking jailbreak attempts) and outputs (catching model-generated harmful content) in one policy.
+> **When to use:** Any customer-facing application. Strength level should match risk tolerance: consumer apps targeting general audiences → HIGH for Hate/Sexual/Violence; internal developer tools → MEDIUM may suffice. Always enable Prompt Attack at Standard tier for applications exposed to untrusted user input.
+> **Nuances & gotchas:** Content filters have four strength levels (`NONE`, `LOW`, `MEDIUM`, `HIGH`) — they are NOT a simple on/off toggle. Setting all to `HIGH` increases false positives and may block legitimate content. The Prompt Attack category is inside Content Filters at Basic tier, but at **Standard tier** it also produces a standalone `PROMPT_ATTACK` finding type — the exam may distinguish these two.
+
 **What it does:** Detects and filters harmful text or image content in prompts **and** model responses across six predefined harm categories.
 
 | Category | Description |
@@ -79,6 +83,10 @@ Source: [Amazon Bedrock Guardrails components](https://docs.aws.amazon.com/bedro
 
 ### 1.2 Denied Topics
 
+> **Why (the rationale):** Content filters cover universally harmful categories; denied topics cover domain-specific off-limits subjects that are benign in general but inappropriate for a specific application (competitor products, investment advice, political opinions). They solve the "keep the bot on topic" problem.
+> **When to use:** When you need to block an application-specific domain that content filters don't cover — e.g., a cooking bot that must not discuss weight loss drugs, or a company bot that must not discuss competitors. Use natural-language definitions; provide example phrases to reduce false negatives.
+> **Nuances & gotchas:** Denied topics use **semantic understanding** (ML), not keyword matching — a user asking about "the other AI company" might still be caught if the definition covers competitors semantically. For exact string blocking (brand name, specific word), use Word Filters instead. At Standard tier, denied-topic detection extends into code domain content (comments, strings).
+
 **What it does:** Lets you define custom topics the application must never discuss — described in natural language, not code. A banking bot can be configured to refuse illegal investment advice; a children's platform can refuse any adult topic.
 
 With **Standard tier**, denied-topic detection also extends into code domains.
@@ -96,6 +104,10 @@ Source: [Amazon Bedrock Guardrails components](https://docs.aws.amazon.com/bedro
 
 ### 1.3 Word Filters
 
+> **Why (the rationale):** For specific, known strings (competitor brand names, internal code words, known slurs) where ML-based semantic detection is overkill or too slow, deterministic string matching provides guaranteed, zero-latency blocking with no false negatives for exact matches.
+> **When to use:** Blocking exact brand names, internal project code names, regulatory-forbidden terms that must never appear verbatim. Combine with denied topics for broader semantic coverage around the same subject.
+> **Nuances & gotchas:** Word filters are **case-sensitive exact matches** — "CompetitorX" won't catch "competitorx" or "Competitor X". Misspellings and synonyms bypass word filters entirely — content filters or denied topics are needed for semantic coverage. The built-in profanity list is AWS-curated and cannot be inspected or customized; use custom lists for precise control.
+
 **What it does:** Exact-string blocking of specific words or phrases. You can enable a built-in **profanity list** or supply a custom list (competitor names, internal code names, slurs, etc.).
 
 Word filters are deterministic — if the exact string appears, it is blocked. No ML inference involved.
@@ -110,6 +122,10 @@ Source: [Amazon Bedrock Guardrails components](https://docs.aws.amazon.com/bedro
 ---
 
 ### 1.4 Sensitive Information Filters — PII Detection & Redaction
+
+> **Why (the rationale):** Users routinely include SSNs, credit card numbers, and other PII in chat messages, and models sometimes reproduce PII from training data. Sensitive information filters catch these at the inference boundary — acting as a last-resort safety net even if upstream redaction (Comprehend) or data classification (Macie) missed them.
+> **When to use:** Any application where PII leakage is a compliance risk (financial services, healthcare, HR). Use ANONYMIZE mode when the downstream prompt can still be useful with placeholders (e.g., "Dear {NAME}, …"). Use BLOCK when even a masked version is unacceptable (e.g., block any message containing a credit card number entirely).
+> **Nuances & gotchas:** PII masking applies only to content sent to/from the model — it does **NOT** apply to model invocation logs. Raw PII still appears unmasked in CloudWatch Logs even with masking enabled; configure **CloudWatch log data protection** separately. `AWS_ACCESS_KEY` and `AWS_SECRET_KEY` are built-in PII types (no custom regex needed). Custom regex patterns cannot use lookahead/lookbehind assertions. Detection is context-dependent — a bare 9-digit string without surrounding context may not be classified as an SSN.
 
 **What it does:** Uses probabilistic ML to detect sensitive data (PII and custom patterns) in prompts and responses, then either **blocks** all content containing it or **masks/anonymizes** it by replacing detected values with their type placeholder (e.g., `{NAME}`, `{EMAIL}`).
 
@@ -147,6 +163,10 @@ Source: [Remove PII from conversations by using sensitive information filters](h
 
 ### 1.5 Contextual Grounding & Relevance Checks
 
+> **Why (the rationale):** Content filters catch harmful language; they do nothing about factually wrong but politely phrased answers. Contextual grounding fills this gap by verifying that the model's output is actually supported by the source material you provided — the only Guardrails feature specifically targeting hallucinations.
+> **When to use:** RAG pipelines, document summarization, and Q&A where factual accuracy against a known source is critical (legal, medical, financial). Requires that you supply the grounding source text alongside the query and response.
+> **Nuances & gotchas:** Contextual grounding **cannot fact-check against the internet or the model's parametric knowledge** — it only validates against the text you supply as the grounding source. It is a separate policy from content filters; enabling content filters does NOT enable grounding checks. Priced at $0.10 per 1,000 text units (source + query + response combined) — can add meaningful cost at scale. Supported use cases are summarization, paraphrasing, and Q&A; it is NOT designed for code generation or creative writing verification.
+
 **What it does:** Detects and filters **hallucinations** in model responses for RAG, summarization, and Q&A workloads. The check compares the model's response against a **grounding source** (the retrieved passages) and the **user query** to produce two scores:
 
 | Score | What it measures | Threshold range |
@@ -175,6 +195,10 @@ Source: [Use contextual grounding check to filter hallucinations](https://docs.a
 
 ### 1.6 Automated Reasoning Checks
 
+> **Why (the rationale):** Grounding checks test whether a response aligns with a source document; Automated Reasoning goes further and **formally proves** compliance with business rules using mathematical logic — not sampling or probabilistic scoring. This is the only Guardrails feature that can provide a proof of compliance, suitable for regulated financial, insurance, and healthcare calculations.
+> **When to use:** When the business rules can be expressed formally and you need mathematically provable correctness (e.g., insurance premium calculations must follow approved rate tables, financial advice must comply with GAAP rules). Not appropriate for open-ended creative or conversational outputs.
+> **Nuances & gotchas:** Automated Reasoning is fundamentally different from contextual grounding — grounding checks factual alignment with a source document; Automated Reasoning checks logical/mathematical policy compliance. Policies are written in natural language and Bedrock translates them to formal logic internally — ambiguous natural-language policies reduce verification accuracy. This feature achieves up to 99% verification accuracy per AWS, but this metric is task-dependent.
+
 **What it does:** Policy-based **mathematical and logical verification** of model responses. You write policies in natural language that express business or regulatory rules (e.g., "Only recommend medications that are listed in the approved formulary," "Financial calculations must follow GAAP rounding rules"). The automated reasoning engine evaluates whether the model's output **provably complies** with those rules — no sampling, no probabilistic scoring.
 
 This is fundamentally different from content filters (which block harmful text) and grounding checks (which compare to a source). Automated reasoning checks use formal verification to **prove or disprove** compliance claims, achieving up to **99% verification accuracy** ([AWS Bedrock security page](https://aws.amazon.com/bedrock/security-privacy-responsible-ai)).
@@ -192,6 +216,10 @@ Source: [Automated reasoning checks announcement](https://aws.amazon.com/about-a
 ---
 
 ### 1.7 The ApplyGuardrail API
+
+> **Why (the rationale):** The inline guardrail mechanism (passing `guardrailConfig` in `InvokeModel`/`Converse`) requires a Bedrock-hosted model. ApplyGuardrail breaks this coupling, enabling Bedrock safety controls to wrap any model — including open-source models on EC2, third-party API models, or self-hosted LLMs.
+> **When to use:** Applying Bedrock Guardrails to non-Bedrock models; pre-screening user input before sending to any model; batch compliance evaluation of existing text corpora; applying guardrails to streaming outputs token by token.
+> **Nuances & gotchas:** ApplyGuardrail calls the guardrail evaluation service independently — you are billed for the guardrail check separately from any model invocation. There is no automatic content blocked response sent to a user; your code must handle the guardrail verdict (`GUARDRAIL_INTERVENED`) and take action. Only one `source` type per call: either `INPUT` or `OUTPUT`.
 
 The [`ApplyGuardrail`](https://aws.amazon.com/blogs/machine-learning/use-the-applyguardrail-api-with-long-context-inputs-and-streaming-outputs-in-amazon-bedrock/) API **decouples guardrail evaluation from model invocation**. You send text directly to the API and receive a guardrail verdict — no foundation model is called.
 
@@ -236,6 +264,10 @@ This "define once, enforce everywhere" architecture is the recommended approach 
 
 ### 2.1 IAM Policies for Bedrock
 
+> **Why (the rationale):** Bedrock models are high-value API endpoints — without least-privilege IAM policies, any compromised AWS principal in your account could invoke expensive frontier models or exfiltrate data. IAM is the first line of access control before data even reaches a model.
+> **When to use:** Grant `bedrock:InvokeModel` scoped to specific model ARNs (not `*`) for every Lambda, ECS task, or service that calls Bedrock. Use `bedrock:ModelId` condition keys to enforce approved-model-only policies at scale. Use SCPs to enforce organization-wide restrictions.
+> **Nuances & gotchas:** **`Converse` is authorized by `bedrock:InvokeModel`** — there is no separate `bedrock:Converse` IAM action. `ConverseStream` is authorized by `bedrock:InvokeModelWithResponseStream`. Bedrock does NOT support resource-based policies on foundation models; access is controlled entirely via identity-based policies and VPC endpoint policies. SCPs apply to principals within your AWS organization but NOT to cross-account external principals accessing via a shared VPC endpoint.
+
 Amazon Bedrock follows standard AWS IAM. The key permission actions to know:
 
 | Action | Purpose |
@@ -275,6 +307,10 @@ Source: [Implementing least privilege access for Amazon Bedrock](https://aws.ama
 ---
 
 ### 2.2 VPC Endpoints / AWS PrivateLink
+
+> **Why (the rationale):** Regulated workloads (financial, healthcare, government) often prohibit data from traversing the public internet. VPC endpoints keep all Bedrock traffic on the private AWS backbone — eliminating the need for NAT Gateways, internet gateways, or VPN tunnels for Bedrock calls from private subnets.
+> **When to use:** Any workload requiring private network connectivity (HIPAA, FedRAMP, financial regulations); EC2 or Lambda in a private subnet with no NAT; zero-trust architectures where public internet exposure must be minimized.
+> **Nuances & gotchas:** You need **separate VPC interface endpoints** for each Bedrock API family — `bedrock` (control plane), `bedrock-runtime` (InvokeModel/Converse), `bedrock-agent-runtime` (agents), and FIPS variants are all different endpoints; one endpoint does NOT cover all API families. FIPS endpoints are only available in select regions (us-east-1, us-east-2, us-west-2, ca-central-1, us-gov regions). Enable "Private DNS" on the endpoint so standard AWS SDK DNS resolution works without code changes.
 
 By default, Bedrock API calls traverse the public internet. To keep inference traffic **entirely within the AWS network**, create [VPC interface endpoints powered by AWS PrivateLink](https://docs.aws.amazon.com/bedrock/latest/userguide/vpc-interface-endpoints.html).
 
@@ -479,6 +515,10 @@ Source: [SageMaker governance announcement](https://aws.amazon.com/blogs/aws/new
 
 ### 4.4 Watermarking of Generated Content
 
+> **Why (the rationale):** Regulatory and ethical requirements increasingly mandate disclosure when content is AI-generated. An invisible watermark that survives common image transformations provides a cryptographically verifiable provenance signal without degrading image quality for end users.
+> **When to use:** Any workflow that generates images with Titan Image Generator and needs to verify AI provenance — content moderation, regulatory disclosure, deepfake detection. Use `DetectGeneratedContent` API to check a submitted image.
+> **Nuances & gotchas:** The watermark is **specific to Amazon Titan Image Generator** — images from Stable Diffusion, DALL·E, Midjourney, or other Bedrock image models do NOT carry this watermark and cannot be detected by this API. You **cannot opt out** of watermarking when using Titan Image Generator. The watermark survives moderate post-processing (JPEG compression, resizing, cropping) but may be destroyed by heavy editing or adversarial attacks.
+
 **Amazon Titan Image Generator** automatically embeds an **invisible watermark** in every image it produces by default — you cannot opt out. The watermark is imperceptible to humans and survives common image transformations (cropping, resizing, JPEG compression).
 
 **`DetectGeneratedContent` API** — use this Bedrock API to check whether an image was produced by Titan Image Generator. The API returns:
@@ -525,6 +565,10 @@ Two distinct logging systems work together; the exam tests whether you know what
 
 #### AWS CloudTrail
 
+> **Why (the rationale):** CloudTrail is the mandatory audit backbone for demonstrating who invoked which model, when, and from which identity — essential for compliance audits (SOC 2, HIPAA, PCI-DSS) and security investigations. It is the only way to prove unauthorized access after the fact without model invocation logging.
+> **When to use:** Always (enabled by default for management events). Create a CloudTrail Trail delivering to an encrypted S3 bucket for long-term retention beyond the default 90-day console history.
+> **Nuances & gotchas:** CloudTrail records **that** `InvokeModel` was called and by whom, but does **NOT** capture the prompt or response content — that requires Model Invocation Logging. CloudTrail data events for S3 and Lambda are NOT enabled by default; enable them separately if you need object-level access auditing on your ingestion buckets.
+
 CloudTrail automatically records **management (control-plane) events** for Amazon Bedrock — who called which API action, when, from which IP, with which IAM principal. CloudTrail does **not** capture the content of prompts or model responses.
 
 **What CloudTrail captures for Bedrock:**
@@ -536,6 +580,10 @@ CloudTrail automatically records **management (control-plane) events** for Amazo
 CloudTrail is **enabled by default** and stores 90 days of management events in the console Event History. For longer retention, create a **CloudTrail trail** delivering to an S3 bucket (optionally encrypted with KMS CMK).
 
 #### Bedrock Model Invocation Logging
+
+> **Why (the rationale):** CloudTrail tells you that a model was called; invocation logging tells you what was said. This is required for compliance regimes that mandate retaining the full content of AI interactions (e.g., financial services communications records) and for debugging unexpected model outputs in production.
+> **When to use:** Enable when compliance requires retaining prompt/response content, when debugging production failures, or when collecting input/output pairs for fine-tuning dataset construction.
+> **Nuances & gotchas:** **Disabled by default** — must be explicitly enabled per Region. Raw input appears unmasked in logs even when Guardrails PII masking is active; configure CloudWatch log data protection separately to mask PII in log streams. Log payloads > 100 KB are stored as separate S3 objects with a reference in the log entry. Invocation logging currently does NOT capture calls through the `bedrock-mantle` (Responses API) endpoint.
 
 [Model invocation logging](https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html) captures the **full content** of requests and responses — prompts, completions, token counts, model IDs, and request metadata.
 

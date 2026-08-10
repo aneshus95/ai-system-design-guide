@@ -4,6 +4,10 @@
 
 ---
 
+> **Why (the rationale):** Plain OCR gives you a soup of characters. Textract understands document structure — it knows that "Name: Jane Doe" is a key-value pair, that a grid is a table, and that an invoice has a vendor, total, and line items. It's the right tool whenever you need to digitize and *structure* the content of scanned documents, not just extract raw text.
+> **When to use:** "Extract text, forms, tables from scanned documents/PDFs," "OCR a paper form," "digitize invoices, receipts, ID cards, mortgage packages," "key-value extraction," "route low-confidence extractions to human review."
+> **Nuances & gotchas:** **Textract extracts structure from documents; Rekognition detects objects/faces/text in scenes — different jobs.** Both can "detect text" but Rekognition's `DetectText` reads short strings in photos (signs, jerseys); Textract is built for dense document structure (forms, tables, reading order). **Multi-page PDFs require async APIs** (`Start…` / `Get…` with SNS notification) — sync APIs are single-page only. Features (FORMS, TABLES, QUERIES) are **billed separately and additively** — requesting multiple features on the same page stacks the charges.
+
 ## 🧠 Mental model
 
 Think of Textract as **a meticulous data-entry clerk who reads a scanned document and hands you a structured spreadsheet instead of a wall of text.** Plain OCR gives you a soup of characters; Textract understands that "Name: Jane Doe" is a **key-value pair**, that a grid of numbers is a **table**, and that a receipt has a **vendor, total, and line items**. It knows what a driver's license or passport field means (`AnalyzeID`) and what a receipt field means (`AnalyzeExpense`).
@@ -37,7 +41,15 @@ flowchart LR
 
 ## What it does
 
+> **Why (the rationale):** The most basic, cheapest Textract tier — converts scanned images to machine-readable text without any structural interpretation. Use when you only need the words, not the relationships between them.
+> **When to use:** "Just extract raw text from a scanned document," "feed OCR output to an LLM or Comprehend for downstream NLP," where structure is not needed.
+> **Nuances & gotchas:** `DetectDocumentText` is ~30x cheaper per page than `AnalyzeDocument` FORMS. If you only need raw text (e.g., to feed into Comprehend or a Bedrock prompt), don't request FORMS or TABLES — that wastes money. It also reads **handwriting**, not just printed text.
+
 **Raw OCR** — `DetectDocumentText` returns detected text as `LINE` and `WORD` blocks with bounding boxes and confidence scores. Reads printed text **and handwriting**. This is the cheap, "just give me the words" tier. ([Detecting text](https://docs.aws.amazon.com/textract/latest/dg/how-it-works-detecting.html))
+
+> **Why (the rationale):** When documents have structured content (forms with labeled fields, data grids, natural-language queryable fields, signatures, or layout elements), raw OCR loses the structure. AnalyzeDocument reconstructs those relationships so downstream systems can use the data directly without parsing logic.
+> **When to use:** "Extract key-value form fields," "reconstruct tables with rows and columns," "ask questions of a document without a fixed template (QUERIES)," "detect signatures," "preserve reading order for LLM/RAG ingestion (LAYOUT)."
+> **Nuances & gotchas:** Each feature type (FORMS, TABLES, QUERIES, SIGNATURES, LAYOUT) is **billed separately** — combining them on one page stacks the charges. Only request the features you actually need. QUERIES does not require a fixed template — you can ask natural-language questions ("What is the patient's date of birth?") and get the answer even if document layouts vary.
 
 **AnalyzeDocument** — the structured-analysis API; you request one or more feature types:
 - **FORMS** — extracts **key-value pairs** (e.g., `Name → Jane Doe`), so you don't have to guess which text is a label vs. a value. ([Forms](https://docs.aws.amazon.com/textract/latest/dg/how-it-works-kvp.html))
@@ -46,11 +58,27 @@ flowchart LR
 - **SIGNATURES** — detects the presence and location of signatures.
 - **LAYOUT** — identifies layout elements (titles, headers, paragraphs, lists) and preserves reading order — useful for feeding clean text into an LLM/RAG pipeline.
 
+> **Why (the rationale):** Generic FORMS extraction doesn't understand that "Total" on a receipt is different from "Total" on a contract. AnalyzeExpense is trained specifically on financial documents and returns normalized, semantically-meaningful fields.
+> **When to use:** "Process invoices, receipts, or expense reports," extract vendor name, total, tax, line items.
+> **Nuances & gotchas:** Use `AnalyzeExpense` **instead of** generic `AnalyzeDocument` FORMS for financial documents — it's more accurate and returns normalized fields (vendor name, total, tax, line items) rather than raw key-value pairs. Don't reach for generic FORMS when a specialized API exists for the document type.
+
 **AnalyzeExpense** — purpose-built for **invoices and receipts**; returns normalized summary fields (vendor name, total, tax, invoice date) and **line-item** groups (item, quantity, unit price). More accurate for financial docs than generic FORMS. ([AnalyzeExpense](https://docs.aws.amazon.com/textract/latest/dg/analyzing-document-expense.html))
+
+> **Why (the rationale):** Driver's licenses and passports from different states/countries have different layouts. AnalyzeID normalizes the extracted fields to consistent key names regardless of layout variation.
+> **When to use:** "Extract fields from driver's licenses or passports," KYC onboarding, identity verification workflows.
+> **Nuances & gotchas:** AnalyzeID is currently limited to **US identity documents** (driver's licenses and passports). For international IDs or other document types, you'd need generic QUERIES or FORMS. It normalizes to consistent key names (e.g., `DATE_OF_BIRTH`, `DOCUMENT_NUMBER`) — the output is not raw key-value pairs.
 
 **AnalyzeID** — extracts fields from **US identity documents** (driver's licenses, passports), normalizing them to consistent keys (e.g., `DATE_OF_BIRTH`, `DOCUMENT_NUMBER`) even when the source layout differs. ([AnalyzeID](https://docs.aws.amazon.com/textract/latest/dg/how-it-works-identity.html))
 
+> **Why (the rationale):** Mortgage packages contain dozens of different document types (W-2, pay stubs, bank statements, tax returns) mixed together. AnalyzeLending classifies each page by type and routes it to the appropriate extraction, automating what was a manual document-intake process.
+> **When to use:** "Process mortgage or loan document packages," "classify pages in a multi-document financial package," financial-services document automation.
+> **Nuances & gotchas:** AnalyzeLending is the **most expensive** Textract API ($70/1000 pages at first tier) because it combines page classification + routing + extraction. It returns normalized fields per page type; it does NOT produce a single flat output — the response is structured by page and document type.
+
 **AnalyzeLending** — for **mortgage/loan packages**: classifies each page (pay stub, W-2, bank statement, etc.), splits the package, and routes pages to the right extraction, returning normalized fields. ([AnalyzeLending](https://docs.aws.amazon.com/textract/latest/dg/lending-document-classification-extraction.html))
+
+> **Why (the rationale):** Single-page documents can return results immediately (sync); multi-page PDFs/TIFFs are too large for a synchronous response and require an async job pattern.
+> **When to use:** Sync = single-page image or small document, real-time results needed. Async = multi-page PDFs or TIFFs stored in S3, latency-tolerant, notified via SNS.
+> **Nuances & gotchas:** **Multi-page PDFs always require the async (`Start…`) APIs** — calling a sync API on a multi-page PDF will fail or only process the first page. The async pattern is: `Start…` → receive a `JobId` → wait for an SNS notification → `Get…` to retrieve paginated results. Don't expect a single synchronous response for a full PDF.
 
 **Sync vs. async**
 - **Synchronous** APIs (`DetectDocumentText`, `AnalyzeDocument`, `AnalyzeExpense`, `AnalyzeID`) process a **single-page image or a small document** and return results immediately. ([Sync](https://docs.aws.amazon.com/textract/latest/dg/sync.html))

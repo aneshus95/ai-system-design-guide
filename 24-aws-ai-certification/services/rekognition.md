@@ -4,6 +4,10 @@
 
 ---
 
+> **Why (the rationale):** You need to understand what's in an image or video — objects, faces, text in a scene, unsafe content, PPE — without building or training a computer-vision model yourself. Rekognition provides pre-trained vision APIs so you can add visual intelligence to applications with a single API call.
+> **When to use:** "Analyze images or video," "detect objects/scenes," "face comparison or search," "content moderation / unsafe images," "PPE / workplace safety," "text in a photo or scene," "custom object/logo detection," "real-time face search on live camera feeds."
+> **Nuances & gotchas:** **Rekognition detects objects/faces/scene-text in images and video; Textract extracts structure from scanned documents — different jobs.** Both can "detect text" but Rekognition's `DetectText` is for incidental text in scenes (signs, jerseys); Textract is for document-level structure (forms, tables, invoices). **Custom Labels bills per inference-hour while the model is running** — a model left running 24/7 will generate surprising costs; you must explicitly start and stop it. **Stored video analysis is asynchronous** — you `Start…`, then wait for an SNS notification and `Get…` the results; there is no synchronous video response.
+
 ## 🧠 Mental model
 
 Think of Rekognition as **a very fast, tireless security-guard-plus-photo-librarian looking at pictures and video**. Show it a photo and it tells you *what's in the scene* ("dog, beach, sunset"), *who is in it* (face match against your roster), *whether it's safe to show* (moderation), and *whether the worker is wearing a hard hat* (PPE). It reads the **words printed on things in a scene** (a street sign, a jersey number, a license plate) — but it is **not** the tool for reading a scanned contract or a tax form. That job belongs to **Textract**.
@@ -33,6 +37,10 @@ flowchart LR
 
 ## What it does
 
+> **Why (the rationale):** These pre-trained APIs handle the most common computer-vision tasks — scene understanding, facial attribute analysis, text reading in scenes, content safety, and PPE compliance — without any model training.
+> **When to use:** "Detect objects, scenes, or activities in photos," "facial attributes (age, emotion, glasses, pose)," "text on a sign or product label," "flag unsafe/explicit content," "PPE/hard hat detection."
+> **Nuances & gotchas:** `DetectText` reads **scene text** (short strings on objects) — not for dense scanned documents. Content moderation produces a hierarchical label taxonomy; **Custom Moderation** lets you fine-tune with your own examples for platform-specific rules. PPE detection identifies equipment presence and coverage confidence but does NOT determine regulatory compliance; human review is still required for safety enforcement.
+
 **Image analysis (Group 2 detection APIs)**
 - **Label / object / scene detection** (`DetectLabels`) — objects, scenes, activities, plus bounding boxes and image properties (dominant colors, sharpness, brightness). ([Labels](https://docs.aws.amazon.com/rekognition/latest/dg/labels.html))
 - **Facial analysis** (`DetectFaces`) — per-face attributes: bounding box, age range, emotions, eyes open, glasses, pose, quality. ([Faces](https://docs.aws.amazon.com/rekognition/latest/dg/faces.html))
@@ -41,14 +49,26 @@ flowchart LR
 - **PPE detection** (`DetectProtectiveEquipment`) — detects face covers, hand covers, and head covers on people in an image (workplace safety). ([PPE](https://docs.aws.amazon.com/rekognition/latest/dg/ppe-detection.html))
 - **Celebrity recognition** (`RecognizeCelebrities`) — identifies well-known public figures. ([Celebrities](https://docs.aws.amazon.com/rekognition/latest/dg/celebrities.html))
 
+> **Why (the rationale):** Identity use cases (access control, KYC, finding a person across a large image library) require comparing faces at scale. Rekognition Collections store face vectors (not images) for efficient one-to-many searching, and Face Liveness prevents photo/replay spoofing.
+> **When to use:** "Compare two specific faces" → `CompareFaces`. "Search a gallery of many people / is this person in our database?" → Collections (`IndexFaces` + `SearchFacesByImage`). "Verify a live real user during onboarding / anti-spoof" → Face Liveness.
+> **Nuances & gotchas:** **Rekognition stores face vectors, not photos** — a good privacy answer; the collection contains mathematical templates, not the original images. `CompareFaces` is for exactly two images with no storage; Collections are for one-to-many search against a stored gallery. Collections are **billed per stored face vector per month**, not per search.
+
 **Identity — face comparison & search (Group 1 + Collections)**
 - **Face comparison** (`CompareFaces`) — similarity between two faces in two images; no storage needed.
 - **Collections** — you `IndexFaces` to store **face vectors** (mathematical templates, not the images) in a searchable container, then `SearchFacesByImage` / `SearchFaces` to find matches. This powers "is this person in our gallery?" use cases. ([Collections](https://docs.aws.amazon.com/rekognition/latest/dg/collections.html))
 - **Face Liveness** (`StartFaceLivenessSession`) — detects a real, present user vs. a spoof (photo/replay) during onboarding.
 
+> **Why (the rationale):** Video has temporal dimension — you need to track objects, people, and content across frames and shots. Rekognition video APIs handle both offline stored video (async) and live streaming (real-time via Kinesis Video Streams).
+> **When to use:** Offline video (S3 file) → async stored-video APIs. Live camera feed → streaming video via Kinesis Video Streams. Use cases: broadcast content indexing, security surveillance, connected home events.
+> **Nuances & gotchas:** **Stored video is always asynchronous** — start the job, wait for SNS completion notification, then retrieve results. Video is billed **per minute of footage analyzed** — much pricier per unit than a single image call. Streaming video requires Kinesis Video Streams as the input; you cannot stream directly from a camera to Rekognition without it.
+
 **Video analysis**
 - **Stored video** — async jobs (`StartLabelDetection`, `StartFaceSearch`, `StartContentModeration`, `StartSegmentDetection` for shots) that return results with timestamps; completion is signaled via Amazon SNS. ([Stored video](https://docs.aws.amazon.com/rekognition/latest/dg/video.html))
 - **Streaming video events** — real-time processing off **Kinesis Video Streams** for connected-home labels (person/pet/package) and live face search. ([Streaming](https://docs.aws.amazon.com/rekognition/latest/dg/streaming-video.html))
+
+> **Why (the rationale):** The built-in label set covers common objects but not your specific use case (e.g., "our brand's logo," "cracked circuit board," "specific car model"). Custom Labels uses AutoML to train a vision model on your labeled images with as few as ~10 examples.
+> **When to use:** "Detect our specific product/logo/defect that built-in labels miss," "custom visual classification with minimal labeled images," niche computer-vision tasks.
+> **Nuances & gotchas:** Custom Labels ≠ SageMaker computer vision — Custom Labels is managed AutoML with minimal control; SageMaker gives you full architecture control. **Custom Labels bills per inference-hour while the model is running** (not per image) — you must **start** and **stop** the model endpoint explicitly; a forgotten running model bills 24/7 at $4/hr.
 
 **Custom Labels (Rekognition Custom Labels)**
 - Train a model to detect **your** objects/logos/defects using AutoML — as few as ~10 labeled images to start; you pay for training hours and per-hour inference while the model is running. Use when the built-in labels don't cover your niche (e.g., "our brand's logo," "cracked circuit board"). ([Custom Labels](https://docs.aws.amazon.com/rekognition/latest/customlabels-dg/what-is.html))

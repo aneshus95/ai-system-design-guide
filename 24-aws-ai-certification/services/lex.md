@@ -4,6 +4,10 @@
 
 > **Exam scope:** Lex appears on both **AIF-C01** (as an AWS AI/ML service you should recognize) and **MLA-C01** (as a managed conversational-AI building block). You need to know *what it does*, its core building blocks (**intents, utterances, slots, fulfillment**), and *when to pick it over Amazon Q or Bedrock Agents*.
 
+> **Why (the rationale):** Lex gives you managed ASR + NLU + dialog management powered by the same technology as Alexa, so you can build structured task bots (IVR, order/booking bots) without building an NLP pipeline. Pick it over Q Business when you need to model specific intents/slots and own the conversation flow; pick it over Bedrock Agents when tasks are structured and transactional rather than open-ended reasoning.
+> **When to use:** Any "build a chatbot/voice bot/IVR" scenario with defined user goals, structured data collection (dates, quantities, cities), and Lambda fulfillment. Key signal: "intents and slots," "contact-center IVR," "same technology as Alexa," "book/order/check balance."
+> **Nuances & gotchas:** Lex is NOT a general LLM chatbot — it is an intent/slot classifier. It does not generate freeform answers; for open-ended Q&A attach `AMAZON.QnAIntent` (Bedrock knowledge base) or delegate to a Bedrock Agent. Lex also powers Amazon Connect IVR but Polly (not Lex) does the text-to-speech; both must be wired together. Speech requests cost ~5× more than text requests.
+
 ---
 
 ## 🧠 Mental model
@@ -44,6 +48,10 @@ flowchart TD
 
 ## What it does
 
+> **Why (the rationale):** Lex abstracts ASR (speech→text) and NLU (text→intent+slots) into a single managed service so you only write the business logic (Lambda), not the speech recognition or language models.
+> **When to use:** Building any task bot where users must supply structured information before an action can be taken. Multi-turn dialog with re-prompting for missing slots, voice *and* text from one definition, multi-language via locales.
+> **Nuances & gotchas:** The ML model for NLU generalizes from your sample utterances but needs at least a few varied examples per intent — the fewer utterances, the more mistakes the NLU makes. Lex does NOT understand documents or free text; it maps utterances to the intents you defined. Every slot must have a defined slot type (built-in or custom).
+
 Amazon Lex V2 gives you a fully managed pipeline of ASR + NLU + dialog management. Core building blocks:
 
 | Building block | What it is | Example |
@@ -69,6 +77,10 @@ Amazon Lex V2 gives you a fully managed pipeline of ASR + NLU + dialog managemen
 
 ### How it integrates with other AWS services
 
+> **Why (the rationale):** Lex handles conversation state and NLU; Lambda, Connect, Polly, and Bedrock each handle a distinct job — this composable design means you swap components without rewriting the bot.
+> **When to use:** Lambda is always needed for real backend actions. Connect is needed for telephony/IVR. Polly is needed when the voice channel requires spoken responses. Bedrock/QnA intent is needed for open-ended knowledge questions within an otherwise structured bot.
+> **Nuances & gotchas:** Lex does NOT natively speak to callers — you must pair it with Polly for TTS, or let Amazon Connect handle audio I/O. If you only need speech→text or text→speech without dialog, use Transcribe or Polly directly; bringing in Lex adds intent-modeling overhead.
+
 - **AWS Lambda** — fulfillment and dialog validation (the business logic).
 - **Amazon Connect** — Lex is the natural-language brain for **contact-center IVR**; callers speak, Lex understands, Connect routes. This is the classic "self-service IVR" pattern. ([Amazon Connect + Lex](https://docs.aws.amazon.com/connect/latest/adminguide/amazon-lex.html))
 - **Amazon Polly** — turns Lex's text responses into lifelike **speech** for voice channels.
@@ -79,6 +91,10 @@ Amazon Lex V2 gives you a fully managed pipeline of ASR + NLU + dialog managemen
 ---
 
 ## When to use it (and vs alternatives)
+
+> **Why (the rationale):** Lex is the right building block when you need deterministic, auditable, structured conversations — not when you need open-ended generative answers. Q Business is the no-code finished product; Bedrock Agents is the open-ended custom agent; Lex is the IVR/task-bot engine.
+> **When to use:** Exam signal: structured task-bot ("book," "order," "check balance," "route a call"), voice + text from one definition, Amazon Connect IVR integration, Lambda fulfillment.
+> **Nuances & gotchas:** Lex and Bedrock Agents are NOT mutually exclusive — a modern pattern uses Lex as the front door (channels, ASR/TTS, structured slots) with a Bedrock Agent or QnA intent handling open-ended turns. Don't force an either/or choice on the exam when a hybrid pattern is described.
 
 Use Lex when you need a **structured, task-oriented conversation** with defined intents and parameters — booking, ordering, status checks, form-filling, IVR call steering.
 
@@ -100,6 +116,10 @@ Use Lex when you need a **structured, task-oriented conversation** with defined 
 ---
 
 ## Pricing model
+
+> **Why (the rationale):** Pay-per-request means no idle cost for bots that get sporadic traffic — you only pay for actual conversations, unlike always-on IVR hardware.
+> **When to use:** Evaluate cost when voice volume is high; speech requests cost ~5× more than text. Factor in Lambda, Polly, and Connect charges which bill separately.
+> **Nuances & gotchas:** Streaming requests cost slightly more than standard request-response. Free tier lasts only 12 months; after that all requests are billed. The Automated Chatbot Designer add-on (analyzes conversation transcripts) is priced separately per unit.
 
 Amazon Lex V2 uses **pay-per-request** with **no upfront cost and no minimums**. You are billed per **API request** to the bot, priced by interaction type: ([Amazon Lex pricing](https://aws.amazon.com/lex/pricing/))
 

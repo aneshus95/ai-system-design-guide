@@ -8,6 +8,10 @@
 
 ---
 
+> **Why (the rationale):** You need to train, fine-tune, or host a machine-learning model using your own code, data, and compute — with full control over architecture, instance types, and the MLOps pipeline. Bedrock gives you access to managed FMs; SageMaker is the platform when you must **own the model** or run workloads that require deep customization or cost optimization at scale.
+> **When to use:** "Custom training," "host my own model," "classical ML," "MLOps pipeline," "full control over endpoint/instance type," "distributed training," "bias/drift monitoring," or "AutoML on tabular data." Also when a task requires an algorithm or framework not available through Bedrock/AI services.
+> **Nuances & gotchas:** **Real-time endpoints bill 24/7 even at zero traffic** — the classic surprise cost; use serverless or async inference for intermittent workloads. SageMaker is NOT the right answer when a pre-built AI service (Rekognition, Comprehend, Textract) or Bedrock already solves the problem — the exam rewards the *least-custom* option. SageMaker ≠ serverless; you provision and pay for instances. Serverless Inference does NOT support GPUs.
+
 ## 🧠 Mental model
 
 Think of SageMaker as the **full ML factory**. Bedrock is a *catering service* — you order a finished meal (a foundation model) off a menu and it arrives cooked. SageMaker is the *factory that builds the kitchen*: you bring raw ingredients (your data), and SageMaker gives you every station on the assembly line —
@@ -83,10 +87,20 @@ The dashed loop matters: monitoring feeds back into retraining, and **SageMaker 
 ## Core building blocks
 
 ### SageMaker Studio & Notebooks
+
+> **Why (the rationale):** You need a unified, managed development environment for the entire ML lifecycle without setting up Jupyter or managing compute yourself.
+> **When to use:** Interactive experimentation, exploring data, iterating on models — any time you want a managed notebook before committing to a training job.
+> **Nuances & gotchas:** **Notebook instances bill per hour they are running** — a common forgotten cost; shut down kernels when idle. Studio console itself is free; you only pay for the kernel/instance compute.
+
 - **Studio** — a single web IDE that fronts the whole lifecycle (build → train → tune → deploy → monitor). No infra to manage; you launch kernels on demand.
 - **Notebook instances / Studio notebooks** — managed Jupyter environments for interactive experimentation. You pick the instance size; you pay for the time the notebook runs (a classic "remember to shut it down" cost trap).
 
 ### Training jobs
+
+> **Why (the rationale):** You need to run training on managed, ephemeral compute — SageMaker provisions the instances, pulls data from S3, runs your code, saves the artifact, and tears everything down. You only pay for the training time.
+> **When to use:** Any supervised/unsupervised model training — built-in algorithm, your own script on a framework container, or a fully custom Docker image (BYOC).
+> **Nuances & gotchas:** You choose between **Built-in algorithm** (least code, best when AWS has the algo), **Script mode** (your code + AWS framework container, middle ground), and **BYOC** (full Docker control, highest overhead). Spot Training can cut cost ~90% but requires **checkpointing** to S3 — without it, an interrupted job loses all progress.
+
 A **training job** is *ephemeral*: SageMaker spins up the instance(s) you specify, pulls your data from S3, runs the container, writes the model artifact to S3, and **tears the instances down**. You pay only for the training instance-hours consumed. Three ways to supply the training logic:
 
 | Approach | You provide | Use when |
@@ -98,10 +112,20 @@ A **training job** is *ephemeral*: SageMaker spins up the instance(s) you specif
 > Source: [Use built-in algorithms / script mode / BYOC](https://docs.aws.amazon.com/sagemaker/latest/dg/algorithms-choose.html)
 
 ### Processing jobs
+
+> **Why (the rationale):** You need managed, reproducible compute for data preprocessing, feature engineering, or model evaluation — decoupled from the training job so it slots cleanly into a Pipelines DAG.
+> **When to use:** Any batch data-prep or eval step you want pipeline-able and managed. If you're inside SageMaker Pipelines, Processing jobs are the standard building block for pre/post steps.
+> **Nuances & gotchas:** Same "spin-up → run → tear-down" pattern as training jobs; you pay for instance-hours only while the job runs. Not for long-running or streaming data — use Glue or Flink for those. Clarify and Model Monitor baseline runs both execute as Processing jobs under the hood.
+
 Managed, ephemeral compute for anything *around* training — data pre/post-processing, feature engineering, and model evaluation. Same "spin up → run container → write to S3 → tear down" pattern as training jobs, but decoupled from the training step so it slots cleanly into Pipelines.
 > Source: [Processing jobs](https://docs.aws.amazon.com/sagemaker/latest/dg/processing-job.html)
 
 ### Automatic Model Tuning (Hyperparameter Optimization)
+
+> **Why (the rationale):** Manually guessing the right learning rate, tree depth, or dropout is slow and hit-or-miss. AMT systematically searches hyperparameter space and finds a better configuration than hand-tuning in fewer experiments.
+> **When to use:** After you have a working training job and want to squeeze out performance improvements. Also when the question says "automatically find the best hyperparameters."
+> **Nuances & gotchas:** **Bayesian cannot massively parallelize** — it's sequential by design; if the question asks "run as many jobs in parallel as possible," the answer is **Random**, not Bayesian. Hyperband is the fastest for deep-learning jobs with early-stopping signals. Grid is only practical for small discrete spaces.
+
 You define hyperparameter ranges and an objective metric; SageMaker launches many training jobs to find the best combination. Four search strategies — **memorize these for MLA-C01**:
 
 | Strategy | How it works | When to pick it |
@@ -114,6 +138,11 @@ You define hyperparameter ranges and an objective metric; SageMaker launches man
 > Source: [HPO tuning strategies](https://docs.aws.amazon.com/sagemaker/latest/dg/automatic-model-tuning-how-it-works.html)
 
 ### Endpoints & Batch Transform — the four inference options
+
+> **Why (the rationale):** Different workloads have different latency, payload size, and cost profiles. SageMaker provides four inference modes so you pay only for what the workload actually needs.
+> **When to use:** Real-time = sustained low-latency live API; Serverless = spiky/intermittent small payloads (cold start is acceptable); Async = large payloads (up to 1 GB) or long processing (up to 1 hr); Batch Transform = offline scoring of an entire dataset with no live endpoint.
+> **Nuances & gotchas:** **Real-time endpoints bill 24/7** even at zero traffic — you must auto-scale or delete to avoid idle cost. **Serverless inference does NOT support GPUs** — CPU only. Serverless and Async can both scale to zero, but Serverless scales automatically; Async scales to zero only when the queue is empty. **Batch Transform is not an endpoint** — it's an ephemeral job, no auto-scaling, no persistent infra.
+
 This is the **single most heavily tested MLA-C01 decision.** Memorize the limits.
 
 | Option | Best for | Payload | Processing time | Scales to zero? | Persistent? |
@@ -127,10 +156,20 @@ Quick reflex: **big payload / slow → async; whole dataset offline → batch; s
 > Source: [Inference options in SageMaker AI](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model-options.html)
 
 ### Spot training
+
+> **Why (the rationale):** Spot instances use spare EC2 capacity at up to ~90% discount — dramatically cutting training costs for long, fault-tolerant jobs.
+> **When to use:** Long training jobs that are restartable (fault-tolerant), cost is a priority, and you can tolerate variable completion time. Set `max_wait` ≥ `max_run`.
+> **Nuances & gotchas:** **Checkpointing to S3 is required** — without it, an interrupted Spot job restarts from scratch, wasting all prior compute. Not suitable for time-critical or short jobs where interruption risk and overhead outweigh the discount.
+
 Use **Managed Spot Training** to run training jobs on spare EC2 capacity for up to **~90% off** on-demand. SageMaker manages Spot interruptions via **checkpointing** to S3 (so an interrupted job resumes rather than restarts). Ideal for long, fault-tolerant training; set `max_wait` ≥ `max_run`.
 > Source: [Managed Spot Training](https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html)
 
 ### Distributed training
+
+> **Why (the rationale):** Single-GPU training is a bottleneck for large models or huge datasets. Distributing across multiple GPUs/instances reduces wall-clock training time dramatically.
+> **When to use:** Model doesn't fit in one GPU's memory → model parallelism (SMP). Model fits but training is slow on huge data → data parallelism (SMDDP).
+> **Nuances & gotchas:** These are distinct strategies — **data parallelism replicates the model, splits data; model parallelism splits the model**. You cannot swap them. For very large LLMs, you typically need both simultaneously. SageMaker also supports open-source frameworks (DeepSpeed, FSDP, PyTorch DDP) for model parallelism.
+
 For models/datasets too big for one instance, SageMaker offers two parallelism strategies (plus support for open-source frameworks like PyTorch DDP, DeepSpeed, FSDP):
 
 - **Data parallelism** (SageMaker Distributed Data Parallel, SMDDP) — replicate the model across GPUs, split the *data*; best when the model fits on one GPU but the dataset is huge.

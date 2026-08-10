@@ -49,6 +49,10 @@ This is the largest and most foundational domain of the **AWS Certified Generati
 
 Amazon Bedrock is a **fully managed, serverless API** that gives developers access to foundation models (FMs) from multiple providers through a single AWS API — with no servers to manage and no ML infrastructure to provision. As of mid-2026, the catalog spans more than 100 models from providers including Anthropic, Amazon (Nova family), Meta, Mistral AI, Cohere, AI21 Labs, Stability AI, DeepSeek, Writer, and others. ([Amazon Bedrock model catalog](https://aws.amazon.com/bedrock/))
 
+> **Why (the rationale):** Bedrock eliminates the need to manage ML infrastructure, negotiate model-provider contracts separately, or build multi-provider abstraction layers. It gives one IAM-controlled, VPC-capable, audit-logged endpoint for 100+ models — the alternative is separate accounts with Anthropic, Cohere, Meta, etc., each with different data-privacy terms.
+> **When to use:** Any time you need to build GenAI apps on AWS without managing GPU instances or provider contracts; default starting point for all AIP-C01 scenarios unless the question specifically requires SageMaker-level control.
+> **Nuances & gotchas:** Not all models are available in all regions — before recommending a model for a data-residency scenario, verify region availability; a model missing from `eu-central-1` breaks the GDPR answer. Third-party models in the Bedrock Marketplace are excluded from some compliance certifications (HIPAA BAA, ISO 27001 scope).
+
 Models are accessed in three ways:
 
 | Access Mode | Description | When to Use |
@@ -58,6 +62,10 @@ Models are accessed in three ways:
 | **Batch Inference** | Asynchronous jobs at ~50% on-demand cost | Large-scale offline tasks, no latency SLA |
 
 **Intelligent Prompt Routing** (generally available 2025–2026) lets you define a model family (e.g., Claude Haiku → Claude Sonnet) and Bedrock's router predicts at request-time which model delivers the best quality/cost ratio for that specific prompt, routing automatically. ([AWS Blog: Model Selection](https://aws.amazon.com/blogs/machine-learning/simplify-model-selection-in-amazon-bedrock-with-the-open-source-model-profiler/))
+
+> **Why (the rationale):** Intelligent Prompt Routing avoids paying frontier-model prices for every request when many queries are simple enough for a cheaper model — it achieves up to 30% cost reduction without any application code change.
+> **When to use:** Mixed-complexity workloads within one model family (e.g., a chatbot that handles both trivial FAQ and complex reasoning); when you want automatic cost/quality balancing without writing routing logic yourself.
+> **Nuances & gotchas:** Works only *within* a supported model family (Claude tiers, Nova Lite/Pro, Llama variants) — it does NOT route across providers (e.g., Claude to Nova). There is no extra charge for the routing decision itself; you pay only the selected model's token rate. The router's quality prediction is probabilistic — it does not guarantee identical quality to always using the larger model.
 
 ---
 
@@ -137,6 +145,10 @@ Key cost levers:
 
 ### 1.3 Bedrock vs SageMaker JumpStart
 
+> **Why (the rationale):** Bedrock is zero-ops for app builders; SageMaker JumpStart is full-control for ML engineers who need custom training scripts, dedicated GPU instances, or models not in the Bedrock catalog.
+> **When to use:** Choose Bedrock when you want a managed API with native RAG, agents, and guardrails. Choose SageMaker JumpStart when you need to fine-tune open-weight models with custom code, need dedicated persistent endpoints, or need a model that is not in the Bedrock catalog.
+> **Nuances & gotchas:** SageMaker JumpStart bills per GPU-hour even when idle — a forgotten endpoint costs money continuously. Bedrock on-demand costs $0 when not in use. A hybrid pattern (fine-tune in SageMaker → import into Bedrock via Custom Model Import) combines the strengths of both, but model architectures must be on Bedrock's supported import list.
+
 Both services give access to foundation models, but they serve different developer needs. ([AWS Decision Guide](https://docs.aws.amazon.com/pdfs/decision-guides/latest/bedrock-or-sagemaker/bedrock-or-sagemaker.pdf))
 
 | Dimension | Amazon Bedrock | SageMaker JumpStart |
@@ -183,6 +195,10 @@ User Query
 
 ### 2.2 Chunking Strategies
 
+> **Why (the rationale):** Embedding models have token limits (typically 512–8192 tokens); a 100-page PDF cannot be embedded as one unit. Chunking converts long documents into embeddable, retrievable segments. Chunk quality directly controls retrieval quality — poor chunking is the most common root cause of RAG failures.
+> **When to use:** Required for any document-based RAG ingestion pipeline. Strategy choice depends on document type: fixed-size for uniform plain text, semantic for dense technical docs with abrupt topic changes, hierarchical (parent-child) when you need both retrieval precision and rich response context.
+> **Nuances & gotchas:** In Bedrock Knowledge Bases, the chunking configuration is **immutable per data source** — changing it requires deleting and recreating the data source and re-ingesting all documents. Hierarchical chunking with very large parent sizes can exceed S3 Vectors' 1 KB metadata limit per vector; switch to OpenSearch if that happens.
+
 Before documents can be embedded, they must be split into chunks — smaller text units that fit within embedding model limits and carry a single coherent idea. ([Bedrock Knowledge Bases chunking documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/kb-chunking.html))
 
 | Strategy | How it works | Best for | Tradeoff |
@@ -200,6 +216,10 @@ Before documents can be embedded, they must be split into chunks — smaller tex
 ---
 
 ### 2.3 Embedding Models
+
+> **Why (the rationale):** Embedding models are the translation layer that converts raw text into the numeric vector space where similarity search operates. Your choice of embedding model determines the semantic richness and language coverage of your retrieval — a poor embedding model means even perfect chunking produces irrelevant results.
+> **When to use:** Choose Amazon Titan Text Embeddings V2 as the default (AWS-native, configurable dimensions, binary vector support). Switch to Cohere Embed v3 when multilingual support (100+ languages) is required or when you need int8 quantization.
+> **Nuances & gotchas:** The vector dimensions chosen at embedding time must **exactly match** the dimensions configured in the vector store index — a mismatch causes ingestion failures with no graceful fallback. If you change the embedding model or dimension, you must re-embed and re-ingest all documents. Binary vectors (for ~32× storage compression) are only supported on OpenSearch — not on S3 Vectors, MemoryDB, or Aurora pgvector.
 
 An embedding model converts text into a dense numeric vector that captures semantic meaning. Vectors for semantically similar text cluster together in the embedding space.
 
@@ -220,6 +240,10 @@ An embedding model converts text into a dense numeric vector that captures seman
 ---
 
 ### 2.4 Retrieval: Top-k, Hybrid Search, Reranking
+
+> **Why (the rationale):** Retrieval quality determines the ceiling for RAG answer quality. Even a frontier model cannot produce correct answers when the retrieved chunks are wrong or incomplete. The retrieval stack (top-k → hybrid search → reranking → query decomposition) progressively improves precision and recall.
+> **When to use:** Start with top-k semantic search. Add hybrid search when exact-match queries fail (product codes, model numbers, IDs). Add reranking when the top-k set is relevant in aggregate but the order is wrong. Add query decomposition when multi-part questions return incomplete answers.
+> **Nuances & gotchas:** Hybrid search in Bedrock Knowledge Bases silently falls back to semantic-only on unsupported vector stores (e.g., Pinecone, Redis) — you won't get an error, the keyword path just doesn't run. Reranking requires a separate reranker model call (Amazon Rerank 1.0 or Cohere Rerank 3.5) billed per query — it is not free. Query decomposition is only available on `RetrieveAndGenerate`, not the bare `Retrieve` API.
 
 **Top-k Retrieval**
 
@@ -292,6 +316,10 @@ Amazon Bedrock Knowledge Bases is AWS's **fully managed RAG service**. It handle
 
 ### 3.1 Data Sources
 
+> **Why (the rationale):** Native connectors eliminate the need to build custom ETL pipelines for common enterprise sources. Without them you'd need a Lambda + API polling loop for each source, managing auth, pagination, rate limits, and incremental sync yourself.
+> **When to use:** Use native connectors (SharePoint, Confluence, Salesforce, Google Drive, web crawler) whenever the data already lives in one of the supported platforms. Fall back to S3 + custom ETL only when the source is not in the supported list or requires complex transformations before ingestion.
+> **Nuances & gotchas:** Not all connectors support real-time sync — most are scheduled or on-demand. The Web Crawler connector crawls only public URLs; it cannot authenticate to behind-login pages. Smart Parsing uses an FM to parse complex PDFs and tables, which incurs additional FM invocation costs on top of ingestion costs.
+
 Knowledge Bases supports native connectors to the following data sources ([AWS Blog: Additional Data Connectors](https://aws.amazon.com/blogs/aws/knowledge-bases-for-amazon-bedrock-now-supports-additional-data-connectors-in-preview/)):
 
 | Data Source | Notes |
@@ -348,6 +376,10 @@ Data Source (S3/SharePoint/…)
 
 ### 3.4 Supported Vector Stores
 
+> **Why (the rationale):** Vector store choice affects cost, latency, operational overhead, and available features (binary vectors, SQL joins, graph traversal). There is no universally best store — each has a dominant use case, and mixing them in a tiered architecture (e.g., S3 Vectors for cold + OpenSearch for hot) is a valid exam-tested pattern.
+> **When to use:** See the decision tree in the "On the exam" callout below. OpenSearch Serverless is the correct default for most scenarios. Only deviate when a specific differentiator (graph, sub-ms latency, billions-of-vectors cost, existing PostgreSQL app) is mentioned.
+> **Nuances & gotchas:** S3 Vectors supports only **floating-point** embeddings — not binary (that's OpenSearch). Neptune Analytics' vector search index can only be set at **graph creation time** and cannot be changed later. MemoryDB is in-memory and multi-AZ durable but costs more than S3 Vectors. Aurora pgvector requires a **GIN index** for metadata filtering; range filters need a separate expression index. Pinecone and Redis Enterprise are third-party — credentials must be stored in AWS Secrets Manager.
+
 This is a **high-frequency exam topic**. Know each store's sweet spot and the exam signal that points to it. ([AWS Prescriptive Guidance: Choosing a Vector Database](https://docs.aws.amazon.com/prescriptive-guidance/latest/choosing-an-aws-vector-database-for-rag-use-cases/vector-db-options.html))
 
 | Vector Store | Default? | Best For | Key Differentiator |
@@ -390,6 +422,10 @@ This is a **high-frequency exam topic**. Know each store's sweet spot and the ex
 
 ### 3.5 Metadata Filtering
 
+> **Why (the rationale):** Without metadata filtering, a vector search over a multi-tenant or multi-category knowledge base retrieves chunks from all tenants/categories. Metadata filtering enforces hard boundaries before semantic ranking, preventing cross-tenant data bleed and dramatically improving precision.
+> **When to use:** Any time retrieval scope must be constrained by attribute (department, tenant ID, date range, document type, security classification). Use explicit filtering when the application knows the filter value (e.g., logged-in user's department). Use implicit filtering when you want the model to infer the filter from the user's natural-language query.
+> **Nuances & gotchas:** Metadata must be pre-attached as sidecar `.metadata.json` files in S3 alongside the source document **before** ingestion — you cannot add metadata retroactively without re-ingesting. Aurora pgvector requires a GIN index on the metadata column for filter performance; range-based numeric filters need an additional expression index or they become full table scans.
+
 Metadata filtering constrains the vector search to documents matching specific attribute criteria before semantic ranking — dramatically improving precision for filtered use cases (e.g., "only search documents from the Legal department tagged 2025").
 
 **Two modes:**
@@ -405,6 +441,10 @@ Metadata filtering constrains the vector search to documents matching specific a
 ---
 
 ### 3.6 Structured Data Retrieval (NL-to-SQL)
+
+> **Why (the rationale):** Business users need to query data warehouses without knowing SQL. A text-to-SQL layer lets them ask plain-English questions and get data-driven answers without analyst intervention. Bedrock's managed NL2SQL eliminates the need to build a custom text-to-SQL pipeline with schema introspection, query validation, and execution.
+> **When to use:** When the question is about structured/tabular data (metrics, aggregates, time-series, sales figures) stored in Redshift or SageMaker Lakehouse. Not a substitute for unstructured RAG — use both (one Knowledge Base for documents, NL2SQL for data) if you need to answer questions spanning both.
+> **Nuances & gotchas:** NL2SQL works only with **Amazon Redshift** and **SageMaker Lakehouse** — not RDS, Aurora, Athena, or DynamoDB directly. Bedrock analyzes the schema at query time; poorly named columns or missing table comments reduce SQL accuracy. No data is moved; Bedrock queries the live source, so IAM permissions must grant Bedrock access to the Redshift cluster or Lakehouse catalog.
 
 Beyond unstructured text RAG, Bedrock Knowledge Bases supports **natural language to SQL (NL2SQL)** queries over structured data sources. ([AWS Blog: Structured Data Retrieval](https://aws.amazon.com/blogs/machine-learning/build-conversational-interfaces-for-structured-data-using-amazon-bedrock-knowledge-bases/))
 
@@ -484,6 +524,10 @@ S3 (raw documents land)
 
 ### 4.3 Document Parsing with Textract
 
+> **Why (the rationale):** PDFs and scanned images are the most common enterprise document formats, but they cannot be directly read as plain text by a vector embedding pipeline. Textract converts these binary formats into structured text (with table and form awareness) that downstream chunking and embedding can process.
+> **When to use:** Any time source documents are scanned images, multi-page PDFs with tables/forms, or complex layouts. Skip Textract when documents are already plain text, HTML, Markdown, or CSV — Bedrock Knowledge Bases parses those natively without a Textract call.
+> **Nuances & gotchas:** `DetectDocumentText` is synchronous and single-page only; use `StartDocumentAnalysis` (async) for multi-page PDFs in production ingestion pipelines. Textract does NOT read password-protected PDFs — you must decrypt them before passing to Textract. Table extraction via `AnalyzeDocument` returns a structured JSON block graph, not raw text rows — you need additional parsing logic to flatten tables for embedding.
+
 **Amazon Textract** extracts text, tables, and forms from scanned images and PDFs (including multi-column, complex layouts). It goes far beyond basic OCR.
 
 | Textract API | Use Case |
@@ -533,6 +577,10 @@ Ingesting PII (names, SSNs, emails, health data) into a vector store creates com
 
 ### 5.1 Bedrock Data Privacy Guarantees
 
+> **Why (the rationale):** Enterprise customers must satisfy legal and contractual obligations that prohibit their data from being used to train external AI models. Bedrock's privacy guarantee is the contractual basis for using Anthropic, Meta, or Cohere models without violating those obligations — the alternative (calling the provider API directly) sends data to the provider without the same guarantee.
+> **When to use:** Always cite these guarantees when a scenario involves regulated industries, customer PII, proprietary IP, or any context where "will AWS/Anthropic see my data?" is the key concern.
+> **Nuances & gotchas:** These guarantees apply to **Bedrock-mediated inference** only — if you call Anthropic's API directly (not through Bedrock), your data is subject to Anthropic's own privacy policy, not AWS's. Fine-tuning with your data creates a private copy of the model trained on your data; the guarantee is that this copy is isolated to your account, not that your fine-tuning data is kept confidential from the training process itself.
+
 Amazon Bedrock has explicit data privacy commitments that are **directly tested on AIP-C01**:
 
 1. **Your data is not used to train base models.** Prompts, completions, embeddings, and fine-tuning data submitted to Bedrock are never used to improve the underlying foundation models — neither Anthropic's, Meta's, nor Amazon's. ([Amazon Bedrock data privacy](https://aws.amazon.com/bedrock/faqs/))
@@ -546,6 +594,10 @@ Amazon Bedrock has explicit data privacy commitments that are **directly tested 
 ---
 
 ### 5.2 Data Residency and Region Selection
+
+> **Why (the rationale):** GDPR, sovereign cloud mandates, and financial regulators require that data not cross specific borders. Deploying in the wrong region — or enabling cross-region inference without understanding its implications — creates regulatory exposure even if the application otherwise functions correctly.
+> **When to use:** Define residency requirements before selecting the Bedrock region. For EU/GDPR: deploy in `eu-west-1`, `eu-central-1`, or `eu-west-3` and disable cross-region inference. For healthcare/HIPAA: verify the chosen region is HIPAA-eligible and that AWS has signed your BAA.
+> **Nuances & gotchas:** **Cross-region inference routes data to other regions** — enabling it for performance while claiming strict GDPR compliance is contradictory. Not every FM is available in every region; verify your chosen model exists in the target region before committing to the architecture. Knowledge Base vector stores, embeddings, and raw text reside in whichever region the Knowledge Base was created in — you cannot split the store across regions.
 
 **Data residency** means ensuring that data — including vectors, model inputs/outputs, and fine-tuning datasets — is processed and stored only in specific geographic regions, often to satisfy GDPR, CCPA, financial regulations, or government data sovereignty requirements.
 

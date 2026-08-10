@@ -39,6 +39,10 @@ This domain tests your ability to evaluate the quality of generative AI outputs,
 
 ### 1.1 Automated Text-Quality Metrics
 
+> **Why (the rationale):** Human evaluation is expensive and slow; automated metrics enable fast, cheap quality gates in CI/CD pipelines to catch regressions before they reach production. They are the baseline evaluation layer before more expensive LLM-as-a-judge or human review.
+> **When to use:** Regression testing after model/prompt changes; bulk evaluation of many model outputs against a fixed ground truth set; integration into nightly CI pipelines. ROUGE for summarization, BERTScore for paraphrase-tolerant quality, BLEU for translation (legacy), Exact Match/F1 for extractive QA.
+> **Nuances & gotchas:** BLEU and ROUGE penalize valid paraphrases — a response that says the same thing differently scores poorly. Perplexity measures **fluency, not factual correctness** — a hallucinated answer can have low perplexity (model is very confident about the wrong thing). None of these metrics measure faithfulness to a retrieved source; use Bedrock RAG Evaluation for that. Reference answers must be representative and high-quality — garbage-in, garbage-out for all automated metrics.
+
 Automated metrics compare model outputs against human-authored **reference answers** without needing a judge model or human rater. They are fast and cheap, making them ideal for CI/CD regression gates.
 
 | Metric | Full name | What it measures | Limitation |
@@ -69,6 +73,10 @@ When to use which:
 
 #### A. Automatic (Programmatic) Evaluation
 
+> **Why (the rationale):** Provides a structured, repeatable baseline comparison of models or prompts using built-in or custom datasets — without writing evaluation infrastructure yourself. Ideal for rapid A/B testing of model versions before committing to a deployment.
+> **When to use:** Fast regression checks after a model update, prompt version change, or RAG configuration change; comparing two candidate models on the same task.
+> **Nuances & gotchas:** Automatic evaluation computes statistical metrics (accuracy, toxicity scores) — it is NOT an LLM-as-a-judge. It requires a ground truth dataset; without reference answers, only metrics like toxicity and perplexity can be computed. Results are available in S3 and the Bedrock console; there is no real-time streaming of evaluation progress.
+
 - Runs built-in datasets or your **custom JSONL prompt dataset** against a target model.
 - Computes metrics automatically: accuracy, robustness, toxicity, and task-specific scores.
 - Returns a structured report with per-prompt scores.
@@ -81,6 +89,10 @@ When to use which:
 - **Best for:** subjective quality criteria that automated metrics cannot capture; regulatory sign-off.
 
 #### C. LLM-as-a-Judge
+
+> **Why (the rationale):** Human evaluation is the gold standard but takes weeks and costs $$$. LLM-as-a-judge delivers near-human evaluation quality in hours at ~98% cost savings — making nuanced quality evaluation feasible at scale in production feedback loops.
+> **When to use:** Evaluating open-ended generation quality (helpfulness, tone, correctness, harmlessness) where statistical metrics fail; comparing model versions on subjective criteria; ongoing production quality monitoring without human reviewer bottleneck.
+> **Nuances & gotchas:** LLM-as-a-judge is NOT the same as Automatic evaluation — the judge is an LLM (Claude or Nova family) that reads and scores outputs, not a statistical formula. You can bring **your own model responses from any provider** as input; you are not limited to Bedrock-hosted models. Judge model bias is a real risk — judges tend to favor verbose, confident-sounding answers and responses stylistically similar to their own training. The judge provides a numeric score AND a natural-language explanation per response.
 
 [LLM-as-a-judge](https://docs.aws.amazon.com/bedrock/latest/userguide/evaluation-judge.html) is generally available (GA since March 2025). A second "judge" LLM scores the outputs of the model under evaluation.
 
@@ -111,6 +123,10 @@ Key facts:
 RAG systems have two distinct failure modes: the **retriever** fetches the wrong chunks, or the **generator** produces answers that don't match the retrieved context. RAG evaluation measures both.
 
 #### Amazon Bedrock RAG Evaluation (GA)
+
+> **Why (the rationale):** RAG systems have two distinct failure modes — retrieval failure (wrong chunks) and generation failure (model ignores or misrepresents retrieved chunks). Generic text quality metrics cannot distinguish between these; RAG Evaluation provides metrics for each stage of the pipeline so you can target fixes precisely.
+> **When to use:** After any change to chunking strategy, embedding model, top-k setting, vector store, or generation prompt — to verify you haven't regressed on retrieval or generation quality. Also use for initial baseline measurement before deploying a RAG system to production.
+> **Nuances & gotchas:** RAG Evaluation uses an **LLM as the judge** — it is not a statistical metric, so judge model biases apply. Faithfulness measures consistency with retrieved context; it does NOT measure absolute factual correctness (the retrieved chunks themselves might be wrong). You must supply a ground truth dataset with `user_query` and `expected_response` fields; evaluation without reference answers only produces contextual metrics (faithfulness, context relevance) but not answer correctness.
 
 [Amazon Bedrock RAG Evaluation](https://aws.amazon.com/about-aws/whats-new/2025/03/amazon-bedrock-rag-evaluation-generally-available/) is GA as of March 2025. It evaluates Knowledge Bases or custom RAG pipelines using an **LLM-as-a-judge** to score each stage.
 
@@ -154,6 +170,10 @@ Supported metrics:
 When automated metrics are insufficient (e.g., nuanced tone, safety for regulated industries, subjective creativity), human review is required.
 
 #### Amazon Augmented AI (Amazon A2I)
+
+> **Why (the rationale):** Some decisions require human judgment that no automated metric can replace (safety-critical medical advice, high-stakes financial recommendations, nuanced compliance calls). A2I provides a managed routing mechanism to insert human review at specific trigger points in the inference pipeline without building custom review tooling.
+> **When to use:** High-stakes or regulated applications where low-confidence model outputs need human verification before acting on them; cases where regulators require human sign-off; collecting human-reviewed examples for fine-tuning datasets.
+> **Nuances & gotchas:** A2I introduces latency — the inference pipeline pauses until a reviewer completes the task; this is not suitable for sub-second SLA applications. Worker pool options (internal team, Mechanical Turk, AWS-vetted vendors) affect cost, quality, and PII handling — never route PHI to Mechanical Turk without explicit data processing agreements.
 
 [Amazon A2I](https://docs.aws.amazon.com/sagemaker/latest/dg/a2i-use-augmented-ai-a2i-human-review-loops.html) integrates human review loops directly into ML inference pipelines:
 
@@ -355,6 +375,10 @@ Poor retrieval is the most common root cause of RAG quality failures. Diagnose w
 
 ### 3.1 Graceful Degradation and Fallback Models
 
+> **Why (the rationale):** LLM APIs are shared infrastructure subject to throttling, capacity constraints, and occasional outages. Without fallback logic, any model-side issue immediately surfaces as an error to end users. Graceful degradation maintains service quality at reduced capability rather than total failure.
+> **When to use:** Any customer-facing GenAI application where uptime matters. Implement a tiered fallback: primary model → smaller model → cached response → static response. Use Intelligent Prompt Routing as the automatic version of this within a model family.
+> **Nuances & gotchas:** Falling back to a smaller model may produce lower-quality responses — this is intentional and acceptable for resilience, but users should be notified if possible. Circuit breakers must track error rate over a rolling window, not just the latest request, to avoid flapping between open and closed state during a sustained outage.
+
 A production GenAI application should **never fail hard** simply because one model is unavailable or over capacity.
 
 **Patterns:**
@@ -410,6 +434,10 @@ Some Bedrock operations (e.g., creating an evaluation job, purchasing Provisione
 ---
 
 ### 3.4 Dead-Letter Queues
+
+> **Why (the rationale):** In async SQS→Lambda→Bedrock pipelines, failed messages that are retried indefinitely block queue processing and cause exponential backoff delays for subsequent messages. DLQs capture poison messages after a configurable number of failures so the main queue keeps flowing and failed items can be analyzed and reprocessed separately.
+> **When to use:** Any SQS-backed async GenAI processing pipeline (document ingestion, batch classification, event-driven summarization). Set `maxReceiveCount` to 3–5 before moving to DLQ; alarm on DLQ depth to detect systematic failures.
+> **Nuances & gotchas:** DLQ messages are not automatically retried — you must trigger a **DLQ redrive** after fixing the root cause to replay them. DLQ redrive replays messages in the order they arrived in the DLQ, not the original processing order. Lambda function timeouts count as failures and increment the `ApproximateReceiveCount` — a 15-minute Bedrock call that times out Lambda will exhaust retries quickly.
 
 For asynchronous GenAI workloads (e.g., batch document processing via SQS → Lambda → Bedrock):
 

@@ -6,6 +6,10 @@
 
 ---
 
+> **Why (the rationale):** You want a fully built, ready-to-use AI assistant for a specific job — enterprise Q&A over your data, or a coding assistant in your IDE — without building a custom GenAI application from scratch. Amazon Q is the finished product; Bedrock is the toolkit you'd use to build your own.
+> **When to use:** "We want a managed assistant over our company data without building a RAG pipeline" → Q Business. "AI coding assistant / IDE completions / code security scanning" → Q Developer. "Ask BI dashboards in natural language" → Q in QuickSight. "Real-time agent assist in the contact center" → Q in Connect.
+> **Nuances & gotchas:** **Q Business ≠ Bedrock** — Q Business is an application *built on* Bedrock; picking Bedrock when the scenario wants a ready-made assistant with connectors is wrong. **Q Business ≠ Kendra** — Kendra is a search/retrieval engine that returns passages; Q Business generates conversational answers and can take actions. **CodeWhisperer is now Q Developer** — treat them as the same service. Q Business pricing bundles model usage — you do NOT pay separate Bedrock per-token charges on top of your Q Business subscription.
+
 ## 🧠 Mental model
 
 Think of **Amazon Bedrock** as the *engine and raw parts* — foundation models behind an API that you assemble into an application yourself.
@@ -44,6 +48,11 @@ flowchart TD
 ## What it does
 
 ### Amazon Q Business — enterprise GenAI assistant
+
+> **Why (the rationale):** Building your own enterprise chat assistant requires wiring RAG, connectors, access control, and a UI. Q Business does all of that as a managed service — connect your data sources and get a permissions-aware assistant in days, not months.
+> **When to use:** "Chat with our company documents / SharePoint / Confluence," "employees should only see answers from data they're authorized to access," "managed RAG with no pipeline to build," "permissions-aware responses with citations."
+> **Nuances & gotchas:** Q Business **respects source-system ACLs** — it doesn't give users answers from documents they're not permitted to see. This requires identity to flow through **AWS IAM Identity Center**. Q Business does NOT let you choose or swap the underlying model — it's opinionated. For custom model choice or orchestration, use Bedrock. **Q Business is no longer open to new customers as of July 31, 2026** — AWS now points new customers to Amazon Quick for similar capabilities; existing deployments continue to work.
+
 A fully managed, generative-AI assistant that answers questions, summarizes, generates content, and completes tasks **based on your enterprise data**, returning **permissions-aware responses with citations**. ([What is Q Business](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/what-is.html))
 
 - **Pre-built RAG out of the box** — connects to your data, ingests and indexes it, retrieves relevant passages, and generates grounded answers. You don't build the retriever/chunking pipeline yourself. ([How it works](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/how-it-works.html))
@@ -54,6 +63,11 @@ A fully managed, generative-AI assistant that answers questions, summarizes, gen
 - **Delivery** — branded web experience, embeddable widget, and integrations for Slack / Microsoft Teams / Microsoft 365.
 
 ### Amazon Q Developer — coding & AWS-operations assistant
+
+> **Why (the rationale):** Developers spend time on boilerplate, looking up AWS docs, fixing bugs, and reviewing for security issues. Q Developer puts an AI pair-programmer directly in the IDE and CLI that knows AWS services, your codebase, and security best practices.
+> **When to use:** "AI coding assistant in the IDE," "code completions," "code security scanning," "CodeWhisperer" (the former name), "framework upgrades," or "agentic code tasks."
+> **Nuances & gotchas:** Q Developer **replaced CodeWhisperer** — they are the same service under a new name; any exam reference to CodeWhisperer means Q Developer. The **Free tier requires only an AWS Builder ID** (no AWS account or billing needed), making it accessible to individual developers. The **Pro tier** adds higher limits, admin controls, and organizational management.
+
 A generative-AI assistant to **understand, build, extend, and operate** software and AWS applications; the **successor to Amazon CodeWhisperer**. ([What is Q Developer](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/what-is.html))
 
 - **Inline code completions & net-new code generation** in the IDE (VS Code, JetBrains, Visual Studio, Eclipse).
@@ -63,9 +77,19 @@ A generative-AI assistant to **understand, build, extend, and operate** software
 - **Everywhere you work** — IDEs, the AWS Management Console, CLI, and chat apps (Slack/Teams). Free tier uses an **AWS Builder ID** (no AWS account required); **Pro** subscription adds higher limits and admin controls. ([Q Developer pricing](https://aws.amazon.com/q/developer/pricing))
 
 ### Amazon Q in QuickSight
+
+> **Why (the rationale):** Business users who can't write SQL or build dashboards still need data insights. Q in QuickSight lets them ask questions in plain English and get auto-generated charts, narratives, and summaries.
+> **When to use:** "Ask questions of BI data in natural language," "auto-generate dashboards or executive summaries," "generative BI," or "non-technical users need data insights."
+> **Nuances & gotchas:** Q in QuickSight is embedded **inside** QuickSight — it only works on data sources already connected to QuickSight. It does NOT query arbitrary databases or S3 directly; data must be loaded into QuickSight (or via SPICE) first. It absorbed the older "QuickSight Q" feature — same capability, updated branding.
+
 Ask **natural-language questions of your BI data and dashboards** and get generated narratives, executive summaries, and new visuals. ([Q in QuickSight](https://aws.amazon.com/quicksight/q/))
 
 ### Amazon Q in Connect
+
+> **Why (the rationale):** Contact-center agents must look up knowledge articles and compose responses while talking to customers — causing delays and inconsistency. Q in Connect surfaces real-time recommendations during the live conversation.
+> **When to use:** "Contact-center agent assist," "recommend responses or knowledge articles to live agents," "real-time agent workspace AI."
+> **Nuances & gotchas:** Q in Connect is **embedded in Amazon Connect's agent desktop** — it is not a standalone chat product. It evolved from Amazon Connect Wisdom. It does NOT serve end-customers directly; it serves the **agent** during a customer interaction.
+
 **Real-time assistant for contact-center agents** — recommends responses, actions, and knowledge-article links based on the live customer conversation. (Evolution of Amazon Connect Wisdom.) ([Q in Connect](https://docs.aws.amazon.com/connect/latest/adminguide/amazon-q-connect.html))
 
 ---

@@ -2,6 +2,10 @@
 
 **Amazon Translate** is a fully managed **neural machine translation (NMT)** service that translates text between languages in real time or in batch, with controls for custom terminology, formality, and profanity — no ML model to train or host.
 
+> **Why (the rationale):** Amazon Translate is a purpose-built NMT service — lower cost per character, lower latency, and more consistent output than asking a general LLM to translate. It includes controls (custom terminology, formality, profanity masking, batch over S3) that LLMs don't expose natively. Pick Translate when the primary job is language conversion; pick Bedrock only when translation is bundled with generation or reasoning in the same step.
+> **When to use:** Localize an app/website/chat, translate a large document corpus in S3, add live captions in another language, or build the middle step of a Transcribe → Translate → Polly speech-translation pipeline. Signal: "translate text between languages," "localize content," "multilingual," "keep brand names intact."
+> **Nuances & gotchas:** Translate does NOT handle audio — the speech-translation pipeline requires three services (Transcribe → Translate → Polly). Formality control supports only six target languages (French, German, Hindi, Italian, Japanese, Spanish); don't assume it works for all languages. Active Custom Translation (ACT) costs ~4× standard — use free custom terminology for term-locking, reserve ACT for genuine style/domain adaptation. Batch and real-time text cost the same per character; DOCX real-time document translation costs more.
+
 ---
 
 ## 🧠 Mental model
@@ -36,12 +40,28 @@ flowchart LR
 
 ## What it does
 
+> **Why (the rationale):** NMT understands context across the whole sentence (not word-by-word), producing fluent, natural-sounding translation — critical for user-facing content and customer communications.
+> **When to use:** Any text translation task at scale: app UI, chat messages, help articles, legal documents, S3 document batches. Source `auto` detection is convenient when input language is unknown.
+> **Nuances & gotchas:** Translate converts between language pairs via an intermediate representation — not all language pairs have equal quality; some low-resource language pairs may be less accurate than well-supported ones (e.g., English↔Spanish). Automatic source detection calls Amazon Comprehend under the hood — this is billed at Translate rates, not Comprehend rates.
+
 - **Neural machine translation** — context-aware translation across **75+ languages** and thousands of language pairs; translates between pairs using an intermediate representation.
 - **Automatic source-language detection** — set source to `auto` and Translate calls Comprehend under the hood to detect the language.
 - **Real-time translation** — synchronous `TranslateText` API (and real-time **document** translation for text/HTML/DOCX) for interactive, low-latency use (chat, apps, live captions).
 - **Batch (asynchronous) translation** — `StartTextTranslationJob` translates large collections of documents in S3 in one job.
+
+> **Why (the rationale):** Batch translation processes entire S3 folders of documents asynchronously — no per-file API calls, no timeout concerns, and the same per-character cost as real-time text translation.
+> **When to use:** Large document corpora (product catalogs, knowledge bases, regulatory filings) where you need to translate hundreds or thousands of files overnight. Signal: "translate all documents in an S3 bucket," "batch localization job."
+> **Nuances & gotchas:** Batch text/HTML and real-time text cost the SAME per character — batch is not cheaper. DOCX real-time document translation costs 2× more. Batch jobs write output to a destination S3 prefix; monitor job status via the API or EventBridge.
+> **Why (the rationale):** Custom terminology prevents Translate from localizing brand names, product names, or legal terms that must remain fixed — it's a free override that requires no model training.
+> **When to use:** Signal: "keep brand/product names exactly the same," "don't translate our trademark," "consistent term mapping." Works for up to thousands of terms per glossary.
+> **Nuances & gotchas:** Custom terminology is FREE — there is no per-character surcharge. It forces an exact substitution; it does NOT adapt style or tone. For style/domain adaptation you need ACT. Terminology is applied at inference time, so you can update the glossary without retraining anything.
+
 - **Custom terminology** — a glossary (CSV/TMX) that forces specific terms (brand names, product names, acronyms) to translate a fixed way. **No extra charge.**
 - **Active Custom Translation (ACT)** — supply **parallel data** (your own example translations) and Translate tailors output to your style/domain **on the fly, without training a custom model**. Higher per-character price.
+
+> **Why (the rationale):** ACT adapts translation style and domain terminology using your own example sentence pairs — giving custom-model quality without the cost and complexity of hosting a custom model.
+> **When to use:** When custom terminology is insufficient (you need tone, phrasing, or domain-specific sentence structure to match your style). Signal: "match our translation style," "adapt to our legal/medical/marketing register."
+> **Nuances & gotchas:** ACT costs ~4× the standard translation rate (~$60 vs $15 per million characters). If you only need term-locking, use custom terminology (free). ACT adapts output on the fly — no separate training step, but you must upload parallel data (bilingual example pairs) first.
 - **Formality** — set the politeness/register of the output. Supported for a subset of target languages: **French, German, Hindi, Italian, Japanese, Spanish**.
 - **Profanity masking** — replace profane words/phrases in the output with a grawlix (`?$#@$`).
 - **Encryption & privacy** — integrates with KMS; content isn't used to train the models.

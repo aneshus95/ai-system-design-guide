@@ -10,6 +10,10 @@ Two managed AWS AI services that put Amazon's own machine learning in your hands
 
 **Amazon Personalize is a fully managed service that lets developers build applications with the same real-time, individualized recommendation technology used by Amazon.com — without needing machine-learning expertise.** ([What is Amazon Personalize](https://docs.aws.amazon.com/personalize/latest/dg/what-is-personalize.html))
 
+> **Why (the rationale):** Personalize lets any developer add Amazon.com-quality individualized recommendations — trained on their own user/item/interaction data — without ML expertise or infrastructure. Pick it over SageMaker when you want a turnkey recommender (recipes, cold-start, event tracking) rather than a custom model you build from scratch.
+> **When to use:** Any "recommended for you," "similar items," "re-rank results for this user," or "keep recommendations fresh in real time" scenario. Signal: "personalization," "recommendations," "same technology as Amazon.com," "cold-start for new items/users."
+> **Nuances & gotchas:** Personalize = item recommendations based on behavioral data; it is NOT document search (that's Kendra/Q) and NOT fraud scoring (that's Fraud Detector). The Interactions dataset is required — without behavioral history, recommendations are limited to cold-start heuristics. Real-time campaigns provision minimum TPS (billed even when idle); use batch inference jobs when live latency is not needed. v2 recipes (Transformer-based) scale to 5M items; legacy recipes top out lower.
+
 ## 🧠 Mental model
 
 Think of Personalize as **"Amazon.com's recommendation brain, rented by the API."**
@@ -52,6 +56,10 @@ flowchart LR
 | **Users** | User metadata (age, gender, tier, location). | Optional; improves personalization. |
 | **Items** | Item metadata (category, price, genre, description). | Optional; key for **cold-start** on new items. |
 
+> **Why (the rationale):** Recipes abstract algorithm selection — you choose by business goal ("recommend for this user" vs "find similar items" vs "re-rank a list"), not by ML math. This makes Personalize approachable without an ML team.
+> **When to use:** User-Personalization → homepage feed. Similar-Items → product detail page "related items." Personalized-Ranking → re-order search results per user. Trending-Now/Popularity-Count → non-personalized baseline for new users.
+> **Nuances & gotchas:** v2 recipes (User-Personalization-v2, Personalized-Ranking-v2) use a Transformer architecture, scale to 5M items, and give better results — prefer v2 for new projects. Popularity-Count is NOT personalized; it returns the same popular-items list to all users. You cannot mix recipes within a single solution — each solution uses exactly one recipe.
+
 **Recipes** — pre-built algorithms chosen by *use case*: ([Choosing a recipe](https://docs.aws.amazon.com/personalize/latest/dg/working-with-predefined-recipes.html))
 
 | Recipe | Use case | "If you see…" |
@@ -62,6 +70,10 @@ flowchart LR
 | **Trending-Now / Popularity-Count** | Trending or most-popular items (non-personalized baseline). | *"Trending now" shelves* |
 
 > **v2 recipes** (User-Personalization-v2, Personalized-Ranking-v2) use a **Transformer-based architecture**, scale to **up to 5 million items**, and give lower-latency, more relevant results.
+
+> **Why (the rationale):** The Solution/Campaign/EventTracker pipeline separates concerns: training (Solution Version) from serving (Campaign) from real-time updating (EventTracker + PutEvents) — each can be updated independently.
+> **When to use:** Campaign when your app needs real-time recommendations per request. Batch inference job when you can pre-compute recommendations for all users and store them (e.g., daily email recommendations). EventTracker when you need recommendations to adapt to what the user just clicked without waiting for a full retrain.
+> **Nuances & gotchas:** A Campaign provisions minimum TPS (billed continuously while active). Cold-start for new users works via the exploration policy in User-Personalization, but new items also need item metadata (Items dataset) to be recommended at all. Filters are applied at inference time and do NOT require retraining.
 
 **Key concepts:**
 
@@ -122,6 +134,10 @@ Pay-per-use, no minimums. Dimensions (v2 "Enhanced custom" recipes shown; **veri
 
 > ⚠️ **Important (2025+):** **Amazon Fraud Detector is closed to new customers.** For new builds AWS points to **Amazon SageMaker AI**, **AutoGluon**, and **AWS WAF**. It still appears on exams, so know the concepts and the trigger phrase. ([Fraud Detector pricing / status](https://aws.amazon.com/fraud-detector/pricing/))
 
+> **Why (the rationale):** Fraud Detector gives you ML-based fraud risk scoring (backed by Amazon's own 20+ years of fraud-detection experience) without building a custom classifier. You supply labeled historical events, Fraud Detector trains a private model, and you get a 0–1000 risk score + rule-driven outcomes at inference time.
+> **When to use:** Online fraud scenarios: payment/card-not-present fraud, new-account fake registrations, account takeover. Signal: "detect fraud," "score risk per transaction/sign-up," "no ML expertise," "approve/review/deny outcomes."
+> **Nuances & gotchas:** Fraud Detector is CLOSED to new customers (as of 2025+) — for new builds AWS directs to SageMaker AI or AutoGluon. It still appears on exams so know the concepts. Fraud Detector scores BUSINESS EVENTS (not web/HTTP requests); for blocking bots/DDoS use AWS WAF. Score direction: 0 = least risky, 1000 = most risky (higher = more fraud). ML-model predictions cost ~6× more than rules-only predictions.
+
 ## 🧠 Mental model
 
 Think of Fraud Detector as **"Amazon's fraud team, packaged as an API."** You describe a business event you want to check (a sign-up, a checkout), feed it historical examples labeled fraud / legit, and Amazon trains a private fraud model on *your* data plus Amazon's own fraud intelligence. At runtime you send an event and get back a **risk score (0–1000)** plus a rule-driven **outcome** (approve / review / deny).
@@ -143,6 +159,10 @@ flowchart TD
 ```
 
 ## What it does
+
+> **Why (the rationale):** The event type → model → insight score → rules → outcome pipeline separates the ML layer from the business logic layer, so risk thresholds can be tuned by business teams without touching the model.
+> **When to use:** Define event types that match your business events (checkout, sign-up, login). Choose the matching Insights model type: Online Fraud Insights for limited data, Transaction Fraud Insights for payment fraud, Account Takeover Insights for login/ATO. Set rules to threshold the 0–1000 score into business outcomes.
+> **Nuances & gotchas:** You need labeled historical data (fraud/legit) to train a model — without it you can only use rules-only mode. Rules-only predictions are cheaper but miss the ML layer. The Detector version must be deployed before GetEventPrediction calls will work. Prediction explanations show per-variable impact on the score — useful for compliance and appeals.
 
 **Core concepts:** ([Core concepts and terms](https://docs.aws.amazon.com/frauddetector/latest/ug/frauddetector-ml-concepts.html))
 

@@ -81,6 +81,10 @@ Decision rule:
 
 ### 1.3 Intelligent Prompt Routing
 
+> **Why (the rationale):** In mixed-complexity workloads (simple FAQ + complex reasoning in the same chatbot), always routing to the frontier model wastes 60–80% of spend on queries a smaller model handles equally well. Intelligent Prompt Routing applies per-request model selection with no application code change.
+> **When to use:** Workloads within a single supported model family where request complexity varies (chatbots, support agents, search). Not applicable when all requests require frontier-model quality, or when routing across different providers.
+> **Nuances & gotchas:** Works only **within a supported model family** (Claude tiers, Nova Lite/Pro, Llama variants) — not across providers. No additional charge for the routing decision. The router's quality prediction is heuristic-based; edge cases may route complex queries to the cheaper model — evaluate output quality with your workload before relying on it for critical tasks.
+
 [Amazon Bedrock Intelligent Prompt Routing](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-routing.html) automatically routes each incoming request to the *cheapest model in a family that is predicted to handle it correctly*. It uses advanced prompt matching and model-understanding techniques at inference time — no change to your application code is required beyond specifying a **prompt router ARN** instead of a model ID.
 
 Key facts:
@@ -96,6 +100,10 @@ Key facts:
 ---
 
 ### 1.4 Prompt Caching
+
+> **Why (the rationale):** When the same large system prompt, tool definitions, or reference document is re-sent on every API call, the model recomputes the same KV cache from scratch every time — wasting compute and inflating costs. Prompt caching stores the KV-cache state so repeated prefixes are billed at a deep discount.
+> **When to use:** Large, stable system prompts (>1,024 tokens for most Claude models); agentic loops with large tool definition blocks; multi-turn conversations where a large document is pasted at the start of every turn; user uploads a document and asks many questions.
+> **Nuances & gotchas:** Default TTL is **5 minutes** — a cache built at minute 0 expires before a request at minute 6, triggering a cache miss and a write-cost charge. Models with 1-hour TTL (Claude Opus 4.5, Sonnet 4.5, Haiku 4.5) avoid this for long-running agent sessions. **Prompt caching is NOT available with batch inference.** The minimum prefix size is 1,024 tokens for most Claude models and 4,096 tokens for newer Haiku/Sonnet/Opus 4.x models — tiny system prompts will not be cached. Cache write tokens cost slightly MORE than standard input tokens but amortize across many cache-read hits. Cached tokens do NOT count toward the `inputTokens` field in the API response.
 
 [Amazon Bedrock Prompt Caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html) lets you mark a static portion of your prompt (a "prefix") for caching. On subsequent requests, Bedrock skips reprocessing the cached portion and serves those tokens at a significantly reduced rate.
 
@@ -146,6 +154,10 @@ The Converse API response includes:
 
 ### 1.5 Batch Inference
 
+> **Why (the rationale):** For offline jobs (nightly summarization, bulk classification, dataset labeling), paying real-time on-demand prices is unnecessary — the workload has no latency SLA. Batch inference runs the same model asynchronously on AWS-optimized batch capacity at ~50% of on-demand cost.
+> **When to use:** Large-scale, non-latency-sensitive workloads: document summarization, embedding backfill, dataset annotation, nightly report generation. Minimum 100 records per job; results available in minutes to hours depending on job size.
+> **Nuances & gotchas:** Batch inference is **NOT** compatible with prompt caching or provisioned throughput. It runs on a separate batch quota — your on-demand quota does not constrain batch jobs and vice versa. Jobs must have at least 100 records in the input JSONL; submitting fewer will fail. Poll `GetModelInvocationJob` or use EventBridge status-change events to detect completion — there is no push notification by default.
+
 [Amazon Bedrock Batch Inference](https://docs.aws.amazon.com/bedrock/latest/userguide/batch-inference.html) allows you to submit large volumes of inference requests as a single asynchronous job. Results are written to Amazon S3 when the job completes.
 
 Key facts:
@@ -181,6 +193,10 @@ Pay per token with no commitment. Requests share capacity across all customers. 
 - Applications where occasional throttling is acceptable.
 
 #### Provisioned Throughput
+
+> **Why (the rationale):** On-demand capacity is shared across all Bedrock customers — at peak load you may get throttled even if your overall usage is modest. Provisioned Throughput reserves dedicated capacity, eliminating shared-pool contention and giving consistent latency and throughput for SLA-bound production workloads. It is also the **only way to invoke fine-tuned or custom-imported models**.
+> **When to use:** Sustained, predictable high-volume production workloads (≥60–70% utilization where per-token cost exceeds hourly PT cost); any custom/fine-tuned model (mandatory); when ThrottlingExceptions persist despite quota increases.
+> **Nuances & gotchas:** You **must pass `provisionedModelArn` as the `modelId`** in your API calls — using the base foundation model ARN leaves your reserved capacity idle while you keep paying the PT hourly rate AND on-demand per-token rates. PT is billed per model unit per hour for the committed term (1-month or 6-month) regardless of actual traffic. PT does NOT reduce inference latency the same way as latency-optimized inference mode — it guarantees throughput, not speed.
 
 [Provisioned Throughput](https://docs.aws.amazon.com/bedrock/latest/userguide/prov-throughput.html) reserves dedicated **tokens-per-minute (TPM)** capacity for your account. You pay a fixed hourly rate regardless of usage.
 
@@ -234,6 +250,10 @@ CloudWatch tracks `TimeToFirstToken` (TTFT) for streaming APIs — monitor this 
 
 ### 2.2 Semantic Response Caching
 
+> **Why (the rationale):** Prompt caching saves compute on repeated inputs; semantic caching goes further and eliminates the model call entirely for semantically similar repeated questions — achieving zero model cost and sub-millisecond latency for cache hits on common queries.
+> **When to use:** High-traffic applications with a known distribution of popular queries (e.g., FAQ bots, product search, support chatbots). High cache hit rate is needed to justify the operational complexity of maintaining a query embedding index.
+> **Nuances & gotchas:** Semantic caching introduces a staleness risk — a cached answer from three months ago may no longer be correct if the underlying knowledge base changed. You must implement TTL-based cache invalidation aligned with your knowledge base refresh cycle. Similarity threshold tuning is critical: too low → wrong answers served from cache; too high → almost every query misses.
+
 Beyond prompt caching (which avoids recomputing input tokens), you can cache *complete model responses* at the application layer:
 
 - **Exact match caching:** Hash the full prompt string; serve cached response on a hit. Simple but brittle — any prompt variation is a miss.
@@ -244,6 +264,10 @@ Semantic caching is complementary to prompt caching: prompt caching saves comput
 ---
 
 ### 2.3 Region Proximity and Cross-Region Inference
+
+> **Why (the rationale):** Network round-trip adds measurable latency when the calling application and the Bedrock endpoint are in different regions. Cross-region inference additionally provides automatic capacity failover — when one region is congested, Bedrock routes to another region in the same geography.
+> **When to use:** Deploy application and Bedrock in the same region (baseline). Enable cross-region inference when you're experiencing 503 capacity errors and cannot get a quota increase fast enough, or when building high-availability architectures that tolerate occasional cross-region routing.
+> **Nuances & gotchas:** Cross-region inference routes traffic to other AWS regions — **data may leave your primary region**. This directly conflicts with strict data residency requirements (GDPR, sovereignty mandates). Disable cross-region inference for regulated workloads with hard residency constraints. Cross-region inference uses a different model ID prefix (cross-region inference ARN) — not the standard regional model ID.
 
 - Deploy your Bedrock-calling application in the **same AWS Region** as your Bedrock endpoint to minimise network round-trip time.
 - [Cross-Region Inference](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html) automatically routes to the optimal AWS Region within your geography when capacity is constrained. This reduces throttling and improves availability, at the cost of occasionally higher network latency.
@@ -281,6 +305,10 @@ Large context windows increase inference latency and cost. Strategies:
 ## 3. Monitoring and Observability
 
 ### 3.1 CloudWatch Metrics for Bedrock
+
+> **Why (the rationale):** Without CloudWatch metrics, you discover latency spikes and quota exhaustion from user complaints rather than proactively from alarms. Bedrock's metrics provide real-time visibility into cost (token counts), performance (latency, TTFT), and reliability (throttles, error rates) across every model in use.
+> **When to use:** Always instrument with CloudWatch metrics in production. Set alarms on `InvocationThrottles` (quota signal), `InvocationLatency` P99 (performance signal), and `InvocationServerErrors` (reliability signal) from day one.
+> **Nuances & gotchas:** `TimeToFirstToken` (TTFT) is **only published for streaming APIs** (`ConverseStream`, `InvokeModelWithResponseStream`) — it does not appear for synchronous `Converse`/`InvokeModel`. `InputTokenCount` in CloudWatch metrics represents only non-cached tokens; cached tokens appear in `CacheReadInputTokens` and `CacheWriteInputTokens` — sum all three for true cost attribution. Use the `ModelId` dimension to filter by specific model; without it, metrics aggregate across all models.
 
 The Amazon Bedrock `bedrock-runtime` endpoint publishes metrics to Amazon CloudWatch under the **`AWS/Bedrock`** namespace ([source](https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring-runtime-metrics.html)). Use the `ModelId` dimension to filter by a specific model.
 
@@ -355,6 +383,10 @@ Apply **cost allocation tags** to your Bedrock resources and [Application Infere
 - Enables per-application, per-team cost attribution in AWS Cost Explorer.
 
 #### Application Inference Profiles
+
+> **Why (the rationale):** Without inference profiles, all Bedrock costs aggregate into a single line item in Cost Explorer — you can't distinguish Team A's chatbot spend from Team B's batch job. Inference profiles attach cost allocation tags at the routing level, enabling per-application, per-team cost attribution without code changes in each caller.
+> **When to use:** Any multi-team or multi-application Bedrock deployment where chargeback, showback, or per-workload cost tracking is required.
+> **Nuances & gotchas:** Tags on inference profiles propagate to CUR line items only after they are activated as cost allocation tags in the AWS Billing console — tag creation alone does not make them appear in Cost Explorer. Cross-region inference profiles (system-defined) use a different ARN format from application inference profiles (customer-defined).
 
 [Application Inference Profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-create.html) are named configurations that wrap a model (or cross-region profile) with specific settings and tags. When you route all traffic for an application through its inference profile, all costs are automatically tagged consistently.
 

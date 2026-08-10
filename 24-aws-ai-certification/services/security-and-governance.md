@@ -2,6 +2,10 @@
 
 > Deep-dive reference for **AIF-C01 Domain 5** (Security, Compliance, and Governance for AI Solutions) and **MLA-C01 Domain 4** (ML Solution Monitoring, Maintenance, and Security).
 
+> **Why (the rationale):** AWS AI/ML exams test security/governance heavily because real-world GenAI systems touch sensitive data, require auditability, and must comply with regulations. Each service in this domain solves a distinct, non-overlapping problem — the exam trap is picking the wrong one for the stated goal.
+> **When to use:** Apply this page when a question asks who/what/how about a running workload (CloudTrail/Config/CloudWatch), how to protect data (KMS/Macie/PrivateLink), how to prove compliance (Artifact/Audit Manager), or how to scope AI ownership risk (GenAI Scoping Matrix).
+> **Nuances & gotchas:** The Shared Responsibility Model is the foundation — AWS secures the cloud infrastructure; you always own your data, IAM permissions, and encryption choices, regardless of how managed the service is. No AWS service ever auto-sets your IAM policy or classifies your data for you.
+
 Security is one of the most heavily weighted and most "trap-heavy" areas on both AWS AI exams. The questions rarely ask you to *configure* anything — they ask you to **pick the right service for a stated goal** ("audit who called an API", "find PII in an S3 bucket", "keep traffic off the public internet"). This page walks every service you need, with a mental model, the ML-specific angle, and the exact "if you see X, pick this" trigger phrase the exam uses.
 
 ## The Shared Responsibility Model — the mental model behind everything
@@ -98,6 +102,10 @@ graph TB
 
 🧠 **Mental model:** IAM is the **front door and the guest list**. It answers "*who* can do *what* to *which* resource". Everything in AWS security starts here — no encryption or network control matters if the wrong identity has `*:*`.
 
+> **Why (the rationale):** IAM is the single control plane for "who can do what to which resource." All encryption, network isolation, and logging become irrelevant if the wrong identity has overly broad permissions — IAM is always the first line of defense.
+> **When to use:** Every AWS interaction requires IAM. For ML workloads specifically: SageMaker execution roles to access S3/ECR/KMS without hardcoded credentials; SageMaker Role Manager to generate least-privilege ML persona roles quickly.
+> **Nuances & gotchas:** Never use long-lived IAM user access keys in notebooks or training scripts — use roles (STS AssumeRole) instead. SageMaker Role Manager generates policies scoped to specific VPCs and KMS keys when you enable those options; the generated JSON is narrower than a manually written policy. Least privilege is always the correct answer when the exam asks for the "best security practice."
+
 **What it does:** IAM manages **identities** (users, groups, roles) and **policies** (JSON documents granting/denying actions on resources). The best practice is **least privilege** — grant only the permissions a principal actually needs. A **role** is an identity you *assume* temporarily (no long-lived credentials), which is how AWS services act on your behalf. ([IAM docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html))
 
 **ML-specific use:**
@@ -116,6 +124,10 @@ graph TB
 ## AWS KMS + encryption in transit <a name="kms"></a>
 
 🧠 **Mental model:** KMS is the **key locker**. It creates, stores, rotates, and controls access to the encryption keys that lock your data **at rest**. TLS is the **armored truck** that protects data **in transit**.
+
+> **Why (the rationale):** KMS centralizes key creation, rotation, and access control for encryption at rest — without it, each service would manage keys independently with no unified audit trail. Customer-managed keys (CMKs) give you the ability to revoke access org-wide by changing one key policy.
+> **When to use:** Encrypt any sensitive ML artifact at rest: training data in S3, model weights in S3, SageMaker notebook EBS volumes, Bedrock fine-tuning data. Use CMKs when you need key rotation control, cross-account access, or a CloudTrail log of every key use.
+> **Nuances & gotchas:** KMS is for encryption AT REST. TLS/HTTPS is for encryption IN TRANSIT — these are different services for different threat models; don't conflate them on the exam. AWS-managed keys are less flexible (you can't rotate or set a custom key policy). A deleted CMK cannot be recovered — there is a 7–30 day waiting period before deletion to prevent accidents.
 
 **What it does (KMS):** AWS Key Management Service creates and manages **KMS keys** and integrates with S3, EBS, SageMaker, Bedrock, and most AWS services for **encryption at rest**. You choose between **AWS-managed keys**, **AWS-owned keys**, or **customer-managed keys (CMKs)** when you need control over rotation and key policies. Access to a key is governed by a **key policy** plus IAM. ([KMS docs](https://docs.aws.amazon.com/kms/latest/developerguide/overview.html))
 
@@ -137,6 +149,10 @@ graph TB
 
 🧠 **Mental model:** Macie is the **PII bloodhound for S3**. It sniffs your buckets with ML and pattern matching and tells you where sensitive data lives.
 
+> **Why (the rationale):** Training datasets routinely hide PII inherited from production data. Macie's ML-based discovery scans S3 at scale to find sensitive data before it enters a model or fine-tuning pipeline, satisfying privacy regulations without manual review.
+> **When to use:** Before training or fine-tuning on data in S3; when asked to find unencrypted or publicly accessible S3 buckets that hold sensitive data; for continuous monitoring of a data lake. Signal: "discover PII in S3," "which buckets contain sensitive data," "scan for unencrypted data."
+> **Nuances & gotchas:** Macie is S3-ONLY — it does not scan DynamoDB, RDS, or non-S3 stores. For redacting PII in prompts or model responses use Bedrock Guardrails or Comprehend PII detection instead. Macie findings route to EventBridge and Security Hub for automated remediation.
+
 **What it does:** Amazon Macie is a data security service that uses **machine learning and pattern matching** to **discover and classify sensitive data in Amazon S3** — PII, financial data, credentials — and to flag bucket-level risks (public, unencrypted, shared). It builds an **interactive data map** and can run one-time or scheduled **sensitive-data discovery jobs**. ([Macie docs](https://docs.aws.amazon.com/macie/latest/user/what-is-macie.html))
 
 **ML-specific use:** Training corpora and data lakes routinely hide PII. Run Macie **before training or fine-tuning** to confirm your S3 datasets don't contain unredacted personal data, satisfying privacy/compliance requirements. Macie findings route to EventBridge/Security Hub for automated remediation.
@@ -151,6 +167,10 @@ graph TB
 ## AWS PrivateLink / VPC endpoints <a name="privatelink"></a>
 
 🧠 **Mental model:** PrivateLink is a **private tunnel** from your VPC straight to an AWS service — **the public internet never sees the traffic**.
+
+> **Why (the rationale):** PrivateLink/VPC endpoints remove the public internet from the data path — inference requests, training data, and model artifacts stay on the AWS backbone, eliminating the risk of interception or routing to a wrong destination. This is the standard pattern for regulated ML workloads.
+> **When to use:** Any scenario requiring private connectivity to Bedrock, SageMaker, or S3 from a VPC without an internet gateway or NAT. Signal: "no public internet," "private access to AWS services," "keep inference traffic on the AWS network."
+> **Nuances & gotchas:** VPC endpoints have per-hour and per-GB data-processing charges — they are not free. You need separate endpoints for each Bedrock API variant (`bedrock`, `bedrock-runtime`, `bedrock-agent`, `bedrock-agent-runtime`). Endpoint policies can restrict which principals and operations are allowed through the endpoint — add them for defense in depth on top of IAM.
 
 **What it does:** AWS PrivateLink provides **interface VPC endpoints** so resources in your VPC reach AWS services (SageMaker, Bedrock, S3 via gateway endpoint, etc.) **without** an internet gateway, NAT device, or public IP. Traffic stays on the AWS network. With **Private DNS enabled**, standard service DNS names route through the endpoint automatically — **no code changes**. You can attach **endpoint policies** to restrict what's callable through the endpoint. ([Bedrock VPC endpoints](https://docs.aws.amazon.com/bedrock/latest/userguide/vpc-interface-endpoints.html), [SageMaker VPC endpoints](https://docs.aws.amazon.com/sagemaker/latest/dg/interface-vpc-endpoint.html))
 
@@ -169,6 +189,10 @@ graph TB
 
 🧠 **Mental model:** A VPC is **your private slice of the AWS network**; **security groups** are the **firewall around each resource**; subnets decide public vs. private placement.
 
+> **Why (the rationale):** A VPC in private subnets is the network-level isolation layer for ML workloads — training instances and endpoints with no internet route cannot exfiltrate data or be reached from the internet even if IAM is misconfigured.
+> **When to use:** All production SageMaker training jobs, processing jobs, and endpoints should run in VPC mode with private subnets for regulated workloads. Signal: "isolate the ML workload," "no internet access," "private subnet."
+> **Nuances & gotchas:** Security groups are STATEFUL (allow rules only, return traffic is auto-permitted). Network ACLs are STATELESS (you must add both inbound and outbound allow rules). The exam specifically tests this stateful/stateless distinction. VPC mode for SageMaker requires S3 and other services to be reachable via VPC endpoints or NAT — otherwise training jobs will fail to pull data.
+
 **What it does:** Amazon **VPC** is an isolated virtual network. **Subnets** partition it — **private subnets** have no direct internet route (ideal for training/inference). **Security groups** are **stateful** instance-level firewalls (allow rules only); **network ACLs** are **stateless** subnet-level firewalls. ([VPC docs](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html))
 
 **ML-specific use:** Launch SageMaker training jobs, processing jobs, and endpoints **in your VPC** and in **private subnets** to isolate them. Combine with PrivateLink for AWS-service access and security groups to tightly scope inbound/outbound traffic. This "**VPC mode**" is the standard pattern for regulated ML workloads.
@@ -184,6 +208,10 @@ graph TB
 
 🧠 **Mental model:** Secrets Manager is the **vault for credentials** — DB passwords, third-party API keys, tokens — with **automatic rotation**.
 
+> **Why (the rationale):** Secrets Manager eliminates the security anti-pattern of embedding database passwords or API keys in code, notebooks, Dockerfiles, or environment variables — it stores them encrypted and rotates them automatically.
+> **When to use:** Storing DB credentials for a feature pipeline, external LLM API keys, or tokens SageMaker processing jobs need. Signal: "store and rotate credentials/API keys/tokens securely," "keep secrets out of code."
+> **Nuances & gotchas:** Secrets Manager costs money per secret per month + per API call — for non-sensitive config values (feature flags, URIs) use SSM Parameter Store (cheaper). SSM is the classic exam distractor here: "cheaper, non-secret config" → SSM; "credential that must rotate" → Secrets Manager.
+
 **What it does:** Stores, encrypts (with KMS), and **automatically rotates** secrets, and serves them to apps via API/SDK so credentials never live in code. ([Secrets Manager docs](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html))
 
 **ML-specific use:** Store the API key for an **external LLM/model provider**, a database credential a feature pipeline queries, or a token a SageMaker processing job needs — then grant the job's execution role read access. Keeps secrets out of notebooks, Dockerfiles, and Git.
@@ -198,6 +226,10 @@ graph TB
 
 🧠 **Mental model:** CloudTrail is the **security camera on the API front door** — it records **WHO did WHAT, WHEN, and from WHERE**.
 
+> **Why (the rationale):** CloudTrail is the forensic record of every API call — who invoked a Bedrock model, who deleted a SageMaker endpoint, who changed an IAM policy — providing an immutable audit trail for security investigations and compliance.
+> **When to use:** Any question about "who did X," "audit trail," "API activity history," or "forensic investigation." Signal: "who called this API," "who made this change," "track API activity."
+> **Nuances & gotchas:** CloudTrail logs API calls (WHO/WHAT/WHEN) — it does NOT track resource configuration drift (that's Config) or performance metrics (that's CloudWatch). By default CloudTrail stores 90 days of management events in the console; for longer retention you must configure a trail to S3. Data events (S3 object-level, Lambda invocations) must be explicitly enabled and cost extra.
+
 **What it does:** Logs every **API call / management event** in your account — the identity, timestamp, source IP, and parameters — for governance, auditing, and forensics. Delivers logs to S3 (and optionally CloudWatch Logs). ([CloudTrail docs](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html))
 
 **ML-specific use:** Audit who invoked a Bedrock model, who created/deleted a SageMaker endpoint, or who used a KMS key. Essential evidence for compliance and incident investigation.
@@ -211,6 +243,10 @@ graph TB
 ## Amazon CloudWatch + CloudWatch Logs <a name="cloudwatch"></a>
 
 🧠 **Mental model:** CloudWatch is the **health monitor** — **metrics, logs, alarms, dashboards** for *how your workload is performing*.
+
+> **Why (the rationale):** CloudWatch is the operational health layer — it answers "how is my workload performing right now?" through metrics, logs, alarms, and dashboards. It is NOT for security audits (CloudTrail) or compliance checks (Config).
+> **When to use:** Monitor SageMaker endpoint latency/error rates/GPU utilization; alarm on training-job failures; capture model-monitor drift detection outputs; set cost-based alarms on training spend.
+> **Nuances & gotchas:** CloudWatch monitors PERFORMANCE; CloudTrail monitors ACTIVITY (who called what). This is the most-tested distinction. CloudWatch Logs stores log streams from training jobs and endpoints but cannot query them with SQL — use CloudWatch Logs Insights for that. Custom metrics (e.g., model accuracy drift) must be explicitly pushed; they are not auto-collected.
 
 **What it does:** Collects **metrics** (CPU, memory, invocation counts, latency), aggregates **logs** (CloudWatch Logs), fires **alarms** on thresholds, and renders **dashboards**. It's about **operational/performance monitoring**, not "who did it". ([CloudWatch docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html))
 
@@ -238,6 +274,10 @@ graph TB
 
 🧠 **Mental model:** Config is the **configuration historian and compliance auditor** — it tracks the **state** of every resource over time and checks it against **rules**.
 
+> **Why (the rationale):** Config continuously tracks resource configuration state and evaluates it against compliance rules — answering "is this resource configured correctly right now, and was it ever non-compliant?" Config is the compliance historian; CloudTrail is the activity historian.
+> **When to use:** Enforcing policies like "SageMaker notebooks must have direct internet disabled," "S3 buckets must be encrypted," "endpoints must use KMS." Signal: "is this resource compliant," "continuous compliance evaluation," "what changed on this resource."
+> **Nuances & gotchas:** Config tracks WHAT a resource's configuration IS (state + history + compliance). CloudTrail tracks WHO made an API call. Students conflate the two — if the question asks "who deleted the endpoint," it's CloudTrail; if it asks "was the endpoint's config ever non-compliant," it's Config. Config rules can trigger auto-remediation via Lambda or SSM.
+
 **What it does:** Continuously records **resource configurations** and **changes** (a timeline per resource), and evaluates them against **Config rules** for compliance (e.g., "all S3 buckets must be encrypted", "SageMaker notebooks must be in a VPC"). Non-compliant resources are flagged and can be auto-remediated. ([Config docs](https://docs.aws.amazon.com/config/latest/developerguide/WhatIsConfig.html))
 
 **ML-specific use:** Enforce that SageMaker notebook instances have **direct internet access disabled**, that endpoints use **KMS encryption**, or that training resources run **inside a VPC** — and get continuous compliance reporting.
@@ -252,6 +292,10 @@ graph TB
 
 🧠 **Mental model:** Inspector is the **automated vulnerability scanner** for your compute and containers.
 
+> **Why (the rationale):** Inspector automates vulnerability scanning of compute and containers so you catch known CVEs in custom SageMaker container images before deployment, rather than relying on manual patch audits.
+> **When to use:** After building or updating a custom SageMaker training/inference container image in ECR; scanning EC2-based ML infra for unpatched CVEs. Signal: "scan for vulnerabilities/CVEs," "container image security scan," "patch prioritization."
+> **Nuances & gotchas:** Inspector scans EC2, ECR container images, and Lambda — NOT S3 objects, RDS, or SageMaker-managed infrastructure (which AWS patches). Inspector is NOT the same as Macie (Macie = PII in S3 data; Inspector = CVEs in compute/containers). Inspector 2 (current version) is continuous; Inspector Classic (deprecated) was manual scan-based.
+
 **What it does:** Continuously scans **EC2 instances, container images in ECR, and Lambda functions** for **software vulnerabilities (CVEs)** and unintended network exposure, prioritizing findings by risk. ([Inspector docs](https://docs.aws.amazon.com/inspector/latest/user/what-is-inspector.html))
 
 **ML-specific use:** Scan the **custom container images** you build for SageMaker training/inference (pushed to ECR) and the EC2 instances behind self-managed ML infra for known CVEs before deployment.
@@ -264,6 +308,10 @@ graph TB
 ## AWS Audit Manager <a name="auditmanager"></a>
 
 🧠 **Mental model:** Audit Manager is the **evidence-collecting robot for auditors** — it continuously gathers proof that you meet a framework's controls.
+
+> **Why (the rationale):** Audit Manager continuously collects compliance evidence (Config snapshots, CloudTrail logs, IAM policy states) and maps it to framework controls — replacing the manual work of screenshotting consoles before an audit.
+> **When to use:** When you must prove your ML platform meets SOC 2, PCI DSS, HIPAA, or a custom framework to an external auditor. Signal: "automate evidence collection," "audit-ready reports," "prepare for a compliance audit."
+> **Nuances & gotchas:** Audit Manager collects evidence ABOUT YOUR OWN USAGE of AWS — it does NOT certify AWS itself. For AWS's own certifications (SOC/ISO/PCI reports for the underlying infrastructure) use AWS Artifact. These two are frequently swapped on the exam.
 
 **What it does:** **Automates evidence collection** and maps it to control frameworks (SOC 2, PCI DSS, HIPAA, GDPR, ISO, plus custom), so you can produce **audit-ready reports** without manually screenshotting configs. ([Audit Manager docs](https://docs.aws.amazon.com/audit-manager/latest/userguide/what-is.html))
 
@@ -279,6 +327,10 @@ graph TB
 
 🧠 **Mental model:** Artifact is the **download portal for AWS's compliance paperwork** — you *get* reports, you don't *generate* them.
 
+> **Why (the rationale):** Artifact gives you proof that AWS's own infrastructure is certified — closing the AWS side of the Shared Responsibility Model when a customer or regulator asks "is the cloud platform itself compliant?"
+> **When to use:** When a customer/regulator asks "show me AWS's SOC 2 report" or "is the Bedrock/SageMaker platform ISO 27001 certified?" Signal: "download AWS compliance reports," "SOC/ISO/PCI certification for AWS," "BAA for HIPAA."
+> **Nuances & gotchas:** Artifact provides AWS's certifications — NOT yours. It does NOT collect evidence about your workload (that's Audit Manager). Artifact is a download portal, not an audit tool. BAA (Business Associate Agreement for HIPAA) is also available via Artifact agreements.
+
 **What it does:** Self-service, on-demand access to **AWS's compliance reports and certifications** — **SOC 1/2/3, ISO 27001, PCI DSS**, plus agreements (BAA, GDPR). It proves the **AWS side** of the shared responsibility model is certified. ([Artifact docs](https://docs.aws.amazon.com/artifact/latest/ug/what-is-aws-artifact.html))
 
 **ML-specific use:** When a customer/regulator asks "is the platform your model runs on SOC 2 / ISO certified?", download the report from Artifact.
@@ -293,6 +345,10 @@ graph TB
 
 🧠 **Mental model:** Trusted Advisor is the **automated best-practice checklist** across five categories.
 
+> **Why (the rationale):** Trusted Advisor provides automated, proactive best-practice recommendations across five categories — it catches common misconfigurations (open security groups, exposed access keys) and quota risks before they cause incidents or surprise bills.
+> **When to use:** Ongoing account health checks; before scaling ML training (check service limits); after a new deployment (check security posture). Signal: "best-practice recommendations," "check for security misconfigurations," "service limit warnings."
+> **Nuances & gotchas:** Full Trusted Advisor checks require a Business or Enterprise Support plan — free-tier accounts see only a limited subset of checks. Trusted Advisor gives RECOMMENDATIONS, not enforcement; it does not automatically fix anything. For automated remediation use Config rules or Systems Manager Automation.
+
 **What it does:** Inspects your account and gives **recommendations** across **cost optimization, performance, security, fault tolerance, and service limits/quotas** (e.g., unrestricted security groups, unused resources, exposed access keys). ([Trusted Advisor docs](https://docs.aws.amazon.com/awssupport/latest/user/trusted-advisor.html))
 
 **ML-specific use:** Catch security misconfigurations (open security groups on ML infra), cost waste (idle endpoints/instances), and service-limit issues before scaling training.
@@ -305,6 +361,10 @@ graph TB
 ## Cost governance <a name="cost"></a>
 
 🧠 **Mental model:** Cost governance = **see it (Cost Explorer), cap it (Budgets), attribute it (tags), buy it smart (purchasing options)**. ML/GPU spend is huge, so this is squarely on the exam.
+
+> **Why (the rationale):** ML/GPU training is one of the largest and most variable AWS cost centers — a single runaway training job can generate thousands of dollars. Cost Explorer, Budgets, tagging, and purchasing options are the controls that prevent surprise bills and attribute spend per team.
+> **When to use:** Cost Explorer → analyze and forecast past/future spend. Budgets → set and alert on thresholds before overspending. Tags → allocate cost by project/team in reports. Spot → fault-tolerant training at up to 90% savings. SageMaker Savings Plans → steady ongoing SageMaker usage at up to 64% savings vs On-Demand.
+> **Nuances & gotchas:** SageMaker Savings Plans do NOT apply to Spot Instance usage — Spot has its own market pricing. Reserved Instances are instance-family locked; Savings Plans are more flexible (any instance family, any region). Tagging must be enabled for cost allocation BEFORE the spend occurs — retroactive tagging does not affect past bills.
 
 **Visibility & control:**
 - **AWS Cost Explorer** — visualize and **analyze** historical spend and usage, filter/group, and **forecast**. ([Cost Explorer](https://docs.aws.amazon.com/cost-management/latest/userguide/ce-what-is.html))
@@ -335,6 +395,10 @@ Key exam facts: **Savings Plans do NOT apply to Spot** (Spot has its own market 
 
 ### AWS Generative AI Security Scoping Matrix — the 5 scopes
 
+> **Why (the rationale):** The Scoping Matrix helps teams understand how much security responsibility they inherit based on how they engage with AI — from using a public chatbot (Scope 1, you own almost nothing) to training your own foundation model from scratch (Scope 5, you own everything).
+> **When to use:** When architecting a GenAI solution and needing to scope risk, security controls, and team responsibilities BEFORE building. Signal: "scope GenAI risk," "determine security responsibilities," "AI ownership and control."
+> **Nuances & gotchas:** More control = more security responsibility — this is the core exam principle. Using Amazon Bedrock base models is Scope 3 (you own the app, prompts, data, IAM); fine-tuning is Scope 4 (you also own the fine-tuning data and tuned model weights). Many teams underestimate Scope 4/5 responsibilities. The five security disciplines (Governance, Legal, Risk, Controls, Resilience) apply at all scopes but with different ownership splits.
+
 🧠 **Mental model:** A ladder of **increasing ownership and control** over the AI model/data — as you climb, **more of the security responsibility shifts to you**. It helps you scope risk *before* building. ([GenAI Scoping Matrix](https://aws.amazon.com/ai/security/generative-ai-scoping-matrix/), [Security Blog intro](https://aws.amazon.com/blogs/security/securing-generative-ai-an-introduction-to-the-generative-ai-security-scoping-matrix/))
 
 | Scope | Name | Example | You own… |
@@ -350,6 +414,10 @@ The matrix pairs these scopes with **five security disciplines**: **Governance &
 🎯 **On the exam — if you see…** "using **ChatGPT/public** service" → Scope 1; "**fine-tuning** a foundation model on our data" → Scope 4; "**training our own** model from scratch" → Scope 5; "**more control = more responsibility**" → the scoping matrix.
 
 ### AWS Well-Architected Tool
+
+> **Why (the rationale):** The Well-Architected Tool provides a structured, pillar-based self-assessment against AWS best practices, with ML and GenAI Lenses that add AI-specific questions — it surfaces architectural risks and gives prioritized remediation guidance before they become production problems.
+> **When to use:** Architecture reviews before launch, after significant changes, or as part of a compliance readiness process. Signal: "review architecture against best practices," "identify architectural risk," "pillar-based review," "ML Lens," "GenAI Lens."
+> **Nuances & gotchas:** The Well-Architected Tool produces a REPORT with improvement recommendations — it does NOT auto-fix anything. There is both an ML Lens and a separate GenAI Lens; exam questions may specify one or the other for AI workloads. The tool is free; running the review requires someone with architectural knowledge to answer the questions accurately.
 
 🧠 **Mental model:** A **self-assessment** that measures your workload against the **Well-Architected Framework pillars** and produces an improvement plan.
 

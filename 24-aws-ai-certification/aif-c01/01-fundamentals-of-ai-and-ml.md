@@ -137,6 +137,10 @@ flowchart LR
 
 ## 1.1 Types of inferencing: batch, real-time, async, serverless <a name="inference-types"></a>
 
+> **Why (the rationale):** A single inference mode cannot be cost-optimal for every traffic pattern. Real-time guarantees latency but bills even when idle; batch eliminates the always-on cost for offline scoring; async removes the payload and time limits that block real-time; serverless removes idle cost for unpredictable traffic. Matching the mode to the pattern is a core architectural decision.
+> **When to use:** Choose based on two axes — *when you need the result* (now vs later) and *how big the input is* (small inline vs large S3-staged).
+> **Nuances & gotchas:** Async is NOT real-time with a bigger payload — the client gets a handle, not an answer; you must poll or use SNS. Serverless has a hard 4 MB payload cap and 60-second processing cap; exceeding either requires switching to real-time or async. Batch Transform spins up dedicated instances and tears them down — there is no persistent endpoint to invoke.
+
 🧠 **Mental model:** How do you want to *receive* your predictions?
 - **Real-time** = a phone call — answer *now*, one at a time, always online.
 - **Batch** = a nightly mail run — collect everything, process in bulk, get results later.
@@ -236,6 +240,10 @@ flowchart TB
 ---
 
 ## 1.1 Supervised, unsupervised, reinforcement learning <a name="learning-types"></a>
+
+> **Why (the rationale):** The learning type is dictated entirely by whether you have labels and whether you can define a reward signal. Supervised is the workhorse when answers exist; unsupervised surfaces structure you don't know in advance; RL is the only option when the "right answer" is only known after a sequence of actions.
+> **When to use:** Supervised → you have labeled data and a fixed output type. Unsupervised → unlabeled data and you're exploring for hidden groups. RL → an agent interacts with an environment and feedback is a delayed reward (e.g., RLHF for LLM alignment, robotics, game AI).
+> **Nuances & gotchas:** RLHF is a *reinforcement learning* technique applied on top of a pre-trained LLM — it is not standalone RL. Clustering (unsupervised) gives groups but the number of clusters k is a hyperparameter *you* set — the algorithm doesn't discover k automatically in k-means.
 
 🧠 **Mental model:**
 - **Supervised** = studying with an **answer key** (labeled data).
@@ -367,6 +375,10 @@ flowchart TB
 
 ## 1.2 Traditional ML vs Foundation Models <a name="ml-vs-fm"></a>
 
+> **Why (the rationale):** Traditional ML wins when the problem is narrow, the data is structured/tabular, explainability is required, or operational constraints are tight. Foundation models win when the task involves language/generation, you need breadth across many sub-tasks, and you can accept a probabilistic black-box answer.
+> **When to use:** Traditional ML → regulated decisions (credit scoring, healthcare), structured/tabular features, strict latency/cost budgets. Foundation models → content generation, conversational AI, summarization, semantic search, or any task where breadth of language understanding adds value.
+> **Nuances & gotchas:** Foundation models do NOT inherently provide source citations — that requires RAG on top. Traditional ML must be retrained on new data to learn new patterns; FMs don't need retraining for new tasks (use prompting/RAG instead). "More parameters = more accurate" is false for narrow structured-data tasks — XGBoost often beats an LLM on tabular data.
+
 🧠 **Mental model:** A **traditional ML model** is a **custom tool** you forge for one job (predict *this* churn from *this* table). A **foundation model (FM)** is a **giant pre-trained brain** already good at many language/vision tasks that you adapt with a prompt or a little fine-tuning.
 
 | Dimension | Traditional ML model | Foundation Model (FM) |
@@ -382,6 +394,10 @@ flowchart TB
 ---
 
 ## 1.2 AWS managed AI/ML services <a name="aws-services"></a>
+
+> **Why (the rationale):** These pre-built managed services let you add AI capabilities without training, deploying, or hosting a model yourself. They shift operational burden to AWS so you pay only for API calls.
+> **When to use:** Use them when the AI task is a well-defined, standard capability (speech→text, text→speech, NLP, translation, chatbot, vision) and your data doesn't require a custom model. Reach for SageMaker AI only when you need to train or customize beyond what these pre-built services offer.
+> **Nuances & gotchas:** Comprehend detects bias in custom ML model predictions (via Clarify integration), NOT in LLM outputs — that's Guardrails. Lex handles conversational flow (ASR + NLU) but does NOT generate free-text answers; for generative responses combine Lex with Bedrock. Transcribe and Polly are one-directional (audio↔text) — neither translates language; that's Translate.
 
 Know **one line of what** and **one line of when** for each. These are the "pre-trained, no-ML-expertise-needed" services the exam names.
 
@@ -458,6 +474,10 @@ flowchart LR
 
 ## 1.3 AWS services mapped to each pipeline stage <a name="stage-map"></a>
 
+> **Why (the rationale):** Each pipeline stage has different data-movement and compute needs. Dedicated managed services (Data Wrangler, Feature Store, Model Monitor) let you address each stage without building custom tooling, and they integrate natively so artifacts flow through the pipeline without manual hand-offs.
+> **When to use:** Data Wrangler when you need low-code data preparation with 300+ transforms. Feature Store when the same engineered features are needed for both training and real-time inference. Model Monitor when a deployed endpoint must be watched for drift without writing custom monitoring code.
+> **Nuances & gotchas:** Feature Store has two stores — **offline** (S3-backed, for training) and **online** (low-latency, for real-time inference) — they are NOT the same storage target. Model Monitor alerts go to **CloudWatch**, not directly to email — you need a CloudWatch Alarm + SNS to page someone. SageMaker Data Wrangler does NOT train models; it stops at feature preparation.
+
 ```mermaid
 flowchart LR
     subgraph Prep["Data prep"]
@@ -525,6 +545,10 @@ flowchart LR
 🧠 **Mental model:** **Model metrics** ask *"Is the model technically good?"* **Business metrics** ask *"Is it worth it to the company?"* You need both — a 99%-accurate model that costs more than it earns is a failure.
 
 ### Model performance metrics
+
+> **Why (the rationale):** No single metric captures the full picture. Accuracy collapses to a useless number on imbalanced classes; precision and recall pull in opposite directions; F1 synthesizes both but still ignores true negatives. Picking the right metric is a design decision based on what's costly — false alarms vs missed positives.
+> **When to use:** Accuracy → balanced classes, quick sanity check. Precision → false positives are the primary cost (spam filter). Recall → false negatives are the primary cost (cancer screening, fraud). F1 → imbalanced classes where both error types matter. RMSE → regression (continuous output). AUC → comparing classifiers across thresholds without committing to one.
+> **Nuances & gotchas:** A model that always predicts "no fraud" on a 99%-legit dataset achieves 99% accuracy but 0% recall — accuracy is meaningless here. RMSE penalizes large errors more heavily than MAE, making it sensitive to outliers. AUC is threshold-independent; once you deploy you still need to pick a threshold based on business cost tradeoff.
 
 | Metric | What it measures | Use when |
 |---|---|---|

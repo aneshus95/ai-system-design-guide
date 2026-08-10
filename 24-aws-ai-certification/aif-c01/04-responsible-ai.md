@@ -87,6 +87,10 @@ Per [AWS's core-dimensions guidance](https://aws.amazon.com/blogs/machine-learni
 
 ## 4.1b — Guardrails for Amazon Bedrock <a name="guardrails"></a>
 
+> **Why (the rationale):** FM safety filters built into the base model can be bypassed by crafted prompts and vary across model providers. Guardrails adds a *consistent, configurable, provider-agnostic* safety layer you control — applied uniformly to inputs and outputs regardless of which model generates the response.
+> **When to use:** Any production Bedrock application where outputs reach end users. Specifically required when: PII must be redacted, certain topics are off-limits (denied topics), RAG hallucinations need detection (contextual grounding), or prompt injection/jailbreak defense is required (Prompt Attack filter).
+> **Nuances & gotchas:** Guardrails checks BOTH the prompt (input) and the response (output) — they are two separate check passes, each adding latency. Guardrails does NOT detect bias in model predictions — that's SageMaker Clarify. Contextual grounding checks require a source document to compare against; they only work in RAG-style flows where retrieved context is available. The `ApplyGuardrail` API extends coverage to non-Bedrock models, but you must invoke it separately in your application code.
+
 🧠 **Mental model:** Guardrails are a **bouncer standing at both doors** of your LLM — checking every prompt on the way *in* and every response on the way *out*, blocking or redacting anything against the house rules. Crucially, it works across models (any Bedrock FM, and even non-Bedrock/custom models via the `ApplyGuardrail` API).
 
 **Guardrails for Amazon Bedrock** is a managed safeguard you configure once and apply to inputs and outputs. Per the [Bedrock Guardrails docs](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html), it offers these policy types:
@@ -212,6 +216,10 @@ flowchart LR
 
 ## 4.1g — Tools to detect & monitor bias: Clarify, Model Monitor, A2I <a name="detect-tools"></a>
 
+> **Why (the rationale):** Each tool addresses bias/quality at a different point in the lifecycle. Clarify runs *before or right after* training as a diagnostic; Model Monitor watches the *deployed endpoint* continuously; A2I routes *individual uncertain predictions* to humans for review. Together they cover analysis, ongoing vigilance, and exception handling — no single tool covers all three.
+> **When to use:** Clarify → you need to understand whether your training data or model predictions are biased, or explain a specific prediction with SHAP. Model Monitor → a deployed endpoint needs continuous drift or bias tracking with automated alerts. A2I → low-confidence predictions in production require human review before an action is taken.
+> **Nuances & gotchas:** Clarify detects bias in **custom ML model predictions**, NOT in LLM text outputs — for LLM output safety use Guardrails. Model Monitor's bias drift monitor *uses Clarify* under the hood — they are not competing services. A2I is NOT an analytics tool; it routes individual predictions to reviewers and collects labels — it does not compute aggregate bias statistics. Model Monitor alerts go to CloudWatch, not directly to email — you still need a CloudWatch Alarm + SNS notification.
+
 These three are the **most-tested trio** in Domain 4. Learn exactly what each does and does *not* do.
 
 ```mermaid
@@ -290,6 +298,10 @@ Per [A2I](https://aws.amazon.com/augmented-ai/), it builds **human review workfl
 ## 4.2b — Tools for transparency: Model Cards, open models, licensing <a name="transparency-tools"></a>
 
 ### Amazon SageMaker Model Cards
+
+> **Why (the rationale):** Without a standardized governance document, different teams answer "what is this model for?" differently — causing misuse, compliance gaps, and difficulty onboarding auditors. A Model Card creates one authoritative record of intent, risk, and performance that travels with the model artifact.
+> **When to use:** Create a Model Card before deploying any model to production, especially in regulated industries. Use it as the primary artifact when an auditor or stakeholder asks "can you document what this model does and what its limitations are?"
+> **Nuances & gotchas:** Model Cards document *intended use and governance* — they do NOT perform bias analysis or compute fairness metrics. That's Clarify's job. The risk rating (Unknown/Low/Medium/High) is set by the *model owner*, not auto-computed — it's a human governance judgment, not an algorithm output. Model Cards can be exported to PDF for external stakeholders but are not automatically published.
 
 Per the [Model Cards docs](https://docs.aws.amazon.com/sagemaker/latest/dg/model-cards.html), a **model card** documents a model in one place for governance:
 

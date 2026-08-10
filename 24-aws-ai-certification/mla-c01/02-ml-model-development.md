@@ -76,11 +76,19 @@ flowchart TD
 
 **Plain English:** AI services are *vending machines* — call an API, get an answer, no training. SageMaker is a *fully-equipped kitchen* — you cook the model yourself. Bedrock is a *catered buffet of pre-cooked foundation models* you can serve as-is or lightly re-season (fine-tune).
 
+> **Why (the rationale):** The biggest cost and time savings come from NOT building what AWS already built. AI services and Bedrock eliminate model training entirely; the exam tests whether you recognize when the problem is standard enough to use them.
+> **When to use:** AI services for common perception/NLP tasks (vision, speech, translation, extraction) where your data looks like the general internet; Bedrock/JumpStart for generative AI, summarization, chat, and embeddings at FM scale; SageMaker built-in algorithms or script mode only when the task is genuinely custom or the AI services can't meet accuracy/compliance requirements.
+> **Nuances & gotchas:** AI services are NOT customizable beyond minor configuration (custom vocabularies for Transcribe, custom labels for Rekognition) — they cannot be fine-tuned on your domain data the way Bedrock models can. Bedrock charges per input/output token and does not expose model weights; JumpStart deploys the model to an endpoint you own and pay for per instance-hour.
+
 The exam constantly tests this reflex with the qualifier **"least operational overhead"** or **"fastest to market."** If a managed AI service can do the job, it beats building a SageMaker model.
 
 ### The pre-built AI services <a name="ai-services"></a>
 
 These require **no model training**. Memorize what each one does — matching questions love them.
+
+> **Why (the rationale):** These services collapse weeks of model development into a single API call. They are the right answer any time the question says "no ML expertise," "fastest to market," or "least operational overhead" for a standard task.
+> **When to use:** Match the modality to the service: image/video → Rekognition; audio → Transcribe or Polly; text translation → Translate; text analytics/PII → Comprehend; scanned documents → Textract; chatbot → Lex; enterprise search → Kendra; recommendations → Personalize; time-series demand forecasting → Forecast; fraud → Fraud Detector.
+> **Nuances & gotchas:** Amazon Forecast is listed as "retiring" by AWS; know it for the exam but prefer Bedrock or SageMaker DeepAR for new builds. Comprehend Medical and Transcribe Medical are separate specialized variants — not the same as the general Comprehend/Transcribe. Rekognition Video is asynchronous (StartLabelDetection + poll) while Rekognition Image is synchronous. Kendra is NOT a general-purpose search engine — it indexes structured document repositories, not arbitrary internet content.
 
 | Service | Modality | What it does | Classic exam trigger |
 |---|---|---|---|
@@ -104,6 +112,10 @@ Source: [AWS AI services overview](https://aws.amazon.com/machine-learning/ai-se
 
 **Plain English:** Both give you access to large pre-trained foundation models. **Bedrock** is a *serverless API* — no infrastructure, pay per token, models from Anthropic (Claude), Meta (Llama), Amazon (Titan/Nova), Cohere, AI21, Mistral, Stability. **JumpStart** lives *inside SageMaker Studio* — it deploys open FMs and built-in solution templates to endpoints you manage, and lets you fine-tune with a few clicks.
 
+> **Why (the rationale):** Bedrock eliminates all infrastructure management for generative AI — no model download, no GPU provisioning, no container maintenance. JumpStart trades that simplicity for control: you own the endpoint, can run in your VPC, and can fine-tune the model weights directly.
+> **When to use:** Bedrock when you want the least operational overhead, need to switch between FM providers, or want built-in features like Knowledge Bases (RAG), Guardrails, or Agents; JumpStart when you need to fine-tune an open-source FM (Llama, Falcon, etc.) inside SageMaker with full weight access, or when data must stay within your VPC.
+> **Nuances & gotchas:** Bedrock models are NOT accessible via VPC by default (use Bedrock's VPC endpoint); JumpStart endpoints run in your VPC. Bedrock fine-tuning is only available for select models; JumpStart supports fine-tuning a broader set of open models. Bedrock "provisioned throughput" (a committed token/min purchase) is required for lower latency at scale — on-demand Bedrock can throttle during high-traffic periods. Guardrails for Bedrock apply at the API layer and can block topics, redact PII, or filter harmful content — they do NOT modify the underlying model.
+
 | | Amazon Bedrock | SageMaker JumpStart |
 |---|---|---|
 | Access model | Serverless API (per-token or provisioned throughput) | Deploy to a SageMaker endpoint you own |
@@ -118,6 +130,10 @@ Source: [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/wh
 ### SageMaker built-in algorithms — the master table <a name="builtin"></a>
 
 **Plain English:** These are AWS-optimized, ready-to-train algorithm containers. You bring data + hyperparameters; you don't write model code. Learn each one's *problem type* and *one-line "use when."* AWS groups them by **supervised, unsupervised, text, image**.
+
+> **Why (the rationale):** Built-in algorithms are pre-optimized for SageMaker (multi-GPU, distributed, Pipe-mode compatible) and need no model code — you only supply data and tune hyperparameters. This is the fastest path to a custom trained model short of using an AI service.
+> **When to use:** Match algorithm to problem type — tabular classification/regression → XGBoost; time-series → DeepAR; anomaly detection → RCF; clustering → K-Means; dimensionality reduction → PCA; topic modeling → LDA/NTM; vision → Image Classification/Object Detection/Semantic Segmentation.
+> **Nuances & gotchas:** XGBoost in SageMaker has two versions — the original "classic" (limited to one machine) and the current framework version (supports distributed training); specify the framework version explicitly. DeepAR requires ALL time series to be provided at training time — you cannot add new series at inference time without retraining. Random Cut Forest is designed for streaming anomaly detection and works best with unsupervised, unlabeled data; it does NOT require the anomaly labels for training. BlazingText supports two modes: Word2Vec (unsupervised embeddings) and text classification (supervised) — specify the mode or you get Word2Vec by default.
 
 ```mermaid
 flowchart LR
@@ -182,6 +198,10 @@ Source: [Built-in algorithms and pretrained models in Amazon SageMaker](https://
 
 **Plain English:** Interpretability = *how easily a human can understand why the model decided what it did.* Regulated domains (credit, healthcare, hiring) often *require* it, which can override "most accurate."
 
+> **Why (the rationale):** In regulated industries a model that cannot explain its decisions may be legally unusable regardless of its accuracy. Interpretability must be a first-class selection criterion, not an afterthought.
+> **When to use:** Require an inherently interpretable model (linear regression, logistic regression, shallow decision tree) when regulators or policy require a human-readable explanation for every decision; use XGBoost + Clarify SHAP when you need better accuracy but can satisfy auditors with post-hoc feature-importance explanations; use deep neural nets only when accuracy clearly dominates and explanation is secondary.
+> **Nuances & gotchas:** SHAP explains what a specific model learned from a specific dataset — it does NOT prove the model is fair or correct. A highly accurate but uninterpretable model can still be deployed if explainability is provided post-hoc (SHAP); the exam often offers "use Clarify" as the answer to interpretability questions even when XGBoost is the model. Inherently interpretable models are usually less accurate on complex non-linear tasks — this is a genuine tradeoff, not a free lunch.
+
 ```mermaid
 flowchart LR
     HI["More interpretable\n(glass box)"] --- L["Linear / Logistic\nRegression"] --- T["Decision Trees"] --- X["XGBoost /\nRandom Forests"] --- NN["Deep Neural Nets"] --- LO["Less interpretable\n(black box)"]
@@ -199,6 +219,10 @@ flowchart LR
 
 **Plain English:** Match the *complexity of the tool* to the *complexity of the problem and data*. Don't fine-tune a foundation model when XGBoost on tabular data would do — that's wasted cost and latency.
 
+> **Why (the rationale):** Over-engineering (using a 70B FM for binary tabular classification) wastes money and introduces latency; under-engineering (using a simple linear model for a complex NLP task) produces inadequate accuracy. Feasibility analysis maps cost/data constraints to the right tier.
+> **When to use:** Start at the simplest effective tier — AI service first, then built-in algorithm, then script mode, then FM fine-tuning. Move up the ladder only when the simpler tier demonstrably cannot meet accuracy or feature requirements.
+> **Nuances & gotchas:** "Most cost-effective" on the exam almost always points away from FMs and toward built-in algorithms or AI services. "No labeled data" immediately eliminates supervised approaches — look for unsupervised (K-Means, PCA, RCF) or zero-shot FM approaches. The "custom non-standard framework" signal (e.g., Julia, custom C++ inference) is the indicator for BYO container.
+
 | Signal in the question | Lean toward |
 |---|---|
 | Small tabular dataset, standard prediction | **Built-in algorithm** (XGBoost) — cheapest, fastest |
@@ -215,6 +239,10 @@ flowchart LR
 ### Epoch, step, batch size: the training vocabulary <a name="vocab"></a>
 
 **Plain English:** Imagine studying a stack of flashcards.
+
+> **Why (the rationale):** Batch size and epoch count directly control the quality/cost/time tradeoff in training. Too few epochs = underfitting; too many = overfitting + wasted compute. Too large a batch = less regularizing noise (may generalize worse) + more GPU memory needed.
+> **When to use:** Tune batch size first for your GPU memory budget (larger batches use more memory but are computationally efficient); use early stopping to automatically find the right number of epochs instead of guessing; reduce batch size if training loss is too smooth and the model doesn't generalize.
+> **Nuances & gotchas:** "Number of training steps" and "number of epochs" are NOT interchangeable — steps = epochs × (dataset_size / batch_size). Increasing batch size does NOT proportionally increase training speed without adjusting the learning rate (use linear scaling rule: scale LR proportionally to batch size). Very large batches (> ~8192) can hurt generalization — this is an empirically documented phenomenon, not just theory.
 - **Batch size** = how many cards you look at before updating what you've learned.
 - **Step (iteration)** = one such update (one batch processed → one weight update).
 - **Epoch** = one full pass through the *entire* deck of cards.
@@ -241,6 +269,10 @@ flowchart LR
 ### Reducing training time: early stopping & distributed training <a name="reduce-time"></a>
 
 **Plain English:** Two levers cut training time — *stop sooner when you've learned enough* (early stopping), and *split the work across more machines* (distributed training).
+
+> **Why (the rationale):** Training time (and cost) scales linearly with epochs and compute hours. Early stopping eliminates wasted epochs; distributed training (data parallel or model parallel) cuts wall-clock time by parallelizing the work — without it, a large LLM fine-tune could take weeks on a single GPU.
+> **When to use:** Early stopping always — set a patience parameter and a delta threshold so trivial improvements don't keep training running. Data parallel (SMDDP) when the dataset is too large to process quickly on one GPU but the model fits; model parallel (SMP v2) when the model itself is too large to fit in one GPU's memory (typically >7B parameters on standard GPU instances).
+> **Nuances & gotchas:** AMT (Automatic Model Tuning) has its own early stopping that terminates underperforming HPO trials — this is distinct from early stopping within a single training run. Managed Spot Training + early stopping requires checkpointing to S3; if you enable spot without checkpointing, an interruption restarts from scratch. SMDDP and SMP are separate libraries — using both simultaneously (hybrid parallelism) is possible but requires careful configuration.
 
 **Early stopping** halts training when the validation metric stops improving, saving time and money and preventing overfitting.
 
@@ -269,6 +301,10 @@ Source: [Distributed training in SageMaker](https://docs.aws.amazon.com/sagemake
 
 ### Overfitting, underfitting & catastrophic forgetting <a name="fit"></a>
 
+> **Why (the rationale):** Overfitting and underfitting are the two failure modes of model training — both produce models that don't generalize to real-world data. Catastrophic forgetting is the specific failure mode of fine-tuning: the model unlearns its general capabilities while learning the new task.
+> **When to use:** Diagnose underfitting when both training AND validation metrics are poor; diagnose overfitting when training metric is strong but validation metric is significantly worse. Suspect catastrophic forgetting when a fine-tuned model loses capability on tasks it previously did well.
+> **Nuances & gotchas:** The standard fix for overfitting is regularization, more data, or a simpler model — NOT simply stopping training earlier (early stopping is a proxy, not a cure). For catastrophic forgetting: RAG sidesteps fine-tuning entirely; LoRA (parameter-efficient fine-tuning) reduces forgetting by only training a small subset of weights. A model can simultaneously underfit on rare classes while overfitting on majority classes in an imbalanced dataset.
+
 **Plain English:**
 - **Underfitting** = model too simple — bad on training AND test data (didn't learn enough). Like memorizing nothing.
 - **Overfitting** = model memorized the training data including its noise — great on training, bad on new data. Like memorizing answers instead of understanding.
@@ -289,6 +325,10 @@ flowchart LR
 
 **Plain English:** Regularization = *deliberately handicapping the model so it can't memorize noise.* It trades a bit of training accuracy for better generalization.
 
+> **Why (the rationale):** Regularization is the primary tool for fighting overfitting without acquiring more data. L1 has the added benefit of automatic feature selection; dropout is unique to neural nets. Each technique targets a different mechanism of overfitting.
+> **When to use:** L1 when you have many features and suspect most are irrelevant (sparse model needed); L2/weight decay as the default regularizer for most neural networks and linear models; dropout (typically p=0.2–0.5) in fully connected and LSTM layers of neural networks; Elastic Net when you want both sparsity and stable weight shrinkage.
+> **Nuances & gotchas:** L1 is NOT differentiable at zero, so gradient-based optimizers use a subgradient approximation — this can cause instability at high L1 weights. Dropout is applied only during training, NOT during inference — if it's accidentally applied at inference time, predictions become stochastic and inconsistent. Weight decay in Adam optimizer is NOT the same as L2 regularization mathematically (see AdamW for correct decoupled weight decay). Too much regularization causes underfitting.
+
 | Technique | Intuition | Effect |
 |---|---|---|
 | **L1 (Lasso)** | Adds penalty proportional to the **absolute** value of weights | Drives some weights to **exactly zero** → automatic **feature selection**, sparse model |
@@ -301,6 +341,10 @@ flowchart LR
 ### Hyperparameters & SageMaker Automatic Model Tuning (AMT) <a name="amt"></a>
 
 **Plain English:** **Parameters** are learned *by* training (weights). **Hyperparameters** are knobs you set *before* training (learning rate, tree depth, number of layers). **AMT** automatically runs many training jobs with different hyperparameter values and finds the best combination against an objective metric.
+
+> **Why (the rationale):** Manual hyperparameter tuning is expensive, slow, and biased by human intuition. AMT automates this search, finding better configurations in fewer jobs than a grid search by learning from prior results (Bayesian) or early-stopping weak runs (Hyperband).
+> **When to use:** AMT Bayesian when you have a moderate budget and want the most sample-efficient search; Hyperband when tuning iterative algorithms (neural nets, XGBoost) where you want to cut off bad runs early and allocate resources to promising ones; Grid when the search space is small and discrete; Random as a strong baseline when runs must be fully parallelized.
+> **Nuances & gotchas:** AMT's maximum concurrent jobs defaults to 1 for Bayesian (sequential by design) — you can set `max_parallel_jobs` higher but it reduces the efficiency of Bayesian's learning-from-prior mechanism. Hyperband requires that the training algorithm reports a metric per epoch/round (not just at the end) — not all frameworks do this automatically. Each AMT training job is charged separately; a large Bayesian search can still be expensive. AMT objective metric names must exactly match what your training script logs to CloudWatch/stdout.
 
 **Common hyperparameters & their effect:**
 
@@ -330,6 +374,10 @@ Source: [Hyperparameter tuning strategies in SageMaker AMT](https://docs.aws.ama
 
 **Plain English:** *Ask many models and combine their answers.* A crowd of weak-ish models often beats one model.
 
+> **Why (the rationale):** A single model makes systematic errors (high bias) or random errors (high variance). Ensembles reduce these errors by combining diverse models — bagging reduces variance, boosting reduces bias, stacking can reduce both.
+> **When to use:** Bagging (Random Forest) when you have an overfitting single decision tree and want to reduce variance; boosting (XGBoost) when the individual model is too simple and you need to reduce bias through sequential correction; stacking (AutoGluon) when you want maximum accuracy and will pay the extra inference latency of running multiple models.
+> **Nuances & gotchas:** Boosting trains models sequentially — it is inherently slower to train than bagging (parallel). XGBoost is a boosting algorithm; Random Forest is a bagging algorithm — these are frequently confused on the exam. Stacking requires a separate meta-model training step after the base models; AutoGluon does this automatically. Ensembles have higher inference cost and latency than a single model — a factor ignored in exam questions that ask only about accuracy.
+
 ```mermaid
 flowchart TB
     subgraph BAG["Bagging (parallel)"]
@@ -358,6 +406,10 @@ flowchart TB
 
 **Plain English:** You don't have to use a built-in algorithm. SageMaker offers a ladder from "least effort" to "most control."
 
+> **Why (the rationale):** Script mode gives you the flexibility of custom model code without the overhead of maintaining a full Docker image. BYO Container is the escape hatch when the framework or runtime isn't supported at all.
+> **When to use:** Script mode when your model code is in a standard framework (TensorFlow, PyTorch, scikit-learn, Hugging Face, MXNet) and you just need to plug in your training script; extend a prebuilt container when you need one or two extra pip packages; BYO Container when you use an unsupported framework, need a custom OS configuration, or have proprietary inference code.
+> **Nuances & gotchas:** Script mode requires your script to read data from `/opt/ml/input/data/` and write model artifacts to `/opt/ml/model/` — wrong paths cause silent failures. BYO containers must implement the SageMaker serving contract: serve `/ping` (HTTP 200) and `/invocations` on port 8080. An externally trained model (trained outside SageMaker) can be imported by packaging artifacts as `model.tar.gz` in S3 and pointing a SageMaker `Model` object at it — no retraining needed.
+
 ```mermaid
 flowchart LR
     A["Built-in\nalgorithm\n(just data + HPs)"] --> B["Script mode\n(your TF/PyTorch/sklearn\nscript, AWS container)"] --> C["Extend a\nprebuilt container"] --> D["Bring Your Own\nContainer (BYOC)\nfull Docker image"]
@@ -378,6 +430,10 @@ Source: [SageMaker script mode / bring your own model](https://docs.aws.amazon.c
 
 **Plain English:** Instead of training from scratch, take a pre-trained FM and *adjust* it to your task/domain. Cheaper and needs far less data than from-scratch training.
 
+> **Why (the rationale):** Foundation models already encode rich world knowledge from pre-training. Fine-tuning adapts that knowledge to a specific domain/task with a fraction of the data and compute required to train from scratch.
+> **When to use:** Try prompt engineering first (zero cost); then RAG if the model needs access to private/fresh data (no weight change, just retrieval); fine-tuning when you need consistent output format, tone, or domain-specific vocabulary the base model lacks; continued pre-training when the domain is so specialized that even the vocabulary is absent from the base model (e.g., proprietary chemistry notation).
+> **Nuances & gotchas:** Fine-tuning does NOT make the model "know" new facts reliably — it adjusts style, format, and emphasis, but factual knowledge is better handled by RAG. Catastrophic forgetting is a real risk; mitigate with low learning rates (~1e-5 to 1e-4) and parameter-efficient methods (LoRA, QLoRA). Bedrock fine-tuning is only available for specific model versions and requires your data in S3 as JSONL. Fine-tuned model weights may incorporate your proprietary data — consider data security and model licensing implications.
+
 | Approach | What it changes | Cost | When |
 |---|---|---|---|
 | **Prompt engineering** | Nothing (just the input) | Cheapest | First thing to try |
@@ -392,6 +448,10 @@ Source: [SageMaker script mode / bring your own model](https://docs.aws.amazon.c
 ### Reducing model size <a name="size"></a>
 
 **Plain English:** Smaller models are cheaper, faster, and fit on edge devices — at a small accuracy cost.
+
+> **Why (the rationale):** Large models have high memory footprints, slow inference, and cannot run on edge hardware. Size reduction techniques trade a small accuracy delta for dramatic improvements in inference cost and latency.
+> **When to use:** Quantization first (lowest effort, biggest size reduction — often 2–4× with minimal accuracy loss); pruning when you have time to iteratively retrain; knowledge distillation when you need a production-grade small model that mimics a large one; compile with SageMaker Neo when deploying to edge or optimizing for a specific cloud instance type.
+> **Nuances & gotchas:** INT8 quantization of LLMs can cause noticeable quality degradation on reasoning tasks — test before deploying. SageMaker Neo compilation is hardware-specific; a Neo-compiled model for ARM Cortex-A will NOT run on Nvidia Jetson without recompilation. Pruning unstructured (random weights) is hard to accelerate on standard hardware; structured pruning (whole channels/heads) is more hardware-friendly. Knowledge distillation requires the teacher model to be available during student training — you cannot distill a black-box API model.
 
 | Technique | Idea |
 |---|---|
@@ -408,6 +468,10 @@ Source: [SageMaker script mode / bring your own model](https://docs.aws.amazon.c
 ### Model versioning with SageMaker Model Registry <a name="registry"></a>
 
 **Plain English:** A *catalog* of your trained models for repeatability, audits, and controlled promotion to production.
+
+> **Why (the rationale):** Without a registry, teams lose track of which model artifact is in production, cannot easily roll back, and have no audit trail for regulated deployments. Model Registry creates a governed single source of truth for all model versions.
+> **When to use:** Register every model after training as part of a SageMaker Pipeline or CI/CD workflow; use approval status gates to prevent unapproved models from reaching production; use model groups to track the history of a single logical model (e.g., "fraud-detector") across retraining cycles.
+> **Nuances & gotchas:** Model Registry versions are immutable once created — you cannot replace a version's artifact; you must create a new version. Setting approval status to "Approved" does NOT automatically deploy the model — it fires an EventBridge event that a pipeline or Lambda must handle. Model Registry stores metadata and artifact URIs but does NOT host or serve the model — deployment still requires creating a SageMaker endpoint separately. Version numbers start at 1 and are auto-incremented.
 
 ```mermaid
 flowchart LR
@@ -434,6 +498,10 @@ Source: [SageMaker Model Registry](https://docs.aws.amazon.com/sagemaker/latest/
 ### The confusion matrix and everything derived from it <a name="confusion"></a>
 
 **Plain English:** For classification, the **confusion matrix** counts the four ways a prediction can land. Every classification metric is just arithmetic on these four boxes.
+
+> **Why (the rationale):** Accuracy is a misleading single number — it hides the distribution of errors. The confusion matrix exposes WHICH kinds of errors the model makes, which is what matters for business decisions (e.g., false negatives in cancer detection have very different costs from false positives).
+> **When to use:** Always inspect the full confusion matrix when evaluating a classifier, especially on imbalanced datasets where accuracy is deceptive. Use derived metrics (precision, recall, F1) to summarize specific error-cost priorities.
+> **Nuances & gotchas:** For multi-class problems the confusion matrix is N×N and macro/micro averaging of precision/recall becomes important — "macro" treats all classes equally, "micro" weight-averages by class frequency. Accuracy on a 99:1 imbalanced dataset can be 99% while the model never predicts the positive class — this is the classic "accuracy paradox" that almost every exam scenario involving imbalance is testing. Heat maps are a visualization of the confusion matrix (or a correlation matrix) — not a separate concept.
 
 ```mermaid
 flowchart TB
@@ -468,6 +536,10 @@ A **heat map** is just a colored confusion matrix (or feature-correlation matrix
 
 **Plain English:** Precision and recall pull in opposite directions. Which one you optimize depends on **which mistake hurts more.**
 
+> **Why (the rationale):** Optimizing for the wrong metric can make a model worse for its business purpose — a spam filter with high recall but low precision will delete legitimate emails. The choice of metric must match the asymmetric cost of the two error types.
+> **When to use:** Maximize precision when false positives are costly (spam filter, drug flagging causing unnecessary procedures); maximize recall when false negatives are costly (disease detection, security threat detection, fraud — missing a real event is catastrophic); use F1 as a balanced single metric when classes are imbalanced and both error types matter somewhat equally.
+> **Nuances & gotchas:** Precision and recall are inversely related through the decision threshold — lowering the threshold raises recall and lowers precision. The PR curve (Precision-Recall curve) is preferred over the ROC curve when the positive class is very rare (< 1%) because ROC can look deceptively good in that scenario. F1 is the harmonic mean, not the arithmetic mean — it punishes extreme values (a model that is perfect on recall but zero on precision gets F1 = 0, not F1 = 0.5).
+
 ```mermaid
 flowchart LR
     FP["Cost of FALSE POSITIVE\nhigh?\n(false alarms costly)"] --> PREC["Optimize PRECISION"]
@@ -484,6 +556,10 @@ flowchart LR
 > 🎯 **If you see X pick Y:** "**Can't afford to miss** positives (disease, fraud, security threat)" → maximize **recall**. "**False alarms are expensive / user-facing**" → maximize **precision**. "Imbalanced dataset, want a single balanced number" → **F1**.
 
 ### ROC, AUC and threshold selection <a name="roc"></a>
+
+> **Why (the rationale):** AUC provides a threshold-independent summary of a classifier's discriminative ability, making it the most useful single metric for comparing two models regardless of the operating point chosen in production.
+> **When to use:** AUC/ROC to compare and rank classifiers during model selection; PR curves (Precision-Recall) when the positive class is very rare and ROC's TNR axis would mask poor performance; choose a specific threshold after model selection based on the business cost of FP vs FN.
+> **Nuances & gotchas:** AUC = 0.5 means the model is no better than random — a common signal that the features are not predictive. AUC is insensitive to class imbalance (a known weakness); on extremely imbalanced data a model with AUC = 0.9 can still have terrible recall for the minority class at standard thresholds. "Changing the threshold" does NOT change the AUC — it only moves your operating point along the existing ROC curve.
 
 **Plain English:** A classifier outputs a *probability*; you choose a **threshold** to turn it into yes/no. The **ROC curve** plots **True Positive Rate (recall)** vs **False Positive Rate** across *all* thresholds. **AUC** (area under that curve) summarizes it in one number: **1.0 = perfect, 0.5 = random guessing.**
 
@@ -505,6 +581,10 @@ flowchart LR
 
 **Plain English:** For predicting a number (price, temperature), you measure *how far off* you are.
 
+> **Why (the rationale):** RMSE and MAE measure average prediction error in the same units as the target (interpretable); R² measures the fraction of target variance the model explains (scale-independent). Choosing the wrong metric can mis-rank candidate models if their error distributions differ.
+> **When to use:** RMSE when large individual errors are disproportionately harmful (e.g., predicting load on a power grid — a large miss causes cascading failure); MAE when you want error in interpretable units and outliers should not dominate the metric; R² when you want to communicate "how much better than a naive mean-predictor" the model is.
+> **Nuances & gotchas:** RMSE is always ≥ MAE — if RMSE >> MAE, the model has a few very large errors (outlier sensitivity). R² can be negative if the model is worse than predicting the mean — not a typo; this indicates a badly misconfigured model. Neither RMSE nor MAE indicate direction of error (over vs under-prediction); check residual plots separately.
+
 | Metric | Formula idea | Behavior |
 |---|---|---|
 | **RMSE** (Root Mean Squared Error) | √(mean of squared errors) | Same units as target; **penalizes large errors heavily** (squares them) — use when big misses are especially bad |
@@ -516,6 +596,10 @@ flowchart LR
 ### Baselines, convergence & debugging with SageMaker Debugger <a name="debug"></a>
 
 **Plain English:** A **baseline** is a dumb reference (predict the average, or a simple model) that your real model must beat — otherwise the ML wasn't worth it. **Convergence** = the loss steadily settles to a minimum. If it doesn't, something's wrong.
+
+> **Why (the rationale):** SageMaker Debugger eliminates the need to manually instrument training code with tensor-logging hooks. It automatically captures model internals and fires alarms in real time — stopping a diverging job before it wastes hours of GPU time.
+> **When to use:** Enable Debugger on any deep-learning training job where you suspect convergence issues or overfitting; use built-in rules (vanishing_gradient, loss_not_decreasing, overfit) to get automatic diagnosis; use ProfilerReport for performance profiling (GPU utilization, data loading bottlenecks).
+> **Nuances & gotchas:** Debugger adds a small overhead (~5–10%) to training time due to tensor capture. The maximum number of built-in rule containers per training job is 20. Debugger is distinct from SageMaker Model Monitor — Debugger monitors the **training process** (convergence, gradients), Model Monitor monitors the **deployed model in production** (drift, accuracy). If a Debugger rule fires, the job is stopped only if you configure `DebuggerHookConfig` with `actions=[StopTraining()]` — rules alone do not stop jobs by default.
 
 **Convergence problems you must recognize:**
 
@@ -535,6 +619,10 @@ Source: [SageMaker Debugger built-in rules](https://docs.aws.amazon.com/sagemake
 ### Bias & explainability with SageMaker Clarify <a name="clarify"></a>
 
 **Plain English:** **SageMaker Clarify** answers two questions: *"Is my model unfair to a group?"* (bias) and *"Why did the model make this prediction?"* (explainability). It runs as a **processing job**.
+
+> **Why (the rationale):** Clarify provides auditable, quantified evidence of model fairness and feature attribution — not just a qualitative "seems okay." This is required for regulated deployment (financial credit decisions, healthcare, HR) and for ongoing monitoring in production.
+> **When to use:** Run Clarify pre-training bias analysis before model training; run post-training bias and SHAP explainability immediately after training on the held-out test set; wire Clarify into Model Monitor to track bias drift and feature-attribution drift in production.
+> **Nuances & gotchas:** Clarify requires a baseline dataset (training data) and a separate dataset to analyze (validation/test or live traffic sample). SHAP is computationally expensive — for large datasets use the `num_samples` parameter to sample a subset; results are approximate. Clarify does NOT support all model types natively — for custom models, you provide a SageMaker endpoint URI and Clarify calls it for predictions. "Feature attribution" from SHAP is a local explanation (per-prediction) that can be aggregated globally but is not the same as a global feature importance score from XGBoost's built-in `feature_importances_`.
 
 ```mermaid
 flowchart LR
@@ -556,6 +644,10 @@ Source: [SageMaker Clarify bias & explainability](https://docs.aws.amazon.com/sa
 ### Reproducibility, experiments & shadow vs production variants <a name="repro"></a>
 
 **Plain English:** To trust and audit results, you must be able to *reproduce* an experiment, *compare* candidate models, and *safely test* a new model against the live one before switching traffic.
+
+> **Why (the rationale):** ML experiments are inherently hard to reproduce — small code, data, or random-seed differences produce different results. SageMaker Experiments, Pipelines, and Model Registry together create a reproducible, auditable, version-controlled ML lifecycle.
+> **When to use:** SageMaker Experiments to automatically track params/metrics/artifacts for every training run; shadow variants to validate a new model/container/instance on real traffic with zero user risk; production variants to A/B test two live models and compare business KPIs before full cutover.
+> **Nuances & gotchas:** Shadow variants receive a COPY of production traffic — they DO double the inference compute cost (both production and shadow are processing requests). A shadow variant's responses are NOT returned to the user — only the production variant's response is. Production variant A/B testing DOES expose users to the new model — some users will receive the new model's (potentially worse) predictions. Setting random seeds alone is not sufficient for full reproducibility — you must also pin the data version, framework version, and container image digest.
 
 | Need | AWS answer |
 |---|---|

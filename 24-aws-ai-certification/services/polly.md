@@ -4,6 +4,10 @@ Amazon Polly is AWS's fully managed **text-to-speech (TTS)** service that turns 
 
 > **The one reflex:** *If you see "text-to-speech" / "text → voice/audio" / "give it a human voice" → **Amazon Polly**.*
 
+> **Why (the rationale):** Polly is a purpose-built, managed TTS service — cheapest and most consistent for converting text to audio at scale, with fine-grained control (SSML, lexicons, speech marks) that a general LLM cannot match. Transcribe does the opposite direction (speech→text); Polly does text→speech.
+> **When to use:** IVR/contact-center voice prompts, accessibility read-aloud, content narration (articles, e-learning), voice chatbot responses (with Lex/Connect), or any pipeline that ends with "speak this text." Signal: "give the bot a voice," "text to audio," "read aloud," "spoken IVR prompt."
+> **Nuances & gotchas:** Polly = text→speech; Transcribe = speech→text — they are exact opposites and the exam deliberately swaps the direction as a trap. Polly does NOT understand meaning (that's Comprehend) or carry on a conversation (that's Lex). Real-time SynthesizeSpeech is capped at 6,000 characters; for longer content you must use the async StartSpeechSynthesisTask (→S3). Engine choice is a cost/quality trade-off: Long-form is the priciest per character; Generative is not the same as Long-form — pick by use case, not by "best."
+
 ## 🧠 Mental model
 
 Think of Polly as a **professional voice-over artist on demand**. You hand it a script (plain text or marked-up with SSML), pick a voice and an engine (from robotic-but-cheap to studio-quality), and it reads it aloud in natural-sounding speech. It's the mirror image of Transcribe: Transcribe *listens and writes*; Polly *reads and speaks*.
@@ -29,6 +33,10 @@ flowchart LR
 
 ## What it does
 
+> **Why (the rationale):** Four engine tiers let you balance cost vs. naturalness — Standard is cheap and robotic, Neural is the quality/cost sweet spot, Long-form is optimized for extended content, and Generative delivers the most human-like conversational voice.
+> **When to use:** Standard → cost-sensitive batch; Neural → most production apps; Long-form → articles, audiobooks, training courses; Generative → AI assistant or agent persona where emotional tone matters.
+> **Nuances & gotchas:** Not every voice is available on every engine — a voice you tested on Neural may not exist on Generative. Long-form is 6× more expensive than Neural per character. SSML tags are NOT billed (only the spoken text characters count). Generative engine is NOT available in all AWS regions.
+
 **Voice engines** (quality/cost tiers)
 - **Standard** — original concatenative TTS; cheapest, more "synthetic." `$4 / 1M chars`.
 - **Neural (NTTS)** — deep-learning voices; noticeably more natural. `$16 / 1M chars`.
@@ -36,12 +44,24 @@ flowchart LR
 - **Generative** — the most **human-like, emotionally engaged, conversational** voices (great for assistants and agents). `$30 / 1M chars`.
 - *Not every voice exists on every engine* — Neural/Generative offer a curated set of higher-quality voices.
 
+> **Why (the rationale):** SSML and lexicons let you control exactly how Polly speaks — pronunciation, pauses, emphasis, and phonetic spelling — without switching engine or modifying the source text globally.
+> **When to use:** Use SSML inline when you need one-off control (pause here, emphasize this word). Use lexicons when you have many brand names or acronyms that must always sound the same across all requests.
+> **Nuances & gotchas:** SSML tags do NOT count toward billed characters. Lexicons are stored per-region and must be uploaded before use. Phoneme support (IPA/X-SAMPA) is engine-dependent; verify for your chosen voice.
+
 **Control & pronunciation**
 - **SSML (Speech Synthesis Markup Language)** — W3C-standard XML markup to control pauses (`<break>`), emphasis, pitch/rate/volume (`<prosody>`), whispering, spelling out, saying dates/numbers, and phonetic pronunciation (`<phoneme>`).
 - **Lexicons (custom pronunciation)** — upload a pronunciation lexicon so Polly says acronyms, brand names, or internal jargon correctly *without* editing every request.
 
+> **Why (the rationale):** Speech Marks decouple the timing metadata from the audio, enabling synchronized UI experiences (highlighted captions, lip-synced avatars) without building your own alignment algorithm.
+> **When to use:** Signal: "highlight text as it's read," "lip-sync an avatar/character," "word-level timing for captions." Viseme marks are specifically for mouth-shape animation.
+> **Nuances & gotchas:** Speech Marks requests are billed the same rate as speech synthesis (per character). You can request Speech Marks alongside audio or instead of audio. Viseme marks require a Neural or higher engine; they are not available on Standard.
+
 **Timing metadata**
 - **Speech Marks** — instead of (or alongside) audio, Polly returns JSON metadata with timing: **word**, **sentence**, **SSML**, and **viseme** marks. Used for **highlighting text as it's spoken** and **lip-syncing** avatars/characters (visemes = mouth shapes per phoneme).
+
+> **Why (the rationale):** Real-time SynthesizeSpeech is for interactive low-latency use; async StartSpeechSynthesisTask is for long documents that exceed the per-request character limit, writing output to S3 in the background.
+> **When to use:** SynthesizeSpeech → live IVR prompts, chatbot responses, short dynamic text. StartSpeechSynthesisTask → articles, training content, audiobooks where text exceeds 6,000 characters.
+> **Nuances & gotchas:** SynthesizeSpeech maximum is 6,000 total characters (3,000 billable). Sending a long document to SynthesizeSpeech will fail — use the async API to S3 instead. Async tasks optionally notify via SNS when the S3 file is ready.
 
 **Delivery modes**
 - **Real-time streaming** (`SynthesizeSpeech`) — low-latency audio for interactive apps; up to **6,000 characters** per request (3,000 billable). Formats: mp3, ogg_vorbis, ogg_opus, pcm, µ-law, a-law.

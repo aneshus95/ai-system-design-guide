@@ -4,6 +4,10 @@
 
 ---
 
+> **Why (the rationale):** You need structured NLP signals — entities, sentiment, PII, key phrases, topics — extracted from unstructured text at scale, with no ML expertise and no model to train or host. Comprehend provides pre-trained models behind a simple API, returning clean JSON with confidence scores and character offsets you can act on programmatically.
+> **When to use:** "Extract entities / sentiment / PII / key phrases from text," "detect language before translating," "redact SSNs or credit cards," "classify documents into custom categories," "group unlabeled documents into topics," or "clinical text / ICD-10 / RxNorm codes."
+> **Nuances & gotchas:** **Comprehend detects PII in text; Amazon Macie scans S3 objects** — different scope and input types. **Comprehend is analysis/extraction, not generation** — use Bedrock/LLMs for summarization, Q&A, or reasoning. **Comprehend Medical is a separate HIPAA-eligible service** — pick it (not plain Comprehend) whenever PHI, clinical entities, or medical ontologies appear. **Custom real-time endpoints bill continuously** while running even at zero traffic — delete or use async batch for sporadic workloads.
+
 ## 🧠 Mental model
 
 Think of Comprehend as a **highlighter pen that reads for you**. You hand it a wall of raw text (support tickets, reviews, contracts, emails) and it automatically highlights *who/what is mentioned* (entities), *what it's about* (key phrases / topics), *how the writer feels* (sentiment), *what language it is*, and *where the sensitive personal data hides* (PII) — then hands the highlights back as clean JSON you can act on.
@@ -36,6 +40,10 @@ flowchart LR
 
 ## What it does
 
+> **Why (the rationale):** These APIs require zero training — AWS has pre-trained all models. You call the API with raw text and get structured JSON back: entities with types, sentiment with confidence scores, PII with character offsets for precise redaction.
+> **When to use:** Any standard NLP task on English or supported-language text — entity extraction, sentiment, language detection, PII redaction, syntax tagging, toxicity flagging.
+> **Nuances & gotchas:** **Targeted sentiment** (per entity) and plain **sentiment** (per document) are different APIs — "what did customers think about specific products?" requires targeted sentiment, not plain sentiment. **Language detection** supports 100+ languages but plain sentiment and targeted sentiment are English-focused. Billing unit is 100 characters with a 3-unit (300-character) minimum per request.
+
 **Built-in (pre-trained) APIs — no training required:**
 
 - **Entity recognition** — detects named entities: `PERSON`, `LOCATION`, `ORGANIZATION`, `COMMERCIAL_ITEM`, `EVENT`, `DATE`, `QUANTITY`, `TITLE`, `OTHER`.
@@ -47,15 +55,27 @@ flowchart LR
 - **PII detection & redaction** — `ContainsPiiEntities` (does this doc contain PII?), `DetectPiiEntities` (where + what type), and redaction jobs that produce a masked copy. Covers names, SSNs, credit cards, addresses, bank/routing numbers, emails, etc.
 - **Toxicity detection & prompt-safety classification** — flag harmful content and unsafe LLM prompts (used in responsible-AI / GenAI guardrail scenarios).
 
+> **Why (the rationale):** Topic modeling is unsupervised — you don't need labeled data to discover themes in a corpus. It's the right tool when you have thousands of unlabeled documents and want to understand what they're about without predefined categories.
+> **When to use:** "Group unlabeled documents into themes/topics," "discover hidden structure in a corpus without labels." Runs only as an async job over S3.
+> **Nuances & gotchas:** **Topic modeling is NOT classification** — it's unsupervised (no labels, discovers themes). Custom classification is supervised (you supply labels). Topic modeling is **async-only** — you cannot run it synchronously on a single document. If the scenario provides label categories, use custom classification, not topic modeling.
+
 **Batch-only (asynchronous) analysis:**
 
 - **Topic modeling** — unsupervised; groups a corpus of documents into topics by common word groups (based on LDA). **No labeling needed**, runs only as an async job over S3.
+
+> **Why (the rationale):** The built-in entity types (PERSON, LOCATION, ORG…) and sentiment are general-purpose. Custom classification and CER let you teach Comprehend your domain-specific labels (e.g., "billing / bug / feature-request" or "policy number / part ID") without building your own NLP model.
+> **When to use:** "Classify documents into our own categories," "route tickets by type," "find domain-specific entities the built-in model doesn't know." Requires labeled training data.
+> **Nuances & gotchas:** Custom models have two hosting modes: a **persistent real-time endpoint** (bills per Inference Unit-second continuously while up — delete when idle) and **async batch** (billed only when running — preferred for sporadic workloads). Custom Comprehend is **NOT included in the free tier**. For PDF/image/Word input, Comprehend can auto-extract text via built-in OCR before running custom classification or CER.
 
 **Custom (you supply labeled data, Comprehend trains + hosts the model):**
 
 - **Custom classification** — train on your own labels/document types (e.g., route tickets, tag documents). Multi-class or multi-label.
 - **Custom entity recognition (CER)** — teach it to find domain-specific entities the built-in model doesn't know (policy numbers, part IDs, gene names).
 - Comprehend can **auto-extract text from PDF, image, and Word inputs** before running custom classification / CER (built-in OCR-style handling).
+
+> **Why (the rationale):** Clinical text uses specialized terminology (drug names, dosages, anatomy, procedures) that general-purpose NLP models don't handle well. Comprehend Medical is pre-trained on clinical text and maps extracted terms to standard medical coding systems, enabling healthcare compliance workflows.
+> **When to use:** "Extract medical conditions, medications, dosages, anatomy from clinical notes," "detect PHI," "map to ICD-10 / RxNorm / SNOMED CT codes," or any HIPAA-regulated healthcare text scenario.
+> **Nuances & gotchas:** Comprehend Medical is a **separate service** from plain Comprehend — different APIs, different pricing, separate HIPAA eligibility. Do NOT use plain Comprehend for clinical text or PHI — use Comprehend Medical. It does NOT replace clinical judgment or validate medical accuracy; it extracts and maps terms.
 
 **Comprehend Medical** — a *separate*, HIPAA-eligible service for **clinical text**:
 

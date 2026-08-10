@@ -36,6 +36,10 @@ This is the **largest domain of the AIF-C01 exam at 28%** — roughly 1 in 4 sco
 
 ### Selecting a pre-trained model <a name="model-selection"></a>
 
+> **Why (the rationale):** Larger and more expensive models are not universally better. Matching the model's capabilities to the task requirements and constraints prevents overpaying for capability you don't need, and avoids under-serving use cases with too small a model. Cost, latency, and compliance often force the choice before capability does.
+> **When to use:** Multi-modal/diffusion → image or video generation tasks. Large context window → long-document summarization, large-RAG retrieval. Smaller/cheaper model → simple extraction, classification, or high-volume low-latency chat where response quality threshold is lower. Check customization support before committing if you plan to fine-tune.
+> **Nuances & gotchas:** Not all Bedrock models are available in all AWS Regions — check regional availability before designing the architecture. "Multi-lingual" models vary in quality per language; evaluate on your target languages, not just English benchmarks. Model size (parameter count) is a proxy for capability but not a reliable one — smaller distilled models often match larger base models on narrow tasks.
+
 🧠 **Mental model:** Choosing an FM is like hiring. You don't hire the most expensive genius PhD to answer the phones. You match the *job* (task, budget, speed, languages) to the *right candidate*. Amazon Bedrock is your recruiting agency — it gives you a roster of models from Anthropic, Meta, Mistral, Amazon (Titan/Nova), Cohere, AI21, Stability AI, and more, all behind one API. ([Bedrock supported models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html))
 
 **Plain English:** Pick the smallest, cheapest model that reliably does the job. Bigger is not automatically better.
@@ -63,6 +67,10 @@ The exam gives you scenarios and asks which selection criterion matters most. Le
 ---
 
 ### Inference parameters: temperature, top-p, top-k, length <a name="inference-params"></a>
+
+> **Why (the rationale):** Inference parameters let you change the model's output style without any retraining — they're the fastest, cheapest way to tune behavior (creative vs deterministic, concise vs verbose). They are applied *at sampling time*, after the model has already computed its probability distribution.
+> **When to use:** Lower temperature + lower top-p → fact extraction, structured outputs, code generation (consistency required). Higher temperature + higher top-p → creative writing, brainstorming, marketing copy (variety wanted). Max tokens → control cost and prevent runaway long responses.
+> **Nuances & gotchas:** Temperature changes *how the model samples*, NOT what it knows — it cannot add fresh facts or fix hallucinations. AWS docs explicitly advise adjusting **either** temperature **or** top-p, not both simultaneously. Top-K is a fixed *count* of candidate tokens; Top-P is a *probability mass* threshold — confusing them is a frequent exam trap. Default parameter ranges differ by model; there is no single universal default.
 
 🧠 **Mental model:** An LLM predicts the next token as a **probability distribution** over the vocabulary. Inference parameters are the *dials* that decide how adventurous the model is when it picks from that distribution — without retraining anything. ([Bedrock inference parameters](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-parameters.html))
 
@@ -100,6 +108,10 @@ moon  · 0.01                     moon  ██ 0.13
 ---
 
 ### Retrieval Augmented Generation (RAG) <a name="rag"></a>
+
+> **Why (the rationale):** An LLM's knowledge is frozen at its training cutoff and it has no access to your organization's internal documents. RAG solves both problems at once: by retrieving current, private documents at query time and injecting them into the prompt, it grounds the model in real facts and produces source citations — without touching the model's weights.
+> **When to use:** Data changes frequently (daily/weekly), answers must cite sources, private knowledge base required, or hallucination risk is unacceptable. Prefer RAG over fine-tuning when the goal is *factual grounding* rather than *behavioral adaptation*.
+> **Nuances & gotchas:** RAG does NOT update the model weights — the FM still doesn't "learn" your documents; it just reads them per query. Retrieval quality is limited by chunking and embedding quality — poor chunks produce poor RAG answers even with a great model. RAG increases latency (embed query → vector search → augment prompt → generate) vs direct generation. If retrieved chunks contradict each other, the model may still hallucinate a synthesis.
 
 🧠 **Mental model:** A closed-book exam vs an open-book exam. A raw LLM answers from memory (its frozen training data) — it can be stale and it hallucinates. **RAG turns it into an open-book exam:** before answering, the system looks up relevant passages from *your* documents and hands them to the model as context. The model answers grounded in the retrieved text, with citations. ([Bedrock Knowledge Bases](https://aws.amazon.com/bedrock/knowledge-bases/))
 
@@ -162,6 +174,10 @@ The exam guide lists these AWS services that can **store embeddings for RAG**:
 
 ### Customization cost tradeoffs: pre-train vs fine-tune vs RAG vs in-context <a name="customization-tradeoffs"></a>
 
+> **Why (the rationale):** The lighter the customization approach, the lower the cost, complexity, and lag. The heavier approaches (fine-tuning, continued pre-training) bake knowledge into weights and thus provide zero freshness without retraining again. Choose the lightest approach that satisfies the requirement to avoid unnecessary cost and operational burden.
+> **When to use:** In-context → quick task adaptation, format examples, no budget. RAG → grounding in current/private docs, needs citations. Fine-tuning → consistent tone/style/task behavior, domain jargon, structured output formats. Continued pre-training → deep specialized vocabulary on unlabeled domain corpora. Pre-training from scratch → almost never for practitioners.
+> **Nuances & gotchas:** Fine-tuning does NOT give the model access to real-time data — knowledge is frozen at training time. RAG and fine-tuning can be combined (fine-tune for behavior, RAG for freshness), which is often the optimal production pattern. Continued pre-training requires **unlabeled** data; fine-tuning requires **labeled** prompt-completion pairs — confusing them causes job failures in the Bedrock API. Fine-tuned Bedrock models require Provisioned Throughput to serve — on-demand is not available for custom models.
+
 🧠 **Mental model:** Four ways to make an FM "know your stuff," from cheapest/lightest to most expensive/heaviest:
 - **In-context learning** = telling it in the prompt ("here are 3 examples, now do the 4th").
 - **RAG** = handing it the reference book at question time.
@@ -199,6 +215,10 @@ flowchart LR
 ---
 
 ### Agents for multi-step tasks <a name="agents"></a>
+
+> **Why (the rationale):** Single-shot FM calls can't complete goals that require sequential decisions, external data, or actions on real systems. The agent's Reason→Act→Observe loop enables multi-step task completion by letting the model observe action results and adapt its next step — something a stateless FM call cannot do.
+> **When to use:** Use Bedrock Agents when the task requires calling APIs, executing business logic (via Lambda), querying a knowledge base mid-task, or chaining more than one dependent step. Simple RAG (one lookup → one answer) does NOT need an agent — agents add latency and cost only justified by multi-step needs.
+> **Nuances & gotchas:** Bedrock Agents action groups require an **OpenAPI or JSON schema** — without it the agent doesn't know what parameters to pass. Agents are NOT RAG; agents can *call* a Knowledge Base as one tool among many, but RAG alone doesn't reason or act. Multi-agent collaboration (supervisor + sub-agents) multiplies latency — design only when a single agent genuinely cannot handle the scope.
 
 🧠 **Mental model:** A plain LLM is a brain in a jar — it can *think* but can't *do*. An **agent** gives the brain hands and tools: it can call APIs, run AWS Lambda functions, query a knowledge base, and chain multiple steps to complete a real task ("book the flight, then email the itinerary"). ([Bedrock Agents](https://docs.aws.amazon.com/bedrock/latest/userguide/agents.html))
 
@@ -316,6 +336,10 @@ Rules:  Avoid jargon. Do not exceed {N} bullets.
 
 ### Risks: poisoning, hijacking, jailbreaking <a name="prompt-risks"></a>
 
+> **Why (the rationale):** As FMs gain the ability to act (agents, tool use), the attack surface of a misused prompt grows from "bad text output" to "unauthorized API calls." Understanding the attack taxonomy is required to select the right mitigation — different attack types require different defenses.
+> **When to use:** Apply Guardrails prompt-attack filters whenever user input reaches an FM, especially in agent workflows where the model can take real actions. Prompt poisoning defenses (data curation, least-privilege data access) are design-time controls — you can't fix them at runtime.
+> **Nuances & gotchas:** Prompt injection and jailbreaking are distinct — injection overrides the *developer's instructions*; jailbreaking bypasses the *model's built-in safety behaviors*. Indirect prompt injection (malicious content in a RAG document) is harder to detect than direct injection because the attacker controls a data source, not the input field. Guardrails does NOT prevent prompt injection in fine-tuning data — that's a data-curation problem.
+
 🧠 **Mental model:** If a prompt is a job brief, these attacks are ways a malicious "client" slips fraudulent instructions into the brief — or into the reference materials — to make your contractor misbehave.
 
 | Risk | What it is | Mitigation |
@@ -360,6 +384,10 @@ In Amazon Bedrock, model customization jobs are typed as **`FINE_TUNING`** (labe
 ---
 
 ### Fine-tuning methods <a name="ft-methods"></a>
+
+> **Why (the rationale):** Different fine-tuning methods trade off data requirements, compute cost, and what aspect of the model changes. Instruction tuning improves general instruction-following; domain adaptation narrows the model to a specialty; transfer learning is the foundational principle that makes any of these efficient.
+> **When to use:** Instruction tuning → model ignores or misinterprets your instructions. Domain adaptation → specialized vocabulary or reasoning needed (legal, medical). Transfer learning is implicit — you are always doing it when you fine-tune a pre-trained model; you don't choose it separately.
+> **Nuances & gotchas:** Domain adaptation can use either labeled (fine-tuning) or unlabeled (continued pre-training) data — the API job type differs. Fine-tuning for instruction-following often requires only hundreds to thousands of high-quality examples; more data doesn't always help if quality is poor. Transfer learning does NOT mean the model "remembers" old tasks — it can "forget" prior general capability (catastrophic forgetting) if fine-tuned aggressively on a narrow dataset.
 
 | Method | What it does |
 |---|---|
@@ -421,6 +449,10 @@ flowchart TD
 ---
 
 ### ROUGE, BLEU, BERTScore <a name="eval-metrics"></a>
+
+> **Why (the rationale):** You need automated metrics to evaluate at scale (thousands of outputs) without paying human raters for every run. Each metric captures a different aspect of output quality — recall-focused coverage (ROUGE), precision-focused fidelity (BLEU), or meaning-level accuracy regardless of wording (BERTScore).
+> **When to use:** ROUGE → summarization evaluation (did the summary cover the key points?). BLEU → translation evaluation (is the translation accurate word-for-word?). BERTScore → any task where paraphrase is acceptable (semantic equivalence matters more than surface overlap).
+> **Nuances & gotchas:** ROUGE and BLEU both fail on correct paraphrases — they penalize correct answers that use different words. BERTScore requires running BERT inference on every generated/reference pair, making it more expensive than ROUGE/BLEU at scale. A high BLEU or ROUGE score does NOT guarantee the output is factually correct, safe, or useful — these metrics only measure *surface similarity to a reference*. Human evaluation remains necessary for subjective quality assessment.
 
 **Plain English:** These measure how close the model's text is to a human reference answer — just in different ways.
 

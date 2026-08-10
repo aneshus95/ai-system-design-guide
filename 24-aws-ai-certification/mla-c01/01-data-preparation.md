@@ -86,6 +86,10 @@ flowchart TB
     end
 ```
 
+> **Why (the rationale):** Format choice directly affects query cost, throughput, and compatibility with SageMaker algorithms. Picking the wrong format (e.g., CSV for a columnar analytics query) wastes money and slows training.
+> **When to use:** Choose columnar (Parquet/ORC) when queries scan a few columns over large datasets; choose row formats (Avro/CSV/JSON) for streaming, write-heavy, or full-record access; choose RecordIO-protobuf for SageMaker built-in algorithms in Pipe mode.
+> **Nuances & gotchas:** RecordIO-protobuf is required (not optional) for best performance with many SageMaker built-in algorithms in Pipe mode; CSV has no schema enforcement so bad types silently corrupt training; Parquet/ORC require a read engine (Athena, Glue, Spark) — you cannot use them as plain text.
+
 ⚙️ **Exam-critical format table:**
 
 | Format | Row/Columnar | Validated schema? | Best for | Exam signal |
@@ -113,6 +117,10 @@ flowchart TB
 
 🧠 **Mental model:** Match the *shape* of your data to the *shape* of the store. Object blobs → **S3**. A shared POSIX folder many instances mount → **EFS**. A blazing-fast scratch disk for one big training run → **FSx for Lustre**. Enterprise NAS with snapshots/dedup that also speaks S3 → **FSx for NetApp ONTAP**.
 
+> **Why (the rationale):** Each storage tier has a different cost-latency tradeoff. Using S3 alone is cheap but slow for repeated reads; FSx for Lustre is fast but expensive — matching storage to workload prevents either wasted spend or throttled training.
+> **When to use:** S3 for the data lake; EFS when multiple training instances or notebooks need shared POSIX access to the same files simultaneously; FSx for Lustre for large-scale distributed training where I/O is the bottleneck; FSx for NetApp ONTAP when you need enterprise snapshot/dedup features AND want S3-API access for SageMaker/Bedrock/Athena.
+> **Nuances & gotchas:** EFS costs ~3× more per GB than S3 and is regional; FSx for Lustre is significantly more expensive still — only use it if I/O is the measured bottleneck. Serverless Inference does NOT support EFS or FSx mounts. FSx for Lustre can be linked to an S3 bucket and lazily hydrates data on demand (no pre-copy needed).
+
 ⚙️ **Storage decision table (memorize the "pick when"):**
 
 | Service | Type | Throughput / latency | Pick when… | Exam trap |
@@ -136,6 +144,10 @@ flowchart TB
 ## 1.1c Streaming ingestion <a name="streaming"></a>
 
 🧠 **Mental model:** Batch is a delivery truck (data arrives in bulk on a schedule). Streaming is a conveyor belt (records arrive continuously and you act within seconds). AWS gives you three belts: **Kinesis** (AWS-native), **Apache Flink / Managed Service for Apache Flink** (real-time processing on the belt), and **Amazon MSK** (managed Apache Kafka).
+
+> **Why (the rationale):** Streaming ingestion enables near-real-time ML feature freshness and event-driven retraining triggers. Without it, feature lag causes stale predictions (e.g., a fraud model trained on yesterday's patterns).
+> **When to use:** Kinesis Data Streams when you need ordering, replay, and custom sub-second consumers; Firehose when you just want streaming data to land in S3/Redshift/OpenSearch with zero code; MSK when your team already uses Apache Kafka; Flink when you need stateful windowed transformations on the stream.
+> **Nuances & gotchas:** Firehose is a **delivery** service — it buffers (default 60 s or 1 MB) before writing, so it is near-real-time, not sub-second. Kinesis Data Streams charges per shard-hour regardless of traffic; MSK charges per broker-hour. Flink (Managed Service for Apache Flink) cannot be used without a Kinesis or MSK source — it is a processing layer, not a storage layer.
 
 ```mermaid
 flowchart LR
@@ -168,6 +180,10 @@ flowchart LR
 
 ## 1.1d Extracting from storage & performance knobs <a name="extract"></a>
 
+> **Why (the rationale):** The bottleneck is often not the compute but the I/O pipeline pulling data from storage. Knowing the right "speed knob" per source (Transfer Acceleration, Provisioned IOPS, export-to-S3) prevents training jobs from spending most of their time waiting for data.
+> **When to use:** S3 Transfer Acceleration when producers or consumers are geographically distant from the bucket's region; EBS Provisioned IOPS when a single-instance job has consistent high-IOPS disk access requirements; DynamoDB export to S3 when you need a point-in-time snapshot of a table for ML without impacting production read capacity.
+> **Nuances & gotchas:** S3 Transfer Acceleration incurs additional per-GB transfer cost — only worth it for cross-continent uploads; it does NOT speed up intra-region S3 transfers. DynamoDB export to S3 produces JSON (DynamoDB JSON format) not CSV — you may need Glue to convert it. EBS volumes cannot be shared across instances (use EFS for that).
+
 ⚙️ **Where data lives and how you pull it:**
 
 | Source | Extract with | Speed knob you must know |
@@ -191,6 +207,10 @@ flowchart LR
 
 ## 1.1e Ingesting into Data Wrangler & Feature Store <a name="ingest-sm"></a>
 
+> **Why (the rationale):** Data Wrangler removes the need to write custom ETL scripts for ML feature prep; Feature Store eliminates the re-engineering effort that causes training/serving skew when two teams build the same feature differently.
+> **When to use:** Use Data Wrangler when a data scientist wants a GUI to explore, clean, and engineer features and then export that work to a repeatable pipeline or Feature Store ingestion job. Use Feature Store ingestion when features need to be available both in real time (online store) and for training (offline store).
+> **Nuances & gotchas:** Data Wrangler flows run as SageMaker Processing jobs — they incur compute cost; idle Studio sessions also incur charges if you forget to shut them down. Feature Store batch ingestion writes to S3 within ~15 minutes of the processing job completing, not instantly. Feature Store does NOT transform features — it only stores and retrieves them.
+
 ⚙️ **SageMaker Data Wrangler** is the visual data-prep tool inside SageMaker Studio. It **imports from S3, Athena, Amazon Redshift, Snowflake, and other sources**, applies 300+ built-in transforms, and can **export the flow** to a Processing job, a Feature Store ingestion job, a SageMaker Pipeline, or Python code. ([Data Wrangler](https://aws.amazon.com/sagemaker/ai/data-wrangler/), [Transform Data](https://docs.aws.amazon.com/sagemaker/latest/dg/data-wrangler-transform.html))
 
 ⚙️ **SageMaker Feature Store** ingests two ways (details in [1.2f](#feature-store)):
@@ -204,6 +224,10 @@ flowchart LR
 ## 1.1f Merging data from multiple sources <a name="merge"></a>
 
 🧠 **Mental model:** Real ML data is scattered across a database, a data lake, and an API. You need to *join and unify* it. Three tools, escalating in power:
+
+> **Why (the rationale):** Training a model on partial data — from just one source — causes it to miss patterns that only emerge when sources are joined. Glue automates schema discovery and join at scale without provisioning servers.
+> **When to use:** Glue when you need serverless Spark ETL with catalog integration across S3, RDS, and JDBC sources; Spark on EMR when you need full cluster control, complex custom transforms, or very large distributed joins that exceed Glue job limits; pandas only for small in-notebook experiments.
+> **Nuances & gotchas:** Glue Crawlers infer schema automatically but can mistype columns (e.g., treating an integer ID as a string) — always verify the Catalog after crawling. Glue DPU billing starts at 2 DPUs minimum and rounds up; short jobs are relatively more expensive. Glue jobs have a default timeout of 2880 minutes; set it explicitly or you may accumulate zombie job charges.
 
 | Approach | Use when |
 |---|---|
@@ -224,6 +248,10 @@ flowchart LR
 
 🧠 **Mental model:** Cleaning is quality control on the assembly line — pull out the defective parts (outliers), fill the gaps (impute), and remove duplicates so you don't count the same thing twice.
 
+> **Why (the rationale):** Dirty data — outliers, missing values, duplicates — distorts model weights and inflates training metrics while degrading real-world performance. Clean data is the single highest-ROI preprocessing step.
+> **When to use:** Apply imputation (not row-dropping) when missingness is less than ~20% of a feature; use outlier treatment when IQR/z-score analysis shows extreme values that don't reflect realistic future inputs; dedup before any split to avoid the same example appearing in both train and test sets (data leakage).
+> **Nuances & gotchas:** Dropping rows with missing values can introduce selection bias if missingness is non-random (e.g., high-income respondents skip income fields). Mean imputation reduces feature variance and can hurt models that rely on spread. Deduplication must happen before train/test split — deduplication after the split may still leave near-duplicates across splits.
+
 ⚙️ **Core cleaning operations:**
 
 | Problem | Technique | Notes |
@@ -241,6 +269,10 @@ flowchart LR
 ## 1.2b Feature engineering <a name="feature-eng"></a>
 
 🧠 **Mental model:** Feature engineering is translating raw numbers into a language the model understands well — putting everything on a comparable scale, and reshaping skewed or lumpy signals into cleaner ones.
+
+> **Why (the rationale):** Algorithms like KNN, SVM, and neural networks are sensitive to feature scale — a feature with range [0, 1,000,000] will dominate one in [0, 1] purely due to magnitude, not predictive power. Transforms fix this without changing the underlying information.
+> **When to use:** Normalize (min-max) for distance-based and neural-net models where a bounded range is expected; standardize (z-score) for linear models, PCA, and any algorithm that assumes zero-mean inputs; log-transform right-skewed numeric features (income, counts, prices) before training; bin continuous features when domain knowledge suggests meaningful thresholds (e.g., age groups).
+> **Nuances & gotchas:** Apply scaling/normalization parameters fitted on the **training set only** — then apply the same transform to validation and test sets. Fitting on the full dataset before splitting is a common form of data leakage. Log-transform requires all values > 0; use `log(x+1)` if zeros exist. Binning discards within-bin variation — use cautiously.
 
 ⚙️ **Numeric transforms:**
 
@@ -263,6 +295,10 @@ flowchart LR
 
 🧠 **Mental model:** Models eat numbers, not words. Encoding turns categories into numbers *without inventing a fake ordering*.
 
+> **Why (the rationale):** Assigning arbitrary integers (1, 2, 3) to nominal categories like {Red, Blue, Green} implies an ordering that does not exist, misleading linear models and distance-based algorithms. One-hot encoding avoids this; label encoding is only safe for truly ordinal data or tree models that ignore the numeric ordering.
+> **When to use:** One-hot for nominal categories with low cardinality (< ~30 unique values); label encoding for ordinal categories or when feeding a tree-based model (XGBoost/Random Forest tolerate arbitrary integers); binary encoding for medium-cardinality categories where one-hot would create too many columns; tokenization as the first step before embedding for any NLP input.
+> **Nuances & gotchas:** One-hot on high-cardinality features (hundreds of cities) creates a column explosion that slows training and inflates memory — use hashing or embedding instead. Label-encoding a nominal feature in a linear model is a classic mistake that introduces a false gradient. Tokenization vocabulary must be built on training data only; unseen tokens at inference must be handled with an `<UNK>` token or subword fallback.
+
 ⚙️ **Encoding table:**
 
 | Encoding | How | Use when | Trap |
@@ -281,6 +317,10 @@ flowchart LR
 ---
 
 ## 1.2d Transformation tools <a name="tools"></a>
+
+> **Why (the rationale):** Data transformation tools differ in their target user (data engineer vs data scientist vs analyst), their execution model (serverless Spark vs visual GUI vs Lambda function), and their ML-awareness. Picking the right one avoids building a hand-coded Spark job when a no-code DataBrew recipe would suffice, or using DataBrew when you need ML-specific leakage detection.
+> **When to use:** Data Wrangler when an ML practitioner wants visual feature engineering with direct export to SageMaker Pipelines or Feature Store; Glue for code/Spark ETL at scale with catalog integration; DataBrew for no-code cleaning and profiling by analysts; Lambda for lightweight, per-record streaming transforms on Kinesis/Firehose.
+> **Nuances & gotchas:** Data Wrangler does NOT run continuously in production — you must export the flow to a Processing job or Pipeline. DataBrew cannot export directly to Feature Store. Lambda has a 15-minute timeout and 10 GB memory limit; it is not suitable for heavy batch transforms. Glue DataBrew and AWS Glue Data Quality are separate services — DataBrew is visual prep, Data Quality is rule-based pipeline validation.
 
 ⚙️ **Which tool for which job — the exam's favorite disambiguation:**
 
@@ -308,6 +348,10 @@ flowchart LR
 
 🧠 **Mental model:** Supervised learning needs labels. **SageMaker Ground Truth** is the labeling factory; the *workforce* doing the labeling can be your own team, a vendor, or the anonymous crowd (**Mechanical Turk**). Ground Truth's **automated (active) labeling** lets a model label the easy examples so humans only handle the hard ones — cutting cost up to ~70%.
 
+> **Why (the rationale):** High-quality labels are the most expensive ingredient in supervised ML. Ground Truth cuts cost via automated labeling while maintaining quality by routing only uncertain examples to humans. Mechanical Turk provides massive scale but at the cost of data privacy.
+> **When to use:** Ground Truth + Mechanical Turk for large-volume, non-sensitive image/text labeling tasks; Ground Truth + private workforce when data is confidential, contains PII/PHI, or requires domain expertise (medical imaging, legal docs); automated labeling when the dataset is large enough that a model can confidently label the "easy" majority.
+> **Nuances & gotchas:** Mechanical Turk requires you to set the `FreeOfPersonallyIdentifiableInformation` flag — if your data contains PII the job will fail or violate terms. Automated labeling requires a minimum dataset size to train the internal labeling model (~1,250 labeled examples as a starting point). Ground Truth consolidates annotations from multiple workers using annotation consolidation algorithms — the raw individual labels are not the final labels.
+
 ⚙️ **Workforce options:**
 
 | Workforce | Who | Use when |
@@ -327,6 +371,10 @@ flowchart LR
 ## 1.2f SageMaker Feature Store deep-dive <a name="feature-store"></a>
 
 🧠 **Mental model:** Feature Store is a shared pantry of ready-to-use features so every team stops re-cooking the same ingredients — and so the features used in *training* exactly match those used in *serving* (no training/serving skew).
+
+> **Why (the rationale):** Without a Feature Store, two teams often compute the same feature differently (one uses `log(x+1)`, one uses `log(x)`) causing silent training/serving skew. Feature Store enforces a single definition and makes features reusable across models and teams.
+> **When to use:** Use the **online store** when a real-time inference endpoint needs low-latency (single-digit ms) feature lookups at prediction time; use the **offline store** to pull historical feature snapshots for training and batch inference jobs.
+> **Nuances & gotchas:** The online store (backed by a managed key-value store) and offline store (S3 Parquet) are updated independently — you must enable **both** when creating a Feature Group to avoid skew. Online store does NOT support arbitrary queries — only `GetRecord` by a record identifier. Offline store data appears in S3 within ~15 minutes of a batch ingestion job; it is NOT updated in real time from `PutRecord` calls. Feature Store charges separately for online storage (per GB/month) and offline writes.
 
 ```mermaid
 flowchart LR
@@ -361,6 +409,10 @@ Source: [Feature Store](https://docs.aws.amazon.com/sagemaker/latest/dg/feature-
 
 🧠 **Mental model:** Before training, **SageMaker Clarify** measures whether the *raw data* is already unfair to a group (a **facet**, e.g., a demographic). These metrics are **model-agnostic** — they only look at the data and labels, not any model output.
 
+> **Why (the rationale):** A model trained on biased data will amplify that bias in production. CI and DPL let you quantify and document the bias before training so you can decide whether to fix the data (resample, augment) or at minimum disclose the limitation.
+> **When to use:** Run Clarify pre-training bias analysis any time you have a sensitive attribute (gender, age, race, zip code) in your dataset that could lead to discriminatory model behavior. Especially important in regulated domains (hiring, credit, healthcare).
+> **Nuances & gotchas:** CI measures *representation* (how many samples per group); DPL measures *outcome* (positive label rate per group) — they are complementary, not redundant. Clarify runs these as a SageMaker **Processing job** — it is not a real-time check. A CI or DPL value of 0 does not guarantee the trained model will be unbiased; post-training bias metrics are needed too.
+
 ⚙️ **The two blueprint-named metrics:**
 
 | Metric | Question it answers | Formula (intuition) | Range |
@@ -382,6 +434,10 @@ Source: [Feature Store](https://docs.aws.amazon.com/sagemaker/latest/dg/feature-
 
 🧠 **Mental model:** If 99% of rows are "not fraud," a model can score 99% accuracy by never predicting fraud. You must rebalance so the minority class gets heard.
 
+> **Why (the rationale):** Class imbalance causes the model to optimize for the majority class, ignoring the rare class that is often the most valuable (fraud, disease, equipment failure). Rebalancing realigns the loss function so minority errors are penalized appropriately.
+> **When to use:** Apply oversampling/SMOTE when the minority class has very few examples and you need more signal; apply class weights (cheapest, no data change) when the dataset is large enough for the algorithm to see the minority class but you still want to up-weight its errors; undersampling only when the majority class truly adds no value (rare).
+> **Nuances & gotchas:** SMOTE generates synthetic examples by interpolating between existing minority examples — it does NOT generate new information, and can create unrealistic examples in sparse feature spaces. SMOTE must be applied only on the **training set** after splitting; applying it before the split leaks synthetic data into the test set. Class weights are supported natively by XGBoost (`scale_pos_weight`) and Linear Learner but not by all algorithms.
+
 ⚙️ **Strategies:**
 
 | Strategy | How | Note |
@@ -399,6 +455,10 @@ Source: [Feature Store](https://docs.aws.amazon.com/sagemaker/latest/dg/feature-
 ## 1.3c Encryption, classification, anonymization, PII/PHI <a name="security"></a>
 
 🧠 **Mental model:** Sensitive data has legal handcuffs. You must know how to *find* it, *lock* it, and *scrub* it — and which compliance regime applies.
+
+> **Why (the rationale):** Regulatory penalties for mishandling PII/PHI are severe (GDPR fines, HIPAA violations). Encryption, discovery (Macie), and masking must be wired in before data ever reaches a training job or labeling workforce.
+> **When to use:** Amazon Macie when you need to automatically scan S3 buckets for PII/sensitive data at scale; AWS KMS for encrypting data at rest on S3, EBS, SageMaker notebook volumes, and model artifacts; Glue DataBrew or Comprehend for masking/redacting PII before sharing data downstream; data residency controls (Region choice + replication restrictions) when regulations require data to stay in a specific country.
+> **Nuances & gotchas:** Macie detects PII in S3 objects but does NOT automatically mask or delete it — it only classifies and alerts. KMS SSE-KMS adds per-request API call cost and can hit KMS throughput limits under heavy parallel training. Anonymization is irreversible; masking is reversible with the key — choose correctly for the compliance requirement. "De-identification" under HIPAA has specific Safe Harbor or Expert Determination methods — not just deleting a name field.
 
 ⚙️ **Techniques & services:**
 
@@ -431,6 +491,10 @@ Source: [Feature Store](https://docs.aws.amazon.com/sagemaker/latest/dg/feature-
 
 🧠 **Mental model:** Before training, run a health inspection. Two AWS services do this: **Glue DataBrew** (visual profiling + no-code rules) and **AWS Glue Data Quality** (rule-based checks in your pipeline using **DQDL**).
 
+> **Why (the rationale):** "Garbage in, garbage out." Catching data quality problems before training is far cheaper than debugging a model that underperforms because 30% of its rows had corrupted values.
+> **When to use:** Glue DataBrew when a data analyst wants a no-code visual profile of a new dataset; AWS Glue Data Quality (DQDL) when you need automated rule-based gates in a Glue ETL pipeline to block bad data from flowing downstream; Data Wrangler's Data Quality & Insights report when you want ML-aware checks (leakage, class imbalance) inside SageMaker Studio.
+> **Nuances & gotchas:** Glue Data Quality (DQDL) is a separate service from Glue DataBrew — they are frequently confused. Data Wrangler's leakage detection is heuristic, not guaranteed — it flags suspicious correlations between features and the target but cannot definitively prove leakage. Glue DataBrew profiling jobs have their own cost (DPU-hour charges); they do not run for free.
+
 ⚙️ **Tools:**
 
 | Tool | What it validates | Style |
@@ -450,6 +514,10 @@ Source: [Feature Store](https://docs.aws.amazon.com/sagemaker/latest/dg/feature-
 
 🧠 **Mental model:** Bias sneaks in at the *source*. Know the two named types and that **SageMaker Clarify** is the AWS tool that detects bias (pre- and post-training) and explains predictions (SHAP).
 
+> **Why (the rationale):** Bias that enters at the data-collection or labeling stage cannot be trained away — it gets amplified by the model. Identifying the source of bias (selection vs. measurement) points to the correct mitigation (collect more representative data vs. fix the labeling process).
+> **When to use:** Run Clarify's bias detection when a sensitive attribute is present in the dataset; investigate selection bias when your data-collection method could systematically exclude a subpopulation; investigate measurement bias when data was collected with inconsistent instruments or labelers.
+> **Nuances & gotchas:** Clarify detects and measures bias — it does NOT fix it. SHAP (explainability) is computationally expensive; for large datasets use the KernelSHAP approximation (default in Clarify). Post-training bias metrics (DPPL, DI, etc.) require you to specify the predicted label column and the facet column — misconfiguring these produces meaningless results.
+
 | Bias source | What it is | Example |
 |---|---|---|
 | **Selection bias** | Sample doesn't represent the population | Survey only online users → misses offline population |
@@ -468,6 +536,10 @@ Source: [Feature Store](https://docs.aws.amazon.com/sagemaker/latest/dg/feature-
 
 🧠 **Mental model:** Even clean data can mislead if you split it carelessly. Shuffle so order doesn't leak, split so the model is tested on unseen data, and augment to add variety the model would otherwise never see.
 
+> **Why (the rationale):** An ordered dataset split without shuffling can give the model a train set from one time period and a test set from another — the "accuracy" measurement tells you nothing about real generalization. Stratification ensures every split faithfully represents the class distribution.
+> **When to use:** Shuffle before splitting for any non-time-series data; use stratified splits when classes are imbalanced (even mild imbalance can cause a split to have zero minority-class examples in a small test set); chronological splits for time-series to avoid future leakage; data augmentation when you have fewer than a few thousand examples per class or when the model consistently overfits.
+> **Nuances & gotchas:** Random shuffling on time-series data is incorrect — it leaks future information into training. Data augmentation must be applied only to the **training** set; augmenting the test set would distort your evaluation. Keep the test set "locked" until final evaluation — any peeking (e.g., tuning hyperparameters on test results) converts it into a validation set.
+
 | Technique | Purpose | Watch-out |
 |---|---|---|
 | **Train/validation/test split** | Honest evaluation on unseen data | Common: 70/15/15 or 80/10/10; keep test untouched |
@@ -485,6 +557,10 @@ Source: [Feature Store](https://docs.aws.amazon.com/sagemaker/latest/dg/feature-
 ## 1.3g Loading data into the training resource <a name="input-modes"></a>
 
 🧠 **Mental model:** How training *reads* the data changes speed and cost. You either **copy it all first** (File mode), **stream on demand** (Pipe / Fast File), or **mount a shared file system** (EFS / FSx).
+
+> **Why (the rationale):** File mode downloads the entire dataset before the first epoch, wasting time and requiring a large local disk. Fast File mode and Pipe mode let training start immediately and reduce instance disk requirements — critical when datasets are hundreds of GB.
+> **When to use:** Fast File mode as the default replacement for File mode on large S3 datasets (same POSIX file access, no full download); Pipe mode for very large sequential datasets with built-in algorithms that support streaming (RecordIO); EFS when multiple concurrent training jobs share the same feature data; FSx for Lustre for the highest-throughput distributed training on datasets accessed many times (multiple epochs).
+> **Nuances & gotchas:** Pipe mode requires your training script to read from a named pipe (not a regular file path); not all custom frameworks support this natively. Fast File mode does NOT cache data locally — each read fetches from S3, so repeated random reads over many epochs can be slower than File mode on small datasets. FSx for Lustre incurs cost even when idle; tear it down after training. File mode requires the instance's local disk to be large enough to hold the full dataset.
 
 ⚙️ **SageMaker training input modes ([choosing input mode](https://docs.aws.amazon.com/sagemaker/latest/dg/model-access-training-data-best-practices.html)):**
 

@@ -97,6 +97,10 @@ The more managed the service, the more AWS handles — but **your data and acces
 
 ## Task 5.1a — IAM: who can do what <a name="iam"></a>
 
+> **Why (the rationale):** Without identity-based access control, any credential that leaks grants unlimited access to your AI training data, model artifacts, and inference endpoints. IAM roles decouple permissions from long-lived secrets, limiting blast radius and simplifying rotation.
+> **When to use:** Always. Every SageMaker training job, Bedrock invocation, and S3 data access should use an IAM role (not access keys). Scope permissions per role to the exact actions and resources needed for that job, nothing more.
+> **Nuances & gotchas:** IAM roles grant **temporary** credentials via STS — they expire automatically, unlike IAM user access keys. "Least privilege" is a design intent that doesn't happen automatically; you must explicitly restrict actions and resources. Condition keys (e.g., restricting `bedrock:InvokeModel` to specific model ARNs) are the mechanism for model-level access control in Bedrock — IAM alone without conditions grants access to ALL models in the account.
+
 🧠 **Analogy: keycards in an office building.** IAM (Identity and Access Management) is the badge system. A **policy** is the rulebook ("badge type X opens the server room, not the vault"). A **role** is a temporary visitor badge that an app or service *assumes* to get exactly the access it needs, then drops.
 
 | IAM concept | What it is | AI example |
@@ -124,6 +128,10 @@ flowchart LR
 ---
 
 ## Task 5.1b — Encryption & KMS: at rest and in transit <a name="encryption"></a>
+
+> **Why (the rationale):** AI training data and model artifacts often contain sensitive information (PII, trade secrets, proprietary IP). Encrypting at rest prevents exposure if storage media is stolen or misconfigured; encrypting in transit prevents interception on the network path to model endpoints.
+> **When to use:** Always encrypt both at rest (KMS) and in transit (TLS). Use customer-managed keys (CMK) when compliance requires the ability to revoke data access (e.g., HIPAA, FedRAMP) or when cross-account access policies are needed.
+> **Nuances & gotchas:** Many AWS services encrypt at rest by default with AWS-managed keys — but if a compliance audit requires *you* to control key rotation and revocation, AWS-managed keys are NOT sufficient; you need a CMK. Encryption in transit for Bedrock and SageMaker API calls is enforced by TLS and is not customer-configurable — but VPC endpoints (PrivateLink) control the *network path*, not the encryption layer. Revoking a CMK immediately renders all data encrypted under it unreadable — test disaster recovery before doing this.
 
 🧠 **Analogy: a locked diary.** Encryption scrambles data so it's meaningless without the key. **AWS KMS (Key Management Service)** is the keyring — it creates, stores, and controls the encryption keys.
 
@@ -156,11 +164,19 @@ flowchart LR
 
 ### Amazon Macie — the sensitive-data detector
 
+> **Why (the rationale):** You cannot manually inspect millions of S3 objects to find hidden PII before feeding them into a training pipeline. Macie automates this discovery with ML-based pattern matching so you can identify and remediate sensitive data before it contaminates a model's training set.
+> **When to use:** Before ingesting raw data into a training or fine-tuning pipeline — especially data collected from web forms, emails, or third parties where PII presence is uncertain. Also useful for ongoing monitoring to detect new PII landing in data lake buckets.
+> **Nuances & gotchas:** Macie scans **S3 only** — it does NOT scan databases, EBS volumes, or SageMaker feature stores. It discovers PII; it does NOT automatically mask or delete it — you must act on Macie findings with a separate remediation step (e.g., Bedrock Guardrails PII filters for runtime, or data masking pipelines for training data). Macie is a detective control, not a preventive one.
+
 🧠 **Analogy: a metal detector for PII.** You have millions of files in S3. **Amazon Macie** is a managed service that uses **machine learning and pattern matching** to scan S3 and flag **sensitive data** — PII (names, passport numbers, driver's licenses), PHI, financial data, and credentials — then builds a map of *where* it lives. ([What is Amazon Macie](https://docs.aws.amazon.com/macie/latest/user/what-is-macie.html))
 
 **Plain English:** Before you feed data into an AI model, Macie tells you "hey, this bucket has 4,000 social security numbers in it" so you can mask, remove, or lock it down first.
 
 ### AWS PrivateLink — keep traffic off the public internet
+
+> **Why (the rationale):** Calls to managed services like Bedrock or SageMaker normally route over the public internet by default. For organizations with strict data-handling requirements (healthcare, finance, government), any data traversing the public internet is a compliance or audit risk — even if it's TLS-encrypted.
+> **When to use:** Any regulated workload where prompts, training data, or model outputs must not leave AWS's private network. Also use when a security team or compliance framework requires "no internet egress."
+> **Nuances & gotchas:** PrivateLink creates an **interface VPC endpoint** — a private IP inside your VPC that resolves the service DNS name. Without this, all Bedrock calls from within a VPC still go out through an internet gateway or NAT. PrivateLink does NOT replace encryption — it controls the network path, not the data confidentiality. There is a per-endpoint hourly cost plus a per-GB data processing charge.
 
 🧠 **Analogy: a private hallway between two offices** instead of walking outside on a public street. **AWS PrivateLink** creates a private connection (an **interface VPC endpoint**) between your VPC and an AWS service like Amazon Bedrock, so requests **never traverse the public internet** — no internet gateway, NAT, or public IPs needed. ([Bedrock interface VPC endpoints](https://docs.aws.amazon.com/bedrock/latest/userguide/vpc-interface-endpoints.html))
 
@@ -300,6 +316,10 @@ flowchart TB
 
 ## Task 5.2b — AWS governance & compliance services <a name="governance-services"></a>
 
+> **Why (the rationale):** No single tool can answer all audit questions. CloudTrail answers "who did what"; Config answers "what was the state"; Artifact provides AWS's own compliance certifications; Audit Manager automates evidence gathering; Inspector finds software vulnerabilities. Each solves a distinct audit need and they are not interchangeable.
+> **When to use:** CloudTrail → forensics after an incident or routine access audits ("who invoked the model?"). Config → compliance drift detection ("is this resource still encrypted?"). Artifact → hand-off to an auditor who needs AWS's own certifications. Audit Manager → you have a recurring audit (SOC 2, PCI) and want evidence collected continuously. Inspector → you self-host models on EC2 or containers and need CVE scanning.
+> **Nuances & gotchas:** CloudTrail logs API calls but does NOT record the *contents* of model prompts or responses — you need application-level logging for that. Config evaluates *resource configurations*, not user behavior — it cannot tell you who called the API, only what the resource looks like. Artifact is a download portal, not a real-time compliance dashboard. Trusted Advisor gives recommendations but has no enforcement mechanism — it does not fix issues.
+
 🧠 **Analogy: the building's security office.** Each service is one job in that office — one watches the cameras, one keeps the visitor log, one files the certificates, one gives improvement tips.
 
 ```mermaid
@@ -369,6 +389,10 @@ Governance isn't only tools — it's **repeatable processes**:
 | **Team training requirements** | Ensure staff are trained on secure/responsible AI use |
 
 ### The AWS Generative AI Security Scoping Matrix ⭐
+
+> **Why (the rationale):** Generic cloud security checklists don't map well to AI workloads because responsibility shifts dramatically depending on whether you're consuming a third-party model or building your own from scratch. The Scoping Matrix provides a framework for determining *which* security controls you must implement vs which the provider handles, based on how much of the AI stack you own.
+> **When to use:** At the start of any AI project design review, risk assessment, or threat model. Use it to assign security tasks between your team and the vendor/AWS, and to identify gaps in your security posture as you move from Scope 1 toward Scope 5.
+> **Nuances & gotchas:** Scope 3 (using a Bedrock base model) is where most practitioners operate — at this scope you are responsible for prompt security, data governance, IAM, and Guardrails configuration, while AWS handles the FM infrastructure. Higher scope number = more security responsibility, not less. Scope 1 still has responsibilities — you must govern what data you share with a public third-party service.
 
 🧠 **Analogy: the ownership ladder.** How much of the AI do you *own* — from "I just use someone's chatbot" (rent) up to "I built the model from scratch" (own the whole house)? **The more you own, the more responsibility you carry.** The matrix defines **5 scopes** ordered by increasing ownership/control. ([Generative AI Security Scoping Matrix](https://aws.amazon.com/ai/security/generative-ai-scoping-matrix/))
 

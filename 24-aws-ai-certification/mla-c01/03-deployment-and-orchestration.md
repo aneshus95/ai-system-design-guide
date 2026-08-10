@@ -52,6 +52,10 @@ Everything in this domain hangs off that flowchart. The rest is *how* to provisi
 
 🧠 **Mental model:** Real-time = a waiter taking one order at a time and returning a plate in milliseconds. Batch = a factory line running once to process a mountain of inputs, then shutting off.
 
+> **Why (the rationale):** Choosing real-time vs. batch determines your infrastructure cost model, latency commitment, and complexity. A batch-friendly use case (nightly churn scoring) deployed as a real-time endpoint wastes money paying for always-on instances during idle hours.
+> **When to use:** Real-time when a human or application needs a prediction synchronously (fraud check at checkout, recommendation on page load); batch transform when you have a known dataset to score and latency is irrelevant (nightly re-scoring of all customers, backfilling embeddings).
+> **Nuances & gotchas:** Batch Transform has NO persistent endpoint — it spins up compute, processes the S3 dataset, writes results to S3, and terminates. You cannot send real-time requests to it. Batch Transform is billed only for job duration — far cheaper than a persistent endpoint for infrequent scoring. Batch Transform does NOT notify you via SNS when complete; poll the job status or use EventBridge `SageMaker Training Job State Change` events.
+
 | Dimension | **Real-time / online serving** | **Batch / offline serving** |
 |---|---|---|
 | Trigger | Per-request API call | Scheduled or on-demand job over a dataset |
@@ -71,6 +75,10 @@ Everything in this domain hangs off that flowchart. The rest is *how* to provisi
 ## 3.1 SageMaker endpoint types — the critical comparison <a name="endpoint-types"></a>
 
 🧠 **Plain English:** SageMaker gives you four ways to run inference. They differ mainly on **payload size, timeout, traffic pattern, and cost when idle**. This table is the single most tested thing in Domain 3 — memorize it.
+
+> **Why (the rationale):** Picking the wrong endpoint type means either over-paying for idle capacity (real-time for bursty workloads) or silently failing at inference time (real-time endpoint receiving a 1 GB payload). Each type optimizes a different cost/capability point.
+> **When to use:** Real-time for steady low-latency production traffic; serverless for spiky/intermittent traffic where paying zero when idle outweighs cold-start latency; asynchronous for large payloads (>6 MB), long inference (>60 s), or near-real-time queuing; batch transform for one-time or scheduled offline scoring of entire S3 datasets.
+> **Nuances & gotchas:** Real-time endpoint caps: **6 MB payload / 60 s timeout**; serverless caps: **4 MB payload / 60 s timeout, CPU only, no VPC, no Model Monitor, no GPU, no data capture**; asynchronous caps: **1 GB payload / 3600 s (1 hour)**; batch transform: no payload limit per object (splits large files into mini-batches up to 100 MB). You CANNOT convert a real-time endpoint to a serverless endpoint type — you must delete and recreate.
 
 ⚙️ **The comparison table (exam gold):**
 
@@ -122,6 +130,10 @@ flowchart LR
 
 🧠 **Plain English:** CPUs are versatile generalists; GPUs are massively parallel number-crunchers. Deep-learning models with big matrix math (LLMs, vision) fly on GPUs; classic ML (XGBoost, sklearn, small models) usually runs cheaper on CPU.
 
+> **Why (the rationale):** GPU instances cost 5–20× more per hour than CPU instances. Using a GPU for a small XGBoost model wastes money; using a CPU for a multi-billion-parameter LLM causes unacceptably high inference latency. Right-sizing compute is a major cost lever.
+> **When to use:** CPU (c5/m5 families) for classical ML inference, sklearn pipelines, and small neural nets at low throughput; GPU (g5/g6 for inference, p4d/p5 for training) for deep learning; AWS Inferentia (`ml.inf2`) for cost-optimized high-throughput deep learning inference; AWS Trainium (`ml.trn1`) for cost-optimized large-model training.
+> **Nuances & gotchas:** Serverless Inference does NOT support GPU — if you need GPU on spiky traffic, use Asynchronous Inference (which scales to 0 and supports GPU). Inferentia requires compiling the model with the AWS Neuron SDK first — not all model architectures are supported. EFA (Elastic Fabric Adapter) is required for high-speed inter-node communication in multi-GPU distributed training; not all instance types have EFA — verify before selecting.
+
 | Choose... | When | SageMaker instance families |
 |---|---|---|
 | **CPU** | Classic ML, small models, low/moderate QPS, cost-sensitive | `ml.c5`/`ml.c6i`/`ml.c7i` (compute), `ml.m5`/`ml.m6i`/`ml.m7i` (general) |
@@ -140,6 +152,10 @@ flowchart LR
 
 🧠 **Analogy:** SageMaker containers are like meal kits. **Built-in algorithms** = fully pre-made. **Framework containers** = a kit where you add your recipe (script). **BYOC** = you build the whole kitchen yourself.
 
+> **Why (the rationale):** SageMaker abstracts container management through three tiers — you only take on container complexity when the simpler tier can't meet your requirements. Most teams stay at script mode; BYO container is for edge cases.
+> **When to use:** Prebuilt framework containers (script mode) for 95% of custom ML — just bring your `train.py`; extend a prebuilt container when you need an extra pip package; BYO container for exotic frameworks, custom inference runtimes, or when you need full control of the OS environment.
+> **Nuances & gotchas:** The SageMaker inference contract for BYOC requires your container to listen on port **8080** and serve `/ping` (health, returns HTTP 200) and `/invocations` (predictions). If `/ping` does not return 200 within the timeout, SageMaker marks the endpoint unhealthy and restarts it. Container images must be stored in **Amazon ECR** (not Docker Hub or S3) for SageMaker to pull them. Extending a prebuilt container with a `FROM` Dockerfile still counts as "your container" for security scanning purposes.
+
 | Option | What it is | Use when |
 |---|---|---|
 | **Built-in algorithm containers** | AWS-provided images for XGBoost, Linear Learner, etc. | You use a SageMaker built-in algorithm |
@@ -156,6 +172,10 @@ flowchart LR
 ## 3.1 Multi-model vs multi-container vs inference components <a name="mme-vs-mce"></a>
 
 🧠 **Plain English:** These are three ways to pack **more than one model onto one endpoint** to save money. They differ in whether the models share a framework and how they're invoked.
+
+> **Why (the rationale):** Running one endpoint per model wastes money when you have thousands of per-customer or per-region models that are mostly idle. These features pack multiple models onto shared compute, dramatically increasing utilization.
+> **When to use:** MME when you have many models (hundreds to thousands) built on the same framework (e.g., all scikit-learn or all XGBoost) and each is accessed infrequently; MCE when you have a small number (up to 15) of heterogeneous models on different frameworks that need to co-exist on one endpoint; Inference Components when you need per-model resource allocation (especially for LLMs with different GPU/memory requirements) and independent auto-scaling.
+> **Nuances & gotchas:** MME loads models **on demand from S3** and caches them in memory — a cold model lookup has higher latency (model loading time, seconds to minutes depending on size). MME REQUIRES all models to use the **same serving container** (same framework); if frameworks differ, MME is wrong. MCE supports up to **15 containers** and can invoke them in a serial pipeline (output of container 1 → input of container 2) or direct mode. Inference Components do NOT require all models to have the same framework and support independent auto-scaling per model — including scaling to zero replicas.
 
 | Feature | **Multi-Model Endpoint (MME)** | **Multi-Container Endpoint (MCE)** | **Inference Components** |
 |---|---|---|---|
@@ -177,7 +197,11 @@ flowchart LR
 
 ## 3.1 Edge deployment with SageMaker Neo <a name="neo"></a>
 
-🧠 **Analogy:** Neo is a **model compiler/translator**. You hand it a trained model and a target device; it recompiles the model to run **faster and smaller** on that specific hardware — like translating a book into the local dialect so it reads faster.
+🧠 **Analogy:** Neo is a **model compiler/translator**. You hand it a trained model and a target device; it recompiles the model to run **faster and smaller** on that specific hardware
+
+> **Why (the rationale):** A PyTorch model trained on a cloud GPU cannot run efficiently on an ARM-based edge camera without compilation. Neo translates and optimizes the model for the target hardware's instruction set, often achieving 2× or greater speedup.
+> **When to use:** Any time you need to deploy an ML model to edge hardware (IoT sensors, cameras, ARM devices, Jetson boards) or want to optimize a cloud inference model for a specific instance type including AWS Inferentia.
+> **Nuances & gotchas:** Neo-compiled models are hardware-specific — a model compiled for ARM Cortex-A will NOT run on Nvidia Jetson; you must compile separately for each target. Neo supports TensorFlow, PyTorch, MXNet, ONNX, and XGBoost — it does NOT support arbitrary custom operators or all model architectures. SageMaker Edge Manager (which managed fleets of edge devices) was discontinued on April 26, 2024; Neo compilation itself remains fully supported. Deploy Neo models to edge devices via AWS IoT Greengrass, not a SageMaker endpoint.
 
 ⚙️ **Facts:**
 - **SageMaker Neo** compiles/optimizes **TensorFlow, PyTorch, MXNet, ONNX, and XGBoost** models for target hardware: **ARM, Intel, and Nvidia** processors, plus cloud instances including **AWS Inferentia**.
@@ -195,6 +219,10 @@ flowchart LR
 
 🧠 **Plain English:** SageMaker endpoints are the managed default, but you can also serve models on general-purpose AWS compute if you need more control or already run those platforms.
 
+> **Why (the rationale):** Some teams already operate ECS or Kubernetes infrastructure and want to host their ML models there rather than learn SageMaker's endpoint management. Others need Lambda for event-driven, serverless inference that doesn't justify a persistent endpoint.
+> **When to use:** SageMaker endpoints as the default (managed scaling, monitoring, guardrails built-in); Lambda for very small lightweight models (sklearn, simple TF) in event-driven architectures with a 15-minute timeout ceiling and no GPU requirement; ECS when you have a custom inference container and an existing ECS/Fargate fleet; EKS when your team is standardized on Kubernetes and needs multi-cloud portability or complex service mesh.
+> **Nuances & gotchas:** Lambda has a **15-minute execution timeout**, **10 GB memory limit**, and **NO GPU support** — it is unsuitable for any deep learning inference. Lambda container images can be up to 10 GB but must include the model artifact; cold starts on large Lambda containers can take 10+ seconds. ECS and EKS do not include SageMaker Model Monitor, Data Capture, or automatic A/B testing — you must implement these yourself.
+
 | Target | What it is | Choose when |
 |---|---|---|
 | **SageMaker endpoints** | Fully managed model hosting | Default; least ops overhead; want auto-scaling, guardrails, monitoring built-in |
@@ -210,6 +238,10 @@ flowchart LR
 ## 3.1 Choosing an orchestrator: SageMaker Pipelines vs MWAA <a name="orchestrator"></a>
 
 🧠 **Plain English:** An orchestrator strings together the steps of an ML workflow (process → train → evaluate → register → deploy) as a **DAG** (directed acyclic graph). SageMaker Pipelines is the **ML-native** choice; MWAA (managed Airflow) is the **general-purpose, Python-flexible** choice.
+
+> **Why (the rationale):** Without an orchestrator, ML workflows are manual, error-prone, and impossible to audit. An orchestrator makes every step reproducible, version-tracked, and automatically triggered — the foundation of MLOps.
+> **When to use:** SageMaker Pipelines when the entire ML workflow lives on SageMaker (processing → training → evaluation → Model Registry → deployment) and you want serverless, ML-aware orchestration with built-in lineage; MWAA when the workflow spans multiple AWS services AND non-AWS systems, when the team has existing Airflow expertise, or when you need Airflow-specific operators/hooks.
+> **Nuances & gotchas:** SageMaker Pipelines is serverless — you pay only for the underlying resources (processing/training instances); there is no Pipelines-specific hourly charge. MWAA is NOT serverless — you provision an Airflow environment (Fargate-backed) and pay hourly for it even when idle. SageMaker Pipelines integrates natively with Model Registry, Experiments, and lineage tracking — MWAA requires manual integration. AWS Step Functions is a third orchestration option that appears in some exam distractors — it uses serverless state machines and has a SageMaker SDK, but lacks the ML-specific steps and lineage of Pipelines.
 
 | Dimension | **SageMaker Pipelines** | **Amazon MWAA (Managed Airflow)** |
 |---|---|---|
@@ -229,6 +261,10 @@ flowchart LR
 ## 3.2 On-demand vs provisioned; auto-scaling policies <a name="autoscaling"></a>
 
 🧠 **Analogy:** Auto-scaling is a thermostat for your endpoint's instance count. Set a target (e.g., "keep each instance at 70 requests/min") and it adds/removes instances to hold that target.
+
+> **Why (the rationale):** Fixed-capacity endpoints either under-provision (causing latency spikes/throttling during peaks) or over-provision (wasting money during lulls). Auto-scaling dynamically matches capacity to actual demand.
+> **When to use:** Target tracking with `SageMakerVariantInvocationsPerInstance` as the default metric for most endpoints; scheduled scaling when traffic patterns are predictable (business hours, daily peaks); step scaling for custom non-linear reactions; Provisioned Concurrency on serverless endpoints to eliminate cold starts for latency-sensitive workloads.
+> **Nuances & gotchas:** Auto-scaling has a **scale-in cooldown** (default 300 s) and **scale-out cooldown** (default 300 s) — scaling won't happen again until the cooldown expires, so sudden spikes may cause brief throttling before scale-out kicks in. The recommended metric `SageMakerVariantInvocationsPerInstance` is in **per-minute** units — set the target based on your instance's known throughput capacity, not an arbitrary number. Provisioned Concurrency on a serverless endpoint must be ≤ `MaxConcurrency` (max 200 per endpoint); you are charged for provisioned concurrency even when idle.
 
 ⚙️ **SageMaker endpoint auto-scaling** uses **Application Auto Scaling**. Policy types:
 
@@ -264,6 +300,10 @@ flowchart LR
 
 🧠 **Plain English:** IaC means defining your cloud resources in files instead of clicking the console — repeatable, version-controlled, reviewable. **CloudFormation** = declarative templates (YAML/JSON). **CDK** = write infra in a real programming language (Python/TypeScript) that *compiles down to* CloudFormation.
 
+> **Why (the rationale):** Manual console-click infrastructure is impossible to reproduce consistently, cannot be code-reviewed, and is prone to configuration drift. IaC makes ML infrastructure as auditable and reproducible as model code.
+> **When to use:** CloudFormation for simple, static infrastructure stacks where YAML/JSON is readable and the team prefers declarative configuration; CDK when the infrastructure is complex, repetitive, or parameterized (e.g., creating 50 similar endpoints programmatically with loops), or when developers prefer working in Python/TypeScript rather than YAML.
+> **Nuances & gotchas:** CDK does NOT replace CloudFormation — it synthesizes to CloudFormation under the hood, so all CFN limits apply (500 resources per stack, etc.). CDK constructs have L1 (raw CFN), L2 (opinionated with defaults), and L3 (patterns) levels — mixing them in the same stack is valid. CloudFormation drift detection compares live resources to template definitions; if someone makes a manual console change, drift detection flags it. Neither CFN nor CDK can directly deploy a SageMaker model to production — they provision the infrastructure (endpoints), but model artifacts must be in S3 first.
+
 | | **AWS CloudFormation** | **AWS CDK** |
 |---|---|---|
 | Language | Declarative YAML/JSON templates | Imperative code (Python, TS, Java, Go, C#) |
@@ -282,6 +322,10 @@ flowchart LR
 
 🧠 **Analogy:** **ECR** is the warehouse where your Docker images (containers) are stored. ECS/EKS/SageMaker are the venues that pull images from that warehouse and run them.
 
+> **Why (the rationale):** SageMaker, ECS, and EKS all pull container images from ECR — it is the single required registry for AWS-hosted containers. Trying to use Docker Hub or another public registry directly for SageMaker training/inference will fail or require workarounds.
+> **When to use:** ECR always, for any custom or extended container used with SageMaker, ECS, or EKS; ECS when your team needs AWS-native container orchestration without Kubernetes; EKS when Kubernetes is a standard or multi-cloud portability is required.
+> **Nuances & gotchas:** ECR images have per-GB storage charges and per-GB data transfer charges when pulled by SageMaker training jobs. Enable **ECR image scanning** (on push) to automatically detect CVEs in your custom containers before they reach production. ECR image URIs include a region and account ID — cross-region pull is possible but incurs data transfer charges and requires cross-account ECR repository policies. ECR Public Gallery exists for public images but SageMaker generally expects private ECR repositories.
+
 | Service | Role |
 |---|---|
 | **Amazon ECR** (Elastic Container Registry) | Private Docker image registry — **store & version container images**; SageMaker/ECS/EKS pull from here |
@@ -296,6 +340,10 @@ flowchart LR
 ---
 
 ## 3.2 VPC, Spot, and the SageMaker SDK <a name="vpc-spot"></a>
+
+> **Why (the rationale):** VPC isolation prevents training data and model artifacts from traversing the public internet. Spot Instances cut training costs by up to 90% for fault-tolerant workloads. These are the two highest-ROI infrastructure controls in SageMaker.
+> **When to use:** VPC + PrivateLink for any training or inference job that touches sensitive data or must comply with data residency/isolation requirements; Managed Spot Training for any training job that supports checkpointing (most gradient-based models) where interruption tolerance is acceptable.
+> **Nuances & gotchas:** Serverless Inference does NOT support VPC — this is a hard limit. Managed Spot Training requires `max_wait` ≥ `max_run`; without checkpointing, a Spot interruption restarts training from scratch, negating the cost benefit. In a fully isolated VPC (no internet gateway), SageMaker containers cannot pull public pip packages at runtime — all dependencies must be baked into the container image or supplied via S3. When using VPC, SageMaker training instances need connectivity to S3 (gateway VPC endpoint) and to SageMaker APIs (interface VPC endpoint) — missing endpoints cause training jobs to hang silently.
 
 **VPC for endpoints:** For network isolation and private access to data (no public internet), configure the endpoint/training job inside a **VPC** with subnets + security groups, and use **VPC interface endpoints (AWS PrivateLink)** so traffic to SageMaker stays on the AWS network. (Reminder: **serverless inference does NOT support VPC.**)
 
@@ -321,6 +369,10 @@ predictor = model.deploy(
 ## 3.3 CI/CD building blocks: CodePipeline, CodeBuild, CodeDeploy <a name="cicd-blocks"></a>
 
 🧠 **Plain English:** These three AWS "Code" services are an assembly line. **CodePipeline** is the conveyor belt (orchestrates stages). **CodeBuild** is the workstation that compiles/tests/builds artifacts. **CodeDeploy** is the robot that rolls the built artifact out to targets.
+
+> **Why (the rationale):** Manual model deployment is slow, error-prone, and unauditable. CI/CD automates the test → build → deploy chain so every model update goes through the same validated gates, reducing human error and enabling rapid iteration.
+> **When to use:** CodePipeline to orchestrate the full release pipeline (source → build → test → deploy); CodeBuild for running unit/integration tests, building Docker images, and packaging model artifacts; CodeDeploy for deploying new model versions to EC2, Lambda, or ECS targets with blue/green or canary traffic shifting.
+> **Nuances & gotchas:** CodeBuild charges per build-minute with a minimum of 1 minute — short test runs are relatively expensive; batch builds can parallelize tests cheaply. CodeDeploy canary/linear deployments are for EC2/Lambda/ECS targets only — SageMaker endpoint traffic shifting is done via SageMaker's own deployment guardrails (not CodeDeploy). CodePipeline does NOT natively trigger SageMaker Pipelines — you need a Lambda action or EventBridge to bridge between them. `buildspec.yml` must be in the root of the source repository or the CodeBuild job fails to find it.
 
 ```mermaid
 flowchart LR
@@ -349,6 +401,10 @@ flowchart LR
 
 🧠 **Plain English:** Both are conventions for how branches map to releases. **Gitflow** is heavyweight (many long-lived branches, scheduled releases). **GitHub Flow** is lightweight (one `main` + short feature branches, continuous deploy).
 
+> **Why (the rationale):** ML code, like software code, needs a branching strategy so multiple engineers can work in parallel without breaking production. The right workflow matches the team's release cadence and risk tolerance.
+> **When to use:** GitHub Flow when the team deploys continuously to production on every merge to main (fast iteration, frequent small releases); Gitflow when the team maintains multiple concurrent model versions (e.g., v1 in production while v2 is in staging and a hotfix for v1 is needed simultaneously).
+> **Nuances & gotchas:** Gitflow's `develop` branch creates an extra merge cycle that slows down deployments — teams often abandon Gitflow as they mature toward CD. GitHub Flow requires mature automated testing so that every main-branch merge is safe to deploy; without good tests it becomes "push and pray." Neither workflow solves the problem of data versioning — you must version data artifacts (S3 paths, DVC, Delta Lake snapshots) separately from code branches.
+
 | | **Gitflow** | **GitHub Flow** |
 |---|---|---|
 | Branches | `main`, `develop`, `feature/*`, `release/*`, `hotfix/*` | `main` + short-lived `feature/*` |
@@ -363,6 +419,10 @@ flowchart LR
 ## 3.3 Deployment strategies & rollback: blue/green, canary, linear <a name="deploy-strategies"></a>
 
 🧠 **Analogy:** You're replacing the engine on a plane mid-flight. **Blue/green** = build a whole second plane (green), test it, then swap passengers over — instant rollback by switching back. **Canary** = move a few passengers first, watch, then move the rest. **Linear** = move passengers in equal groups every few minutes. **Rolling** = replace engines one at a time.
+
+> **Why (the rationale):** Deploying a new model version to 100% of traffic at once risks exposing all users to a degraded model before you can detect the problem. Progressive deployment strategies limit the blast radius while auto-rollback ensures problems are reversed automatically.
+> **When to use:** Blue/green when you want instant rollback capability and can afford to temporarily double compute capacity; canary when you want early warning from a small % of real users before full rollout; linear when you want the most granular, step-by-step control of traffic migration; all-at-once only for low-risk updates (config change, identical model architecture) in non-production environments.
+> **Nuances & gotchas:** Blue/green deployment temporarily **doubles the instance count** — budget for this capacity before initiating. The "baking period" is user-defined; if no CloudWatch alarm trips during this period, the deployment is automatically promoted (green becomes the new production). You must configure the CloudWatch alarm(s) to monitor BEFORE initiating a guardrailed deployment or auto-rollback cannot trigger. SageMaker deployment guardrails apply to **real-time and asynchronous endpoints only** — Batch Transform and serverless inference do not support deployment guardrails.
 
 **SageMaker "deployment guardrails"** update production endpoints safely with **auto-rollback** if CloudWatch alarms trip during a **baking period**. Two families: **blue/green** and **rolling**.
 
@@ -400,6 +460,12 @@ flowchart TD
 ## 3.3 Event-driven orchestration & automated retraining <a name="retraining"></a>
 
 🧠 **Plain English:** You want models to retrain and redeploy *automatically* — on a schedule, on new data arriving, or when the model drifts. **Amazon EventBridge** is the nervous system: it reacts to events (S3 upload, drift alarm, schedule, code commit) and triggers pipelines.
+
+> **Why (the rationale):** Models decay as the world changes (concept drift, data drift). Manual retraining cycles lag behind real-world changes by days or weeks. Automated event-driven retraining keeps models fresh without human intervention.
+> **When to use:** EventBridge rules for all automated triggers (schedule, S3 event, drift alarm, code commit); SageMaker Model Monitor to generate drift alarms that feed into EventBridge; CloudTrail events to audit who triggered pipelines and when; Lambda as the glue function between EventBridge events and downstream actions.
+> **Nuances & gotchas:** EventBridge rules match events by pattern — an overly broad pattern can trigger unintended pipeline runs. EventBridge has a maximum event payload of **256 KB**; larger payloads must be stored in S3 and passed by reference. Model Monitor alarms fire on a **schedule** (e.g., hourly), not in real-time — there is a latency between drift occurring and the alarm triggering. Automated retraining without a quality gate (evaluate the new model before deploying) can push a worse model to production if the retraining data was corrupted.
+
+⚙️ **Common exam patterns:**
 
 ```mermaid
 flowchart LR

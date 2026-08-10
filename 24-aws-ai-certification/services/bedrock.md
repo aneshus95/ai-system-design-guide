@@ -2,6 +2,10 @@
 
 Amazon Bedrock is a fully managed, serverless service that gives you a single API to access high-performing foundation models (FMs) from Amazon and leading AI companies, plus the building blocks (RAG, agents, guardrails, customization, evaluation) to build generative AI applications without managing any infrastructure.
 
+> **Why (the rationale):** You want to build a generative AI application but you don't want to procure GPUs, sign separate provider contracts, or build your own RAG/agent scaffolding. Bedrock gives you a single AWS API to many models plus all the GenAI building blocks — so you can go from idea to production-ready app without managing any infrastructure.
+> **When to use:** You see "serverless GenAI," "unified API to multiple foundation models," "managed RAG / agents / guardrails," "no infrastructure to manage," or "keep data private in my AWS account." Also the default when you need to build a *custom* GenAI application (vs Amazon Q, which is a ready-made one).
+> **Nuances & gotchas:** Bedrock is **not** a general ML training platform — it doesn't train models from scratch (that's SageMaker). Custom (fine-tuned) models on Bedrock **require Provisioned Throughput** to run inference; they cannot use on-demand pricing. On-demand pricing covers only the base model catalog. Bedrock is **regional** — a model available in us-east-1 may not be available in your preferred region; use **cross-region inference** for higher availability. Your prompts and data are **never used to train the base models** and are not shared with model providers by default.
+
 ## 🧠 Mental model
 
 Think of Bedrock as a **universal API socket for foundation models** — like a USB-C port for GenAI.
@@ -66,6 +70,10 @@ Key capabilities:
 
 ### Foundation models available (current catalog)
 
+> **Why (the rationale):** Instead of signing contracts and learning separate SDKs for each AI provider, Bedrock's catalog lets you swap models by changing a single `modelId` — same API, same security controls, same billing account.
+> **When to use:** Pick this layer when deciding which provider/model to call. Use the catalog for experimentation; use **Bedrock Marketplace** for specialized/niche models not in the standard catalog.
+> **Nuances & gotchas:** Model availability is **regional** — not every model is available in every AWS region. The exam does not require memorizing every model version; know the **providers** and that **Amazon Nova/Titan are AWS's own FMs**. The catalog expands frequently — treat version specifics as volatile.
+
 Bedrock offers a large and growing catalog (100+ models across 15+ providers). Core families you should know for the exam:
 
 | Provider | Representative models | Typical use |
@@ -80,6 +88,12 @@ Bedrock offers a large and growing catalog (100+ models across 15+ providers). C
 | **DeepSeek** and others | DeepSeek-R1 etc. | Reasoning models (catalog expands frequently) |
 
 > The exam does **not** require memorizing every model or version. Know the **providers**, that **Amazon Nova/Titan are AWS's own FMs**, and that the catalog is chosen via a single `modelId`. Also note the **Amazon Bedrock Marketplace**, which extends the catalog with 100+ specialized/emerging models you can deploy to managed endpoints.
+
+### Bedrock Knowledge Bases (managed RAG)
+
+> **Why (the rationale):** Building a RAG pipeline yourself means wiring up chunking, embedding, a vector store, retrieval, and citation tracking. Knowledge Bases does all of that for you — point it at S3, choose a vector store, and get grounded answers with citations.
+> **When to use:** "Add company documents so the model answers from them," "managed RAG," "citations," or "no RAG pipeline to build." Best when you want a quick, managed RAG solution without custom orchestration.
+> **Nuances & gotchas:** Knowledge Bases does **not** do NLP analysis on your text — it embeds and retrieves. You still need to choose and pay for the underlying vector store (OpenSearch Serverless used to have a ~$600+/month floor; S3 Vectors dramatically lowers that cost for read-heavy, low-update workloads but does **not** support hybrid search). Chunking configuration (chunk size, overlap) significantly affects retrieval quality — misconfigured chunking is the most common root cause of poor RAG answers.
 
 ### Vector stores for Knowledge Bases
 
@@ -99,6 +113,10 @@ Knowledge Bases can create/manage vectors for you, or connect to an existing sto
 Rule of thumb: **Build a GenAI app → Bedrock. Do heavy custom ML / own the endpoint → SageMaker. Just want a finished assistant → Amazon Q. Need total control → self-host.**
 
 ## Pricing model
+
+> **Why (the rationale):** Bedrock has multiple pricing modes so you can match cost structure to workload shape — pay per sip for experiments, buy bulk for batch, commit for steady high volume, and pay to store+serve your own tuned model.
+> **When to use:** On-demand for variable/exploratory; Batch for large non-urgent jobs; Provisioned Throughput for steady high-volume traffic or when running any custom (fine-tuned) model; Prompt caching when the same long system prompt is reused repeatedly.
+> **Nuances & gotchas:** **Provisioned Throughput is mandatory for custom models** — fine-tuned or continued pre-training models cannot run on on-demand pricing. Provisioned Throughput requires a 1-month or 6-month commitment (though at least one model unit is available without a long-term commitment). Batch inference sends results to S3 — not suitable for synchronous/low-latency needs. Prompt caching saves cost on repeated identical prefixes but adds a small cache-write charge.
 
 Bedrock is consumption-based. Don't memorize dollar figures (they change and vary by model/region) — know the **pricing dimensions** and when each applies:
 

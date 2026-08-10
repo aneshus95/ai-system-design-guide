@@ -75,6 +75,10 @@ flowchart LR
 
 ### Tokens & tokenization <a name="tokens"></a>
 
+> **Why (the rationale):** Tokenization converts text into a numeric representation the model can compute on, and enables a unified vocabulary across languages and character sets. Sub-word tokenization (like BPE) keeps vocabulary size tractable while handling rare or new words by splitting them into known sub-pieces.
+> **When to use:** You care about tokenization when designing for cost (longer prompts = more input tokens = higher bill), context limits (will my document fit?), and latency (more tokens = slower response).
+> **Nuances & gotchas:** Token count is NOT the same as word count — "tokenization" becomes ~3 tokens, not 1. Output tokens are typically priced 3–5× higher than input tokens in Bedrock on-demand pricing. The context window is measured in tokens (input + output combined), not just input — a large answer eats into space for the next prompt.
+
 **Plain English:** A model can't read letters or words directly. It first chops text into **tokens** — small chunks that are often whole words, but frequently *sub-words* or characters. A rough rule of thumb: **~1 token ≈ 0.75 English words**, or **~4 characters**.
 
 | Term | Meaning | Example |
@@ -88,6 +92,10 @@ flowchart LR
 > **Why tokens matter for the exam:** **Pricing is per token**, and separately for input vs output. Longer prompts and longer answers = more tokens = higher cost and higher latency. See [Cost tradeoffs](#cost-tradeoffs). Source: [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/).
 
 ### Embeddings & vectors <a name="embeddings"></a>
+
+> **Why (the rationale):** Embeddings solve the problem that traditional keyword search fails when the user's words don't match the document's words. By mapping both into the same semantic space, you can retrieve by *meaning* regardless of vocabulary mismatch — critical for RAG and enterprise search.
+> **When to use:** Any time you need similarity-based retrieval, semantic search, or clustering of text/images. Specifically required as the "encode" step in every RAG pipeline before storing chunks in a vector database.
+> **Nuances & gotchas:** Embedding models are task-specific — an embedding model optimized for retrieval (e.g., Titan Text Embeddings V2) is different from the generative LLM. You must embed queries and documents with the **same model** or cosine similarity scores are meaningless. Higher dimensions aren't always better — they increase storage and search latency; Titan V2 lets you choose 256/512/1024 to trade richness vs cost.
 
 **Plain English:** An **embedding** turns a token (or a whole sentence/document) into a list of numbers — a **vector** — that captures *meaning*. Words with similar meaning land close together in this numeric space; unrelated words land far apart. "King − Man + Woman ≈ Queen" is the classic intuition.
 
@@ -120,6 +128,10 @@ flowchart TB
 
 ### Chunking <a name="chunking"></a>
 
+> **Why (the rationale):** A whole document embedded as one vector loses fine-grained meaning — a 50-page PDF becomes a single averaged vector that retrieves poorly. Chunking creates many precise, retrievable units so only the most relevant passage lands in the prompt, saving tokens and improving answer accuracy.
+> **When to use:** Every RAG pipeline that ingests documents longer than a few paragraphs. Bedrock Knowledge Bases handles this automatically; you choose a strategy (fixed-size, semantic, or hierarchical).
+> **Nuances & gotchas:** Chunk size is a tuning parameter — too small loses context (a sentence without its paragraph is ambiguous), too large dilutes relevance and wastes context-window tokens. Chunk *overlap* (repeating the last N tokens of one chunk at the start of the next) is common to preserve boundary context but increases storage. Chunking does NOT change model weights — it only affects retrieval quality.
+
 **Plain English:** Big documents don't fit in one embedding (or one context window). **Chunking** splits a long document into smaller passages *before* embedding, so each chunk becomes its own vector. When a user asks a question, you retrieve only the most relevant chunks. This is a core step in **Retrieval-Augmented Generation (RAG)**.
 
 ```mermaid
@@ -134,6 +146,10 @@ flowchart LR
 - **On AWS**, **Amazon Bedrock Knowledge Bases** handles chunking, embedding, storage, and retrieval for you (fixed-size, semantic, hierarchical chunking options).
 
 ### Transformers & self-attention <a name="transformers"></a>
+
+> **Why (the rationale):** RNNs processed tokens sequentially, creating a bottleneck and losing long-range context. Transformers process all tokens *in parallel* via self-attention, which lets every token directly attend to every other regardless of distance — enabling both faster training on GPUs and far better handling of long documents.
+> **When to use:** The transformer architecture is the default for any language, vision, or multimodal large model today. You select it by choosing a modern LLM (Claude, Llama, Titan) — you don't implement it yourself.
+> **Nuances & gotchas:** Self-attention scales quadratically with sequence length (doubling tokens quadruples attention cost), which is why context windows have limits — though modern efficiency techniques (e.g., flash attention, sparse attention) raise practical limits significantly. "Attention" in the transformer sense is NOT the same as "attention span" — it's a learned weighting mechanism, not a human-like focus.
 
 **Plain English:** The **transformer** is the neural-network architecture behind virtually every modern LLM (the "T" in GPT = Transformer). Its superpower is **self-attention**: when processing each token, the model *looks at every other token* and decides which ones matter for meaning. That's how it resolves "it" → the right noun, or picks the right meaning of "bank" (river vs money) from surrounding words.
 
@@ -207,6 +223,10 @@ flowchart LR
 
 ### Agentic AI, MCP & multi-agent patterns <a name="agentic"></a>
 
+> **Why (the rationale):** A raw LLM can only produce text — it cannot query a live database, send an email, or check today's weather. Wrapping it in an agent loop with tool use enables real-world actions, turning a chatbot into an autonomous assistant that actually completes tasks rather than just describing how.
+> **When to use:** Use agents when the task requires multiple steps, real-time data retrieval, calling external APIs, or maintaining state across turns. For single-turn Q&A over documents, RAG alone (without agents) is simpler and cheaper.
+> **Nuances & gotchas:** Agents are non-deterministic — the same goal can produce different action sequences each run. More steps = more latency and cost. Agents can "hallucinate" which tool to call or what parameters to pass; action groups must validate inputs before executing. MCP is a *protocol* specification, not an AWS service — AWS supports it but you must provision the MCP servers.
+
 **Plain English:** An **AI agent** is an FM that can *act*, not just chat — it can call **tools/APIs**, remember state (**memory**), and take multiple steps to reach a goal (**workflow orchestration**). **Agentic AI** is building systems out of one or more such agents.
 
 | Concept | Plain English |
@@ -255,6 +275,10 @@ flowchart LR
 ---
 
 ## The foundation model lifecycle <a name="fm-lifecycle"></a>
+
+> **Why (the rationale):** Unlike a traditional ML model you train once and deploy, an FM goes through a multi-stage lifecycle because its general capabilities (pre-training) and task-specific behavior (fine-tuning) require different data, teams, and compute profiles. Understanding the lifecycle determines where *you* intervene vs where the model provider does.
+> **When to use:** As a practitioner, your entry point is almost always *after* pre-training — you choose an existing FM, optionally fine-tune it, evaluate it, and deploy it. You touch the lifecycle at stages 4–7; stages 1–3 belong to providers like Anthropic or Amazon.
+> **Nuances & gotchas:** "Fine-tuning" and "pre-training" are NOT interchangeable — pre-training learns language from scratch on unlabeled data; fine-tuning adapts behavior using labeled prompt/completion pairs. The feedback stage (stage 7) feeds back to fine-tuning, not pre-training — you don't re-run pre-training when production behavior drifts. Evaluation must happen *before* deployment, not only after.
 
 **Plain English:** An FM isn't "trained once and done." It moves through a lifecycle: pick data → pick a model → pre-train (huge, expensive, usually done by the model provider) → fine-tune/adapt → evaluate → deploy → gather feedback → improve. Know the **order**; ordering-type questions love this.
 
@@ -359,6 +383,10 @@ flowchart TB
 
 ### Bedrock, SageMaker JumpStart, PartyRock, Amazon Q & the agent stack <a name="aws-services"></a>
 
+> **Why (the rationale):** These services occupy different rungs of the control-vs-convenience ladder. Bedrock maximizes convenience (serverless FMs, no infrastructure); JumpStart gives you control over deployment and customization while staying within the SageMaker ecosystem; Amazon Q is a fully assembled assistant so you don't build at all.
+> **When to use:** Bedrock → building a new GenAI application that needs flexibility across multiple FM providers with no infrastructure management. JumpStart → you need a self-hosted endpoint or fine-grained control over a specific open-source model. Amazon Q Business → enterprise knowledge assistant over your own documents without writing application code. PartyRock → learning/demos only.
+> **Nuances & gotchas:** Amazon Bedrock and SageMaker JumpStart can both serve FMs, but Bedrock is serverless (no instances to provision) while JumpStart deploys to SageMaker real-time endpoints (you manage instance type and scaling). PartyRock apps are public and intended for demos — do NOT put sensitive data in PartyRock. Amazon Q Developer (coding) and Amazon Q Business (enterprise docs) are separate products under the Q brand with different pricing.
+
 **Plain English:** AWS gives you a ladder — from *no-code playground* up to *full model control*. Pick the lowest rung that meets your need.
 
 ```mermaid
@@ -416,6 +444,10 @@ Sources: [SageMaker JumpStart foundation models](https://docs.aws.amazon.com/sag
 > **Exam reflex:** "Block toxic content / PII / off-topic answers from a GenAI app" → **Amazon Bedrock Guardrails**. "Who secures what?" → **shared responsibility model** (AWS secures the cloud; you secure what you put in it). Detail in Domain 5 — `05-security-compliance-and-governance.md`.
 
 ### Cost tradeoffs: token pricing & provisioned throughput <a name="cost-tradeoffs"></a>
+
+> **Why (the rationale):** On-demand token pricing has zero commitment and zero idle cost, making it ideal when volume is uncertain. Provisioned Throughput trades a fixed hourly fee for guaranteed capacity and consistent latency — the economics flip positive only at high sustained volume where on-demand costs would exceed the reservation cost.
+> **When to use:** On-demand → variable, low, or spiky workloads; prototyping; models you haven't committed to yet. Provisioned Throughput → steady high volume, SLA on latency, or you have a custom (fine-tuned) model (which *requires* PT). Batch inference → large offline jobs with no latency requirement, ~50% cost savings.
+> **Nuances & gotchas:** Provisioned Throughput is billed **by the hour whether or not you use it** — idle capacity still costs money. Custom/fine-tuned models CANNOT be invoked on-demand; they require Provisioned Throughput, which significantly raises the break-even volume. Longer output responses cost more than shorter ones — trimming max tokens is often the fastest cost reduction lever.
 
 **Plain English:** GenAI cost is driven mostly by **tokens** and by **how you buy capacity**. You balance cost against **responsiveness, availability, redundancy, performance, and regional coverage**.
 

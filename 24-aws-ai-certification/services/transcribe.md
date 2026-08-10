@@ -4,6 +4,10 @@ Amazon Transcribe is AWS's fully managed **automatic speech recognition (ASR)** 
 
 > **The one reflex:** *If you see "speech-to-text" / "audio → text" / "transcribe a call or meeting" → **Amazon Transcribe**.*
 
+> **Why (the rationale):** Transcribe is a fully managed ASR service that converts audio to text (word-level timestamps, speaker labels, confidence scores) with no ML training required. It is the opposite direction of Polly (text→speech); it does NOT understand meaning — that is Comprehend's job downstream.
+> **When to use:** Any scenario where you need audio converted to text: call recordings, meetings, medical dictation, live captions, contact-center analytics. Signal: "transcribe," "speech to text," "captions," "audio → text," "who said what."
+> **Nuances & gotchas:** Transcribe outputs text — it does NOT analyze sentiment, extract entities, or summarize; chain with Comprehend or Bedrock for that. Translation is also NOT Transcribe's job — chain with Amazon Translate. Batch (from S3) is generally more accurate than streaming; streaming has higher per-minute cost. Medical/clinical use requires Transcribe Medical (not standard Transcribe) for HIPAA eligibility. Billing is per second of audio with a 15-second minimum per request.
+
 ## 🧠 Mental model
 
 Think of Transcribe as a **tireless court stenographer in the cloud**. You feed it audio (a recorded meeting, a live phone call, a doctor's dictation) and it types out every word, notes *who* said it, timestamps each word, and can black out sensitive information (like a redacting clerk) before handing you the transcript. It doesn't understand *meaning* — that's Comprehend's job — it just faithfully writes down what was said.
@@ -29,14 +33,26 @@ flowchart LR
 
 ## What it does
 
+> **Why (the rationale):** Batch gives highest accuracy and handles larger files with all features available; streaming gives low-latency partial transcripts for real-time use cases like live captions or agent assist during a call.
+> **When to use:** Batch → recorded call archives, meeting recordings, accuracy-critical workflows. Streaming → live agent assist, real-time subtitles, voice bots that need the text mid-utterance.
+> **Nuances & gotchas:** Streaming transcription costs ~1.7× more per minute than batch. Some advanced features (custom language model, certain diarization options) are batch-only. Streaming uses HTTP/2 or WebSocket bidirectional streams — it is NOT a simple REST call.
+
 **Core ASR**
 - **Batch transcription** — process recorded audio stored in Amazon S3. `$0.006/min` (standard). Best for accuracy, large files, and features that need the whole file.
 - **Real-time streaming transcription** — transcribe live audio over HTTP/2 or WebSocket with low latency (for live captions, live agent assist). `$0.01/min` (standard).
+
+> **Why (the rationale):** Standard ASR struggles with domain jargon, product names, and acronyms. Custom vocabulary is a free quick fix; CLMs are heavier but give deeper accuracy gains for specialized domains.
+> **When to use:** Custom vocabulary → brand names, acronyms, medical/legal terms spelled correctly with minimal effort. CLM → highly technical domains (legal transcripts, scientific papers) where a word list isn't enough; requires a text corpus for training.
+> **Nuances & gotchas:** Custom vocabulary is FREE to use (no per-minute add-on). CLMs incur an extra per-minute charge when applied to a job and take time to train. Vocabulary filtering (profanity masking) is also free. You CANNOT use a CLM and custom vocabulary simultaneously on the same job — CLM is the higher-investment option that subsumes vocabulary needs.
 
 **Accuracy customization**
 - **Custom vocabulary** — a list of domain terms, product names, acronyms, or jargon so Transcribe spells them correctly. Lightweight; good first step.
 - **Custom Language Models (CLM)** — train a model on a **corpus of domain text** (e.g., legal, scientific, medical) for deeper accuracy gains than a vocabulary list. Only billed when applied to a job.
 - **Vocabulary filtering** — mask, remove, or flag unwanted words (e.g., profanity).
+
+> **Why (the rationale):** Single-channel recordings from meetings need diarization to label who spoke when; two-channel call recordings (agent/customer on separate tracks) need channel identification to get a per-party transcript.
+> **When to use:** Diarization → meeting/interview recordings on one audio track where you want "spk_0 said X, spk_1 said Y." Channel identification → contact-center call recordings where agent and customer are on separate audio channels.
+> **Nuances & gotchas:** These are mutually exclusive features — you enable one or the other, not both. Channel identification bills a two-channel file as ONE stream (not two). Diarization is available in both batch and streaming, but speaker label accuracy degrades with many overlapping speakers.
 
 **Speaker / channel handling**
 - **Speaker diarization (partitioning)** — labels *who spoke when* on a **single-channel** recording (`spk_0`, `spk_1`, …). Use for meetings/interviews recorded on one track.
@@ -48,6 +64,10 @@ flowchart LR
 **Privacy & moderation**
 - **PII redaction (Automatic Content Redaction)** — identifies and redacts personally identifiable information (names, SSNs, card numbers) in the transcript.
 - **Toxicity detection** — flags toxic speech in audio (harassment, hate, threats) for moderation of gaming / social / peer-to-peer audio.
+
+> **Why (the rationale):** Transcribe Medical is HIPAA-eligible and trained on clinical vocabulary; Transcribe Call Analytics bundles contact-center analytics (sentiment, categories, summaries) so you don't need to manually pipe transcripts through Comprehend; HealthScribe goes further to produce structured clinical notes from clinician-patient conversations.
+> **When to use:** Transcribe Medical → any healthcare/clinical dictation that must be HIPAA-eligible. Call Analytics → contact-center call-quality monitoring, coaching, compliance categorization. HealthScribe → automating clinical documentation workflows.
+> **Nuances & gotchas:** Standard Transcribe is NOT HIPAA-eligible for PHI — you must use Transcribe Medical for protected health information. Call Analytics is priced at ~5× the standard batch rate per minute. Real-time Call Analytics adds generative AI summarization as a separate add-on charge. HealthScribe is a separate service built on top of Transcribe, not a Transcribe feature flag.
 
 **Specialized / higher-level offerings**
 - **Amazon Transcribe Medical** — HIPAA-eligible medical ASR for clinical dictation and conversations; batch (Primary Care) and streaming (adds Cardiology, Neurology, Oncology, Radiology, Urology). `~$0.075/min`.

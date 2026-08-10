@@ -70,6 +70,10 @@ graph LR
   DB1 <-->|"Sync replication"| DB2["RDS Standby\n(AZ-2)"]
 ```
 
+> **Why (the rationale):** Multi-AZ eliminates a single data center as a single point of failure; when one AZ goes down, traffic is already served by instances or promoted standby in other AZs — no manual intervention needed.
+> **When to use:** Every production workload. Placing compute and/or database resources in ≥ 2 AZs is the baseline for any HA architecture on AWS.
+> **Nuances & gotchas:** Multi-AZ gives HA *within* a single Region — it does NOT protect against a regional outage. For cross-region DR you need a separate DR strategy (Pilot Light, Warm Standby, or Multi-Site). Active-passive (e.g., RDS Multi-AZ standby) means the standby is NOT serving traffic until failover — it is not a read scaling solution.
+
 - **Active-active:** All AZs serve traffic simultaneously (e.g., EC2 behind ALB across 3 AZs).
 - **Active-passive (standby):** Primary AZ serves traffic; standby AZ takes over on failure (e.g., RDS Multi-AZ standby instance).
 - **Best practice:** Spread ASG `min`, `desired`, and `max` values across all AZs in a region; use ELB to route only to healthy targets.
@@ -80,12 +84,20 @@ graph LR
 
 An Auto Scaling Group maintains a fleet of EC2 instances, automatically launching or terminating them to meet demand and replace unhealthy instances.
 
+> **Why (the rationale):** ASG removes the manual work of provisioning capacity and adds self-healing — unhealthy instances are automatically terminated and replaced, eliminating the instance as a SPOF.
+> **When to use:** Any EC2-based workload where you want fault tolerance, automatic right-sizing, or the ability to absorb traffic spikes without manual intervention.
+> **Nuances & gotchas:** ASG by default uses only EC2 status checks — if the app is broken but the EC2 instance is "running", ASG won't replace it. You must explicitly enable ELB health checks on the ASG to catch application-layer failures. The `HealthCheckGracePeriod` must be longer than your instance boot+initialization time or ASG will terminate brand-new instances before they're ready.
+
 Sources: [EC2 Auto Scaling User Guide](https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html)
 
 #### Scaling Policy Types
 
 | Policy Type | How it works | Best for |
 |---|---|---|
+> **Why (the rationale):** Different workload shapes need different scaling reactions. Target tracking is the simplest "set and forget"; step/simple give explicit control; scheduled and predictive handle known future demand.
+> **When to use:** Target tracking for most workloads; scheduled when traffic patterns are predictable (e.g., business hours); predictive for recurring cyclical patterns; step scaling when you need proportional response to alarm severity.
+> **Nuances & gotchas:** Simple Scaling is legacy — it has a mandatory cooldown period that can leave you under-scaled during rapid ramp. Simple and step scaling both require CloudWatch alarms; target tracking creates and manages the alarms automatically. Predictive scaling only scales *out* proactively — it relies on dynamic scaling (target tracking) to scale *in*.
+
 | **Target Tracking** | Set a target metric value (e.g., CPU = 50%); ASG adds/removes instances to maintain it — like a thermostat | Most workloads; AWS recommends as default |
 | **Step Scaling** | Define step adjustments: breach by X → add Y instances, breach by X+10 → add Y+Z instances | Workloads needing proportional response to alarm severity |
 | **Simple Scaling** | One scaling adjustment per alarm breach; has a cooldown period | Legacy; AWS recommends target tracking instead |
@@ -154,6 +166,10 @@ Sources: [Lifecycle hooks](https://docs.aws.amazon.com/autoscaling/ec2/userguide
 
 ELB automatically distributes incoming traffic across multiple targets (EC2, containers, Lambda, IPs) in one or more AZs.
 
+> **Why (the rationale):** ELB is the front door of Multi-AZ HA — it routes only to healthy targets and removes the need to update DNS or client configs when an instance fails or is added.
+> **When to use:** Any multi-instance application. ALB for HTTP/HTTPS microservices; NLB for TCP/UDP or when a static IP is required; GWLB when traffic must pass through a network security appliance.
+> **Nuances & gotchas:** ALB cross-zone load balancing is always on and free; NLB and GWLB have it off by default and charge for cross-zone traffic if enabled. NLB does not re-use existing connections on deregistration — it terminates them. You cannot assign an Elastic IP to an ALB (only NLB). CLB is legacy — never pick it for a new design.
+
 Sources: [ELB User Guide](https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html)
 
 #### Load Balancer Comparison
@@ -201,9 +217,17 @@ Target groups route requests to registered targets (EC2 instances, IPs, Lambda, 
 
 Amazon Simple Queue Service — a fully managed message queue for decoupling distributed components.
 
+> **Why (the rationale):** SQS absorbs bursts between producers and consumers so a slow or failing consumer doesn't block or crash the producer — the queue acts as a durable buffer.
+> **When to use:** Any time a producer and consumer should be decoupled, scale independently, or process at different rates. Also use when the consumer needs to pull work at its own pace.
+> **Nuances & gotchas:** SQS is **pull-based** — consumers poll for messages; it does NOT push. For push behavior, pair SNS with SQS or use Lambda event source mapping. Standard queues are at-least-once delivery and best-effort ordering — design consumers to be idempotent. FIFO guarantees exactly-once and strict order but throughput is capped (300 TPS base, up to 70,000 TPS with high-throughput mode and batching). A message that is being processed is hidden (visibility timeout) but NOT deleted — the consumer must explicitly delete it after successful processing.
+
 Sources: [SQS Developer Guide](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html) · [SQS vs SNS vs EventBridge decision guide](https://docs.aws.amazon.com/pdfs/decision-guides/latest/sns-or-sqs-or-eventbridge/sns-or-sqs-or-eventbridge.pdf)
 
 #### Standard vs FIFO Queue
+
+> **Why (the rationale):** Standard queues maximize throughput at the cost of ordering guarantees. FIFO queues sacrifice throughput for strict ordering and deduplication — use when message order matters (e.g., financial state transitions, command sequences).
+> **When to use:** Standard — general decoupling, high-throughput, idempotent consumers. FIFO — ordered workflows, financial transactions, deduplication requirements.
+> **Nuances & gotchas:** FIFO queue names must end in `.fifo`. Standard delivers at-least-once (duplicates possible); FIFO is exactly-once within a 5-minute deduplication window. FIFO throughput limits are per MessageGroupId — you can parallelize by using multiple message groups. Standard queues cannot be converted to FIFO after creation.
 
 | Feature | **Standard Queue** | **FIFO Queue** |
 |---|---|---|
@@ -258,6 +282,10 @@ graph LR
 
 Amazon Simple Notification Service — a fully managed pub/sub messaging service for fan-out notifications.
 
+> **Why (the rationale):** SNS solves the "one event, many consumers" problem — a publisher sends one message and SNS delivers a copy to every subscriber simultaneously, without the publisher knowing who those subscribers are.
+> **When to use:** Fan-out patterns (e.g., order placed → notify inventory, shipping, analytics simultaneously); sending alerts or notifications across multiple channels (email, SMS, Lambda, SQS) from a single publish action.
+> **Nuances & gotchas:** SNS is **push-based** — it pushes to subscribers immediately; there is no buffering. If a subscriber (e.g., an HTTP endpoint) is down, the message is lost unless you use SNS → SQS fan-out (SQS provides the durability buffer). SNS does NOT guarantee message ordering unless you use FIFO topics (which require SQS FIFO subscribers). SNS message size limit is 256 KB. Filter policies apply per subscription — unmatched messages are silently dropped for that subscriber.
+
 Sources: [SNS Developer Guide](https://docs.aws.amazon.com/sns/latest/dg/welcome.html)
 
 #### Core Concepts
@@ -299,6 +327,10 @@ graph TD
 
 Amazon EventBridge — a serverless event bus that routes events from AWS services, SaaS apps, and custom apps to targets.
 
+> **Why (the rationale):** EventBridge decouples event producers from consumers at the routing level — the producer emits an event and EventBridge rules decide what to do with it, without the producer knowing which consumers exist. It also natively ingests events from ~200 AWS services and SaaS partners.
+> **When to use:** Routing AWS service events (EC2 state changes, S3 PutObject, CodePipeline status); SaaS integrations; content-based routing with fine-grained JSON pattern matching; replacing scheduled cron EC2 instances with EventBridge Scheduler.
+> **Nuances & gotchas:** EventBridge is NOT a durable queue — if a target is unavailable, events can be lost (configure a DLQ on the rule to capture failed deliveries). The default event bus receives AWS service events automatically; custom and partner buses are separate. EventBridge event delivery is at-least-once — design targets idempotently. SNS is simpler and lower-latency for pure fan-out; choose EventBridge when you need content-based filtering or SaaS/AWS service event sources.
+
 Sources: [EventBridge User Guide](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html)
 
 #### Key Concepts
@@ -339,6 +371,10 @@ flowchart TD
 
 Fully managed workflow orchestration service for coordinating multi-step distributed applications.
 
+> **Why (the rationale):** Step Functions replaces fragile, hand-coded "glue" Lambda chains with a visual, auditable state machine that handles retries, error catching, parallelism, and human approval steps as first-class constructs.
+> **When to use:** Multi-step workflows where you need visibility into execution state, built-in retry/catch logic, long-running processes (up to 1 year), or human-in-the-loop approvals. Order processing, ETL pipelines, ML training workflows.
+> **Nuances & gotchas:** Standard workflows execute exactly-once but are limited to 1 year; Express workflows support high throughput (100,000/s) but are at-least-once and max 5 minutes. Express workflows do NOT have execution history in the console — use CloudWatch Logs. Step Functions is an orchestrator — it calls services; it does NOT buffer messages like SQS or route events like EventBridge. Execution history for Standard workflows is stored for 90 days.
+
 Sources: [Step Functions Developer Guide](https://docs.aws.amazon.com/step-functions/latest/dg/welcome.html)
 
 | Feature | Detail |
@@ -357,6 +393,10 @@ Sources: [Step Functions Developer Guide](https://docs.aws.amazon.com/step-funct
 ### 2.5 Amazon MQ
 
 Managed message broker service supporting standard protocols.
+
+> **Why (the rationale):** Amazon MQ is the migration path for on-premises applications that rely on standard messaging protocols (JMS, AMQP, MQTT, STOMP, OpenWire) — you get a managed broker without rewriting application code to use SQS/SNS APIs.
+> **When to use:** Lift-and-shift of existing on-premises message broker workloads (ActiveMQ or RabbitMQ) to AWS without code changes. If building a new cloud-native application, use SQS/SNS instead.
+> **Nuances & gotchas:** Amazon MQ does NOT scale as elastically as SQS — it runs on dedicated broker instances (single-instance or active/standby pair). SQS/SNS have virtually unlimited throughput and zero infrastructure management; Amazon MQ throughput is bounded by broker instance size. Amazon MQ HA is active/standby across two AZs — there is a brief failover window (~1 min). Amazon MQ is NOT serverless.
 
 Sources: [Amazon MQ User Guide](https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/welcome.html) · [SQS vs SNS vs MQ comparison](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html#sqs-difference-from-amazon-mq-sns)
 
@@ -402,6 +442,10 @@ Sources: [Amazon MQ User Guide](https://docs.aws.amazon.com/amazon-mq/latest/dev
 
 Lower RPO and RTO = less risk, but more cost. DR strategy selection is fundamentally a cost-vs-risk trade-off.
 
+> **Why (the rationale):** RPO and RTO are the two axes of every DR decision — they translate a business requirement ("we can't lose more than 1 hour of transactions") into a concrete technical constraint that determines which DR strategy and replication mechanism to implement.
+> **When to use:** Define RPO and RTO *before* choosing a DR strategy. The exam will give you an RPO/RTO target and expect you to select the right strategy from Backup & Restore → Pilot Light → Warm Standby → Multi-Site.
+> **Nuances & gotchas:** RPO is about *data* (replication frequency, backup interval); RTO is about *systems* (time to restore or failover). A low RPO requires continuous replication (e.g., Aurora Global Database, DynamoDB Global Tables, Elastic DR block replication). A low RTO requires pre-deployed infrastructure in the DR region — you cannot achieve minutes RTO if you have to restore from S3 backups and redeploy from scratch. They are independent — you can have low RPO but high RTO (data is synced but systems take time to start).
+
 Sources: [Disaster Recovery of Workloads on AWS whitepaper](https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html)
 
 ---
@@ -428,7 +472,15 @@ graph LR
 | **Warm Standby** | Seconds | Minutes | Medium–high | Scaled-down but fully functional copy always running | Scale up to production capacity |
 | **Multi-Site Active/Active** | Near-zero | Near-zero | Highest | Full production in all regions, serving live traffic | Traffic re-weighting; no traditional failover needed |
 
+> **Why (the rationale):** The four strategies form a cost/recovery-speed spectrum. Choosing the right one balances what a business is willing to pay against how much downtime and data loss is acceptable.
+> **When to use:** Match the strategy to the RTO/RPO target: hours/hours → Backup & Restore; minutes/hours → Pilot Light; minutes/minutes → Warm Standby; near-zero/near-zero → Multi-Site Active/Active.
+> **Nuances & gotchas:** The exam often gives you an RTO or RPO target and expects you to eliminate options. Key eliminators: Backup & Restore RTO is measured in hours (manual restoration + redeploy); Pilot Light still requires "switching on" compute during failover (minutes of boot time); Warm Standby can take traffic immediately but at reduced capacity until ASG scales up; Multi-Site is the only option where no failover event occurs — traffic is simply re-weighted. Higher cost ≠ always better — use the cheapest strategy that meets the stated RTO/RPO.
+
 #### 3.2.1 Backup & Restore
+
+> **Why (the rationale):** Cheapest DR option — no resources running in the DR region. Suitable when the business can tolerate hours of downtime and some data loss.
+> **When to use:** Non-critical workloads, dev/test environments, or situations where cost is the primary constraint and RTO of hours is acceptable.
+> **Nuances & gotchas:** Restoration is a control plane operation — if AWS is having a broad control-plane issue during the disaster, restoring from S3/Glacier and redeploying via CloudFormation may take longer than the RTO suggests. Test your restoration runbook regularly — untested backups are not a DR strategy. S3 Glacier retrievals can take minutes (Expedited) to hours (Standard/Bulk) — factor retrieval time into your RTO calculation.
 
 - Periodic snapshots (EBS snapshots, RDS snapshots, DynamoDB backups) stored in S3 or AWS Backup.
 - AMIs copied to DR region.
@@ -437,6 +489,10 @@ graph LR
 
 #### 3.2.2 Pilot Light
 
+> **Why (the rationale):** Data is always synced to DR so RPO is low (seconds to minutes), but compute is "dark" (not running) so cost is minimal compared to Warm Standby or Multi-Site.
+> **When to use:** When RPO must be low (data always current) but you can tolerate an RTO of tens of minutes while compute boots and the database is promoted. Good for tier-2 workloads.
+> **Nuances & gotchas:** Pilot Light RTO is NOT instant — you still need to boot EC2 instances, configure them, and promote a read replica to primary before traffic can flow. AWS Elastic Disaster Recovery (block-level replication) is the primary service that implements this pattern. The "pilot light" is only the data tier; the application tier must be started manually or via automation on failover.
+
 - Continuous data replication to DR region (S3 CRR, RDS cross-region read replica, Aurora Global Database, DynamoDB Global Tables).
 - Application servers not deployed; AMIs pre-staged.
 - On failover: deploy compute via CloudFormation, promote DB read replica to primary.
@@ -444,12 +500,20 @@ graph LR
 
 #### 3.2.3 Warm Standby
 
+> **Why (the rationale):** A small but live version of the system runs in the DR region at all times, so failover is fast (no boot time) — just redirect traffic and scale up ASG to full production capacity.
+> **When to use:** When RTO must be in the single-digit minutes range and some ongoing DR cost is acceptable. Tier-1 workloads where hours of downtime is unacceptable but full Multi-Site cost cannot be justified.
+> **Nuances & gotchas:** "Warm" means servers are *running* but at reduced capacity (e.g., minimum 1 instance in ASG vs. production's 10). Traffic can be served immediately at reduced throughput; ASG then scales to full capacity (which may take several minutes). This is the key distinction from Pilot Light: Pilot Light = servers are OFF; Warm Standby = servers are ON (small). Don't forget to update the DR region's ASG `MaxSize` to production scale before or during failover.
+
 - A **scaled-down but fully functional** copy of production runs in the DR region.
 - Difference from pilot light: warm standby can **immediately handle traffic at reduced capacity** without "switching on" servers.
 - On failover: Route 53 / Global Accelerator shifts traffic; Auto Scaling scales up to full production capacity.
 - **Pilot light vs Warm Standby mnemonic:** Pilot light = servers off, only data lives there. Warm standby = servers running (small fleet), data there, just scale up.
 
 #### 3.2.4 Multi-Site Active/Active
+
+> **Why (the rationale):** No traditional failover event — all regions serve live traffic simultaneously, so a regional failure causes only a traffic re-weighting, not a recovery operation. Achieves near-zero RTO and RPO.
+> **When to use:** Mission-critical workloads where any downtime is unacceptable (financial trading platforms, global e-commerce, safety-critical applications) and the business can justify the highest infrastructure cost.
+> **Nuances & gotchas:** Multi-Site eliminates infrastructure RTO/RPO but does NOT protect against data corruption or logical errors — you still need PITR and backups for that. Write conflicts across regions are a real challenge: Aurora Global Database uses a single-region writer (avoids conflict but requires write-forwarding latency); DynamoDB Global Tables uses last-writer-wins (can lose data on concurrent writes). Full production in multiple regions means you pay full price for each region. Health check TTLs and DNS propagation still add seconds to a "near-zero" RTO.
 
 - Full production in 2+ regions simultaneously; users served from nearest/healthiest region.
 - No traditional failover — if a region fails, traffic is re-weighted (Route 53 weighted/latency policy or Global Accelerator traffic dial).
@@ -476,6 +540,10 @@ Sources: [AWS DR Options whitepaper](https://docs.aws.amazon.com/whitepapers/lat
 
 Centralized, policy-based backup service for AWS resources.
 
+> **Why (the rationale):** AWS Backup replaces per-service manual snapshot management with a single policy-driven control plane — one place to define backup frequency, retention, cross-region copies, and compliance reporting across all supported services.
+> **When to use:** Any workload that needs centralized backup governance, cross-account/cross-region backup copies, or compliance evidence (PCI, HIPAA). Also use Vault Lock when backups must be immutable (WORM) to protect against ransomware.
+> **Nuances & gotchas:** AWS Backup restores are NOT automatic — a backup plan creates backups, but restoring them requires a separate restore action triggered manually or via automation (e.g., SNS + Lambda). AWS Backup does NOT protect against data corruption in real time — it creates periodic snapshots. Vault Lock must be set within the "grace period" after vault creation; once the lock mode transitions to compliance mode, even AWS cannot delete it. Not all services support all features (e.g., EFS backup requires EFS-native backup or AWS Backup agent).
+
 Sources: [AWS Backup Developer Guide](https://docs.aws.amazon.com/aws-backup/latest/devguide/whatisbackup.html)
 
 | Feature | Detail |
@@ -495,6 +563,10 @@ Sources: [AWS Backup Developer Guide](https://docs.aws.amazon.com/aws-backup/lat
 
 Sources: [AWS Elastic Disaster Recovery](https://aws.amazon.com/disaster-recovery/)
 
+> **Why (the rationale):** Elastic DR continuously replicates entire servers at the block level into a lightweight staging area, so when disaster strikes you can spin up full recovery instances in minutes from the staged volumes — without the long restore times of snapshot-based approaches.
+> **When to use:** On-premises to AWS DR for server workloads; cross-region EC2 DR at the OS/app level (not for RDS-managed databases). When you need RPO of seconds and RTO of minutes for server workloads with minimal ongoing compute cost.
+> **Nuances & gotchas:** Elastic DR implements the Pilot Light strategy — the staging area (lightweight replication servers + EBS volumes) costs far less than running full instances. Full recovery instances only launch during a drill or actual failover. It replicates at the block level, so it captures the OS, apps, and all data — but it is NOT a substitute for application-level DR (e.g., database-level failover for RDS should use RDS Multi-AZ or cross-region replicas, not Elastic DR). Elastic DR is for EC2-style workloads, not managed services.
+
 - Continuously replicates **server-hosted applications** using **block-level replication** into AWS (or between AWS regions).
 - Maintains a staging area in a VPC with lightweight replication servers and EBS volumes.
 - On failover: spins up full-capacity recovery instances from the staged volumes in the target VPC.
@@ -513,6 +585,10 @@ Sources: [AWS Elastic Disaster Recovery](https://aws.amazon.com/disaster-recover
 ### 4.1 Route 53 Routing Policies
 
 Amazon Route 53 is AWS's authoritative DNS service. Routing policies determine how Route 53 responds to DNS queries.
+
+> **Why (the rationale):** Route 53 routing policies let you implement traffic management decisions at the DNS layer — before a single packet hits your infrastructure — enabling failover, geographic compliance, latency optimization, and blue/green deployments without code changes.
+> **When to use:** Any multi-region or multi-endpoint deployment. Failover routing for active-passive DR; latency routing for global apps; weighted routing for gradual deployments; geolocation for regulatory data residency requirements.
+> **Nuances & gotchas:** A CNAME record CANNOT sit at the zone apex (e.g., `example.com`) — use an **Alias record** (Route 53-specific) to point a zone apex to an ELB, CloudFront, or S3 website endpoint. Alias records are free; CNAME lookups count as queries. Route 53 TTL is critical during failover — a high TTL (e.g., 300 s) means DNS caches ignore the new record for up to 5 minutes after failover. Failover routing REQUIRES a health check on the primary record — without it, Route 53 will never fail over. Geolocation routing requires a "default" record for IPs that don't match any geographic rule; without it, those users get NXDOMAIN.
 
 Sources: [Route 53 routing policy docs](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html)
 
@@ -545,6 +621,10 @@ graph TD
 ### 4.2 Health Checks & DNS Failover
 
 Route 53 health checks monitor endpoint health and can trigger automatic DNS failover.
+
+> **Why (the rationale):** Health checks are the mechanism that makes Route 53 failover routing actually work — without them, Route 53 always returns the primary record regardless of whether the endpoint is up.
+> **When to use:** Always pair a health check with failover routing records. Use Calculated health checks to aggregate multiple component health checks. Use CloudWatch alarm-based health checks for private (VPC-internal) resources that public Route 53 health checkers cannot reach.
+> **Nuances & gotchas:** Route 53 health checkers are public — they cannot check private VPC endpoints directly. For private resources, use a CloudWatch alarm-based health check (alarm triggers → Route 53 marks the record unhealthy). Health check interval is 10 s (fast) or 30 s (standard); fast health checks cost more. The DNS TTL determines how quickly DNS clients see the failover after Route 53 changes the record — keep TTL at 60 s or less for failover records. After the primary recovers, Route 53 will fail BACK automatically once the health check passes.
 
 Sources: [Route 53 health checks](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html)
 
@@ -579,6 +659,10 @@ Sources: [Route 53 health checks](https://docs.aws.amazon.com/Route53/latest/Dev
 
 Sources: [RDS Multi-AZ](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html) · [RDS Read Replicas](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html)
 
+> **Why (the rationale):** Multi-AZ solves availability (survive AZ failure with automatic failover); Read Replicas solve read scalability (offload SELECT queries) and cross-region DR (replicate data to another region, then promote). They serve different purposes and are often used together.
+> **When to use:** Multi-AZ for every production RDS instance (HA requirement). Read Replicas when read queries are overwhelming the primary, or when you need a cross-region DR copy of your database.
+> **Nuances & gotchas:** The RDS Multi-AZ standby is NOT readable — it exists solely for failover. Routing read queries to it is NOT possible; use Read Replicas for that. Failover to the standby takes 60–120 seconds, during which the DB is unavailable. Read Replica replication is asynchronous — there is replication lag, so Read Replicas can return stale data. Promoting a Read Replica to a standalone primary is a manual step with no automatic failback. Multi-AZ is within a single region only; cross-region HA requires Read Replicas or Aurora Global Database.
+
 | Feature | **Multi-AZ** | **Read Replica** |
 |---|---|---|
 | **Purpose** | High Availability / Fault Tolerance | Read scalability (and cross-region DR) |
@@ -604,6 +688,10 @@ Sources: [RDS Multi-AZ](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/C
 
 Aurora is a MySQL/PostgreSQL-compatible relational database built for the cloud with native HA across 3 AZs.
 
+> **Why (the rationale):** Aurora's distributed storage layer (6 copies across 3 AZs) and shared-volume replica architecture give you significantly better availability, faster failover (~30 s vs. RDS ~60–120 s), and up to 15 read replicas versus RDS's 5 — with the same SQL interface.
+> **When to use:** New MySQL/PostgreSQL workloads that need high throughput, fast failover, or many read replicas. Cross-region low-RPO relational DR with Aurora Global Database. Variable/unpredictable workloads with Aurora Serverless v2.
+> **Nuances & gotchas:** Aurora replicas serve both reads AND as automatic failover targets — if the writer fails, the highest-priority replica is promoted automatically. Standard RDS Multi-AZ standby does neither. Aurora Global Database secondary regions are READ-ONLY until you explicitly promote one to primary during a failover. Promotion is a manual step (or automated via custom failover automation) and takes under 1 minute. Aurora Serverless v2 scales per ACU in fine-grained increments but there is a minimum ACU floor (cannot scale to absolute zero while running, unlike Lambda).
+
 Sources: [Aurora User Guide](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html) · [Aurora Global Database](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html)
 
 #### Aurora Architecture
@@ -617,6 +705,10 @@ Sources: [Aurora User Guide](https://docs.aws.amazon.com/AmazonRDS/latest/Aurora
   - *Instance endpoint* → specific instance
 
 #### Aurora Global Database
+
+> **Why (the rationale):** Aurora Global Database replicates at the storage layer (not the database layer) using dedicated replication infrastructure, achieving sub-second RPO across regions — something standard RDS cross-region read replicas (asynchronous, network-dependent) cannot reliably match.
+> **When to use:** Cross-region relational database DR with RPO in seconds and RTO under 1 minute. Also for globally distributed read performance (serve reads from the nearest secondary region).
+> **Nuances & gotchas:** Secondary regions are READ-ONLY — applications in secondary regions that need to write must either accept write-forwarding latency to the primary or wait for promotion. Write forwarding (available in Aurora MySQL) adds round-trip latency to the primary region on every write. After failover (promotion of a secondary to primary), you must manually reconfigure your application connection strings; Aurora Global Database does NOT automatically update the cluster endpoint across regions.
 
 | Feature | Detail |
 |---|---|
@@ -659,6 +751,10 @@ graph LR
 
 Fully managed, serverless, key-value and document NoSQL database with single-digit millisecond performance at any scale.
 
+> **Why (the rationale):** DynamoDB is the go-to choice when you need a database that requires zero capacity management, handles any scale with consistent performance, and has native multi-region active-active replication (Global Tables) and continuous PITR built in.
+> **When to use:** Session state, shopping carts, leaderboards, IoT metadata, or any workload needing single-digit millisecond reads/writes at scale. Use Global Tables when writes must go to the nearest region with no single write region.
+> **Nuances & gotchas:** DynamoDB Global Tables use last-writer-wins conflict resolution — if two regions write to the same item concurrently, one update is silently lost. PITR must be enabled *before* you need it — you cannot retroactively enable it and recover data from before enablement. DynamoDB Streams retain change records for only 24 hours. On-demand capacity mode auto-scales but has a limit on how fast it can scale up after a long period of inactivity — if you know a big spike is coming, pre-warm by temporarily switching to provisioned or by sending a warm-up load. DynamoDB is NOT a relational DB — no JOINs, no complex transactions across tables (unless using DynamoDB Transactions for single-table operations).
+
 Sources: [DynamoDB Developer Guide](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html) · [DynamoDB Global Tables](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/globaltables.V2.html)
 
 #### Resilience Features
@@ -672,6 +768,10 @@ Sources: [DynamoDB Developer Guide](https://docs.aws.amazon.com/amazondynamodb/l
 | **Streams** | Ordered change log of item-level modifications; retained 24 hours; used for replication, triggers |
 
 #### DynamoDB Global Tables
+
+> **Why (the rationale):** Global Tables is the only fully managed, active-active NoSQL solution across multiple regions with automatic conflict resolution and millisecond replication — enabling true write-local globally distributed applications without custom replication logic.
+> **When to use:** Global applications needing low-latency writes in multiple regions simultaneously (gaming leaderboards, user profiles, IoT). Also use as the data layer for Multi-Site Active/Active DR strategies with a NoSQL data model.
+> **Nuances & gotchas:** PITR must be enabled on the table before you can add a Global Tables replica — you cannot add a region to Global Tables without PITR active. Conflict resolution is always last-writer-wins (by timestamp) — there is no application-level conflict resolution available. Replication is asynchronous and typically completes in milliseconds, but under heavy load or network partition, replica lag can increase. Deleting a replica region removes all data in that region's copy.
 
 - Active-active across ≥ 2 regions: all replicas accept reads and writes.
 - Use when you need **write local** strategy (writes go to nearest region).
@@ -693,6 +793,10 @@ Sources: [DynamoDB Global Tables V2](https://docs.aws.amazon.com/amazondynamodb/
 
 Sources: [S3 User Guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) · [S3 Replication](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html)
 
+> **Why (the rationale):** S3's 11-nines durability comes from automatic redundant storage across ≥ 3 AZs — it is the most durable AWS object storage tier. Versioning and replication add protection against logical errors (accidental deletes/overwrites) and regional failures respectively.
+> **When to use:** Default choice for object storage. Add versioning for protection against accidental deletion. Add CRR for cross-region DR or compliance copies. Use S3 RTC when you have a contractual obligation to replicate within 15 minutes.
+> **Nuances & gotchas:** S3 replication (CRR and SRR) is asynchronous and does NOT replicate objects that already exist in the bucket before replication was enabled — you must run **S3 Batch Replication** to replicate pre-existing objects. Delete markers are NOT replicated by default — you must explicitly enable delete marker replication. Versioning cannot be permanently disabled once enabled — you can only suspend it. S3 One Zone-IA stores data in a single AZ and is NOT resilient to AZ destruction; do not use for data you cannot reconstruct.
+
 #### Durability & Availability
 
 | Feature | Value |
@@ -704,11 +808,19 @@ Sources: [S3 User Guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/W
 
 #### S3 Versioning
 
+> **Why (the rationale):** Versioning makes every PUT and DELETE non-destructive — S3 keeps all previous versions so you can recover from accidental overwrites or deletions by restoring a prior version or removing the delete marker.
+> **When to use:** Any bucket where data integrity matters and accidental deletion/overwrite is a risk. Required for S3 replication and a prerequisite for MFA Delete.
+> **Nuances & gotchas:** Versioning stores every version of every object — storage costs accumulate quickly without S3 Lifecycle rules to expire old versions. Once enabled, versioning can only be *suspended*, not disabled. Suspending versioning does not delete existing versions. With versioning enabled, a DELETE on an object places a delete marker (the object appears deleted) but the previous versions still exist and still incur storage charges until explicitly deleted.
+
 - Retains all versions of every object.
 - Protects against accidental deletion (delete marker added; prior versions retrievable).
 - Required for replication and MFA Delete.
 
 #### S3 Replication
+
+> **Why (the rationale):** CRR copies objects to a different region for geographic DR or global access; SRR copies within a region for log aggregation, test/prod isolation, or intra-region compliance copies — both give you automated, asynchronous object-level redundancy beyond S3's built-in multi-AZ durability.
+> **When to use:** CRR — cross-region DR, latency reduction for multi-region reads, compliance requiring data copies in a specific region. SRR — log aggregation into a single central bucket, maintaining a copy for dev/test from prod.
+> **Nuances & gotchas:** Both CRR and SRR require versioning enabled on both source AND destination buckets. Replication only applies to new objects written after the rule is created — pre-existing objects must be copied via S3 Batch Replication. Replication does NOT copy existing object versions, only new versions after the rule is set. If you need a replication SLA (99.99% of objects replicated within 15 minutes), enable S3 Replication Time Control (RTC) — standard replication has no time guarantee. Objects encrypted with SSE-KMS require an additional KMS key policy grant for the replication role.
 
 | Feature | **Cross-Region Replication (CRR)** | **Same-Region Replication (SRR)** |
 |---|---|---|
@@ -735,6 +847,10 @@ Sources: [S3 User Guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/W
 
 Sources: [EFS User Guide](https://docs.aws.amazon.com/efs/latest/ug/whatisefs.html)
 
+> **Why (the rationale):** EFS provides a POSIX-compliant shared file system that can be mounted simultaneously by thousands of EC2 instances across multiple AZs — something EBS (AZ-scoped, single-instance attach) fundamentally cannot do. Its multi-AZ storage is automatic, not a configuration choice.
+> **When to use:** Shared file storage for web serving, CMS, container storage, Lambda shared storage, or any scenario where multiple compute instances need concurrent access to the same files. Use EFS Replication for cross-region DR of file system data.
+> **Nuances & gotchas:** EFS Standard stores data across all AZs in the region automatically. EFS One Zone stores data in a single AZ — it is cheaper but NOT resilient to AZ failure. EFS is NFS-only (not SMB); for Windows workloads needing shared storage, use FSx for Windows File Server. EFS performance scales automatically but you can choose between General Purpose (latency-sensitive) and Max I/O (higher throughput, higher latency) modes. EFS is NOT block storage — you cannot use it as a swap volume or database data volume.
+
 - Fully managed, shared NFS file system; **automatically replicates data across all AZs in a region**.
 - Accessible simultaneously from multiple EC2 instances across AZs (shared POSIX file system).
 - **EFS Replication:** Can replicate an EFS file system to another region for DR (near real-time, RPO minutes).
@@ -742,6 +858,10 @@ Sources: [EFS User Guide](https://docs.aws.amazon.com/efs/latest/ug/whatisefs.ht
 - Use for shared file storage across multiple EC2 instances, Lambda, ECS tasks.
 
 #### Amazon FSx
+
+> **Why (the rationale):** FSx provides managed file systems for workload-specific protocols (SMB for Windows, Lustre for HPC, ONTAP for enterprise) that EFS cannot serve, with AWS-managed HA and backups so you don't operate the file server yourself.
+> **When to use:** Windows workloads needing SMB/Active Directory integration → FSx for Windows File Server. HPC, ML, big data → FSx for Lustre. Enterprise storage with multi-protocol needs → FSx for NetApp ONTAP.
+> **Nuances & gotchas:** FSx for Windows File Server Multi-AZ uses synchronous replication and automatic failover (~30 s) — note that FSx for Lustre is Single-AZ only (no Multi-AZ option). FSx for Windows File Server requires an Active Directory (AWS Managed AD or self-managed). FSx for Lustre can be linked to an S3 bucket for lazy loading — only data accessed is imported, and results can be exported back to S3. FSx for Lustre Scratch file systems are non-persistent (data lost on failure) — use Persistent deployment for durability.
 
 | FSx Variant | Protocol | HA Mode | Use case |
 |---|---|---|---|
@@ -755,6 +875,10 @@ Sources: [EFS User Guide](https://docs.aws.amazon.com/efs/latest/ug/whatisefs.ht
 Sources: [FSx for Windows HA](https://docs.aws.amazon.com/fsx/latest/WindowsGuide/high-availability-multiAZ.html)
 
 #### Amazon EBS (Elastic Block Store)
+
+> **Why (the rationale):** EBS is the primary block storage for EC2 — it persists independently of the EC2 instance lifecycle. EBS Snapshots extend this with point-in-time backups that can be copied cross-region for DR.
+> **When to use:** OS volumes, database data files on EC2, any application requiring block-level I/O. Use snapshots for backup and cross-region AMI/volume DR.
+> **Nuances & gotchas:** EBS is AZ-scoped — a volume in us-east-1a cannot be attached to an instance in us-east-1b. To move a volume to another AZ or region, you must snapshot it and restore from the snapshot. EBS Multi-Attach (io1/io2 only) allows up to 16 EC2 instances in the same AZ to share a volume simultaneously, but requires a cluster-aware file system — do NOT use it with ext4 or xfs without coordination (data corruption risk). Snapshots are incremental — only changed blocks are stored, but restoring always produces a full volume. First-access performance on a restored snapshot can be slow until all blocks are pulled from S3 (use Fast Snapshot Restore to pre-warm).
 
 - Persistent block storage for EC2; **tied to one AZ** (not inherently multi-AZ).
 - **EBS Snapshots:** Point-in-time snapshot stored in S3 (multi-AZ within region); can be copied to another region.
@@ -778,6 +902,10 @@ Sources: [EBS User Guide](https://docs.aws.amazon.com/ebs/latest/userguide/what-
 
 Sources: [AWS DataSync User Guide](https://docs.aws.amazon.com/datasync/latest/userguide/what-is-datasync.html)
 
+> **Why (the rationale):** DataSync automates and accelerates large-scale data transfers between on-premises and AWS (or between AWS services) using parallel multi-part transfers and network optimization, handling scheduling, checksums, and error recovery automatically.
+> **When to use:** One-time data migrations (on-prem NAS to S3/EFS/FSx), recurring DR replication jobs (sync on-prem data to AWS on a schedule), archiving cold on-prem data to S3 Glacier.
+> **Nuances & gotchas:** DataSync is for transferring data — it is NOT a hybrid access solution (applications cannot read/write through DataSync in real time, unlike Storage Gateway). DataSync requires a DataSync agent deployed on-premises (a VM) for on-premises-to-AWS transfers. It supports filtering (include/exclude patterns) and preserves file metadata. DataSync to S3 Glacier requires S3 Intelligent-Tiering or a Lifecycle rule — DataSync itself writes to a standard S3 tier, not directly to Glacier.
+
 - Automated, **online** data transfer service; transfers data between on-premises and AWS (NFS, SMB, HDFS, S3 API, EFS, FSx) or between AWS services.
 - Transfers up to **10x faster** than open-source tools by using parallel multi-part transfers and network optimization.
 - Supports scheduling, bandwidth throttling, checksums, and encryption in transit.
@@ -786,6 +914,10 @@ Sources: [AWS DataSync User Guide](https://docs.aws.amazon.com/datasync/latest/u
 #### AWS Storage Gateway
 
 Sources: [Storage Gateway User Guide](https://docs.aws.amazon.com/storagegateway/latest/userguide/WhatIsStorageGateway.html)
+
+> **Why (the rationale):** Storage Gateway bridges on-premises applications to AWS storage using familiar protocols (NFS, SMB, iSCSI) — the application talks to the gateway as if it were local storage, while data is actually stored in AWS.
+> **When to use:** On-prem apps that must access S3 without code changes (S3 File Gateway); replacing physical tape libraries with cloud (Tape Gateway); giving on-prem apps iSCSI block storage backed by S3 (Volume Gateway); locally caching FSx for Windows data (FSx File Gateway).
+> **Nuances & gotchas:** Storage Gateway is a hybrid access solution — applications use it for ongoing real-time or near-real-time access, unlike DataSync which is for bulk transfer jobs. The gateway VM (or hardware appliance) must run on-premises. Volume Gateway Stored mode keeps the primary copy on-premises and backs up snapshots to S3 — if the on-prem storage fails, you restore from snapshots (Backup & Restore strategy). Volume Gateway Cached mode stores primary data in S3 with only hot data cached on-premises — a local failure does NOT lose data since S3 holds the primary copy. Tape Gateway virtual tapes are stored in S3 until archived to S3 Glacier Flexible Retrieval or S3 Glacier Deep Archive.
 
 | Gateway Type | Protocol | Stores to | Use case |
 |---|---|---|---|

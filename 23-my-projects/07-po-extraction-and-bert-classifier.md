@@ -56,6 +56,10 @@
 
 ## Deep Dive 1 — Why Two Stages (BERT Gate → GPT Extract)
 
+> **Why (the rationale):** The two tasks have fundamentally different cost/accuracy profiles. Binary routing (PO vs not) has labeled data available, is high-volume, and is stable enough to fine-tune — making a fast, cheap encoder the right tool. Structured extraction is complex, schema-driven, document-specific reasoning that benefits from a capable generative model. Running GPT on the full email firehose would be wasteful and slow; restricting it to the PO subset (a small fraction) makes the expensive stage economically viable.
+> **When to use:** A two-stage gate → extract architecture is appropriate when: (a) the routing decision is binary/stable with labeled data, (b) the extraction stage is significantly more expensive, and (c) the two stages have separable error modes. If labeled data for stage 1 is unavailable, a zero-shot LLM can gate, but at higher cost.
+> **Nuances & gotchas:** Stage 1 recall is the critical metric — any PO email the BERT gate misclassifies as non-PO is silently lost (never extracted). Stage 1 false negatives are more costly than false positives (a non-PO reaching stage 2 is just a wasted GPT call; a PO missed at stage 1 is a missed attachment). Tune the BERT classifier threshold to prioritize recall over precision for this reason.
+
 This is the most important design decision and the first thing an interviewer will probe.
 
 - **The classifier is a cheap filter over *all* email; the LLM is expensive and only runs on the PO subset.** Fine-tuned BERT-family encoders run **~1–2 orders of magnitude lower cost/latency** and far higher throughput than LLM prompting (a label in **one forward pass** vs token-by-token generation). Running GPT on every email would be wasteful and slow.
@@ -67,6 +71,10 @@ Sources: [Cost-aware model selection (arXiv 2602.06370)](https://arxiv.org/html/
 ---
 
 ## Deep Dive 2 — Structured Extraction from PDFs
+
+> **Why (the rationale):** Raw PDF text extraction collapses table structure — line-item rows become interleaved text without row/column context, making field extraction unreliable. Azure AI Document Intelligence's Layout model returns text with spatial structure (table rows, columns, key-value pairs) preserved, giving the LLM structured input it can reason over reliably. Schema constraints (JSON schema / function-calling) then enforce output structure so downstream validation is deterministic.
+> **When to use:** OCR + layout extraction is necessary for scanned PDFs and for any digital PDF where tables or form fields are the primary content. For pure prose PDFs, simple text extraction is sufficient. Azure AI Document Intelligence Layout specifically is justified when the document mix includes scanned images and table-heavy formats.
+> **Nuances & gotchas:** Even Layout model output isn't perfect — merged cells, rotated text, and multi-page tables cause parsing errors that propagate to the LLM. The LLM's structured output can be syntactically valid JSON but semantically wrong (right field names, wrong values) — numeric cross-checks (line-item sums vs total) are essential, not optional. GPT-3.5 JSON-mode does not guarantee schema adherence; only GPT-4o's strict Structured Outputs do — on 3.5, a validation-and-retry loop is required.
 
 **The task:** given a PO PDF, return fields (PO number, line items, quantities, prices, dates) as valid JSON. The model is prompted with the target schema and returns a structured object.
 
@@ -86,6 +94,10 @@ Sources: [Azure AI Document Intelligence — Read/Layout OCR](https://learn.micr
 ---
 
 ## Deep Dive 3 — Chain-of-Thought Prompting
+
+> **Why (the rationale):** A multi-line PO table requires the model to first locate the line-items table, identify each row's structure, map columns to field names, then assemble the JSON — a multi-step reasoning task that a single-shot "extract these fields" prompt handles poorly. CoT externalizes this plan as intermediate steps before the final answer, reducing field-mapping errors on complex documents.
+> **When to use:** CoT improves accuracy on tasks that require multi-step reasoning, structure discovery, or ambiguity resolution (tables, nested forms, multi-page documents). For simple, single-field extraction from well-structured text, CoT's added tokens are wasted cost. Gains are strongest on larger, more capable models.
+> **Nuances & gotchas:** CoT increases token usage 2–4×, directly increasing latency and cost — only economically viable because the BERT gate limits this to the PO subset. The "chain of thought" in the output doesn't guarantee the model's internal process actually follows those steps; it can produce coherent but wrong reasoning. Keeping CoT prose separate from the final JSON output (via a scratch field or post-processing strip) is critical to prevent reasoning text from polluting the structured result.
 
 **Chain-of-thought (CoT)** prompting elicits a series of **intermediate reasoning steps** before the final answer (Wei et al., 2022 — note Jason *Wei* is first author, Denny *Zhou* last; it's often mis-cited as "Zhou et al.").
 
@@ -118,6 +130,10 @@ Sources: [F1 for extraction — Galileo](https://galileo.ai/blog/f1-score-ai-eva
 ---
 
 ## Deep Dive 5 — Fine-Tuning BERT in Azure ML
+
+> **Why (the rationale):** BERT's bidirectional pre-training gives it rich contextual representations of email text. Fine-tuning on labeled PO/non-PO examples adapts those representations to the specific vocabulary and patterns of PO emails (supplier names, order terminology, PDF attachment headers) in a handful of epochs, matching or exceeding zero-shot LLM accuracy at a fraction of the inference cost. Azure ML's managed endpoint removes infrastructure overhead for serving the classifier at scale.
+> **When to use:** Fine-tune BERT (or a smaller variant like DistilBERT) when you have sufficient labeled data (hundreds to thousands of examples), the task is well-defined (binary classification), and inference throughput or cost is a constraint. Zero-shot prompting is preferable when labeled data is unavailable or the task definition changes frequently.
+> **Nuances & gotchas:** BERT overfits quickly on small datasets — 2–4 epochs with a small learning rate (~2e-5) and early stopping are standard practice, not defaults. Class imbalance (PO emails are the minority) requires class weighting or threshold adjustment; accuracy is misleading — use F1/PR-AUC. BERT's 512-token input limit can truncate long emails; for longer documents, truncation strategy (head vs tail vs head+tail) affects recall of PO signals that appear at the end of an email.
 
 **BERT recap:** Bidirectional Encoder Representations from Transformers — an **encoder-only** Transformer that conditions on left+right context. A special **`[CLS]` token**'s final hidden state is the aggregate sequence representation fed to a classification head. Fine-tuning adds one output layer and updates all parameters on the labeled task.
 

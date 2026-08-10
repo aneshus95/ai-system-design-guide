@@ -23,6 +23,10 @@ Object-Oriented Programming (OOP) organises code around **objects** — bundles 
 
 **In plain English:** A **class** is a blueprint (think: a cookie-cutter). An **object** is one specific cookie made from that cutter. Every object gets its own copy of the data defined in `__init__`.
 
+> **Why (the rationale):** Classes bundle related data and behaviour into a single unit, making code easier to reason about, test, and extend — you can pass one `BankAccount` object instead of coordinating a loose collection of variables.
+> **When to use:** Create a class when you have multiple pieces of state that logically belong together and multiple operations that act on that state. For simple data bags without behaviour, prefer `dataclass` or `namedtuple`. For truly stateless utilities, plain functions are cleaner.
+> **Nuances & gotchas:** Class attributes are shared across all instances — if a class attribute is mutable (a list or dict), all instances mutate the same object. Always initialise mutable per-instance data in `__init__` as `self.attr = []`, not as a class-level attribute.
+
 | Term | Meaning |
 |---|---|
 | `__init__` | The constructor — called automatically when you create an object |
@@ -59,6 +63,10 @@ print(alice.balance)       # 1200
 **Analogy:** An ATM keeps the cash drawer locked. You interact through a controlled interface (buttons) — you never reach inside the machine directly.
 
 Encapsulation bundles data + behaviour in one unit and **controls access** via naming conventions:
+
+> **Why (the rationale):** Hiding internals behind a controlled interface lets you change implementation details (e.g., switch from storing `__balance` as a float to a `Decimal`) without breaking callers — the public API stays the same.
+> **When to use:** Use `_` prefix for implementation details you may change but that subclasses might legitimately access. Use `__` (name mangling) to actively prevent accidental overrides in subclasses. Use `@property` when you need to add validation or computation to an attribute without changing the call site.
+> **Nuances & gotchas:** Python's `__attr` is NOT true private — it becomes `_ClassName__attr` and is still reachable. It is a convention, not a security boundary. Overusing `@property` for simple pass-through reads adds boilerplate with no benefit; start with a plain attribute and only add a `@property` when you need validation or lazy computation.
 
 | Convention | Meaning |
 |---|---|
@@ -107,6 +115,10 @@ print(acc.balance)     # 1200.0  — via property getter
 **Analogy:** A car's steering wheel hides the engine, gearbox, and hydraulics. You just turn the wheel — you don't need to know *how* it works.
 
 Abstraction defines **what** a class must do without dictating **how**. In Python, use `abc.ABC` + `@abstractmethod`:
+
+> **Why (the rationale):** Abstract base classes enforce a contract at class-definition time rather than failing silently at call time — every concrete subclass is guaranteed to implement the required interface before it can be instantiated.
+> **When to use:** Use `ABC` + `@abstractmethod` when designing a plugin/strategy interface where multiple implementations will be swapped (e.g., `Shape`, `DataLoader`, `Notifier`). Prefer duck typing (no ABC) for internal code where you control all consumers and `isinstance` checks are unnecessary.
+> **Nuances & gotchas:** If a subclass does not implement every `@abstractmethod`, it also becomes abstract and cannot be instantiated (raises `TypeError` at construction time, not at call time). The alternative — raising `NotImplementedError` in the base method — only fails when the method is actually called, allowing partially-broken objects to exist in memory.
 
 ```python
 from abc import ABC, abstractmethod
@@ -161,6 +173,10 @@ print(Rectangle(4, 6).describe())  # Area=24.00, Perimeter=20.00
 ## Inheritance
 
 **Analogy:** A `SavingsAccount` *is a* `BankAccount` with extra rules (e.g., minimum balance). It inherits everything from the parent and adds or overrides what's different.
+
+> **Why (the rationale):** Inheritance eliminates duplication when subtypes genuinely are specialisations of a parent — the child reuses all parent logic and only overrides what differs, keeping the DRY principle.
+> **When to use:** Use inheritance for true "is-a" relationships where the child can always substitute for the parent (Liskov Substitution Principle). Avoid it for "has-a" or "uses-a" relationships — use composition instead.
+> **Nuances & gotchas:** Deep inheritance hierarchies become fragile — changing a parent class can silently break all children. Always call `super().__init__(...)` rather than hardcoding the parent class name; this is essential for correct behaviour with multiple inheritance and C3 MRO. Multiple inheritance with shared base classes (diamond problem) requires cooperative `super()` calls throughout the chain.
 
 ```python
 class BankAccount:
@@ -226,6 +242,10 @@ print(D().hello()) # "B"  — leftmost parent wins
 
 Polymorphism means different objects respond to the same method name in their own way. Python achieves this naturally via **duck typing** ("if it quacks like a duck…") — no `interface` keyword needed.
 
+> **Why (the rationale):** Polymorphism lets you write generic code (`for shape in shapes: shape.area()`) that works with any current or future implementation — adding a new `Triangle` class requires zero changes to the calling code.
+> **When to use:** Lean on duck typing for internal code (just call the method and handle `AttributeError` if needed). Use explicit ABC inheritance or `Protocol` (Python 3.8+) when you want static type checking to verify that objects conform to the expected interface.
+> **Nuances & gotchas:** Duck typing means a bug (a missing method) is only caught at runtime when the method is actually called. `typing.Protocol` (structural subtyping) lets `mypy` catch these errors statically without requiring the class to explicitly inherit from the protocol — the best of both worlds.
+
 ```python
 def print_shape_info(shape: Shape):   # works for ANY Shape subclass
     print(shape.describe())
@@ -273,6 +293,10 @@ for acc in accounts:
 ## Dunder / Magic Methods
 
 **In plain English:** Dunder methods (double-underscore on both sides) let your objects plug into Python's built-in syntax — `print()`, `+`, `==`, `len()`, calling like a function, etc.
+
+> **Why (the rationale):** Dunder methods make custom objects feel native — they integrate with Python's operators, built-ins, and protocols (iteration, context management, arithmetic) without special-casing by the interpreter.
+> **When to use:** Implement `__repr__` on every class (minimum for debuggability). Add `__eq__` when value comparison is meaningful. Add arithmetic dunders (`__add__`, `__mul__`) only for types where the operation makes intuitive sense (e.g., `Money + Money`). Don't add them just to make the syntax possible.
+> **Nuances & gotchas:** Defining `__eq__` automatically sets `__hash__` to `None`, making the object un-hashable (can't be used in sets or as dict keys). If you need both equality and hashability, explicitly define `__hash__` too. `__repr__` should ideally return a string that can recreate the object (`eval(repr(obj)) == obj`), but this is a guideline, not a requirement.
 
 ```python
 from dataclasses import dataclass
@@ -342,6 +366,10 @@ print(m1(0.1))           # USD 110.00       ← __call__
 
 ## Method Types — static, class, property
 
+> **Why (the rationale):** Different method types give you the right level of access: instance methods for per-object logic, class methods for class-wide factory patterns, static methods for utility functions that belong conceptually to the class but need no instance or class data.
+> **When to use:** Use `@classmethod` for alternative constructors (factory methods like `from_dict`, `from_csv`). Use `@staticmethod` for utility helpers that are logically grouped with the class (e.g., `BankAccount.validate_amount`) but don't read `cls` or `self`. Use `@property` to add validation or computed access without changing the caller's attribute syntax.
+> **Nuances & gotchas:** `@staticmethod` can be called on both the class and an instance, but it receives no implicit first argument — it is just a plain function in the class namespace. `@classmethod` receives `cls` (the actual subclass, not always the base class), which is why factory methods work correctly when inherited. Overusing `@property` for simple getters adds overhead and complexity; start with plain attributes.
+
 ```python
 class BankAccount:
     _total_accounts = 0          # class-level counter
@@ -410,6 +438,10 @@ a1.balance = 600                         # property setter
 
 **In plain English:** `@dataclass` is syntactic sugar — it auto-generates `__init__`, `__repr__`, and `__eq__` so you don't have to write boilerplate.
 
+> **Why (the rationale):** Writing `__init__`, `__repr__`, and `__eq__` for every data-holding class is tedious and error-prone. `@dataclass` generates them from the annotated fields, keeping the class definition as concise and readable as a schema.
+> **When to use:** Use `@dataclass` for any class whose primary purpose is holding data (DTOs, config objects, records). Use `frozen=True` when instances should be immutable and hashable (usable as dict keys or set members). Use `namedtuple` when you need lightweight tuple semantics and backward-compatibility with tuple unpacking.
+> **Nuances & gotchas:** Mutable default values (lists, dicts) in dataclass fields must be wrapped in `field(default_factory=list)` — using `tags: list = []` directly raises `ValueError` at class definition time. `frozen=True` uses `__setattr__` to block mutation but is NOT a deep freeze — mutable objects stored as field values can still be mutated. `@dataclass(order=True)` compares fields in declaration order, so field ordering matters for sorting.
+
 ```python
 from dataclasses import dataclass, field
 
@@ -437,6 +469,10 @@ Use `@dataclass(slots=True)` (Python 3.10+) for memory efficiency (same as `__sl
 ---
 
 ## Composition vs Inheritance
+
+> **Why (the rationale):** Composition avoids deep, fragile inheritance chains — changing a parent class can silently break all subclasses, while swapping a composed component only affects the class that holds it. Composed components are also independently testable and reusable.
+> **When to use:** Choose inheritance when there is a genuine "is-a" relationship (Liskov Substitution Principle holds). Choose composition when the relationship is "has-a" or "uses-a". As a rule: if you wouldn't say "`A` is always a valid `B`", use composition.
+> **Nuances & gotchas:** Composition requires explicit delegation (forwarding calls to the inner object), adding boilerplate. For large interfaces, `__getattr__` delegation or mixin classes can reduce this. Deep inheritance hierarchies with `super()` calls require cooperative multiple inheritance discipline — composition sidesteps this entirely.
 
 > **Rule of thumb:** Prefer **composition** ("has-a") over inheritance ("is-a") when the relationship is one of *using* rather than *being*.
 
@@ -489,6 +525,10 @@ print(acc.history())   # ['Deposit $500.00', 'Withdrawal $100.00']
 ## __slots__
 
 **In plain English:** By default Python stores object attributes in a hidden `__dict__` (a regular Python dict), which has memory overhead. `__slots__` pre-declares allowed attribute names so Python uses a compact fixed-size structure instead — typically **20–40 % less memory** per object, useful when creating millions of instances.
+
+> **Why (the rationale):** When you create millions of small objects (coordinate points, event records, ML features), the per-object `__dict__` overhead accumulates significantly. `__slots__` replaces the dict with a fixed C-level array, reducing memory and slightly improving attribute-access speed.
+> **When to use:** Use `__slots__` for value-object classes that will be instantiated at very high frequency (thousands+). In Python 3.10+, `@dataclass(slots=True)` is the idiomatic way to get slots without writing them manually.
+> **Nuances & gotchas:** `__slots__` prevents dynamic attribute assignment (`obj.new_attr = x` raises `AttributeError`). Classes with `__slots__` don't play well with multiple inheritance unless every base also defines `__slots__` (otherwise a `__dict__` sneaks back in from the non-slotted base, defeating the purpose). Pickling also requires extra care — define `__getstate__`/`__setstate__` or use `__reduce__`.
 
 ```python
 class Point:

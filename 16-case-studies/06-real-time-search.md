@@ -59,13 +59,25 @@ The interviewer wants to know you understand **streaming vs batch**.
 
 **Answer:** Kafka provides exactly-once delivery and allows multiple consumers. We have one consumer writing to the vector DB and another to Elasticsearch. If the vector indexing falls behind, the full-text index still serves queries. This is the **dual-write pattern** for resilience.
 
+> **Why (the rationale):** Kafka's durable log means a consumer crash does not drop events — the consumer restarts from its last committed offset and catches up, maintaining the 5-minute freshness guarantee without operator intervention.
+> **When to use:** Kafka is the right choice when you need multiple independent consumers (vector DB + Elasticsearch here) with independent replay and failure recovery. For single-consumer pipelines with lower volume, a lighter queue (SQS, Pub/Sub) avoids Kafka's operational overhead.
+> **Nuances & gotchas:** Exactly-once delivery in Kafka requires idempotent producers and transactional consumers, which add configuration complexity. Without them, the dual-write can produce duplicate documents in both indexes during broker failovers, causing inflated result counts.
+
 ### 2. Why Hybrid Search (Vector + Full-Text)?
 
 **Answer:** Financial queries mix semantic ("sentiment around Tesla") with keyword ("TSLA 10-K filing"). Pure vector search would miss exact ticker matches. We use **Reciprocal Rank Fusion (RRF)** to combine results.
 
+> **Why (the rationale):** Financial domain queries have a uniquely high proportion of exact-term lookups (ticker symbols, filing codes, specific dates) that semantic embeddings represent poorly — "TSLA" and "Tesla" may be close in vector space but "TSLA 10-K Q3" needs BM25 exact matching to rank correctly.
+> **When to use:** Use hybrid search whenever your query population mixes conceptual natural language with exact identifiers or codes. For pure conversational search with no exact terms, vector-only is simpler and eliminates the Elasticsearch dependency.
+> **Nuances & gotchas:** RRF merging requires careful tuning of the k smoothing constant for your domain. Financial search benefits from boosting recent documents in the keyword score (time-decay BM25), which standard RRF doesn't capture — consider adding a timestamp recency multiplier to the fused score.
+
 ### 3. Why GPT-4o-mini Instead of GPT-4o?
 
 **Answer:** For a 3-second p95 latency target at 50K queries/hour, we need fast generation. GPT-4o-mini gives us 100+ tokens/second vs 40 tokens/second for GPT-4o. The reranker handles accuracy; the LLM only synthesizes already-verified content.
+
+> **Why (the rationale):** Delegating accuracy to the retrieval + reranking stages allows the generation stage to use the fastest available model — GPT-4o-mini's job is synthesis, not reasoning, so its lower reasoning capability is not a bottleneck here.
+> **When to use:** Use a fast mini model for generation when retrieved context is already high-precision (reranker output) and the LLM is only assembling a coherent answer, not making inferences. Upgrade to a larger model if the synthesis step requires cross-document reasoning or comparison (e.g., "How does Tesla's Q3 margin compare to last year?").
+> **Nuances & gotchas:** At 50K queries/hour, a 100ms latency regression from a model upgrade costs roughly 1.4 hours of extra p95 latency per month across the fleet. Model selection must be benchmarked under your actual query volume, not just on synthetic latency tests.
 
 ---
 
@@ -74,6 +86,10 @@ The interviewer wants to know you understand **streaming vs batch**.
 The hardest part of this problem is ensuring the index reflects data from the last 5 minutes.
 
 **Solution: TTL-Based Indexing**
+
+> **Why (the rationale):** Enforcing freshness as a query-time filter on a timestamp field (rather than a prompt instruction like "only use recent data") is the only reliable approach — the LLM cannot enforce freshness because it has no visibility into when documents were indexed.
+> **When to use:** TTL-based filtering works when your freshness requirement is fixed (e.g., always last 60 minutes). For adaptive freshness (e.g., "last N minutes where N depends on the asset's trading session"), implement per-query dynamic cutoff logic rather than a static TTL.
+> **Nuances & gotchas:** TTL auto-deletion in Qdrant is asynchronous — there is a window between when a document exceeds its TTL and when it is physically removed, during which stale documents can still be returned by a query. Apply the timestamp filter at query time as a hard constraint rather than relying solely on background TTL deletion.
 
 ```python
 # Each document gets a timestamp field

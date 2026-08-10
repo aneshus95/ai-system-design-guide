@@ -200,6 +200,10 @@ stateDiagram-v2
 
 ### Intent Classification (Dec 2025)
 
+> **Why (the rationale):** Using GPT-5.2-mini for classification (targeting <100ms) rather than the full generation model keeps the hot-path cheap and fast — the classifier's sole job is routing, not response quality.
+> **When to use:** Use a lightweight dedicated classifier when you have 5+ distinct intents and the wrong routing path carries real cost (wrong knowledge base, wrong escalation trigger). If you only have 2-3 intents and the conversation volume is low, a single model doing classify-and-generate is simpler to maintain.
+> **Nuances & gotchas:** Mini classifiers trained on general data can misclassify domain-specific phrasings (e.g., "I need to roll back my subscription" classified as cancellation instead of downgrade). Build a labeled eval set from real support tickets before setting thresholds, and monitor per-intent accuracy in production.
+
 ```python
 class IntentClassifier:
     async def classify(self, message: str, history: list[dict]) -> dict:
@@ -214,6 +218,10 @@ class IntentClassifier:
 
 ### Knowledge Base (Gemini 3 Flash RAG)
 
+> **Why (the rationale):** Gemini 3 Flash's large context window lets the retrieval step pass 50 results directly without a separate reranking call, cutting one network round-trip and reducing latency for standard support queries where top-50 recall is sufficient.
+> **When to use:** This simplification is valid when the support knowledge base is relatively small (under 100K chunks) and queries are well-formed. For larger corpora or queries where precision at top-5 is critical (billing disputes, regulatory answers), reranking remains necessary.
+> **Nuances & gotchas:** Skipping explicit reranking shifts the burden onto the LLM's in-context attention. Long-context models can "lose" relevant chunks in the middle of the context (the "lost in the middle" effect). Test with adversarial queries where the correct answer is in a mid-context document before removing the reranker.
+
 ```python
 class SupportKnowledgeBase:
     async def retrieve(self, query: str, context_window: int = 1_000_000) -> list[dict]:
@@ -224,6 +232,10 @@ class SupportKnowledgeBase:
 ```
 
 ### Response Generation (Claude Sonnet 4.6)
+
+> **Why (the rationale):** Claude Sonnet 4.6's hybrid reasoning mode lets the system toggle between fast standard generation (low-complexity queries like password resets) and extended thinking (high-complexity billing disputes), optimizing cost without a separate model deployment.
+> **When to use:** Use hybrid reasoning when the complexity distribution of incoming queries is bimodal — many simple requests and a tail of genuinely complex ones. If nearly all queries are complex, use a full reasoning model throughout; if nearly all are simple, disable thinking entirely.
+> **Nuances & gotchas:** Thinking mode adds latency and tokens — if `detect_complexity` misclassifies a simple query as complex, the user faces unexpectedly long response times. The `budget_tokens: 2048` cap limits runaway costs but may truncate reasoning on truly complex billing edge cases, leaving the final answer incomplete.
 
 ```python
 class ResponseGenerator:
@@ -248,6 +260,10 @@ class ResponseGenerator:
 ## Reliability Patterns
 
 ### Confidence-Based Escalation
+
+> **Why (the rationale):** A three-signal OR gate (low confidence, explicit request, sensitive keyword) ensures no single failure mode is responsible for keeping harmful conversations in the automated path. Each signal catches a distinct failure class: model uncertainty, customer intent, and topic risk.
+> **When to use:** Use OR semantics when any one signal alone is sufficient grounds for human review. Use AND/weighted-scoring instead if your human queue is overloaded and you need to be more selective — but only after your auto-resolution accuracy is well above baseline.
+> **Nuances & gotchas:** The keyword list (`legal`, `lawsuit`, `data breach`) is static and will miss semantically equivalent phrasings ("I'll contact my attorney", "you've compromised our data"). Augment with an intent classifier for sensitive topics rather than relying on keyword matching alone.
 
 ```python
 class EscalationHandler:
@@ -310,6 +326,10 @@ flowchart TD
 ```
 
 ### Multi-Turn Memory
+
+> **Why (the rationale):** Storing conversation history in Redis with a 1-hour TTL and a 10-turn sliding window keeps session state fast and bounded — conversations that exceed 10 turns get older context trimmed, preventing context-window overflow at inference time.
+> **When to use:** A fixed-turn sliding window works when conversations are short and self-contained (support tickets typically resolve in 3-5 turns). For longer-running sessions (onboarding flows, complex troubleshooting), replace with hierarchical summarization — compress old turns into a summary rather than dropping them.
+> **Nuances & gotchas:** The 1-hour TTL means context is lost if a customer returns after an hour and expects the agent to remember their issue. Either persist completed session summaries to a longer-lived store, or surface "I don't have context from your earlier conversation" gracefully rather than starting blank.
 
 ```python
 class ConversationMemory:

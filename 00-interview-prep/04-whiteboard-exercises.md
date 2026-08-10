@@ -919,6 +919,10 @@ Reindexing (description changes):
 
 ### Solution Walkthrough
 
+> **Why (the rationale):** Eval pipelines are the mechanism that lets teams ship AI changes at speed without silent regressions — they make quality a first-class engineering artifact rather than a post-hoc review. Without one, every model or prompt change is a gamble.
+> **When to use:** Apply this pattern whenever a question asks how you'd "ensure quality," "ship changes safely," or "know if your model is working" — it's the right answer for any production AI product with frequent iteration.
+> **Nuances & gotchas:** The dataset design matters more than the scorer — a great judge on a stale or non-representative dataset measures nothing useful. Also, judge-human agreement must itself be monitored; an uncalibrated judge can drift and give false confidence. Avoid Likert scales (1–5) in favor of binary pass/fail per dimension: binary decisions are reproducible, Likert scales drift across raters.
+
 **High-level architecture:**
 
 ```
@@ -1019,6 +1023,10 @@ dominant cost and it is what keeps the judge honest.
 - How long do individual sessions run? (Determines in-session vs cross-session design.)
 
 ### Solution Walkthrough
+
+> **Why (the rationale):** A flat context dump fails for long-running agents — context windows are finite, and replaying full history every turn is expensive and unfocused. The hierarchy separates concerns: working memory for the current turn, episodic for what happened, semantic for what is true, procedural for how to act.
+> **When to use:** Apply this pattern for any question about agents that persist across sessions, personalized assistants, or "how would you give an agent memory?" — it scales gracefully and maps naturally to how humans remember things.
+> **Nuances & gotchas:** The write path (extraction, deduplication, conflict resolution) is harder and more important than retrieval; candidates who only design the read path miss the dominant source of memory bugs. Wrong recall is worse than no recall — a stale fact confidently surfaced poisons the response. Treat memory as a security surface: untrusted content written during one session must not be trusted as instructions in a future session.
 
 **The memory hierarchy:**
 

@@ -56,6 +56,10 @@ flowchart TB
 
 **Answer:** PHI cannot leave the hospital network without encryption and BAA. We deploy Whisper Large v3 on local GPU servers rather than using cloud APIs:
 
+> **Why (the rationale):** Patient speech captured during a clinical encounter is PHI by definition. Cloud ASR requires a signed BAA with the vendor and still transmits raw audio outside the hospital network, increasing breach surface. On-prem Whisper runs inside the hospital's existing HIPAA-controlled perimeter, costs less per minute at scale (amortized GPU vs per-API-call pricing), and incidentally has lower latency than cloud round-trips.
+> **When to use:** On-prem ASR is required whenever raw PHI audio cannot leave the network perimeter and a BAA arrangement is insufficient (e.g., contractual prohibition, specific state laws). If the organization already has a BAA with a cloud vendor and does not have GPU infrastructure, cloud ASR with encryption-in-transit is acceptable.
+> **Nuances & gotchas:** On-prem Whisper requires GPU maintenance and model update management — quarterly Whisper releases must be evaluated and deployed by the team. Medical vocabulary accuracy for Whisper Large v3 without domain-specific fine-tuning is roughly 85–90% on clinical speech; the custom vocabulary injection improves this but adds an ongoing maintenance burden.
+
 | Option | Latency | HIPAA | Cost |
 |--------|---------|-------|------|
 | Cloud ASR (OpenAI) | 200ms | Requires BAA, data leaves network | $0.006/min |
@@ -66,6 +70,10 @@ On-prem wins on both latency and compliance.
 ### 2. Speaker Diarization: Who Said What
 
 **Answer:** The note must distinguish "Patient reports headache" from "Nurse observes patient grimacing." We use:
+
+> **Why (the rationale):** In SOAP note format, subjective findings (S) must come from the patient's own words and objective findings (O) from the clinician's observations. Conflating the two is a clinical documentation error. Diarization using the nurse's pre-enrolled voiceprint enables reliable role assignment without requiring special utterances or hand-held microphones.
+> **When to use:** Speaker diarization with role mapping is necessary whenever the clinical encounter involves more than one speaker and the note format requires attribution. Skip it for single-speaker dictation workflows (nurse narrating alone) where the speaker is always known.
+> **Nuances & gotchas:** Pyannote's accuracy degrades significantly when speakers overlap or in very short speaker segments (under 1 second). Background noise, family members in the room, or multiple clinicians on rounds all create extra speaker segments that the role-mapping step must classify as "unknown" rather than falsely attributing them to the patient.
 
 ```python
 # Pyannote for speaker diarization
@@ -82,6 +90,10 @@ The nurse's device captures their voiceprint at setup for role identification.
 ### 3. Medical NER for Structured Extraction
 
 **Answer:** We need structured data, not just prose. Medical NER extracts:
+
+> **Why (the rationale):** Extracting symptoms, medications, and vitals as structured entities before the LLM runs serves two purposes: it enables the completeness check (verify every NER entity appears in the final note) and it dramatically reduces the LLM's work, letting GPT-4o focus on prose generation rather than extraction. BioBERT is deterministic, fast (40ms), and does not hallucinate entity spans the way a generative LLM might.
+> **When to use:** Use a dedicated NER model ahead of the LLM whenever structured field extraction is required and a downstream validator must verify completeness. If the note format is free-form and completeness checking is not required, the LLM alone can extract-and-write in a single pass.
+> **Nuances & gotchas:** BioBERT fine-tuned on generic biomedical text may miss institution-specific terminology (proprietary drug names, local procedure codes). The custom vocabulary list partially compensates, but rare entities will still be missed. The completeness check catches most omissions, but only for entities that NER successfully identified; a hallucinated symptom by the patient that NER missed will never appear in the SOAP note.
 
 ```mermaid
 flowchart LR

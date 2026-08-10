@@ -60,6 +60,12 @@ flowchart TB
 
 **Answer:** Not all tickets are equal. We classify into three paths:
 
+> **Why (the rationale):** The Hybrid path (AI drafts, human approves) is the key innovation — it captures the efficiency of AI generation while keeping a human in the loop for medium-risk decisions, avoiding the binary choice between "full automation" and "full human handling" for refund requests.
+> **When to use:** Three-tier routing is justified when your ticket population naturally clusters into three risk bands. If your distribution is bimodal (either clearly safe or clearly unsafe), a simpler two-tier approach avoids the complexity of calibrating the Hybrid path thresholds.
+> **Nuances & gotchas:** The Hybrid path requires human agents to review AI drafts quickly enough that the customer's response time SLO is still met. If agents take >10 minutes to review a draft, the Hybrid path's latency advantage over full escalation disappears. Staff the hybrid review queue based on hybrid ticket volume, not just escalation volume.
+
+| Path | Criteria | Example | Human Involvement |
+
 | Path | Criteria | Example | Human Involvement |
 |------|----------|---------|-------------------|
 | **Auto** | High confidence, low risk | "Where is my order?" | None |
@@ -68,7 +74,13 @@ flowchart TB
 
 ### 2. Tool-Based Resolution, Not Pure Generation
 
-**Answer:** The AI does not "know" where the order is. It calls the Order API tool. This is critical for accuracy:
+**Answer:** The AI does not "know" where the order is. It calls the Order API tool.
+
+> **Why (the rationale):** Grounding every factual claim in a tool call (Order API, FAQ DB) rather than model memory eliminates hallucinated tracking numbers, fabricated ETAs, and incorrect policy details — the most common failure modes in support AI that destroy customer trust.
+> **When to use:** Tool-based resolution is mandatory whenever the answer involves time-sensitive or customer-specific data (order status, account balance, subscription tier). For general policy questions answered from a static knowledge base, RAG without live tool calls is sufficient.
+> **Nuances & gotchas:** Tool calls add latency (each API round-trip is 50-200ms). For tickets requiring 3+ tool calls (look up order → check warehouse → check carrier), the cumulative latency can push total response time above the 5-second target. Cache tool responses within a session and batch tool calls in parallel where dependencies allow.
+
+The LLM orchestrates tools but never fabricates data. This is critical for accuracy:
 
 ```python
 @tool
@@ -88,6 +100,12 @@ The LLM orchestrates tools but never fabricates data.
 ### 3. Why Safety Check Before Send?
 
 **Answer:** Even auto-resolved tickets go through a safety filter:
+
+> **Why (the rationale):** The safety check is the last gate between AI output and the customer — it catches the specific failure modes that create legal liability (unauthorized promises) or brand damage (tone-deaf responses) that are impossible to prevent purely through prompt engineering.
+> **When to use:** Safety checks are non-negotiable before sending any AI-generated text to an external customer. For internal-facing AI tools where mistakes are correctable, a lighter-weight review (sentiment only, no promise detection) is proportionate.
+> **Nuances & gotchas:** Promise detection based on phrases like "I guarantee" or "We will pay" misses indirect commitments ("Our standard policy is to refund within 3 days" — which a customer may interpret as a promise). Include a policy-statement classifier that flags assertions about what the company will do, not just explicit guarantees.
+
+1. **Promise Detection**: Flags statements like "I guarantee" or "We will pay"
 
 1. **Promise Detection**: Flags statements like "I guarantee" or "We will pay"
 2. **Sentiment Mismatch**: Catches if AI sounds happy when customer is angry
@@ -136,9 +154,17 @@ flowchart LR
 
 Cost. GPT-4o handles all 12 languages well. Using specialized models per language would require 12 deployments. Translation adds latency but keeps infrastructure simple.
 
+> **Why (the rationale):** Translate-to-English → process → translate-back allows all prompting, tool-call schemas, and safety rules to be maintained in a single language, avoiding the combinatorial burden of 12 language-specific system prompts and 12 separate evaluation datasets.
+> **When to use:** The translate-in/process/translate-out pattern works well for factual support queries where meaning survives translation. For highly idiomatic or culturally nuanced queries (local regulations, culture-specific complaints), native multilingual processing in the target language produces better results.
+> **Nuances & gotchas:** Double translation accumulates errors — a nuanced Spanish complaint translated to English may lose the emotional register, leading the generator to reply in a tone that is inappropriately formal or casual when translated back. Monitor CSAT scores by language to detect translation-induced quality degradation for specific languages.
+
 ---
 
 ## Human Takeover (Mid-Conversation)
+
+> **Why (the rationale):** Generating an LLM summary of the conversation for the human agent instead of passing the raw transcript reduces the time the human spends reading before acting — in a high-volume support environment, a 30-second context transfer vs a 3-minute transcript read has a significant impact on queue throughput.
+> **When to use:** LLM-generated handoff summaries are most valuable when conversations are long (5+ turns) or when the agent attempted multiple failed solutions that the human needs to know about. For simple one-turn escalations, the raw message is sufficient.
+> **Nuances & gotchas:** The handoff summary is generated by the same model that may have given an incorrect answer — if the model misunderstood the customer's issue, its summary will also misrepresent it. Include the full transcript as a collapsible fallback in the handoff UI so human agents can verify the summary against the raw exchange.
 
 When a human takes over, they need full context:
 

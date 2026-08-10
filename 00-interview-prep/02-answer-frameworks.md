@@ -21,6 +21,10 @@ Strong interview answers follow consistent structures. This chapter provides fra
 
 Use this framework for any system design question involving AI components. The full motion with rough time budget per phase:
 
+> **Why (the rationale):** SPIDER gives you a repeatable skeleton so you don't go blank under pressure and don't accidentally skip high-signal phases (evaluation, reliability) that interviewers look for at senior+ levels.
+> **When to use:** Any 30–60 minute AI or distributed-system design question; adapt phase timing to the clock and what the interviewer steers toward.
+> **Nuances & gotchas:** The framework is scaffolding, not a script — interviewers can tell when you're reciting steps vs. thinking. If the interviewer cuts you to a specific deep-dive early, follow them; you can return to remaining phases at the end.
+
 ```mermaid
 flowchart LR
     A[S Scope and clarify<br/>5 min] --> B[P Prioritize requirements<br/>3 min]
@@ -242,6 +246,10 @@ Anything else you'd like me to go deeper on?"
 
 Use this for conceptual questions like "Explain RAG" or "What is speculative decoding?"
 
+> **Why (the rationale):** ETA prevents the two failure modes of concept questions: oversimplifying (stopping at the one-liner) or front-loading jargon before the interviewer is oriented. It layers from accessible to deep to applied.
+> **When to use:** Any "explain X," "what is X," or "how does X work" question; especially effective when you're unsure of the interviewer's depth — start simple, read their reaction, then escalate.
+> **Nuances & gotchas:** Don't sprint to T (technical details) if the interviewer is non-technical; conversely, don't linger at E (simple explanation) if they're clearly an expert — use their follow-up cues to calibrate pacing.
+
 ### E - Explain Simply
 
 Start with a one-sentence definition anyone could understand.
@@ -294,6 +302,10 @@ server-side KV cache persistence for shared prefixes."
 
 When asked to compare options or justify a decision, use this structure.
 
+> **Why (the rationale):** Comparing options without a criteria-first structure makes you look like you're advocating for whatever you know best. Explicit criteria show you can reason about competing constraints rather than defaulting to familiarity.
+> **When to use:** "Why did you choose X over Y?", "Which vector database would you use?", or any question where multiple valid options exist; also use it proactively before the interviewer has to ask.
+> **Nuances & gotchas:** Weighted scoring matrices can look rigorous but feel mechanical — the recommendation and its reasoning matter more than the matrix itself. Never end with "it depends" without immediately naming what it depends on and how each dependency changes the answer.
+
 ### Step 1: State the Options Clearly
 
 ```
@@ -342,6 +354,10 @@ abstracting the embedding interface."
 ## Debugging and Troubleshooting Framework
 
 When asked "How would you debug X?" or "The system is doing Y, how do you fix it?" The 4-step diagnostic motion:
+
+> **Why (the rationale):** Jumping to a fix before gathering data is the most common debugging anti-pattern and a red flag in interviews — it signals prototype thinking. Structuring the answer around hypotheses and isolation shows production experience.
+> **When to use:** Any "how would you debug/diagnose/investigate X" question; also use it when an interviewer presents a fictional incident ("your model's quality dropped overnight — what do you do?").
+> **Nuances & gotchas:** Interviewers want to see the reasoning process, not just the answer — narrate your hypothesis ranking and why you'd check in a specific order. Avoid listing fixes before identifying the cause; candidates who jump to "I'd re-index the data" before forming hypotheses score poorly on systematic thinking.
 
 ```mermaid
 flowchart TD
@@ -398,6 +414,10 @@ flowchart TD
 ## Behavioral Questions Framework (STAR-L)
 
 For behavioral questions in AI roles, use STAR-L (STAR + Learnings).
+
+> **Why (the rationale):** Behavioral answers without structure come across as anecdotes. STAR grounds the story in role, action, and impact; the L (Learnings) extension differentiates senior candidates by showing growth and self-awareness — not just past success.
+> **When to use:** "Tell me about a time when…", "Describe a challenge you faced…", or "How have you handled X?" — any question asking for past experience rather than hypothetical design.
+> **Nuances & gotchas:** The R (Result) must be quantified or it reads as anecdotal; approximate numbers are fine ("roughly 70%") but nothing signals junior more than "the team was happy with it." Keep Situation and Task brief — interviewers score on Action and Result, not on narrative setup.
 
 ### S - Situation
 

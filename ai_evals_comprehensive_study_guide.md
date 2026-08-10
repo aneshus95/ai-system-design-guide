@@ -154,6 +154,10 @@ A **trace** is a complete recording of everything your AI did to respond to a us
 5. **Assistant responses** (what the AI said back)
 6. **All context** (everything the LLM saw when making decisions)
 
+> **Why (the rationale):** Without full traces you can only see inputs and outputs — you can't diagnose whether a failure came from a bad tool call, a retrieval miss, or a generation error. Traces make every intermediate step auditable.
+> **When to use:** Capture traces for every production LLM call from day one — retroactively adding tracing after a bug surfaces means you have no historical data to analyse. Traces are the prerequisite for all downstream eval work.
+> **Nuances & gotchas:** Trace storage costs scale with call volume and payload size — redact PII from traces before storing, set retention policies, and sample high-volume low-risk traces rather than storing everything at full fidelity.
+
 ### Example of a Complete Trace
 
 ```
@@ -435,6 +439,10 @@ Error analysis is the **systematic process** of:
 4. Counting how often each type of problem occurs
 
 **This is THE most important skill** in building reliable AI products.
+
+> **Why (the rationale):** You cannot write a useful LLM judge or choose the right metric until you know what failures actually look like in your specific application — error analysis provides that empirical foundation before you invest in automation.
+> **When to use:** Do error analysis before building any automated evaluator, whenever failure rates spike in production, after a major prompt or model change, and on a monthly cadence to catch new failure patterns as user behaviour evolves.
+> **Nuances & gotchas:** Stop reviewing when you stop finding new failure categories (theoretical saturation — typically around 100 traces). Categories must be specific and actionable — "quality issues" is useless; "dietary restriction ignored" is actionable. Reviewing more traces beyond saturation yields diminishing returns.
 
 Most teams skip straight to building fancy dashboards or LLM judges. That's backwards. You need to understand what's wrong before you can measure it.
 
@@ -765,6 +773,10 @@ An **LLM judge** is an AI that evaluates other AI outputs. It reads traces and s
 
 **The challenge:**
 Most people build judges wrong. Their judges hallucinate, miss problems, or create false confidence.
+
+> **Why (the rationale):** Human review doesn't scale to thousands of daily traces — LLM judges let you apply consistent, documented criteria at production scale while keeping costs a fraction of human annotation.
+> **When to use:** Use LLM judges for subjective, nuanced assessments that can't be expressed as code (tone, policy compliance, dietary adherence, helpfulness). For objective checks (format, length, regex patterns), always prefer code-based evals — they're free, deterministic, and instantaneous.
+> **Nuances & gotchas:** LLM judges are biased toward verbosity and their own model's style. Always calibrate against human ground truth using TPR/TNR — raw agreement rate is misleading because a judge that always says PASS can achieve 90% agreement on a 90%-pass dataset while being completely useless. Offline eval with a good judge still does not equal production behaviour — add online/trace eval to catch distribution shift.
 
 ### When to Use LLM-as-a-Judge
 
@@ -1213,6 +1225,10 @@ The structure is always the same: define the criterion, write PASS/FAIL definiti
 
 Code-based evals are **checks you write in programming code** (like Python) to verify specific, objective properties of your AI's outputs.
 
+> **Why (the rationale):** Code-based evals are free (no API calls), deterministic (same input always yields the same result), and instant — they should be your first line of defence for any property that can be expressed as a logical rule.
+> **When to use:** Use code evals for format validation, required-field presence, prohibited patterns (PII, markdown in SMS), response length limits, and tool-call correctness. The rule of thumb: if you can write it as an `if`/`else`, use code — not an LLM.
+> **Nuances & gotchas:** Code evals can produce false negatives on edge cases your regex didn't anticipate (e.g., a phone number formatted as `(555) 123-4567` vs `555.123.4567`). Always test your evals against known-good and known-bad examples before deploying them.
+
 ### When to Use Code-Based Evals
 
 **Use code when you can test something without calling an LLM:**
@@ -1401,6 +1417,10 @@ RAG has **two failure modes:**
 2. **Generation fails** - Uses the information wrong
 
 You need to evaluate **both** separately to know where problems occur.
+
+> **Why (the rationale):** End-to-end evaluation of a RAG system only tells you whether the final answer was wrong — it doesn't tell you whether retrieval or generation caused the failure. Evaluating each stage separately lets you direct engineering effort precisely.
+> **When to use:** Evaluate retrieval first (Recall@K, MRR) before investing in generation evals — if the right document isn't retrieved, no amount of generation tuning will fix the answer. Re-evaluate retrieval whenever you change chunking strategy, embedding model, or index schema.
+> **Nuances & gotchas:** Synthetic queries generated by an LLM over your corpus make excellent retrieval test cases, but they can be biased toward the vocabulary of the documents themselves — supplement with real user queries from production logs. Recall@1 is too strict for many applications; Recall@5 or MRR is often more representative of real-world performance where the model has multiple retrieved chunks available.
 
 ### Building a BM25 Retrieval Engine
 
@@ -1592,6 +1612,10 @@ def diagnose_rag_failure(query, target_recipe_id, retriever, pipeline):
 ### What is a Multi-Step Pipeline?
 
 A **multi-step pipeline** is when your AI breaks a task into several stages, each doing a specific job.
+
+> **Why (the rationale):** State-level evaluation pinpoints exactly where a pipeline fails — instead of knowing only that the final response was bad, you know which specific stage introduced the error, making root-cause analysis and fixes far more efficient.
+> **When to use:** Add state-level evals whenever you have more than two pipeline stages or when end-to-end failure analysis leaves you unable to determine the failure source. Prioritise evaluating the states with the highest failure rates first.
+> **Nuances & gotchas:** Errors propagate downstream — a failure in ParseRequest (misclassifying a dietary restriction) will cascade and cause all later stages to fail even if those stages work correctly in isolation. Always evaluate states independently with clean synthetic inputs to separate cascading failures from intrinsic stage failures.
 
 ### The 7-State Recipe Bot Pipeline
 
@@ -1844,6 +1868,10 @@ Even without writing code, you can:
 
 Most eval examples show single-turn Q&A: user asks, AI answers, done. But real applications have **conversations** — and new failure modes emerge across turns:
 
+> **Why (the rationale):** Single-turn evals miss failures that only manifest across multiple exchanges — contradictions, context loss, and instruction drift are invisible if you only evaluate individual responses in isolation.
+> **When to use:** Add multi-turn evals when your app has sessions longer than 2-3 turns, when users refine requests across turns, or when the system needs to remember constraints stated earlier (budgets, dietary restrictions, preferences).
+> **Nuances & gotchas:** Multi-turn evaluation is expensive because each evaluation requires the full conversation history as context. Contradiction detection requires the judge to reason across the entire history — one of the hardest eval tasks to get right. Synthetic multi-turn tests are faster but often too "clean" to catch real user behaviour; supplement with evaluation on actual production conversation sessions.
+
 1. **Context loss** — AI forgets what the user said 3 messages ago
 2. **Contradiction** — AI says one thing in turn 2, contradicts it in turn 5
 3. **Instruction drift** — AI gradually stops following the original system prompt
@@ -1934,6 +1962,10 @@ SCENARIOS = [
 ### Offline vs. Online Evals
 
 Everything in Chapters 3-8 is **offline evaluation** — you run evals after the fact on collected traces. But production systems also need **online evaluation**:
+
+> **Why (the rationale):** Offline evals measure quality trends and inform improvements, but they don't prevent a bad response from reaching a user right now. Online evals (guardrails) act as a real-time safety net for the highest-risk failure modes.
+> **When to use:** Run online evals for safety-critical checks (PII leakage, prompt injection, harmful content, policy violations) where the cost of one bad response outweighs the added latency. Keep online eval prompts simple and fast — save complex multi-criteria LLM judges for offline analysis.
+> **Nuances & gotchas:** Online LLM-based guardrails add hundreds of milliseconds to every response — test the latency impact before shipping. False positives in online guardrails block legitimate user requests, which is itself a user experience failure; tune for low false-positive rate first, even at the cost of some false-negative misses.
 
 | | Offline Evals | Online Evals |
 |---|---|---|
@@ -2094,6 +2126,10 @@ Then the raw pass rate from your judge is slightly biased.
 
 And returns a corrected success rate with confidence intervals.
 
+> **Why (the rationale):** Even a good judge with TPR=95.7% and TNR=100% introduces bias into your pass-rate estimate. Without correction, you're measuring "what the judge thinks" rather than "what the system actually does." `judgy` uses the labeled test set to estimate and subtract this bias.
+> **When to use:** Apply statistical correction after you have a validated judge (TPR and TNR measured on a held-out test set) and have run it across your full production dataset. Don't apply it if your judge hasn't been validated — correcting an uncalibrated judge can make estimates worse.
+> **Nuances & gotchas:** The confidence interval from `judgy` can be wide (e.g., [84%, 99%]) when the test set is small or judge errors are large — this reflects genuine uncertainty, not a failure. The correction assumes your labeled test set is representative of the production data distribution; if you only labeled easy cases, the correction will be overoptimistic.
+
 ### How to Use judgy
 
 ```python
@@ -2251,6 +2287,10 @@ Regressions detected: [None / List]
 ## Chapter 12: Human Annotation Best Practices
 
 ### When Manual Labels Beat LLM Labels
+
+> **Why (the rationale):** LLM labels are fast and cheap but inherit the judge model's biases and blind spots. Human labels are the ground truth against which every automated judge must be calibrated — without them, you have no way to know if your judge is accurate.
+> **When to use:** Use human annotation for the initial ground-truth labeling set (150-200 examples), for ambiguous edge cases, for high-stakes domains (medical, legal, financial), and whenever inter-annotator agreement reveals that your criteria need clarification.
+> **Nuances & gotchas:** 50 high-quality human labels beat 500 noisy labels. If two annotators disagree more than 20% of the time, your criteria are ambiguous — rewrite them before labeling more data. PMs and QAs typically produce better labels than engineers because they understand the user experience and product policies.
 
 - **Ambiguous cases** where even experts disagree — you need to capture that disagreement
 - **High-stakes domains** (medical, legal, financial) where errors have real consequences

@@ -63,6 +63,10 @@
 
 ## Deep Dive 1 — Chunking Strategies
 
+> **Why (the rationale):** Chunk boundaries determine what evidence survives in a single retrievable unit. Fixed/recursive splitting cuts by character count or structural separators, so one coherent argument can be scattered across two chunks — lowering context recall. Cluster semantic chunking groups sentences by meaning, keeping related evidence together so more of an answer's required claims are found in one retrieved chunk.
+> **When to use:** Cluster semantic chunking pays off when documents are long and topic-diverse (encyclopedic, multi-section docs, knowledge bases). For short, uniform documents (product descriptions, FAQ entries), fixed-size or recursive splitting is often sufficient and far cheaper.
+> **Nuances & gotchas:** Cluster semantic chunking discards sentence-proximity/positional context — non-adjacent sentences on the same topic merge, but sentences that naturally belong together at a fine granularity can be split. It also requires embedding every sentence at index time, which is significantly more expensive than character splitting. A NAACL 2025 paper showed it doesn't consistently beat fixed-size chunking once compute cost is accounted for and can over-fragment into very small chunks that starve the LLM.
+
 | Method | Boundary based on | Trade-off |
 |---|---|---|
 | **Fixed-size** | character/token count | Cheapest; **cuts mid-thought** — splits one idea across chunks |
@@ -79,6 +83,10 @@ Sources: [LangChain RecursiveCharacterTextSplitter](https://reference.langchain.
 ---
 
 ## Deep Dive 2 — Keyword Retriever & Hybrid Search (RRF)
+
+> **Why (the rationale):** Dense retrieval smooths over rare exact tokens (product codes, error codes, API names) because embeddings represent them as similar to related concepts — losing the precise match. BM25 matches exactly on token overlap but misses paraphrase and synonymy. The two fail in *orthogonal* ways, so combining them recovers what either misses. RRF merges the two ranked lists by rank-position only, avoiding the need to normalize incompatible score scales (BM25 is unbounded; cosine is −1..1).
+> **When to use:** Any retrieval task where queries mix natural language with exact identifiers — coding assistants, customer support over technical docs, enterprise search. Pure dense retrieval is usually sufficient for purely semantic queries on homogeneous prose.
+> **Nuances & gotchas:** RRF's k=60 constant dampens high-rank documents; tuning k changes the fusion sensitivity. Adding BM25 increases index size and adds an extra retrieval path to maintain. If the keyword and dense results have very different coverage (e.g., one returns 100 docs, the other 10), the fusion can be lopsided. Hybrid search also raises latency because both retrievers must run in parallel.
 
 - **BM25** = sparse, lexical retrieval (TF saturation + IDF + length normalization). Nails **exact matches** — product codes, IDs, error codes, rare named entities — but can't handle paraphrase/synonymy.
 - **Dense (vector)** retrieval handles **semantic** similarity but under-weights rare exact tokens the embedding never learned well.
@@ -98,6 +106,10 @@ Sources: [Cormack et al., RRF (SIGIR 2009)](https://cormack.uwaterloo.ca/cormack
 
 ## Deep Dive 3 — Reranking (Cross-Encoder)
 
+> **Why (the rationale):** A bi-encoder must compress all possible query meanings into a single fixed document vector computed before the query exists — a lossy compression that sacrifices relevance accuracy for speed. A cross-encoder reads the full `[query, document]` pair jointly, so attention can flow between query and document tokens, producing a far more accurate relevance score. Running it over the entire corpus would be O(N) forward passes per query — infeasible — so it's applied only to the top-K from stage 1, where the added latency is bounded.
+> **When to use:** Any two-stage retrieval system where stage-1 recall is good but precision is poor — top-K from the bi-encoder contains too much noise. Cross-encoders become especially valuable when queries are nuanced or ambiguous and the top-ranked chunks significantly affect answer quality.
+> **Nuances & gotchas:** The cross-encoder can only reorder — it cannot retrieve a document stage 1 missed, so recall is permanently capped by stage 1's top-K. Typical latency cost is 100–300 ms extra for a top-50 to top-5 rerank. Cross-encoder gains diminish if stage-1 precision is already high, making it a poor ROI in that case.
+
 The retriever is a **bi-encoder**: it embeds query and documents *independently*, so document vectors are computed **before the query exists** and must compress all meanings into one fixed vector → fast and high-recall, but lossy.
 
 A **cross-encoder reranker** takes the **`[query, document]` pair as one joint input**, so **full attention runs across query and document tokens together** → a far more accurate relevance score. It's too slow to run over the whole corpus (one forward pass per pair), so it runs only over the **top-K** from stage 1.
@@ -114,6 +126,10 @@ Sources: [Pinecone — Rerankers & Two-Stage Retrieval](https://www.pinecone.io/
 ---
 
 ## Deep Dive 4 — Why Recall and Precision Moved Separately
+
+> **Why (the rationale):** The two metrics measure structurally different things and each intervention targets exactly one. Context recall measures whether the retrieval *set* contains all necessary evidence — improved by putting more relevant content into retrievable chunks (chunker) and casting a wider net (hybrid). Context precision measures whether the *top-ranked* chunks are relevant — improved by reordering the existing candidate set (reranker). Because the reranker only reorders and cannot add new documents, it cannot move recall; because the chunker and retriever don't control ranking order within the top-K, they have limited precision impact.
+> **When to use:** This framework — attribute recall gains to upstream (chunking/retrieval) and precision gains to downstream (reranking) — applies to any two-stage RAG evaluation. It makes interventions independently attributable and justifies the architectural split.
+> **Nuances & gotchas:** RAGAS context precision is rank-weighted, so it rewards pushing relevant chunks to the top even when the total relevant count doesn't change. LLM-judge metrics (RAGAS uses an LLM to label chunk usefulness) have variance across runs and judge models — the deltas are more reliable than absolute scores. A reranker that raises precision can *appear* to help recall if RAGAS's per-chunk judgment changes with position.
 
 This is the crisp story that makes the project defensible — the two metrics measure different things, and each intervention targets one.
 

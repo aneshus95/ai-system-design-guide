@@ -60,6 +60,10 @@ flowchart TB
 
 **Answer:** Every chunk carries its permission metadata from the source system:
 
+> **Why (the rationale):** Enforcing permissions at the generation step (post-retrieval) is insecure: the LLM has already seen the unauthorized content and could leak it paraphrastically. Filtering at retrieval ensures unauthorized documents never enter the LLM context window at all, so access-control guarantees are architectural, not behavioral.
+> **When to use:** Always enforce permissions at the retrieval layer in multi-user enterprise RAG systems. The only exception is single-tenant systems where all users have identical access, in which case the overhead of per-chunk permission tagging is unnecessary.
+> **Nuances & gotchas:** Permissions in SharePoint and Confluence are hierarchical and can change after indexing (a document moves from internal to confidential). The system must re-sync permission metadata on any ACL change, not just on document content changes. Stale permission tags are a silent security risk — a formerly internal document promoted to confidential may remain accessible in the index if only content-based delta sync is running.
+
 ```python
 chunk = {
     "content": "Our approach to automotive supply chain...",
@@ -91,6 +95,10 @@ def search(query: str, user: User):
 
 **Answer:** A 2024 methodology document should rank higher than a 2019 one for the same topic. We use a **decay function**:
 
+> **Why (the rationale):** In a consulting firm, methodology evolves continuously. A semantically similar 2019 document may actually contradict current best practice. Without recency weighting, vector search alone ranks by semantic closeness, which means outdated documents with long, well-written prose routinely outrank shorter but more current guidance.
+> **When to use:** Apply recency weighting whenever the knowledge domain evolves over time and document age is a meaningful proxy for currency. Skip it for archival or historical research use cases where the user explicitly wants older documents.
+> **Nuances & gotchas:** The 365-day half-life is a tunable assumption; for rapidly evolving domains (e.g., AI tooling docs) a 90-day half-life is more appropriate. The 0.7/0.3 blend between semantic and recency scores was empirically tuned; if the recency weight is too high, highly specific older documents will be buried even when no newer document covers the same topic.
+
 ```python
 def recency_boost(doc_date):
     age_days = (today - doc_date).days
@@ -105,6 +113,10 @@ This prevents outdated practices from drowning out current guidance.
 ### 3. Knowledge Gap Detection
 
 **Answer:** We must distinguish "I found nothing" from "I'm making something up":
+
+> **Why (the rationale):** LLMs will synthesize plausible-sounding consulting methodologies from general training data even when the internal knowledge base has nothing relevant. In a firm context, the difference between "this is what we did for automotive clients" and "this is what LLMs generally say about automotive supply chain" is the difference between a billable insight and a hallucinated liability. The relevance score threshold ensures the LLM only speaks from retrieved evidence.
+> **When to use:** Implement knowledge gap detection (retrieval relevance gating) in any RAG system where factual accuracy is required and hallucinated answers are worse than no answer. In creative or brainstorming use cases, allowing the LLM to fill gaps with general knowledge is often acceptable.
+> **Nuances & gotchas:** The 0.5 relevance threshold is query-type-dependent; broad strategic questions often retrieve passages with scores just below 0.5 from tangentially related documents, while specific factual queries either hit clearly above 0.7 or clearly below 0.3. A single threshold across all query types will produce false-positives (claimed gaps) for the broad queries. Segmenting thresholds by query type or using the count of retrieved docs plus average score is more robust.
 
 ```python
 def generate_answer(query: str, retrieved_docs: list):

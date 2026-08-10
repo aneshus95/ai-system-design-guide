@@ -51,6 +51,10 @@ flowchart TB
 
 **Answer:** Scale economics. Calling an LLM for 50M users × 10 recommendation sets/day = 500M LLM calls daily. At $0.001 per call, that is $500K/day. Instead:
 
+> **Why (the rationale):** At 50M users and 10 recommendation sets each per day, an all-LLM path costs $500K/day; the retrieval stack (embedding lookup + ANN + cross-encoder) achieves the same ranking quality for roughly 0.1% of that cost per user. The LLM is reserved only for the value-added explanation step that traditional ML cannot do.
+> **When to use:** Reserve LLM for the output layer (explanation, personalization prose) whenever a classical pipeline can handle candidate retrieval and ranking; switch to LLM-only if the user base is small (under ~100K DAU) or when the ranking signal itself requires deep language understanding.
+> **Nuances & gotchas:** The 85% cache hit rate assumption is critical; if the catalog turns over fast (e.g., news) explanations cannot be cached effectively and per-user LLM costs spike. Also, the LLM explanation layer lags the ranking pipeline, so async generation is required to avoid blocking the response.
+
 | Component | Role | Cost per User/Day |
 |-----------|------|-------------------|
 | Embedding lookup | Fetch precomputed vector | $0.00001 |
@@ -64,6 +68,10 @@ The LLM is only used for the final explanation, not the ranking itself.
 ### 2. Explanation Caching
 
 **Answer:** Most explanations can be cached. "Because you watched Inception" applies to thousands of users. We cache explanations at the (content_pair, reason_type) level:
+
+> **Why (the rationale):** Explanations are keyed on the content pair and reason category, not on the individual user, so the same explanation text is valid for thousands of users who share the same recommendation trigger. Caching at the (source_movie, target_movie, reason_type) level achieves 85%+ hit rates and keeps p95 latency within the 200ms SLA even when the LLM alone takes 450ms on a miss.
+> **When to use:** This pattern is effective when the catalog-to-user ratio is high (many users watch the same movies); it degrades for very niche or rapidly-updating content where the same pair rarely recurs, requiring per-user generation instead.
+> **Nuances & gotchas:** Cache keys must include the reason category to avoid serving "same director" explanations in contexts where the trigger was actually "shared theme." TTL tuning matters: too short drives unnecessary LLM calls; too long risks showing stale explanations after a movie's metadata changes (e.g., a new award is won).
 
 ```python
 cache_key = f"{source_movie}:{target_movie}:{reason_type}"
@@ -80,6 +88,10 @@ Cache hit rate: 85%+ after warmup.
 ### 3. Cold-Start Handling
 
 **Answer:** New users have no history for collaborative filtering. We use a **Hybrid Approach**:
+
+> **Why (the rationale):** Collaborative filtering produces no useful signal for a user with fewer than ~10 interactions because the embedding is not yet meaningful. A hard fallback to content-based filtering uses item attributes (genre, director, themes) immediately available at registration, giving new users relevant recommendations instead of random popular content.
+> **When to use:** Use the hybrid spectrum (content-based → blend → fully collaborative) whenever the user base has a meaningful new-user proportion (e.g., fast-growing platforms). If your platform is mature with few new users, a simpler fallback to global popularity is sufficient.
+> **Nuances & gotchas:** The threshold of 10 items is empirically chosen; setting it too high leaves collaborative filtering out of the mix too long for users who scan quickly. Also, the preferences survey used for cold-start has low completion rates on mobile; designing it as a swipe-to-rate interaction rather than a form improves signal quality significantly.
 
 ```mermaid
 flowchart LR

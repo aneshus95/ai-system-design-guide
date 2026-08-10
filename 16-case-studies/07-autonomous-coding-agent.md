@@ -52,13 +52,25 @@ flowchart LR
 
 **Answer:** The planning task requires **reasoning about the entire codebase** (which files to touch, what dependencies exist). The coding task requires **precise syntax generation**. By separating them, we can use extended thinking mode for planning and fast generation for coding. This also lets us checkpoint after planning for human review of the approach before execution.
 
+> **Why (the rationale):** Combining plan-and-code in one agent collapses the checkpoint where a human can reject a flawed approach before tokens are spent on execution — catching "wrong plan" at planning time is far cheaper than catching it after 15 coding turns.
+> **When to use:** Separate planner/coder is justified for tasks spanning multiple files or requiring dependency analysis. For single-file changes under 50 lines, a single-agent approach is simpler and the overhead of a separate planner step exceeds its value.
+> **Nuances & gotchas:** The planner's output (task plan) becomes the coder's only input — if the plan omits a dependency or misjudges a file's role, the coder has no way to discover the error short of test failure. The plan must be explicit about which files to read, not just which files to edit.
+
 ### 2. Why E2B Sandbox Instead of Local Execution?
 
 **Answer:** Security. The agent generates and runs code. Running it locally exposes the host system. E2B provides an isolated container that resets after each session. If the agent generates `rm -rf /`, it only destroys the sandbox.
 
+> **Why (the rationale):** An autonomous agent that can write and execute arbitrary code is one of the highest-privilege AI components in production — the security boundary must be non-negotiable and not rely on the model "knowing better."
+> **When to use:** Any production coding agent that executes generated code must use an isolated sandbox. Local execution is only acceptable in fully airgapped developer workstations where the developer explicitly consents to the risk.
+> **Nuances & gotchas:** E2B sandboxes reset between sessions, which means build artifacts and cached dependencies are also destroyed. Cold-start time for dependency installation (e.g., `npm install`) can add 30-60 seconds per task, inflating latency and cost beyond the $0.50 budget for dependency-heavy projects. Pre-bake common dependency sets into sandbox snapshots.
+
 ### 3. Why Claude Sonnet 4.6 for Both?
 
 **Answer:** Claude Opus 4.7 leads SWE-bench Pro at 64.3% and Claude Sonnet 4.6 delivers roughly 90% of that quality at ~40% of the price, which is the sweet spot for an agent that runs many turns per task. We enable "Extended Thinking" only on debugging loops, not on initial generation, to control costs.
+
+> **Why (the rationale):** In a multi-turn agent loop (planning + 1.5 coding attempts on average), every model upgrade multiplies across all turns — choosing Opus over Sonnet would roughly double total task cost while recovering only a fraction of the quality gap on average tasks.
+> **When to use:** Use Sonnet when the task distribution is dominated by well-defined changes (add a feature, fix a bug). Upgrade to Opus when tasks require architectural reasoning that Sonnet gets wrong on first attempt, causing extra retry turns that erase the cost advantage.
+> **Nuances & gotchas:** Enabling Extended Thinking only on debug loops saves tokens but means the initial code generation is done without deep reasoning — for tasks where the first attempt almost always fails (complex refactors), enabling thinking on the first pass may reduce total turns and lower net cost despite higher per-turn cost.
 
 ---
 
@@ -91,9 +103,17 @@ flowchart TB
 2. **Build a symbol graph** using tree-sitter for AST parsing
 3. **Retrieve in stages**: summaries → symbols → full content
 
+> **Why (the rationale):** Tiered retrieval (summaries → symbols → full content) means the agent reads only the files it needs in full, avoiding the impractical alternative of loading all 1,000 files into a context window that doesn't exist, while being more precise than pure vector search on code.
+> **When to use:** The three-tier approach is necessary for codebases with >200 files. For smaller repos that fit in a large context window, loading all files directly is simpler and eliminates retrieval errors from false-negative file summaries.
+> **Nuances & gotchas:** File summaries are generated once during onboarding — if a file changes significantly, its summary becomes stale and the agent will misroute to the wrong files. Build an incremental summary-refresh pipeline triggered on file commits, not just on initial repo indexing.
+
 ---
 
 ## The Self-Correction Loop
+
+> **Why (the rationale):** Feeding the full test error output back as the next task prompt (rather than starting fresh) gives the agent the exact failure mode as context, which is sufficient to fix most off-by-one and API-signature errors on the second attempt without replanning.
+> **When to use:** Self-correction with error feedback is effective when the error messages are diagnostic (compiler errors, test assertion failures). It is ineffective when the failure is silent (wrong behavior, no test coverage) — in those cases escalate to human rather than retry blindly.
+> **Nuances & gotchas:** The retry loop can enter a cycle where the agent's fix for error A introduces error B, which the fix for B then reintroduces error A. The `max_attempts: 3` cap stops this, but a smarter guard would detect when the same test is failing on consecutive attempts and escalate rather than using the third attempt on an approach the agent has already exhausted.
 
 Agents fail. The key to reliability is **structured self-correction**:
 

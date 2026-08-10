@@ -51,6 +51,10 @@
 
 ## Deep Dive 1 — Clustering for Behavioral Segmentation
 
+> **Why (the rationale):** Clustering uncovers natural behavioral personas without imposing predefined categories. Pre-labeling sellers as "top" vs "low" by quota attainment alone misses the nuance that sellers with similar attainment can reach it via very different behavioral patterns — clustering surfaces those patterns, which is what coaching needs.
+> **When to use:** Clustering is appropriate for initial exploratory segmentation when the right groupings aren't known in advance, the feature space is multi-dimensional, and the goal is to surface interpretable personas for stakeholders. If you already know the groups (top/low by attainment), clustering is unnecessary — just compare those groups directly.
+> **Nuances & gotchas:** k-means is sensitive to scale (a feature in thousands dominates over one in single digits), initialization (k-means++ helps but doesn't eliminate local minima), and the choice of K (elbow method is a heuristic, not a deterministic answer). Clusters are *descriptive* — they don't imply the personas *cause* the performance difference; that requires the hypothesis testing and experimental design in later deep dives. Cluster labels ("top performer persona") must be validated against actual attainment, not assumed from centroid values.
+
 **k-means** partitions sellers into K groups by minimizing within-cluster sum-of-squares (inertia): assign each point to the nearest centroid → recompute centroids → repeat. It assumes roughly spherical, similar-variance clusters and is sensitive to initialization (`k-means++`) and feature scale.
 
 - **Feature scaling is critical** — k-means uses Euclidean distance and can't rescale per axis, so a feature on a larger numeric scale dominates. **Standardize (z-score) before clustering.**
@@ -66,6 +70,10 @@ Sources: [scikit-learn — Clustering](https://scikit-learn.org/stable/modules/c
 
 ## Deep Dive 2 — Hypothesis Testing (What Really Separates Top Performers)
 
+> **Why (the rationale):** Without hypothesis testing, any observed behavioral difference could be sampling noise — especially when you're comparing the tails of a performance distribution. A t-test with multiple-comparison correction separates real signals from false discoveries when many behaviors are tested simultaneously. Effect size (Cohen's d) guards against the trap of "statistically significant but practically trivial" with large samples.
+> **When to use:** Two-sample t-tests for comparing continuous behavioral metrics (call frequency, deal size, discount rate) between two groups with adequate sample size. Mann-Whitney U test if the distributions are heavily non-normal. Multiple-comparison correction (Bonferroni or FDR) whenever more than a handful of hypotheses are tested simultaneously.
+> **Nuances & gotchas:** The p-value alone is not sufficient — a very large sample makes trivially small differences "significant" (e.g., top performers make 0.1 more calls per week on average). Always pair p-value with Cohen's d to confirm practical significance. Pre-registering hypotheses before looking at data prevents HARKing (Hypothesizing After Results are Known). Welch's t-test should be the default over Student's when group sizes or variances differ — which is typical when comparing top vs low performers.
+
 To confirm "top performers do behavior X more" isn't just noise:
 
 - **Null vs alternative:** H₀ = top and low performers do X at the same rate; H₁ = top performers do X more.
@@ -80,6 +88,10 @@ Sources: [Type I/II errors — Statistics By Jim](https://statisticsbyjim.com/hy
 
 ## Deep Dive 3 — Predictive Modeling & SHAP
 
+> **Why (the rationale):** A predictive model surfaces the joint importance of behaviors while controlling for other factors — something pairwise t-tests miss (a behavior may look important in isolation but be redundant given another correlated behavior). SHAP provides model-agnostic, game-theoretically grounded attribution with direction (does more of X raise or lower attainment?) and local explanations (per-seller insights for personalized coaching), making the model's output actionable rather than a black box.
+> **When to use:** SHAP + tree ensemble is the right pattern when you want both prediction accuracy and feature-level explanations on tabular data. Use `TreeExplainer` (fast, exact) for tree models. For regression tasks where interpretability is paramount and accuracy is secondary, linear models with regularization can be more directly interpretable.
+> **Nuances & gotchas:** SHAP importance is associational — a behavior's high SHAP value means it's correlated with high attainment in this dataset, not that it causally drives attainment. Correlated features split SHAP value between them, making importance rankings unstable when features are collinear. Filtering to *controllable* behaviors is a judgment call that requires domain knowledge — the model doesn't know what a manager can actually change. Global SHAP rankings may not be valid for individual sellers with atypical profiles.
+
 Predict revenue attainment (regression) — or top-performer status (classification) — from behavioral features, using a tree ensemble (random forest / gradient boosting), then explain it:
 
 - **SHAP (SHapley Additive exPlanations)** attributes each prediction's deviation from the average prediction to each feature, via game-theoretic Shapley values — giving both **magnitude and direction** (does more of behavior X push predicted attainment up or down?) and both **global** (overall drivers) and **local** (per-seller) explanations. `TreeExplainer` is fast/exact for tree models.
@@ -92,6 +104,10 @@ Sources: [SHAP — Lundberg & Lee (arXiv 1705.07874)](https://arxiv.org/pdf/1705
 ---
 
 ## Deep Dive 4 — Measuring the 10% Lift (the Hard Part)
+
+> **Why (the rationale):** Pre/post comparison is intuitive but confounded by regression to the mean (RTM) — selecting the lowest performers and re-measuring them will show apparent improvement even with no coaching, because extreme scores contain luck/noise that averages out. A control group of equally-low uncoached performers quantifies how much of the improvement is RTM + time trend, letting you isolate the coaching-specific increment. DiD removes stable group differences *and* shared time trends simultaneously.
+> **When to use:** Randomized treatment/control is the gold standard whenever you can randomly assign coaching to a subset of low performers. DiD is the right quasi-experimental fallback when randomization isn't possible but you have pre-treatment data for both groups and can verify the parallel-trends assumption. Pre/post alone should be reported with explicit RTM caveats.
+> **Nuances & gotchas:** DiD's parallel-trends assumption is untestable in the post-period — you can only check that trends were parallel *before* the intervention. Quota changes, territory realignments, or product launches that affect only one group violate the assumption. Spillover effects (uncoached sellers adopting coached behaviors informally) can dilute the control group, understating the true lift.
 
 This is what an interviewer will press hardest on, because it's the easiest place to fool yourself.
 

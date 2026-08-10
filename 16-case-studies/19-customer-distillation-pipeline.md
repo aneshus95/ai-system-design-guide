@@ -70,15 +70,27 @@ flowchart LR
 
 ### 1. Distill on real production traces, not synthetic data
 
-The temptation is to generate synthetic prompts via an LLM and label them with the teacher. We tried this; it produces a model that excels at synthetic prompts and degrades 4 to 7 points on real traffic. Production traces capture the distribution shift, oddities, and tail cases that matter. We collect 6 months of traces, sample stratified by task category, and use real prompts as the distillation source. This aligns with the practice frontier labs' FDE teams recommend.
+The temptation is to generate synthetic prompts via an LLM and label them with the teacher.
+
+> **Why (the rationale):** Synthetic prompts are generated from a prior distribution over what the task "should" look like; production traffic contains the actual distribution including malformed inputs, unusual phrasings, and domain-specific edge cases that synthetic generation systematically undersamples. Training on synthetic data produced a 4–7 point degradation on real traffic — a failure mode that only surfaces in production, not in evals run against the synthetic set.
+> **When to use:** Synthetic data is acceptable for bootstrapping a new product with no production traffic yet, or for augmenting underrepresented categories. Once 6+ months of production traces are available, real traces should dominate the training mix.
+> **Nuances & gotchas:** Production traces contain PII by definition, requiring a redaction pass before training (Design Decision 9). The redaction model's 98%+ precision / 95%+ recall still means roughly 1 in 20 rare PII spans gets through; for HIPAA or GDPR-regulated domains, a manual audit sample of the training set is required before training begins. We tried this; it produces a model that excels at synthetic prompts and degrades 4 to 7 points on real traffic. Production traces capture the distribution shift, oddities, and tail cases that matter. We collect 6 months of traces, sample stratified by task category, and use real prompts as the distillation source. This aligns with the practice frontier labs' FDE teams recommend.
 
 ### 2. Reject-sample with human spot-check
 
-Teacher errors propagate into the student. A 92 percent teacher precision becomes a 90 percent student precision if you train on every teacher output. We have a 5 percent human spot-check on a random sample of teacher labels, and we reject pairs where the human disagrees. This catches roughly 4 percent of labels and lifts the final student's quality by 2 to 4 points on our composite metric. Cost: about $1,800 in human labeling per re-distillation, on top of compute.
+Teacher errors propagate into the student.
+
+> **Why (the rationale):** A teacher model at 92% precision on the specific task domain produces ~64K incorrect labels in 800K training pairs. Without rejection sampling, those errors are baked into the student's learned behavior and can be amplified (the student learns to be confidently wrong on the patterns where the teacher erred). A 5% human spot-check at $1,800 catches ~4% bad labels and yields a measurable 2–4 point quality lift on the eval composite.
+> **When to use:** Human rejection sampling is required when the task domain has known teacher failure modes (e.g., hallucination-prone structured extraction) or when downstream quality requirements are tight (under 2% regression allowed). For tasks where teacher accuracy is demonstrably above 98% on the domain, automated consistency checks between multiple teacher runs can substitute for human review at lower cost.
+> **Nuances & gotchas:** The 5% spot-check rate samples randomly; it may undersample categories where teacher errors are clustered. Stratifying the spot-check sample by task category, not just random sampling, catches more systematic teacher failures with the same human labeling budget. A 92 percent teacher precision becomes a 90 percent student precision if you train on every teacher output. We have a 5 percent human spot-check on a random sample of teacher labels, and we reject pairs where the human disagrees. This catches roughly 4 percent of labels and lifts the final student's quality by 2 to 4 points on our composite metric. Cost: about $1,800 in human labeling per re-distillation, on top of compute.
 
 ### 3. Chain-of-thought distillation where it pays
 
-For reasoning-heavy tasks (the triage category in our case), we use Hsieh et al.'s [distillation with rationales](https://arxiv.org/abs/2305.02301) approach: the teacher emits both the answer and a reasoning trace; the student is trained to emit both. This gives the student structured thinking it would not develop from input-output pairs alone. We do not use this for classification or extraction tasks (no gain, extra latency).
+For reasoning-heavy tasks (the triage category in our case), we use Hsieh et al.'s [distillation with rationales](https://arxiv.org/abs/2305.02301) approach:
+
+> **Why (the rationale):** For triage tasks that require conditional logic (if symptom A and not symptom B, escalate to category C), input-output distillation alone gives the student no structure for the intermediate reasoning steps. Training the student to emit the reasoning trace first and then the answer gives it structured thinking scaffolding that significantly improves accuracy on multi-step triage cases — Hsieh et al. show consistent gains over answer-only distillation on reasoning tasks.
+> **When to use:** Use CoT distillation for tasks involving multi-step conditional reasoning, structured decision trees, or cases where the rationale should be auditable. Skip it for classification and extraction tasks where the answer is the only output needed; CoT adds latency and training complexity with no gain on these task types.
+> **Nuances & gotchas:** CoT distillation increases inference latency because the student must emit the reasoning tokens before the answer. For tasks with strict latency budgets, the reasoning trace must be streamed separately from the answer, or a separate "fast path" without reasoning is needed for latency-critical contexts. The teacher's reasoning traces are also occasionally incorrect; bad reasoning traces that lead to the correct answer should be filtered out (they teach the wrong reasoning path). the teacher emits both the answer and a reasoning trace; the student is trained to emit both. This gives the student structured thinking it would not develop from input-output pairs alone. We do not use this for classification or extraction tasks (no gain, extra latency).
 
 ### 4. Eval-set construction with human labeling
 
@@ -86,7 +98,11 @@ Our eval set is curated separately from the training set. It contains 1,800 case
 
 ### 5. Canary rollout and shadow traffic
 
-Even with eval passing, production has tail behavior the eval set misses. Our rollout:
+Even with eval passing, production has tail behavior the eval set misses.
+
+> **Why (the rationale):** The eval set is built from historical traces, but production traffic at canary time may include new patterns introduced after the training data cutoff (new product features, new user cohorts, notification campaigns). Shadow traffic for 2 weeks before any live exposure gives the student a full production-traffic trial with zero user impact. The conservative 5% → 20% → 50% → 90% ramp provides early-warning windows at each stage with auto-rollback, catching two regressions in production that the eval set missed over the past year.
+> **When to use:** Shadow + canary is mandatory when the student model serves customer-facing traffic and the task is sufficiently heterogeneous that the eval set cannot fully represent it. For internal tooling where the user population is small and identifiable, a direct canary without shadow may be sufficient.
+> **Nuances & gotchas:** The permanent 10% teacher route is critical for ongoing trace collection to feed the next re-distillation cycle. If this route is removed to maximize cost savings, the training data for the next cycle degrades to only student outputs, creating a recursive degradation spiral. The 10% teacher cost must be budgeted permanently, not treated as a temporary overhead. Our rollout:
 
 - Week 1: shadow traffic only, no user impact. We compare student vs teacher outputs on 100 percent of traffic, with a delta classifier flagging divergences for human review.
 - Week 2: 5 percent live traffic. Auto-rollback if any of (a) latency p95 exceeds 500 ms, (b) live user thumbs-up rate drops more than 1 point, (c) a domain-specific guardrail trips at higher rate.
@@ -113,7 +129,11 @@ We use a quick-screen heuristic: at least 60 percent of traffic falls into 5 or 
 
 ### 8. Quantization choice
 
-We serve the 7B student in int4 (GPTQ via vLLM with FP8 KV cache). int4 cuts memory roughly 4x and improves throughput by about 2.3x on H100 vs FP16. We measured an accuracy hit of 0.4 points on our composite, well within tolerance. We considered int8 (smaller hit, smaller speedup) and FP8 (less mature ecosystem); int4 won on cost-per-request.
+We serve the 7B student in int4 (GPTQ via vLLM with FP8 KV cache).
+
+> **Why (the rationale):** int4 quantization cuts GPU memory ~4x vs FP16 and improves throughput ~2.3x on H100, enabling the 350ms p95 latency target at lower GPU cost. The 0.4-point accuracy hit on the composite eval is well within the 2-point regression budget. int8 was also evaluated: smaller accuracy hit but smaller throughput gain, making int4 the better cost-per-request choice for this workload.
+> **When to use:** int4 quantization is the right choice when throughput and cost-per-request are the primary constraints and a small accuracy loss is tolerable. Use int8 when the accuracy budget is tighter (under 0.5 points) and throughput requirements are less demanding. Avoid aggressive quantization for tasks requiring precise numerical outputs (financial calculations, code generation where exact tokens matter).
+> **Nuances & gotchas:** GPTQ int4 quality varies by layer; attention layers tolerate quantization better than MLP layers. For the triage task category that relies on nuanced reasoning, the int4 degradation may be concentrated specifically in the reasoning steps rather than uniformly distributed across the quality composite — task-category-specific accuracy checks (not just composite) are needed to confirm the quantization choice is acceptable across all task types. int4 cuts memory roughly 4x and improves throughput by about 2.3x on H100 vs FP16. We measured an accuracy hit of 0.4 points on our composite, well within tolerance. We considered int8 (smaller hit, smaller speedup) and FP8 (less mature ecosystem); int4 won on cost-per-request.
 
 ### 9. Privacy considerations on training data
 

@@ -61,6 +61,12 @@ flowchart TB
 
 **Answer:** Scanned contracts often have stamps, handwritten annotations, and complex layouts (tables, multi-column). Traditional OCR (Tesseract) produces garbled output. Gemini 3 Flash "sees" the layout and produces clean Markdown with tables preserved. Cost is higher but accuracy gain is worth it.
 
+> **Why (the rationale):** The jump from 60% (Tesseract) to 92% accuracy (Gemini 3 Flash) on scanned contracts is the difference between extracting usable fields and generating noise that corrupts downstream extraction — for a legal platform, a garbled party name or date is worse than a missing field.
+> **When to use:** Use Vision-LLM OCR when documents contain complex layouts, stamps, watermarks, or handwritten annotations. For clean scanned text with standard fonts and no annotations, AWS Textract at $0.15 delivers 75% accuracy — acceptable for lower-stakes extraction at a 57% cost reduction.
+> **Nuances & gotchas:** Gemini 3 Flash's Markdown output for tables uses pipe syntax that works for simple two-dimensional tables but fails to capture merged cells, nested headers, or spanning rows common in financial exhibits. Post-process the Markdown output with a table-structure validator before passing it to extractors.
+
+| Method | 100-page Scanned Contract | Accuracy | Cost |
+
 | Method | 100-page Scanned Contract | Accuracy | Cost |
 |--------|---------------------------|----------|------|
 | Tesseract | Noisy, broken tables | 60% | $0.02 |
@@ -70,6 +76,10 @@ flowchart TB
 ### 2. Parallel Extractors vs Single-Pass
 
 **Answer:** A single prompt asking for all fields produces worse results than specialized extractors. Each extractor has a focused prompt and schema:
+
+> **Why (the rationale):** A single-pass prompt asking for 10 field types forces the model to context-switch between very different extraction tasks (date parsing, entity recognition, obligation identification) within one generation, causing each task to receive less attention and producing lower recall on every field.
+> **When to use:** Parallel specialized extractors are worth the added orchestration complexity whenever you have 4+ distinct field types with different schemas. For 2-3 simple fields (parties + effective date only), a single-pass prompt is simpler and the quality gap is small.
+> **Nuances & gotchas:** Parallel extractors can produce conflicting results for the same field (e.g., parties extractor and obligations extractor both extract party names but disagree on spelling). The merge step must handle field-level conflicts explicitly — flag them for human review rather than silently picking one result.
 
 ```python
 parties_schema = {
@@ -98,6 +108,12 @@ async def extract_all(document: str):
 ### 3. Cross-Field Validation
 
 **Answer:** Extraction errors often reveal themselves through inconsistencies:
+
+> **Why (the rationale):** Cross-field validation catches a class of extraction errors that field-level confidence scores miss — a date field can have high confidence yet still be wrong if it is logically inconsistent with another high-confidence date field in the same document.
+> **When to use:** Cross-field validation is essential whenever extracted fields have known logical relationships (dates must be ordered, party names must be consistent across clauses). It adds no value for independent fields (e.g., a list of jurisdiction names) where inconsistency is not detectable.
+> **Nuances & gotchas:** The validation rules themselves can have bugs — a rule that flags `effective_date > termination_date` will generate a false alert on "evergreen" contracts with no fixed termination date (where termination_date is null). Each validation rule must account for null, optional, and not-applicable states to avoid flooding the human review queue with false flags.
+
+- If `effective_date` is after `termination_date`, something is wrong
 - If `effective_date` is after `termination_date`, something is wrong
 - If `party_a` name appears in `obligations` but spelled differently, flag for review
 - If `payment_amount` is extracted but `payment_frequency` is null, incomplete
@@ -131,9 +147,17 @@ flowchart LR
 
 **Key insight:** Not all 200 pages contain extractable fields. Exhibits (attached original documents) are stored as references, not processed. The "Terms and Conditions" section is often 80% of the document but contains most key fields.
 
+> **Why (the rationale):** Section-aware filtering (process relevant sections, skip exhibits) reduces per-document token consumption by up to 60% for long contracts while maintaining extraction completeness — exhibits contain original referenced documents, not primary key fields.
+> **When to use:** Section-based selective processing is effective for well-structured contracts that follow standard templates. For non-standard or bespoke agreements where key terms can appear in any section, full-document processing is safer despite the cost.
+> **Nuances & gotchas:** The section detector must reliably identify section boundaries before selective processing. A misclassified section (e.g., "Exhibit A – Payment Schedule" classified as an exhibit and skipped) can cause payment_amount to be null. Test the section detector on your actual contract corpus before relying on it for cost reduction.
+
 ---
 
 ## Multilingual Handling
+
+> **Why (the rationale):** Language-specific extractors rather than a single multilingual prompt handle structural differences in contract conventions — German contracts use GmbH/AG entity suffixes, period-delimited dates (DD.MM.YYYY), and Kündigung termination clauses that a generic English-focused prompt systematically misextracts.
+> **When to use:** Maintain separate language-specific extractors when legal structural conventions differ meaningfully between languages (German, French, Spanish commercial law). For languages whose contract structures closely mirror English patterns, a single extractor with language detection is sufficient.
+> **Nuances & gotchas:** Language detection must run before extraction routing — a bilingual contract (English body, German exhibits) can confuse the detector and route the document to the wrong extractor. Apply per-section language detection rather than document-level detection for mixed-language contracts.
 
 German contracts use different structures than English ones. We maintain language-specific extractors:
 

@@ -115,6 +115,10 @@ The same structure answers the deeper ones vector search can't: *"trace every do
 
 ## Deep Dive 2 — Graph RAG vs Vector RAG
 
+> **Why (the rationale):** BIAN's value is its *relational structure* — which domains depend on which, what objects they exchange, how CRs compose BQs. Vector similarity retrieves chunks that "sound like" the query but cannot reconstruct multi-hop chains or guarantee completeness of a dependency set. A knowledge graph makes relationships first-class and traversable: answering "what depends on X" is a one-hop Cypher query, not a hope that the answer is contained in a single similar paragraph.
+> **When to use:** Graph RAG is the right choice when the corpus has rich, structured relational content and the key questions are multi-hop or dependency-traversal in nature (architecture, ontology, knowledge-graph Q&A). For corpora of independent prose documents where questions are about content similarity rather than relationships, vector RAG is simpler and usually sufficient.
+> **Nuances & gotchas:** Graph construction is the bottleneck — LLM-based entity/relationship extraction is noisy and expensive; deterministic parsing is only possible when the corpus has well-structured source artifacts. Graph quality directly limits retrieval quality: a missing or wrong edge means the traversal produces an incomplete or incorrect answer with no fallback. Text-to-Cypher generation by an LLM can produce syntactically valid but semantically wrong queries, silently returning wrong subgraphs.
+
 - **Naive/vector RAG:** chunk → embed → retrieve top-k similar chunks → stuff into the LLM. Great for "find a passage like my question," but retrieves **isolated chunks** with **no model of relationships**.
 - **Graph RAG:** build a **knowledge graph** (entities = nodes, relationships = edges), then retrieve by **traversing** the graph (often plus vector search) — supplying **multi-hop, relational context** similarity search can't reconstruct.
 
@@ -129,6 +133,10 @@ Sources: [Microsoft Research — GraphRAG (arXiv 2404.16130)](https://arxiv.org/
 ---
 
 ## Deep Dive 3 — Property Graph (and Why Not RDF)
+
+> **Why (the rationale):** BIAN edges carry meaningful properties (functional pattern, asset type, API verb, landscape version) that need to be stored directly on the edge. RDF triples have no native edge properties — you'd need to *reify* each edge into an extra node, adding complexity and making traversal queries more verbose. LPG's Cypher query language and native graph algorithms (path finding, community detection) also pair naturally with the LLM tooling ecosystem (LlamaIndex, LangChain, Neo4j GraphRAG).
+> **When to use:** Property graphs (Neo4j, TigerGraph) for traversal-heavy retrieval where edge attributes matter and dev ergonomics / LLM tooling integration are important. RDF/triples for linked-data, formal-ontology, or W3C standards compliance use cases (OWL reasoning, SHACL validation).
+> **Nuances & gotchas:** Neo4j's native Cypher is not SQL and has its own learning curve; generated Cypher from an LLM can use nonexistent node labels or relationship types. Property graphs sacrifice the formal inference capabilities of OWL/SHACL — you can't automatically derive new facts through entailment. Graph schema migrations (adding a new node type or relationship) require careful versioning, especially when tied to a specific BIAN Service Landscape release.
 
 A **Labeled Property Graph (LPG)** has **nodes** (with type labels) and **directed, typed edges**, where **both nodes and edges carry key–value properties**. (Neo4j's native model.)
 
@@ -145,6 +153,10 @@ Sources: [LlamaIndex — Property Graph Index](https://developers.llamaindex.ai/
 ---
 
 ## Deep Dive 4 — Modeling BIAN as a Property Graph
+
+> **Why (the rationale):** BIAN's official artifacts (Service Landscape, CR-BQ hierarchy, BOM) are semi-structured and deterministic — they map cleanly to node types and edge types without needing LLM inference. Keeping structural edges authoritative (not LLM-guessed) is critical: an LLM hallucinating a `DEPENDS_ON` edge would silently make the retrieval wrong, undermining the "BIAN-compliant" claim. LLM extraction is reserved only for looser prose (definitions, business scenarios) where deterministic parsing fails.
+> **When to use:** Hybrid construction (deterministic parsing for structured content, LLM extraction for unstructured prose) is the right approach for any corpus that has both: structured artifacts with high precision and unstructured documentation with useful relational content. Pure LLM extraction works for fully unstructured corpora; pure deterministic parsing fails when the corpus includes natural-language content.
+> **Nuances & gotchas:** The BIAN Service Landscape changes with each version (currently up to v12) — the graph must be versioned and re-ingested when BIAN releases a new version. Cross-domain `DEPENDS_ON` edges come from business scenarios and BOM exchange specs, which are the loosest artifacts; these edges are the most likely to be wrong or incomplete and carry the most retrieval risk.
 
 The ingested inputs map directly onto graph structure:
 
@@ -166,6 +178,10 @@ Properties carry definitions, functional pattern, asset type, generic artifact, 
 ---
 
 ## Deep Dive 5 — Retrieval & Traversal at Query Time
+
+> **Why (the rationale):** Vector search alone can't answer "what depends on X" — that's a graph traversal. Graph traversal alone requires knowing the exact entry node name — that's vector search's job. The two-step pattern (vector/full-text to find entry points → Cypher to traverse the connected subgraph) combines fuzzy semantic matching with precise structural walk, and returning the traversed subgraph as provenance makes answers auditable rather than opaque.
+> **When to use:** Hybrid vector-then-traverse is the right retrieval pattern when questions mix "find the relevant entity" (semantic) with "walk from that entity" (relational). Pure Cypher suffices when entity names are known exactly. Pure vector suffices when questions are about content, not structure.
+> **Nuances & gotchas:** The depth of traversal must be bounded (`MATCH (a)-[:REL*1..3]->(b)`) to avoid exponentially large subgraphs for highly connected nodes. For broad "how does this business area hang together" questions, local fan-out traversal generates too much context; community-summary approaches (like MS GraphRAG's global retrieval) are better suited — but this project focused on local/structured queries where traversal excels.
 
 **Hybrid vector-then-traverse:**
 1. **Find entry points** — vector/full-text search over node text finds the relevant starting nodes.

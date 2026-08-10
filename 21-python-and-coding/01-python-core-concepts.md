@@ -28,6 +28,10 @@ Python's language features come up constantly in coding screens for Data Science
 
 **What it is:** Immutable objects cannot be changed after creation — any "change" creates a new object. Mutable objects can be modified in place. Think of an immutable object as a printed book (you'd need to print a new one to change it), and a mutable object as a whiteboard (erase and rewrite freely).
 
+> **Why (the rationale):** Immutability guarantees that shared references can never be silently changed by another part of the code — critical for hash-based collections (`dict` keys, `set` members) and safe defaults in function signatures.
+> **When to use:** Prefer immutable types (`tuple`, `frozenset`, `str`) when the data should never change after creation, when objects are used as dict keys, or when sharing across threads. Use mutable types (`list`, `dict`) when you need in-place growth or modification.
+> **Nuances & gotchas:** Using a mutable default argument (`def f(x=[])`) is the single most common Python gotcha — the list is created once and shared across all calls; use `None` and initialise inside the function instead. Also, `tuple` is immutable but can contain mutable objects — reassigning an element raises `TypeError`, but mutating an inner list does not.
+
 | Immutable | Mutable |
 |-----------|---------|
 | `int`, `float`, `bool` | `list` |
@@ -69,6 +73,10 @@ def add_item_safe(item, lst=None):
 
 **What it is:** `==` checks if two objects have the **same value**. `is` checks if they are the **exact same object in memory** (same address, returned by `id()`). Think of `==` as "do these two people have the same name?" and `is` as "are they literally the same person?"
 
+> **Why (the rationale):** Without the identity/equality distinction, comparing objects like `None` or singleton flags would be ambiguous — `is None` is faster and semantically precise because `None` is a singleton, while `==` delegates to `__eq__` which can be overridden.
+> **When to use:** Use `is` only for `None`, `True`, `False`, and explicit singleton checks. Use `==` for all value comparisons.
+> **Nuances & gotchas:** CPython interns small integers (-5 to 256) and many short strings, so `x is y` can return `True` for small ints even when you didn't intend identity comparison — this is a CPython implementation detail, not guaranteed by the language spec.
+
 ```python
 a = [1, 2, 3]
 b = [1, 2, 3]
@@ -95,6 +103,10 @@ print(x is y)   # False (usually) — outside cache range
 ## Variable Scope — LEGB, `global`, `nonlocal`
 
 **What it is:** When Python looks up a variable name, it searches in this order — **L**ocal → **E**nclosing → **G**lobal → **B**uilt-in. It stops at the first match. `global` and `nonlocal` let you write to outer scopes instead of just reading them.
+
+> **Why (the rationale):** Strict scope rules prevent accidental name collisions between functions — each function gets its own local namespace, so local variables don't bleed into callers. `global`/`nonlocal` provide controlled escape hatches when you genuinely need to mutate state in an outer scope.
+> **When to use:** Use `global` sparingly for module-level configuration or counters. Use `nonlocal` inside nested functions (e.g., closures that need to update a counter). Prefer returning values or using a class when `global` usage grows.
+> **Nuances & gotchas:** If you assign to a name inside a function at any point, Python treats it as local for the entire function — reading it before the assignment raises `UnboundLocalError`, even if a global with the same name exists. This surprises many beginners.
 
 ```python
 x = "global"
@@ -140,6 +152,10 @@ print(c(), c(), c())  # 1 2 3
 
 **What it is:** `*args` collects any number of **positional** arguments into a tuple. `**kwargs` collects any number of **keyword** arguments into a dict. Think of `*args` as a catch-all bag for unnamed items, and `**kwargs` as a labelled bag for named items.
 
+> **Why (the rationale):** They make APIs flexible without breaking callers when you add new parameters — decorators use `wrapper(*args, **kwargs)` to forward all arguments to the original function unchanged.
+> **When to use:** Use `*args` when the number of positional inputs is genuinely variable (e.g., `sum`, `print`). Use `**kwargs` for option-passing APIs and decorator wrappers. Avoid overusing both — explicit parameters are clearer and support better tooling (autocomplete, type checking).
+> **Nuances & gotchas:** Argument order in a signature must follow: positional-only → `*args` → keyword-only → `**kwargs`. Passing keyword arguments as positional (or vice versa) raises `TypeError`. In Python 3, you can place `*` alone in the signature to force all subsequent arguments to be keyword-only.
+
 ```python
 def describe(*args, **kwargs):
     print("Positional:", args)
@@ -166,6 +182,10 @@ print(add(**params))       # 60
 
 **What it is:** A concise, readable way to build lists, dicts, or sets from iterables — often replacing a multi-line `for` loop with a single expression.
 
+> **Why (the rationale):** Comprehensions are typically faster than equivalent `for`-loop + `append` code (the loop body executes as a C-level iteration rather than repeated Python function calls) and they express intent in one readable line.
+> **When to use:** Use list comprehensions when you need the full collection immediately (random access, `len`, multiple passes). Switch to a generator expression (parentheses) when processing large data you'll only iterate once — it keeps memory at O(1) instead of O(n).
+> **Nuances & gotchas:** Comprehensions have their own scope in Python 3 (unlike Python 2), so the loop variable doesn't leak. Nested comprehensions `[f(x) for row in matrix for x in row]` execute left-to-right, which often reads backwards compared to the nested `for` loop equivalent — always double-check the order.
+
 ```python
 # List comprehension
 squares = [x**2 for x in range(10) if x % 2 == 0]
@@ -188,6 +208,10 @@ total = sum(x**2 for x in range(1_000_000))  # no giant list in memory
 ## `lambda`, `map`, `filter`
 
 **What it is:** `lambda` creates a small anonymous function in one line — handy as a throwaway argument. `map` applies a function to every item in an iterable. `filter` keeps only items for which a function returns `True`.
+
+> **Why (the rationale):** `lambda` avoids the overhead of a named `def` when you only need a trivial function in one place (e.g., a `key=` argument to `sorted`). `map` and `filter` return lazy iterators, so they avoid building intermediate lists.
+> **When to use:** Use `lambda` for simple one-expression callbacks (`sorted(items, key=lambda x: x.name)`). For anything requiring multiple lines or a name, use a full `def`. In modern Python, prefer list/generator comprehensions over `map`/`filter` — they are more readable and support arbitrary expressions without a lambda.
+> **Nuances & gotchas:** `lambda` cannot contain statements (assignments, `return`, `for`). `map` and `filter` return iterators in Python 3 — wrap in `list()` if you need random access. Chaining `map(map(…))` creates deeply nested iterators that are hard to debug.
 
 ```python
 double = lambda x: x * 2
@@ -214,6 +238,10 @@ evens2   = [x for x in nums if x % 2 == 0]
 
 **What it is:** A closure is a function that "remembers" variables from its enclosing scope even after that outer function has finished running. Imagine a backpack that a function packs before leaving home — it carries those variables wherever it goes.
 
+> **Why (the rationale):** Closures give you lightweight stateful behaviour without needing a class — a factory function returns a pre-configured inner function that carries its configuration in a cell variable.
+> **When to use:** Use closures for factory functions (`make_multiplier`, `make_validator`) and simple stateful callbacks. Prefer a class when the state grows complex (multiple variables, methods) or when you need pickling/serialization.
+> **Nuances & gotchas:** All inner functions in a loop share the same cell variable for the loop index — `lambda: i` in a loop will capture the final value of `i`, not the value at the time of creation. Fix with a default-argument trick: `lambda i=i: i`.
+
 ```python
 def make_multiplier(factor):
     # 'factor' lives in the enclosing scope of the returned function
@@ -233,6 +261,10 @@ print(triple.__closure__[0].cell_contents)  # 3
 ## Decorators
 
 **What it is:** A decorator is a function that wraps another function to add behavior **without changing its code** — like gift-wrapping a box: the gift (original function) is unchanged, but now it has a bow (extra behavior).
+
+> **Why (the rationale):** Decorators implement cross-cutting concerns (logging, timing, auth, caching, retry logic) in one place that is reused across many functions — keeping the decorated functions clean and single-purpose.
+> **When to use:** Use decorators for behaviour that is orthogonal to the function's core logic and needed across multiple functions. Avoid them for logic that only applies to one function — a plain helper call is simpler.
+> **Nuances & gotchas:** Always add `@functools.wraps(func)` inside the decorator — without it the wrapper replaces `__name__`, `__doc__`, and signature, breaking `help()`, stack traces, and testing tools. Stacking multiple decorators applies them bottom-up: `@A @B def f` means `f = A(B(f))`.
 
 ### Basic decorator
 
@@ -314,6 +346,10 @@ say_hello("Ada")
 
 **What it is:** A generator is a function that produces values **one at a time** using `yield` instead of computing and storing them all at once. Think of it as a vending machine that dispenses one item per button press, rather than dumping everything on the floor at startup.
 
+> **Why (the rationale):** Generators use constant memory regardless of dataset size — a generator over 1 million rows occupies ~112 bytes versus ~8 MB for the equivalent list — making them essential for streaming data, large files, and ML data pipelines.
+> **When to use:** Use generators for large sequences you only need to iterate once (file processing, streaming API responses, infinite sequences). Use lists when you need random access, `len()`, multiple iterations, or slicing.
+> **Nuances & gotchas:** Generators are lazy and single-pass — once exhausted, re-iterating yields nothing (no error, just empty). You cannot index (`gen[0]`) or get `len()` of a generator. If a function receives a generator and iterates it twice (e.g., first for count, then for values), the second pass will be empty.
+
 ```python
 import sys
 
@@ -354,6 +390,10 @@ print(list(gen_expr))  # [0, 1, 4, 9, 16]
 
 **What it is:** An **iterable** is anything you can loop over (`list`, `str`, generator…). An **iterator** is an object that remembers its position and returns the next item on each `next()` call. Every iterator is an iterable, but not every iterable is an iterator.
 
+> **Why (the rationale):** The iterator protocol provides a universal contract for sequential data access — `for` loops, `zip`, `enumerate`, and comprehensions all rely on it, so any object implementing `__iter__`/`__next__` integrates seamlessly with Python's ecosystem.
+> **When to use:** Implement a custom iterator class when you need lazy, stateful traversal with complex logic (e.g., sliding windows, tree traversal) and want full control over state. For simple cases, a generator function is shorter and preferred.
+> **Nuances & gotchas:** A `list` is iterable but NOT an iterator — calling `next()` on a list raises `TypeError`. You must first call `iter(my_list)` to get an iterator. Forgetting this is a common bug when manually driving iteration. Iterators returned by built-ins (`map`, `filter`, `zip`) are also single-pass.
+
 ```python
 class Countdown:
     """An iterator that counts down from n to 1."""
@@ -384,6 +424,10 @@ print(next(it))           # 20
 ## Context Managers
 
 **What it is:** A context manager wraps setup and teardown around a block of code, guaranteeing cleanup even if an exception occurs. The `with` statement is the most common use — it calls `__enter__` on the way in and `__exit__` on the way out, like an automatic door that always closes behind you.
+
+> **Why (the rationale):** `try/finally` blocks ensure cleanup but are verbose and easy to forget. Context managers encapsulate the acquire-release pattern in a reusable, composable object so callers can't accidentally skip teardown.
+> **When to use:** Use context managers for any resource that needs deterministic release: files, network connections, database sessions, locks, temporary directories, and timers. Prefer `@contextlib.contextmanager` for one-off cases; write a full class only when you need the context manager to be reusable with complex state.
+> **Nuances & gotchas:** `__exit__` receives the exception info (`exc_type`, `exc_val`, `exc_tb`). Returning `True` from `__exit__` silently suppresses the exception — only do this intentionally. With `@contextmanager`, the `yield` must be inside a `try/finally` so the `finally` always runs; omitting it means exceptions inside the `with` block skip the cleanup code.
 
 ### Class-based
 
@@ -428,6 +472,10 @@ with managed_file("data.txt", "w") as f:
 
 **What it is:** Python's `try/except/else/finally` block lets you catch errors gracefully, run code only when no error occurred (`else`), and always run cleanup code (`finally`).
 
+> **Why (the rationale):** Exceptions separate error-handling from normal logic, and `finally` guarantees cleanup even during unexpected failures — making code more robust than checking return codes at every step.
+> **When to use:** Catch the most specific exception type possible, not bare `except:` which silences everything including `KeyboardInterrupt` and `SystemExit`. Use `else` for code that should only run when no exception occurred (cleaner than nesting it in `try`). Reserve custom exceptions for domain-specific error conditions that callers may want to handle differently.
+> **Nuances & gotchas:** Catching `Exception` still lets `SystemExit`, `KeyboardInterrupt`, and `GeneratorExit` propagate (they inherit from `BaseException`). Re-raising with bare `raise` preserves the original traceback; re-raising with `raise e` loses it. Using `except Exception as e: pass` silently swallows all errors — add at least a log statement.
+
 ```python
 # Full structure
 try:
@@ -465,6 +513,10 @@ except ModelNotTrainedError as e:
 
 **What it is:** A **shallow copy** creates a new container object but the nested objects inside still point to the same memory. A **deep copy** recursively copies everything — fully independent. Think of a shallow copy as photocopying a folder: you get a new folder, but the documents inside are still the originals.
 
+> **Why (the rationale):** Without explicit copying, assignment (`b = a`) just creates another reference to the same object — mutations via either name affect the same data. Copying creates independent objects so modifications to one don't bleed into the other.
+> **When to use:** Use shallow copy when the container itself is new but you intentionally want to share the inner objects (or they are immutable). Use deep copy when nested objects are mutable and must be fully independent (e.g., copying a list of lists for separate processing).
+> **Nuances & gotchas:** Deep copy is significantly slower and more memory-intensive for large nested structures. It also copies objects that may not be meant to be copied (open file handles, sockets, locks) — `deepcopy` can fail or produce broken objects for these types. Some classes override `__copy__`/`__deepcopy__` to control copying behaviour.
+
 ```python
 import copy
 
@@ -485,6 +537,10 @@ print(deep)      # [[1, 2], [3, 4]]      ← fully independent
 ## Type Hints
 
 **What it is:** Type hints (PEP 484) let you annotate variables and function signatures with expected types. Python doesn't enforce them at runtime, but tools like `mypy` and IDEs use them to catch bugs early and improve autocomplete.
+
+> **Why (the rationale):** Type hints catch whole categories of bugs (wrong argument type, missing return) without running the code, and they serve as inline documentation that IDEs and linters can verify, reducing review burden.
+> **When to use:** Add type hints to all public function signatures in production code and shared libraries. They are especially valuable in large codebases and when working in teams. For small scripts or rapid prototyping, they are optional overhead.
+> **Nuances & gotchas:** Python does NOT enforce type hints at runtime — passing the wrong type raises no error unless you add a runtime checker (`beartype`, `pydantic`). `Optional[X]` is equivalent to `X | None` (Python 3.10+). Annotating with `list` vs `List` (from `typing`) was a Python 3.9 change — use the lowercase built-in forms in 3.9+ for simplicity.
 
 ```python
 from typing import Optional
@@ -511,6 +567,10 @@ learning_rate: float = 0.001
 **What it is:** The **Global Interpreter Lock (GIL)** is a mutex in CPython that allows only **one thread to execute Python bytecode at a time**. It protects Python's internal reference-counting memory management but limits true CPU parallelism with threads.
 
 **In plain English:** The GIL is a single-lane toll booth — no matter how many cars (threads) are queued, only one can pass at a time for Python code execution.
+
+> **Why (the rationale):** The GIL was a pragmatic design choice to simplify CPython's reference-counting garbage collector and make single-threaded code faster — but it means Python threads don't parallelize CPU-bound work.
+> **When to use:** Use `threading` for I/O-bound concurrency (network calls, file reads) where the GIL is released during I/O waits. Use `multiprocessing` for CPU-bound parallelism (model training, image processing) — separate processes have separate GILs. Use `asyncio` for high-concurrency I/O (hundreds of simultaneous connections) with low overhead on a single thread.
+> **Nuances & gotchas:** Threads don't help for CPU-bound work — they may be *slower* than single-threaded due to lock contention. `multiprocessing` incurs process-startup and inter-process serialization (pickle) overhead — avoid passing large arrays between processes (use shared memory or `numpy` with shared arrays instead). `asyncio` requires all blocking calls to be explicitly awaited — mixing synchronous blocking calls into an async event loop freezes all other coroutines.
 
 ```
 Task type          Best tool         Why

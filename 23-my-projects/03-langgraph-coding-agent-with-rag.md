@@ -54,6 +54,10 @@
 
 ## Deep Dive 1 — LangGraph (Why a Graph, Not a Chain)
 
+> **Why (the rationale):** A linear chain (LCEL) is a one-pass DAG — it can't branch on runtime state or loop back. An agent needs to call a tool, observe the result, and decide whether to call another tool or terminate — that's a cycle. LangGraph's StateGraph models this as a directed cyclic graph with explicit nodes, conditional edges, and a checkpointer that persists state across steps, enabling retries, HITL breakpoints, and cross-turn memory without custom machinery.
+> **When to use:** When the workflow requires conditional branching, iteration, or human-in-the-loop pauses that can't be predetermined at design time. Simple retrieve-then-generate flows don't need LangGraph — a chain is simpler and faster.
+> **Nuances & gotchas:** The cyclic execution model makes infinite loops possible; always set a `recursion_limit`. State managed via TypedDict reducers can grow large in memory-heavy conversations and must be managed explicitly. LangGraph adds serialization overhead per step for checkpointing — for very high-throughput, low-latency tasks, a simpler loop may be more practical.
+
 **LangGraph** is a runtime for **stateful, cyclic, multi-step agent workflows** — built on top of LangChain, not a competitor. The key contrast:
 
 - A **linear chain (LCEL)** is a one-pass DAG: `retrieve → augment → generate`, once. It can't loop or branch on runtime state.
@@ -73,6 +77,10 @@ Sources: [LangGraph Graph API](https://docs.langchain.com/oss/python/langgraph/g
 
 ## Deep Dive 2 — Dynamic Tool Calls (the ReAct Loop)
 
+> **Why (the rationale):** Hardcoded tool call sequences can't adapt to runtime observations — the right next tool depends on what the previous tool returned. Having the LLM decide which tool(s) to call from schemas, observe results, and decide whether to continue implements the ReAct pattern: the model reasons about the current state and acts accordingly, enabling multi-step problem solving that a static call graph cannot.
+> **When to use:** Any agentic task where the number and sequence of tool calls can't be predetermined — debugging workflows, multi-hop research, code generation pipelines. For well-defined, deterministic workflows, hardcoded orchestration is safer and more predictable.
+> **Nuances & gotchas:** The LLM can hallucinate tool arguments (passing fields that don't exist in the schema) or loop unnecessarily. Tool descriptions are part of the model's prompt — vague descriptions degrade tool selection quality. Parallel tool calls (where the model requests multiple tools simultaneously) require the executor to handle concurrent results and merge them back correctly. Always set a recursion limit and error-handle tool failures gracefully via ToolMessage rather than crashing.
+
 **The LLM does not execute tools.** Given tool schemas (name, description, JSON args), the model *decides* which tool(s) to call and emits a structured **`tool_call`** with arguments; your code runs it and feeds back a **`ToolMessage`**. "**Dynamic**" = the model picks tools/args at runtime from the conversation, not a hardcoded call.
 
 **LangGraph wiring:**
@@ -89,6 +97,10 @@ Sources: [LangGraph Quickstart (tools_condition)](https://docs.langchain.com/oss
 
 ## Deep Dive 3 — Azure AI Search as the RAG Backend
 
+> **Why (the rationale):** A plain vector DB only does ANN search; a managed search service adds BM25 keyword retrieval, RRF fusion, and an optional semantic cross-encoder reranker in one managed service — covering the full two-stage retrieve-then-rerank pattern without separate infrastructure. For a coding assistant whose queries mix natural language with exact code symbols and API names, hybrid retrieval (BM25 + vector) materially improves recall over vector-only.
+> **When to use:** Ideal when you need hybrid retrieval + reranking in an Azure-native stack and don't want to operate a separate vector DB plus BM25 engine. A standalone vector DB (Pinecone, Qdrant, Weaviate) may be preferred outside Azure, or when you need tighter control over index configuration or lower latency at very large scale.
+> **Nuances & gotchas:** The semantic reranker is optional and separately billed; enabling it adds latency (~100–300 ms). Integrated vectorization (generating embeddings during indexing) couples the index to a specific embedding model — changing models requires re-indexing. Security trimming (row-level filtering based on user permissions) must be explicitly designed and is non-trivial for complex permission hierarchies.
+
 Why a managed search service instead of a plain vector DB: it does **hybrid retrieval + reranking + ingestion** in one place.
 
 - **Index** holds text, filters, and **vector fields** together — so you can filter/facet alongside similarity search. Vector search uses **HNSW** (approximate NN); text uses **BM25**.
@@ -101,6 +113,10 @@ Sources: [Azure AI Search — Hybrid search overview](https://learn.microsoft.co
 ---
 
 ## Deep Dive 4 — OpenAI Embeddings
+
+> **Why (the rationale):** The embedding model choice sets the semantic fidelity of retrieval — a weak model clusters unrelated content near each other, degrading precision. `text-embedding-3-small` provides a cost-effective default for most RAG workloads; the Matryoshka property lets you shrink vector dimensions to trade a little accuracy for lower storage and latency without retraining.
+> **When to use:** `text-embedding-3-small` for cost-sensitive, moderate-scale RAG. Move to `text-embedding-3-large` when retrieval quality on complex or technical content needs improvement. Use the `dimensions` parameter when storage or ANN latency is a bottleneck.
+> **Nuances & gotchas:** The index vector field dimension is fixed at creation time — you cannot change the model or `dimensions` without re-indexing all documents. Matryoshka truncation to low dimensions (e.g., 256) can lose meaningful signal on semantically complex content. Query-time embeddings must use the exact same model and dimension as indexing, or cosine similarity becomes meaningless.
 
 An **embedding** is a fixed-length float vector encoding text meaning; nearby vectors (cosine) ≈ semantically similar text. You embed each doc chunk at index time and the query at search time, then find nearest neighbors.
 
@@ -125,6 +141,10 @@ Sources: [RAG in Azure AI Search](https://learn.microsoft.com/en-us/azure/search
 ---
 
 ## Deep Dive 6 — Production LangGraph Internals
+
+> **Why (the rationale):** A graph that works in development fails in production without checkpointing (conversation state lost on restart), multi-replica coordination (two replicas corrupt the same conversation), and HITL mechanics (no way to safely pause before irreversible actions). These internals — Pregel execution, thread_id-keyed checkpoints, CAS-based thread claiming, interrupt/resume — are what make the architecture production-grade rather than a demo.
+> **When to use:** Checkpointing is necessary for any multi-turn agent (cross-turn memory). HITL interrupt/resume is necessary whenever the agent can take irreversible or high-stakes actions. Cross-replica CAS coordination is necessary in any horizontally-scaled deployment. MemorySaver is dev-only — always use a durable backend (CosmosDB, Postgres) in production.
+> **Nuances & gotchas:** The Pregel execution model serializes full state on every super-step — state size directly affects checkpoint latency and storage cost. `interrupt()` relies on the checkpointer having persisted state before the graph halts; if checkpointing fails, the state is lost and the resume can't happen. Double-checked locking for the agent cache prevents redundant initialization but adds complexity; if the locking logic is wrong, two concurrent first-messages can still race.
 
 Getting from "a graph" to "a graph that survives restarts, serves many users, and pauses for human approval" is where the real engineering lives.
 
@@ -209,6 +229,10 @@ Sources: [LangGraph — Human-in-the-loop & interrupts (DeepWiki)](https://deepw
 ---
 
 ## Deep Dive 7 — The Azure Production Stack
+
+> **Why (the rationale):** Each Azure service solves a specific production concern: Container Apps removes VM/K8s management burden; CosmosDB's globally distributed NoSQL + ETag/CAS enables atomic thread claiming across replicas; Key Vault + Managed Identity eliminates stored credentials; Dynamic Sessions provides Hyper-V-isolated sandboxes for untrusted LLM-generated code; OBO ensures the agent only accesses resources the *user* is authorized for, not the app's broader permissions.
+> **When to use:** This Azure-native stack is the right choice when enterprise compliance (data residency, Entra ID SSO, audit logging) is required and the team is already on Azure. For greenfield or multi-cloud deployments, equivalent services (GCP Cloud Run, Firestore, Secret Manager, Vertex AI) provide the same pattern.
+> **Nuances & gotchas:** Managed Identity only works within Azure's trust boundary — cross-cloud calls still need secrets. OBO adds a token-exchange round trip per downstream call and requires the downstream API to accept delegated tokens. Container Apps auto-scaling can cause cold-start latency when scaling from zero; pre-warmed Dynamic Sessions mitigate this specifically for code execution but not for the backend container itself.
 
 The agent didn't run on a laptop — it ran on a managed Azure stack. Each service has a clear job, and interviewers love "why that service."
 

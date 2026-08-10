@@ -70,6 +70,10 @@ A financial services company wants to build an AI-powered search system for thei
 
 ### High-Level Architecture
 
+> **Why (the rationale):** A layered architecture (gateway → query service → retrieval/reranking/generation → data layer) isolates security enforcement, retrieval logic, and generation into independently scalable services, so a spike in query volume doesn't starve ingestion.
+> **When to use:** Any enterprise RAG deployment where different teams own auth, data, and AI layers, or where each layer needs to scale separately under variable load.
+> **Nuances & gotchas:** The fan-out to three parallel services (retrieval, reranking, generation) means a partial failure in reranking can silently degrade ranking quality without raising a top-level error — add health checks and fallback paths on each service.
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           User Interface                                │
@@ -153,6 +157,10 @@ flowchart TD
 
 ### Technology Choices (Dec 2025 Update)
 
+> **Why (the rationale):** Using Gemini 3 Pro (2.5M context) as the primary generator eliminates the need to find a "perfect chunk" — entire document segments can be stuffed into context, reducing the retrieval precision burden. Self-hosted Qdrant is chosen over managed alternatives to satisfy on-prem compliance; BGE-Reranker is chosen over Cohere to avoid sending data to a third-party API.
+> **When to use:** Choose this stack when compliance prohibits external data transmission and when document size variance is high (policies range from 1 to 100+ pages). Revert to smaller-context models when cost-per-query must be below ~$0.01.
+> **Nuances & gotchas:** 2.5M-token context windows have non-linear latency costs — stuffing 50 documents works well in benchmarks but can push P95 latency above the 5-second SLO during peak load. Always benchmark at your actual retrieved-context size, not the theoretical maximum.
+
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
 | **Primary LLM** | Gemini 3.0 Pro | **2.5M context** natively handles 100+ documents without fragmentation |
@@ -170,6 +178,10 @@ flowchart TD
 ## Component Deep Dives
 
 ### Document Ingestion Pipeline
+
+> **Why (the rationale):** Running four writes in parallel (vector DB, search index, doc store, metadata DB) after a single parse step minimizes ingestion latency while keeping each store at its optimal function: Qdrant for semantic search, Elasticsearch for keyword, S3 for full-text retrieval, Postgres for ACL metadata.
+> **When to use:** Use this fan-out pattern when each store serves a distinct query type and a document is considered "queryable" only when all four writes succeed. If you only need semantic search and are willing to sacrifice keyword recall, you can drop Elasticsearch and cut ingestion cost significantly.
+> **Nuances & gotchas:** A partial write failure (e.g., vector DB succeeds but Elasticsearch times out) leaves the document in a split state — it will appear in semantic search but not keyword search. Implement idempotent retry with a transaction marker in Postgres to detect and repair split-brain documents.
 
 ```python
 class IngestionPipeline:
@@ -330,6 +342,10 @@ class QueryService:
 ```
 
 ### Hybrid Retrieval
+
+> **Why (the rationale):** Pure semantic search misses exact-match queries (e.g., "Section 12.3(b)" or a specific policy code); pure keyword search misses paraphrased questions. The 70/30 semantic/keyword RRF split captures both without requiring a calibrated score normalization between the two systems.
+> **When to use:** Use hybrid search whenever the query population mixes natural language questions with precise identifier lookups. If users only type conceptual questions with no exact terms, pure semantic search is simpler and equally accurate. Adjust the weight ratio based on empirical precision/recall on your actual query log.
+> **Nuances & gotchas:** RRF's k=60 smoothing constant was chosen for web search corpora — for enterprise domain search with high precision requirements, tune k on a holdout set. Also, the 70/30 split is fixed; consider dynamic weighting based on query type (detected acronyms → increase keyword weight).
 
 ```python
 class HybridRetriever:
@@ -493,6 +509,10 @@ Load Balancer
 ```
 
 ### Caching Strategy
+
+> **Why (the rationale):** Two-level caching (exact Redis + semantic similarity) dramatically cuts LLM costs: exact cache handles repeated queries with zero LLM calls; semantic cache captures near-duplicates like "What is the vacation policy?" and "Tell me about time-off" returning the same answer.
+> **When to use:** Effective when the query corpus has significant repetition (FAQ-style usage) or when users ask semantically equivalent questions phrased differently. Less useful for analytical or one-off queries where hit rates will be near zero.
+> **Nuances & gotchas:** Semantic cache key collisions are a real risk — a 0.95 similarity threshold is conservative but can still conflate queries with subtly different intents across different user permission sets. Cache keys must include a permission fingerprint, not just the query text, or restricted content can leak from a cached response generated for a higher-privilege user.
 
 ```python
 class QueryCache:

@@ -59,6 +59,10 @@ flowchart TB
 
 **Answer:** Marketing materials are dense. Checking the entire document against regulations is inefficient. We first extract individual **claims**:
 
+> **Why (the rationale):** Sending an entire 20-page marketing document to the LLM at once makes it hard to cite the precise sentence that violates a regulation, inflates token cost, and makes it easy to miss claims buried in captions or image alt-text. Extracting discrete claims first lets each one be checked against the most relevant regulation subset with a clear location reference.
+> **When to use:** Claim-first decomposition is the right pattern whenever documents mix compliant and non-compliant content and each assertion needs its own regulatory citation. For short, uniform documents (e.g., single-sentence disclaimers), direct full-document checking is simpler.
+> **Nuances & gotchas:** Claim extraction itself can hallucinate or miss implied claims (e.g., an image of a patient running implies mobility efficacy without any text). A separate visual claim extractor is required for non-text assets; relying only on text extraction will miss a significant class of FDA-triggering content.
+
 ```python
 claims = extract_claims(document)
 # Example output:
@@ -74,6 +78,10 @@ Each claim is then checked independently against relevant regulations.
 ### 2. Why RAG Over Fine-Tuning for Regulations?
 
 **Answer:** Regulations change. FDA updates guidance documents monthly. Fine-tuning would require retraining after each update. RAG allows us to:
+
+> **Why (the rationale):** Fine-tuning bakes regulation text into model weights, meaning every FDA guidance update requires a retraining cycle (days to weeks). RAG externalizes the regulation index so an update is a re-indexing job that completes in minutes and the audit trail can capture exactly which version of a regulation was active during each review.
+> **When to use:** Prefer RAG over fine-tuning whenever the source corpus changes frequently (monthly or faster) or when exact provenance of the retrieved text is required for audit purposes. Fine-tuning is preferable only when the regulation corpus is stable and latency requirements are extremely tight.
+> **Nuances & gotchas:** RAG precision on regulation retrieval is sensitive to chunking strategy; splitting at paragraph boundaries works poorly for CFR sections where the legally operative language often spans multiple subsections. Cross-reference resolution (a section cites another section) also requires special handling or the LLM may miss the full rule.
 - Update the regulation index immediately when new guidance is released
 - Track which version of regulations was used for each review (audit trail)
 - Show the exact source passage to legal reviewers
@@ -81,6 +89,10 @@ Each claim is then checked independently against relevant regulations.
 ### 3. Conservative Flagging Strategy
 
 **Answer:** False negatives (missed violations) are catastrophic; false positives (extra review) just cost time. We use a **threshold hierarchy**:
+
+> **Why (the rationale):** In regulated pharmaceutical marketing, a missed violation can result in an FDA warning letter, product recall, or consent decree — costs that dwarf the cost of additional legal review hours. Asymmetric stakes justify optimizing for recall (catch everything) and accepting a 20% false-positive rate as the engineering budget.
+> **When to use:** Bias toward recall (conservative flagging) whenever the cost of a false negative vastly exceeds the cost of a false positive — common in compliance, security, and medical triage contexts. Bias toward precision (fewer flags) when false-positive cost is high — e.g., in customer-facing recommendation systems where over-blocking ruins UX.
+> **Nuances & gotchas:** The four-tier threshold hierarchy can give legal reviewers false confidence in the <50% "log only" tier; a claim logged as likely compliant can still be a violation. The system must never communicate "compliant" to downstream teams; only "no flag raised at this threshold" to preserve appropriate human oversight.
 
 | Confidence | Action |
 |------------|--------|

@@ -57,6 +57,10 @@
 
 ## Deep Dive 1 — EDA for a Forecasting Problem
 
+> **Why (the rationale):** The EDA findings directly drive three consequential decisions: (a) whether to log-transform the right-skewed target, (b) which features genuinely move delivery time vs which are noise, and (c) that temporal patterns exist — mandating a walk-forward validation strategy. Skipping EDA risks encoding the wrong features, using a metric poorly suited to the distribution, or using random CV that leaks future data.
+> **When to use:** EDA is mandatory for any tabular forecasting problem. The specific steps (target distribution, outlier treatment, temporal pattern detection) are non-negotiable for delivery time forecasting; the exact visualizations and correlation analyses are calibrated to the features that actually vary in this domain.
+> **Nuances & gotchas:** Right-skewed distributions tempt a log-transform, but the inverse transform of the mean prediction is not the mean of the original distribution (Jensen's inequality). Outliers caused by external events (customs holds, carrier strikes) may be better modeled separately than capped — capping can destroy information about the tail the business actually cares about. Multicollinearity between correlated features (distance and zone, carrier and service level) doesn't hurt tree-based models but can mislead SHAP importance attribution.
+
 EDA is where the modeling decisions are actually made. For shipping-time, the steps that mattered:
 
 - **Target distribution** — delivery time is typically **right-skewed** (a long tail of slow deliveries). Check mean/median, spread, skewness → this motivates a possible **log-transform** of the target and a preference for outlier-robust metrics.
@@ -71,6 +75,10 @@ Sources: [What is EDA — GeeksforGeeks](https://www.geeksforgeeks.org/data-anal
 ---
 
 ## Deep Dive 2 — CatBoost (and Why It Fits)
+
+> **Why (the rationale):** The shipping dataset is heterogeneous tabular data with high-cardinality categoricals (carrier, depot, destination zone) — exactly the conditions CatBoost was designed for. Native ordered target statistics handle these without manual encoding or target-leakage risk, ordered boosting prevents prediction shift, and symmetric trees provide strong built-in regularization with minimal tuning — important when labeled data is limited relative to feature cardinality.
+> **When to use:** CatBoost's edge is clearest when high-cardinality categoricals are present and manual encoding is burdensome, the dataset is moderately sized (millions of rows, not billions), and you want strong out-of-the-box performance without extensive hyperparameter search. LightGBM often wins on very large datasets where training speed is the bottleneck. XGBoost is more mature for deployment integration.
+> **Nuances & gotchas:** Ordered boosting adds ~2× training time over standard GBDT because of the permutation scheme. The `one_hot_max_size` threshold determines which categoricals are one-hot vs target-encoded — the default may not be optimal for all columns. Symmetric trees can underfit on highly asymmetric data distributions where different subtrees genuinely need different split features at the same depth.
 
 CatBoost ("Categorical Boosting") is **gradient boosting on decision trees** — an ensemble where each new tree fits the residual errors of the current ensemble. Its two signature innovations solve a subtle leakage problem, and both are exactly why it suited this data.
 
@@ -87,6 +95,10 @@ Sources: [CatBoost: unbiased boosting with categorical features (arXiv 1706.0951
 ---
 
 ## Deep Dive 3 — The "±3-Day Accuracy" Metric
+
+> **Why (the rationale):** MAE/RMSE are engineering metrics; customers experience delivery as a binary "was the promise kept?" A tolerance-based metric maps directly to the business SLA and is easy to communicate. Choosing ±3 days reflects a practical delivery promise window — tight enough to be meaningful, wide enough to absorb normal carrier variability.
+> **When to use:** Tolerance-accuracy metrics are the right KPI when the business has a defined acceptable-error window (SLA-based promises, medical dosing tolerances, inventory buffer days). Pair it with MAE/RMSE to retain sensitivity to error magnitude the tolerance metric discards.
+> **Nuances & gotchas:** The tolerance threshold choice is arbitrary — ±3 days is a business judgment, and a different stakeholder might demand ±1 day (much harder) or accept ±5 days. The metric is binary within/outside the window, hiding the difference between a 0.1-day miss and a 2.9-day hit. With a skewed distribution, 70% within ±3 days could coexist with very large errors in the tail that matter operationally.
 
 **What it is:** the fraction of predictions where **|predicted − actual| ≤ 3 days**. So "70%+ within ±3 days" = at least 70% of orders landed within 3 days of the true delivery time. It converts a regression problem into a **tolerance/threshold accuracy** — it's a *business KPI*, not a native regression metric.
 
@@ -110,6 +122,10 @@ Sources: [Regression metrics — GeeksforGeeks](https://www.geeksforgeeks.org/ma
 ---
 
 ## Deep Dive 4 — Validating a Time-Based Forecast (No Leakage)
+
+> **Why (the rationale):** Random-shuffle CV places future orders in train and past orders in test, leaking future information about carrier performance, network conditions, and seasonality patterns — inflating CV scores and making the model appear better than it is in production. Walk-forward (chronological) CV correctly simulates the deployment scenario: you always predict the future from the past.
+> **When to use:** Chronological walk-forward CV is mandatory for any time-ordered dataset where the target is correlated with time (seasonality, trend, concept drift). Random CV is only valid when samples are truly i.i.d. and there is no temporal dependency in the features or target.
+> **Nuances & gotchas:** Walk-forward CV with an expanding window can give later folds far more training data than earlier folds, making fold-to-fold metric variance hard to interpret. A sliding window (fixed-length train window) can be more consistent but may exclude historical patterns. Features engineered from post-delivery data (e.g., actual transit logs that aren't available at order time) are harder to catch than future target leakage — always verify every feature's availability at prediction time.
 
 The single biggest correctness risk in a delivery forecast is **temporal leakage**.
 

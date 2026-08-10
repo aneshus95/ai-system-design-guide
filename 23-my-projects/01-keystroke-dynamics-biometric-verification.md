@@ -74,6 +74,10 @@ I chose **verification via metric learning** because it enrolls new users withou
 
 ## Feature Engineering — the Digraph Vector
 
+> **Why (the rationale):** Digraph features capture a person's *local* typing rhythm — not what keys they press, but the precise timing transitions between pairs. One-hot encoding keys avoids the false numeric ordering that integer mapping would invent, and only the 4 timing columns are standardized, so the key-identity signal isn't distorted.
+> **When to use:** Any behavioral-biometric task where raw keystroke logs are available and the goal is identity from typing dynamics rather than text content — especially when the user set is open-ended (metric learning) or partially labeled.
+> **Nuances & gotchas:** Digraph features are session-dependent — typing speed varies with fatigue, keyboard hardware, and emotional state, causing within-user variance that can erode similarity scores. 82-key one-hot gives 164 sparse dims just for identity; the sparse key-identity columns can dominate if any scaling leaks in.
+
 The atomic unit is a **digraph**: two consecutive keys plus the timing relationship between them. For each consecutive key pair `(i, i+1)`:
 
 ```
@@ -104,6 +108,10 @@ Each digraph becomes a **168-dim vector**:
 
 ## Preprocessing & Windowing
 
+> **Why (the rationale):** Concatenating multi-session data forces the encoder to generalize across within-user variation (different keyboard, different energy level) rather than memorizing one sitting. Windowing converts an arbitrarily long keystroke stream into fixed-size tensors the CNN/GRU can process.
+> **When to use:** Whenever the biometric signal is a continuous stream (typing, mouse movement, gait) that exceeds what the model can consume in one shot — windowing is the standard decomposition.
+> **Nuances & gotchas:** Non-overlapping windows discard context at window boundaries; overlapping windows (the paper used 40% overlap) multiply sample count but introduce correlated samples that can inflate evaluation metrics if not handled carefully in the train/val split.
+
 1. **Multi-session enrollment.** Each user's several recording sessions are concatenated, so the model sees cross-session variation instead of memorizing one sitting.
 2. **Standardization.** A `StandardScaler` (z-score) is fit on **only the 4 timing columns** — the one-hot key columns are left untouched. Timings are put on a comparable scale for stable training.
 3. **Windowing.** The per-user digraph stream is reshaped into fixed-length **samples of 50 consecutive digraphs**: shape `(n_windows, 50, 168)`. One window = a short slice of a person's typing rhythm — a time series the CNN/GRU can consume.
@@ -111,6 +119,10 @@ Each digraph becomes a **168-dim vector**:
 ---
 
 ## Pair Construction & Labels
+
+> **Why (the rationale):** Pairs let the model learn a *distance criterion* directly — "same person's windows should be close, different people's windows should be far" — rather than memorizing a fixed set of identities. This is what makes the encoder identity-agnostic and allows enrollment of unseen users.
+> **When to use:** When the user set is open or expected to grow, and you need open-set recognition (new users enroll at inference time). If the user set is fixed and small, a softmax classifier is simpler and can be competitive.
+> **Nuances & gotchas:** Pair imbalance is real — with N users there are O(N²) same-user pairs but far more dissimilar ones. Easy negatives dominate training and slow learning; hard-negative mining (picking impostors whose embeddings are close) is the standard fix but requires more implementation care.
 
 Metric learning trains on **pairs**, not single items. From all windows we form pairs `(window_i, window_j)` and label each:
 
@@ -122,6 +134,10 @@ This makes each trained model a **one-vs-rest verifier** for a target identity: 
 ---
 
 ## Model Architecture — Siamese CNN→GRU
+
+> **Why (the rationale):** The CNN layer extracts local timing motifs across adjacent keystrokes (kernel size 2 matches the digraph structure, where only neighboring key-pairs carry identity signal); the GRU then captures how those motifs chain across the window's 50 steps. Sharing weights between the two siamese branches guarantees the same embedding space for both inputs — a necessary condition for cosine comparison to be meaningful.
+> **When to use:** CNN+GRU hybrids suit time-series inputs with both local patterns (CNN) and sequential dependencies (RNN) — keystroke dynamics, gesture sequences, ECG signals. Pure CNN or pure RNN underperform when both levels of structure matter (ablation confirmed in the reference paper).
+> **Nuances & gotchas:** Kernel size 2 is optimal here specifically because of the digraph structure — don't generalize this without ablation. GRU only returns the last hidden state, discarding earlier window context; for longer windows an attention pooling or bidirectional GRU may capture more signal. The 16-dim embedding is compact enough to compare efficiently but can be a bottleneck if users are typographically very similar.
 
 Two windows go through **the same network with shared weights** (that's what "siamese" means) and each produces a 16-dim embedding.
 
@@ -161,6 +177,10 @@ Two windows go through **the same network with shared weights** (that's what "si
 ---
 
 ## Training — Cosine Embedding Loss
+
+> **Why (the rationale):** Cosine embedding loss shapes the embedding space so *direction* encodes identity — same-person pairs are pulled to point the same way, different-person pairs are pushed apart angularly. This makes the inference comparison (cosine similarity of mean embeddings) directly aligned with the training objective: high cosine = same person.
+> **When to use:** When you plan to verify by cosine similarity at inference time and want magnitude-independent comparison (useful when embedding norms vary across users). Triplet loss is an alternative when hard-negative mining is built in and you need tighter cluster boundaries.
+> **Nuances & gotchas:** Cosine embedding loss does not control the *norm* of embeddings — only their direction. Without L2 normalization at inference, two embeddings could have high cosine similarity but be at very different scales; always normalize before comparison. The margin hyperparameter for dissimilar pairs needs tuning — too tight and negatives aren't pushed far enough; too loose and same-user pairs can still be ambiguous.
 
 ```python
 criterion = torch.nn.CosineEmbeddingLoss()

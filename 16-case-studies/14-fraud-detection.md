@@ -57,6 +57,10 @@ flowchart TB
 
 **Answer:** Pure ML models are black boxes. Regulators require explainable decisions for disputes. We use ML for scoring, then apply transparent rules for final decisions:
 
+> **Why (the rationale):** ML ensembles catch subtle, complex fraud patterns (anomalous velocity combined with unusual device fingerprint) that static rules miss, but they cannot produce a human-readable reason code. Business rules encode known fraud patterns as transparent logic ("5+ transactions in different countries within 1 hour") that can be cited verbatim in a dispute response. Combining both means the rules override when they have high certainty, and the ML catches what rules do not anticipate.
+> **When to use:** Use ML+Rules whenever the domain requires regulatory explainability for individual decisions (financial services, insurance, credit). Pure ML scoring is sufficient when explainability is not required and fraud patterns are too complex for rules to capture (e.g., bot-detection where hundreds of behavioral signals combine).
+> **Nuances & gotchas:** The rules layer can be gamed once patterns are publicly known (fraudsters avoid triggering the velocity rule by staying under the 5-transaction threshold). Rules must be kept confidential and reviewed regularly; a static rulebook becomes a roadmap for sophisticated attackers within months of deployment.
+
 | Layer | Role | Speed | Explainability |
 |-------|------|-------|----------------|
 | ML Ensemble | Catch complex patterns | 10ms | Low |
@@ -68,6 +72,10 @@ Rules examples: "Block if 5+ transactions in different countries within 1 hour" 
 ### 2. Three-Way Decision: Approve / Escalate / Reject
 
 **Answer:** Binary approve/reject is too blunt. The "gray zone" (0.3-0.7 score) goes to rule-based escalation or human review for high-value transactions:
+
+> **Why (the rationale):** A binary threshold forces you to choose between accepting more fraud (low threshold) or rejecting more legitimate customers (high threshold). The gray zone occupies ~10–15% of transactions where the ML signal is genuinely uncertain; routing these to deterministic rules rather than guessing keeps the false-positive rate under 0.1% without accepting ambiguous fraud.
+> **When to use:** Three-way decisions are valuable when you have a reliable secondary signal (rules, step-up authentication) to resolve ambiguous cases. For low-stakes decisions (under $10 transactions) where the secondary-signal cost is disproportionate, collapsing to binary is simpler.
+> **Nuances & gotchas:** The thresholds (0.3 and 0.7) must be recalibrated as fraud patterns shift; a model drift that moves the score distribution can silently narrow the gray zone to near-zero or inflate it to 50%+, requiring monitoring of per-bucket transaction volume as an SLO in addition to raw fraud and insult rates.
 
 ```python
 def decide(transaction, fraud_score):
@@ -88,6 +96,10 @@ def decide(transaction, fraud_score):
 ### 3. Why LLM for Explanation, Not SHAP/LIME?
 
 **Answer:** SHAP values tell you "feature X contributed 0.3 to the score." Customers and regulators want "This transaction was flagged because it was made from a new device in a country you have never visited, for an amount 10x your usual purchase."
+
+> **Why (the rationale):** SHAP/LIME outputs are technically correct but require ML literacy to interpret. A cardholder calling customer support needs a plain-English sentence they can act on ("Was this you?"). The LLM converts the top-3 SHAP features into natural language while the SHAP values remain available in the audit log for regulatory inspection — you get both audiences served.
+> **When to use:** Add the LLM explanation layer whenever explanations must be read by non-technical end-users or customer service agents. Keep SHAP/LIME as the upstream audit record regardless; the LLM layer is purely for communication, not for the legal record.
+> **Nuances & gotchas:** The LLM explanation is only as reliable as the feature importance fed to it. If SHAP misattributes a feature (common when correlated features split importance), the natural-language explanation will confidently state the wrong reason. The prompt must strictly prohibit the LLM from inferring additional reasons beyond the provided features.
 
 We generate natural language explanations using the feature importance as input:
 

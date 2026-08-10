@@ -143,6 +143,10 @@ flowchart TD
 
 ### Tier 1: Fast Filters
 
+> **Why (the rationale):** Hash-based CSAM detection via PhotoDNA is a legal obligation, not just an engineering choice — platforms are required to report matches to NCMEC. Running it at Tier 1 with 0ms latency variance ensures no known abuse image ever passes through to ML classification, regardless of tier capacity.
+> **When to use:** Hash matching is valid only for already-catalogued content. New, original harmful content not in the database always passes through to Tier 2. Never rely on Tier 1 alone for novel harm; it is a necessary but insufficient safety gate.
+> **Nuances & gotchas:** Keyword blocklists suffer severe false-positive rates for reclaimed language (slurs used affirmatively by community members) and context-dependent terms. Set severity thresholds conservatively — "block" only on critical severity keywords, "elevate" for ambiguous ones, to avoid suppressing legitimate speech.
+
 ```python
 class FastFilters:
     """
@@ -193,6 +197,10 @@ class FastFilters:
 
 ### Tier 2: ML Classification
 
+> **Why (the rationale):** Replacing separate vision and OCR models with a single native multimodal model (Gemini 3 Flash) eliminates the pipeline stage where text extracted from images was processed independently of image content — a gap that allowed evasion via harmless text overlaid on harmful images.
+> **When to use:** Native multimodal classification is superior whenever harm requires understanding the combination of text and image together (e.g., a protest sign, a meme with ironic text). For text-only platforms, a dedicated text classifier is cheaper and equally effective.
+> **Nuances & gotchas:** Gemini 3 Flash's safety schema must be versioned carefully — model updates can shift classification boundaries between policy categories, causing a step-change in measured false positive or false negative rates overnight. Pin model versions and run regression tests on your golden dataset before each upgrade.
+
 ```python
 ### Tier 2: Native Multimodal Classification (Gemini 3 Flash)
 
@@ -238,6 +246,10 @@ class NuanceReviewer:
 ## Human-in-the-Loop
 
 ### Review Queue Management
+
+> **Why (the rationale):** Priority scoring combines severity, reach, and inverse confidence so that high-reach low-confidence content (viral content that the AI isn't sure about) is reviewed before low-reach high-confidence content — prioritizing by harm potential, not just policy certainty.
+> **When to use:** Reach-weighted prioritization is essential on social platforms where a single viral post can reach millions before being removed. On low-reach internal platforms (enterprise tools), simpler severity-only ordering suffices.
+> **Nuances & gotchas:** The reach score weight (min(reach × 10, 50)) caps at 50 points, meaning a post with 1M views gets the same priority boost as one with 100K views. For a platform where posts routinely hit tens of millions of views, recalibrate this cap or use a logarithmic reach weight.
 
 Every piece of content traverses a lifecycle from submission to a terminal state. The lifecycle as a state machine makes SLOs concrete: each priority lane has a different target time-to-terminal, and an appeal can transition back to pending:
 
@@ -351,6 +363,10 @@ class ModeratorDecision:
 ## Adversarial Robustness
 
 ### Evasion Techniques and Defenses
+
+> **Why (the rationale):** Preprocessing normalization (homoglyph mapping, leetspeak decoding, Unicode normalization) converts adversarial text back to a standard form before any classifier sees it, making evasion via character substitution ineffective regardless of which downstream model is used.
+> **When to use:** Apply adversarial preprocessing to all user-generated text on public platforms. For closed enterprise environments where users are authenticated employees, the threat model is lower and full normalization may not be worth the latency overhead.
+> **Nuances & gotchas:** Aggressive normalization introduces false positives — "h3ll0" in the context of programming (hex values, variable names) gets decoded to "hello" and may trigger unrelated filters. Run normalization only on the moderation copy of the text, never on the displayed or stored version shown to users.
 
 | Evasion Technique | Defense |
 |-------------------|---------|

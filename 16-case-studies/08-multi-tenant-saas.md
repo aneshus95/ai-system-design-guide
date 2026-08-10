@@ -56,6 +56,10 @@ flowchart TB
 
 **Answer:** Pure physical isolation (one database per tenant) is expensive. Pure namespace isolation (shared database with tenant_id filter) has leakage risk if a filter bug occurs. We use a **tiered approach**:
 
+> **Why (the rationale):** Tiering by document volume maps cost to actual risk — a small tenant with 5K documents has far less blast radius from a filter bug than an enterprise tenant with 600K documents, so the cost of physical isolation is only justified at the scale where namespace isolation risk becomes material.
+> **When to use:** Use this tiered model when tenant sizes span multiple orders of magnitude (some with thousands of documents, others with hundreds of thousands). If all tenants are roughly the same size, a single isolation strategy is simpler to operate.
+> **Nuances & gotchas:** The threshold for moving a tenant from Standard (namespace) to Premium (dedicated collection) is document count, not query volume. A tenant with 40K documents but 10K queries/day generates far more cross-tenant leakage risk per unit time than a 200K-document tenant with 50 queries/day. Consider query-rate as an additional signal for tier promotion.
+
 | Tier | Tenant Size | Isolation Method | Why |
 |------|-------------|------------------|-----|
 | Standard | <50K docs | Namespace in shared Qdrant | Cost efficient |
@@ -65,6 +69,12 @@ flowchart TB
 ### 2. Defense in Depth for Data Isolation
 
 **Answer:** We never trust a single layer. Our isolation stack:
+
+> **Why (the rationale):** Five independent enforcement layers (gateway JWT validation, DB RLS, ORM wrapper, system prompt injection, output scan) ensure that any single layer's failure still leaves four others blocking cross-tenant leakage — the security posture degrades gracefully under bugs rather than catastrophically.
+> **When to use:** Five-layer defense is the right model when the consequence of any leakage is catastrophic (competitor contracts, regulated data). For internal tools with lower stakes, two or three layers (gateway + RLS) are proportionate.
+> **Nuances & gotchas:** The system-prompt layer ("You are answering for Tenant X only") is the weakest — sophisticated prompt injection attacks can override it. The output-layer scan (checking document IDs) is the most reliable safety net; ensure it is not skipped under latency pressure by treating output scanning failures as hard errors, not warnings.
+
+1. **API Gateway**: Validates tenant_id from JWT, rejects cross-tenant requests
 
 1. **API Gateway**: Validates tenant_id from JWT, rejects cross-tenant requests
 2. **Database Layer**: Row-level security (RLS) enforces tenant_id filter at DB level
@@ -102,6 +112,10 @@ flowchart LR
 
 **Critical:** The tenant_id is attached at the **earliest possible point** (upload validation) and travels with the document through every stage. It is not derived or looked up later.
 
+> **Why (the rationale):** Tagging tenant_id at the point of upload (not at query time or in the embedding stage) means a bug later in the pipeline that strips metadata cannot create untagged documents that bypass all downstream filters — the tag is immutable from the moment the document enters the system.
+> **When to use:** Always tag at the earliest trust boundary for any multi-tenant data pipeline. Late tagging (e.g., tagging at embedding time) creates a window where documents exist without isolation attributes and could be indexed into a shared collection before the tag is applied.
+> **Nuances & gotchas:** The encryption step on metadata (`ENCRYPT`) must preserve the tenant_id in a form the vector DB can filter on — if the tenant_id itself is encrypted, the filter at query time cannot be applied without decryption, adding latency. Encrypt the document content but keep tenant_id as plaintext metadata in the vector payload.
+
 ---
 
 ## Handling the Compliance Requirements
@@ -116,6 +130,10 @@ flowchart LR
 | Access reviews | Automated quarterly reports from audit logs |
 
 ### GDPR Right to Deletion
+
+> **Why (the rationale):** Deleting from vector DB and blob storage while anonymizing (not deleting) audit logs satisfies GDPR's right-to-erasure while maintaining the audit trail integrity that SOC 2 requires — these two compliance frameworks have conflicting data retention requirements that must be handled differently per data type.
+> **When to use:** This pattern applies whenever a platform must simultaneously satisfy privacy regulations (delete) and security audit standards (retain). For pure privacy-only use cases, full deletion of audit logs is permissible.
+> **Nuances & gotchas:** Vector DB deletion by filter (`WHERE tenant_id = X`) can be slow at scale and may leave behind orphaned chunks if a document was partially re-ingested. After deletion, run a consistency check (count remaining tenant vectors) and include the result in the deletion certificate.
 
 ```python
 async def delete_tenant_data(tenant_id: str):

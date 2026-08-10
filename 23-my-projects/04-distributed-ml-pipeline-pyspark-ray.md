@@ -60,6 +60,10 @@
 
 ## Deep Dive 1 — PySpark for Feature Engineering at Scale
 
+> **Why (the rationale):** Billions of transaction rows don't fit on a single machine for ETL. Spark's distributed DataFrame model — lazy evaluation, query optimizer, data parallelism across executors — handles joins, windowed aggregations, and label construction at this scale without custom distributed coding. The Delta Lake output adds ACID transactions and time-travel for safe point-in-time training sets.
+> **When to use:** When the feature engineering dataset exceeds single-machine memory (typically tens to hundreds of GB+), or when joins between large tables (transactions × issuer attributes) are required. For smaller datasets, pandas or DuckDB is simpler and faster.
+> **Nuances & gotchas:** Wide window aggregations (rolling per-issuer approval rates over large lookbacks) can cause expensive shuffles and skew if some issuers have orders of magnitude more transactions. Lazy evaluation means bugs surface at action time, not at transformation definition — debugging requires careful inspection of the execution plan (`df.explain()`). Spark's JVM overhead makes it poorly suited for complex Python-native ML logic (use Ray/PyTorch for that).
+
 **Why Spark here:** Spark excels at **data parallelism** — the same operation across every row of a massive dataset — which is exactly ETL, feature engineering, and preprocessing at scale. PySpark DataFrames + **lazy evaluation** (compute triggered only on an action) let the optimizer plan efficient distributed execution over data that won't fit on one machine.
 
 **What the features looked like:** joins of transactions with issuer/network/BIN attributes; **windowed/time-series aggregations** (e.g., rolling per-issuer and per-network approval rates); label construction (approved vs declined). A common production pattern is **Spark → Delta Lake** (versioned/ACID feature storage) → **MLflow** tracking, in a Bronze→Silver→Gold medallion layout.
@@ -71,6 +75,10 @@ Sources: [Databricks — When to use Spark vs Ray](https://docs.databricks.com/a
 ---
 
 ## Deep Dive 2 — Ray for Distributed Training (and Why Both)
+
+> **Why (the rationale):** Spark is optimized for *data* parallelism (same operation across every row); it's not designed for the *compute* parallelism of distributed model training, where workers need to exchange gradients and share model state. Ray's task/actor model, Ray Train's distributed trainer wrappers, and Ray Tune's parallel trial execution are each optimized for this compute-bound workload. Using both keeps each framework in its lane.
+> **When to use:** Use Spark alone if ETL and lightweight ML (Spark MLlib) are sufficient. Use Ray alone if data fits in memory and training is the bottleneck. Use both when the dataset requires distributed ETL at Spark scale *and* training requires distributed compute at Ray scale — the canonical "big data meets big model" pattern.
+> **Nuances & gotchas:** The Spark→Ray data hand-off (via `from_spark` / RayDP) is a potential bottleneck and memory pressure point — if the serialized dataset is very large, transferring it between frameworks can dominate pipeline runtime. RayDP (Spark on Ray) simplifies co-location but adds operational complexity. Ray Tune's distributed search requires careful resource allocation to avoid worker contention on shared GPU nodes.
 
 **Ray** scales Python/ML from a laptop to a cluster. Its libraries compose end-to-end:
 - **Ray Data** — distributed/streaming data processing that feeds training.
@@ -104,6 +112,10 @@ Sources: [Congress.gov CRS — debit interchange & routing](https://www.congress
 
 ## Deep Dive 4 — Real-Time Serving & Feature Stores
 
+> **Why (the rationale):** The authorization flow is latency-critical (typically <100 ms end-to-end). Computing features on-the-fly from raw transaction history at inference time is infeasible at that latency. A feature store solves this by pre-materializing features offline and serving them from a low-latency KV store, while enforcing the same feature transformation logic in both environments — eliminating training–serving skew.
+> **When to use:** Feature stores are necessary when: (a) inference latency requirements are tight (ms-level), (b) features require expensive aggregation over history (rolling windows), and (c) the same features must be consistent between training and serving. Simpler point-in-time features computed cheaply at inference time may not need a store.
+> **Nuances & gotchas:** The materialization job introduces freshness lag — features in the online store reflect the state as of the last materialization, not real-time. For high-velocity signals (per-card approval patterns changing by the hour), this staleness matters and requires streaming materialization. Point-in-time joins for training are subtle to implement correctly; a bug here causes label leakage that inflates offline metrics but fails in production.
+
 The routing decision must happen **inside the authorization flow**, in real time — so features have to be available at millisecond latency and be **identical** to those used in training.
 
 - A **feature store** keeps an **offline store** (history for training) and a low-latency **online store** (real-time serving), populated by **materialization jobs**.
@@ -117,6 +129,10 @@ Sources: [Feast docs](https://docs.feast.dev/) · [Feast — solving training-se
 ---
 
 ## Deep Dive 5 — Modeling Details (Imbalance, Labels, Leakage)
+
+> **Why (the rationale):** Class imbalance, leakage, and counterfactual bias are the three failure modes specific to this problem. Accuracy is misleading under imbalance (the majority "approved" class dominates). Leakage from features available only post-authorization inflates offline metrics but is unavailable in production. Counterfactual bias means the model learns the *old policy's* routing choices, not the optimal routing — the core off-policy problem.
+> **When to use:** Cost-sensitive learning (class weights) is the first-line response to class imbalance when the minority class matters but isn't extremely rare; SMOTE/resampling adds risk of overfitting to synthetic points. Off-policy evaluation is necessary whenever training data is generated by a prior policy and you want to evaluate a new one without running it live.
+> **Nuances & gotchas:** The counterfactual/selection bias problem is hard to fully solve without online experimentation (routing some fraction of transactions to non-greedy routes to gather counterfactual labels). Naive cost-sensitive learning sets `scale_pos_weight` based on the training set ratio, but the right weight is also a function of business costs (decline costs vs false-positive costs), which are rarely symmetric.
 
 - **Class imbalance:** declines are the minority class. Prefer **class weights / cost-sensitive learning** (XGBoost/LightGBM `scale_pos_weight`) over blind resampling; evaluate with **precision, recall, F1, PR-AUC** — **not accuracy**, which is misleading under imbalance.
 - **Label:** binary approval (approved vs declined) per candidate route, or an approval probability used to rank routes.

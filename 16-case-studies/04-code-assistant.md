@@ -122,6 +122,10 @@ flowchart TD
 
 ### Context Assembly
 
+> **Why (the rationale):** Priority-driven budget allocation (immediate code → related definitions → other open files) ensures the model always sees the most relevant code within the fixed token cap, rather than including distant files that dilute signal and crowd out the local context.
+> **When to use:** This prioritization is correct for inline completion where the cursor position is the strongest signal. For whole-function generation or refactoring tasks with a wider scope, shift the budget split to weight related definitions and imported modules more heavily than raw cursor proximity.
+> **Nuances & gotchas:** The 70/30 before/after cursor split can hurt quality for "fill-in-the-middle" completions in languages like Python where the function signature is above and the return type contract is below — consider language-aware or task-type-aware splits rather than a fixed ratio.
+
 ```python
 class CodeContextAssembler:
     """
@@ -216,6 +220,10 @@ flowchart TD
 
 ### Completion Service (Dec 2025)
 
+> **Why (the rationale):** Speculative decoding with a 1B on-device draft model + o4-mini verification achieves sub-150ms completion latency: the small model generates candidate tokens instantly while the larger model verifies in parallel, reducing the effective latency to the verification step alone.
+> **When to use:** Speculative decoding pays off when the draft model's acceptance rate is high (>60%) and the bottleneck is generation latency, not context-building. If the draft model is often wrong (acceptance rate <40%), the verification overhead outweighs the gains.
+> **Nuances & gotchas:** The on-device 1B model must be kept updated when the cloud model changes, otherwise token distribution mismatch lowers the acceptance rate and the system silently degrades to near-baseline latency without any obvious error signal.
+
 ```python
 class DeepCompletion:
     """
@@ -261,6 +269,10 @@ class AgenticGeneration:
 ## Quality Assurance
 
 ### Multi-Stage Verification
+
+> **Why (the rationale):** Running cheap checks (syntax) first and gating on their result before expensive checks (test execution) means most rejections happen in <10ms without invoking a test runner, keeping the median verification cost near zero while only slow-checking syntactically valid code.
+> **When to use:** This fail-fast ordering is correct whenever check costs are asymmetric. Reverse it only if your security scanner is faster than your syntax parser (unusual), or if you have a compiled language where the syntax check is itself slow.
+> **Nuances & gotchas:** Type checks are marked "advisory" — a TypeScript type error doesn't block delivery to the user. This means the assistant can present type-unsound code that compiles but fails at runtime. Track whether users are accepting type-error-flagged suggestions; if acceptance is low, promote type errors to blocking.
 
 The verifier is a fail-fast gauntlet. Cheap checks (syntax) run first and block hard; expensive checks (test execution) run last and only when context allows. Any blocking failure short-circuits the rest:
 
@@ -405,6 +417,10 @@ class AcceptanceOptimizer:
 | Edge caching | -80ms | CDN for common patterns |
 
 ### Caching Strategy
+
+> **Why (the rationale):** A two-level cache (local LRU + distributed Redis) reduces P50 latency to near-zero for repeated or popular patterns (boilerplate imports, common function signatures) without requiring a model call, while the LRU layer avoids network overhead for the hottest keys.
+> **When to use:** Context hashing works well for completion caching when context is deterministic (same file state = same cache key). It breaks for personalized or repository-specific completions where two developers with identical cursor context should get different suggestions based on their repo's style.
+> **Nuances & gotchas:** A 1-hour TTL means stale completions can be served if the codebase changes rapidly. In monorepo environments with frequent commits, the cache should be invalidated on file write, not time expiry, to avoid serving suggestions from an outdated code state.
 
 ```python
 class CompletionCache:

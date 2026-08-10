@@ -170,6 +170,10 @@ flowchart TD
 
 ### Stage 1: Multimodal Data Extraction (Gemini 3 Pro)
 
+> **Why (the rationale):** Gemini 3 Pro's native multimodal capability reads charts and tables directly as images alongside text in a single pass, eliminating a separate OCR/table-parser step that would introduce extraction errors before self-consistency even runs.
+> **When to use:** Use a multimodal model for extraction when source documents contain data embedded in visual formats (charts, screenshot tables, watermarked PDFs). For plain-text filings, a text-only model is cheaper and equally accurate.
+> **Nuances & gotchas:** Even multimodal models can misread dense financial tables when the PDF rendering is low-resolution. Apply k=5 self-consistency at this stage specifically for numeric fields — a single multimodal pass on a blurry chart is not sufficient for zero-error-tolerance metrics like EPS.
+
 ```python
 class FinancialDataExtractor:
     """
@@ -185,6 +189,10 @@ class FinancialDataExtractor:
 
 ### Stage 2: Analysis Generation (Claude 4.5 Opus)
 
+> **Why (the rationale):** Claude 4.5 Opus is used for narrative synthesis because qualitative coherence and nuanced risk language are harder for smaller models — a poorly worded risk disclosure can be legally or reputationally worse than a factual error caught in Stage 3. The cost premium (44% of total) buys readable, defensible prose.
+> **When to use:** Use the highest-quality available model for the synthesis stage when the output is human-facing and will influence regulated decisions. For internal summaries or draft-only use, a smaller model with human editing is sufficient.
+> **Nuances & gotchas:** Opus-class models can introduce subtle tone bias (e.g., consistently bullish or bearish framing) that is hard to detect automatically. Consider mixing a "bull" and "bear" agent in Stage 2 (MoA) before synthesis to counteract this single-model framing effect.
+
 ```python
 class AnalysisEngine:
     """
@@ -199,6 +207,10 @@ class AnalysisEngine:
 ```
 
 ### Stage 3: Audit & Verification (o3 Reasoning Model)
+
+> **Why (the rationale):** o3 with `reasoning_effort="high"` is used for audit because detecting subtle accounting contradictions (e.g., a revenue figure that is mathematically inconsistent with segment data buried in a footnote) requires multi-step logical inference that standard generation models skip. At 33% of total cost it catches 98% of hallucinations Claude 4.5 misses.
+> **When to use:** Use a high-reasoning-effort model for audit only on high-stakes outputs where the cost of a missed error exceeds the audit cost. For lower-stakes reports, use a standard model with the same verification prompt — the gap in error detection narrows significantly.
+> **Nuances & gotchas:** `reasoning_effort="high"` can add 30-90 seconds of latency per report, pushing total pipeline time above the 30-minute target for long reports with many claims. Rate-limit the number of claims sent to o3 per report, or parallelize claim batches.
 
 ```python
 class AuditorAgent:
@@ -217,6 +229,10 @@ class AuditorAgent:
 ```
 
 ### Stage 3: Fact Verification with Multi-Agent Debate
+
+> **Why (the rationale):** Having three independent, diverse models (Claude, GPT, Gemini) each verify the same claim prevents the systematic blind spots that a single model has — one model's knowledge gaps or hallucination tendencies are unlikely to align with another's, so disagreement is a reliable hallucination signal.
+> **When to use:** Multi-agent debate is justified when the cost of a false claim exceeds the cost of running 3× model calls per claim. For consumer-facing summaries or internal-only reports, a single verification pass is adequate. Reserve debate for regulatory-submission-grade outputs.
+> **Nuances & gotchas:** Consensus logic (all-agree = verified) can be gamed by correlated training data — if all three models were trained on the same incorrect source, they will all agree on the wrong answer. Supplement with source-tracing (verify numbers against the raw filing bytes, not just model memory).
 
 The debate stage is what catches the subtle hallucinations a single model misses. Three independent debaters verify each claim in parallel; consensus wins, dissent flags the claim for human review:
 
@@ -319,6 +335,10 @@ Provide your verdict with evidence.
 ## Quality Gates
 
 ### Automated Quality Checks
+
+> **Why (the rationale):** A multi-threshold quality gate (95% claims verified, 99% data accuracy, panel score ≥4.0, ≤2 disputed claims) provides defense in depth — a report can pass on claim rate but fail on panel score, catching a different failure mode that each individual threshold would miss.
+> **When to use:** Use layered thresholds when different quality dimensions catch different failure types. If your only concern is factual accuracy, a single `claim_verification_rate` threshold suffices and is cheaper to run.
+> **Nuances & gotchas:** The `disputed_claims_max: 2` hard cap means a 500-claim report with 3 disputed claims routes to human review alongside a 10-claim report with 3 disputes — despite very different risk profiles. Weight dispute count by total claim count (dispute rate), not absolute count.
 
 ```python
 class QualityGate:

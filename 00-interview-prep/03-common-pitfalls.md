@@ -186,6 +186,8 @@ LLM providers have outages. Rate limits get hit. Failure handling separates prod
 
 ### Pitfall 6: Confusing Embedding and Generation Models
 
+**When/why it happens:** Tutorials and quickstart docs often blur the two by using the same API client for both; candidates who learned RAG from notebooks rather than production systems haven't been forced to reason about which model type does which job.
+
 **What goes wrong:**
 Candidates talk about generating text with embedding models or treating generation as retrieval.
 
@@ -199,6 +201,8 @@ RAG uses embedding models for retrieval, then passes retrieved chunks to a gener
 ---
 
 ### Pitfall 7: Misunderstanding Context Windows
+
+**When/why it happens:** Provider marketing leads with the headline window size; the "lost in the middle" attention degradation finding (Liu et al.) and the practical overhead of system prompts, history, and output buffer are not covered in most tutorials.
 
 **What goes wrong:**
 - Assuming 128K context means 128K tokens of useful context
@@ -279,6 +283,8 @@ the prefix stays byte-identical across requests and the cache hits.
 ---
 
 ### Pitfall 9: Shallow Understanding of RAG Components
+
+**When/why it happens:** End-to-end RAG frameworks (LangChain, LlamaIndex) hide component decisions behind one-line defaults; candidates who used frameworks without examining those defaults can name the components but have never had to choose parameters or explain why.
 
 **What goes wrong:**
 Candidates can list the components (chunking, embedding, retrieval, generation) but cannot explain the tradeoffs within each.
@@ -422,6 +428,8 @@ Let me revise my approach..."
 
 ### Pitfall 15: Solving a Different Problem
 
+**When/why it happens:** Candidates who recently worked on or read about a specific technology (agents, multi-modal models) pattern-match the interview question to that technology before fully absorbing the requirements.
+
 **What goes wrong:**
 Candidates get excited about a particular technology and design for that instead of the stated requirements.
 
@@ -471,6 +479,8 @@ Draw boxes and arrows as you explain. Label clearly. Use the diagram as a refere
 ## AI-Specific Pitfalls
 
 ### Pitfall 18: Treating AI Components as Black Boxes
+
+**When/why it happens:** Candidates who built applications using cloud API wrappers never had to reason about inference internals; the abstraction is intentional but leaves a knowledge gap for senior/staff-level roles where production performance tuning matters.
 
 **What goes wrong:**
 Candidates treat "call the LLM" as an atomic operation without understanding what happens inside.

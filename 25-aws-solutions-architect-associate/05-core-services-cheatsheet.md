@@ -68,13 +68,13 @@ A dense, scannable rapid-review reference covering every commonly-tested AWS ser
 
 | Service | What it is (one line) | Use it when |
 |---|---|---|
-| **RDS** | Managed relational DB service supporting MySQL, PostgreSQL, MariaDB, Oracle, SQL Server, Db2 | Standard OLTP relational workloads; want managed patching, backups, Multi-AZ |
-| **Aurora** | AWS-engineered MySQL/PostgreSQL-compatible relational DB; 5× MySQL perf, 3× PostgreSQL | High-throughput relational workloads; Global Database for multi-Region HA |
+| **RDS** | Managed relational DB service supporting MySQL, PostgreSQL, MariaDB, Oracle, SQL Server, Db2 | Standard OLTP relational workloads; want managed patching, backups, Multi-AZ — Multi-AZ standby is NOT readable; use Read Replicas for read scaling |
+| **Aurora** | AWS-engineered MySQL/PostgreSQL-compatible relational DB; 5× MySQL perf, 3× PostgreSQL | High-throughput relational workloads; Global Database for multi-Region HA — shared distributed storage; up to 15 readable replicas |
 | **Aurora Serverless v2** | Aurora that auto-scales compute capacity in fine-grained ACUs | Variable/unpredictable workloads, dev/test, multi-tenant SaaS |
 | **DynamoDB** | Serverless key-value and document NoSQL; single-digit millisecond at any scale | Massive scale key-value/document access, session stores, IoT, gaming leaderboards |
 | **DAX** | In-memory write-through cache for DynamoDB; microsecond reads | DynamoDB read-heavy workloads needing sub-millisecond latency |
-| **ElastiCache (Redis)** | Managed Redis in-memory cache; persistent, replication, Multi-AZ, Pub/Sub | Session management, leaderboards, complex data structures, pub/sub, geospatial |
-| **ElastiCache (Memcached)** | Managed Memcached; simple, multi-threaded, no persistence | Simple distributed object caching without persistence or replication needs |
+| **ElastiCache (Redis)** | Managed Redis in-memory cache; persistent, replication, Multi-AZ, Pub/Sub | Session management, leaderboards, complex data structures, pub/sub, geospatial — choose Redis when you need persistence, replication, or Multi-AZ failover |
+| **ElastiCache (Memcached)** | Managed Memcached; simple, multi-threaded, no persistence | Simple distributed object caching without persistence or replication needs — data is lost on node restart; no Multi-AZ |
 | **Redshift** | Petabyte-scale columnar data warehouse; Redshift Serverless available | OLAP analytics, BI dashboards, large SQL queries over structured data |
 | **Neptune** | Managed graph database (Gremlin/SPARQL/openCypher) | Social networks, knowledge graphs, fraud detection, recommendation engines |
 | **DocumentDB** | MongoDB-compatible managed document database | Migrating MongoDB workloads to AWS; JSON document storage |
@@ -97,8 +97,8 @@ A dense, scannable rapid-review reference covering every commonly-tested AWS ser
 | **NAT Gateway** | Managed NAT enabling private subnet outbound internet; stateful | Private EC2 instances needing outbound internet (patches, APIs); prefer managed NAT GW over NAT instances |
 | **Security Groups** | Stateful instance-level firewall; allow rules only; evaluates all rules | Controlling inbound/outbound traffic at the ENI/instance level |
 | **NACLs** | Stateless subnet-level firewall; allow and deny rules; evaluated in order | Additional layer of defense at subnet boundary; explicitly blocking IPs |
-| **VPC Endpoint – Gateway** | Free route-table-based endpoint for S3 and DynamoDB | Private EC2→S3 or EC2→DynamoDB without internet/NAT Gateway; no cost |
-| **VPC Endpoint – Interface (PrivateLink)** | ENI with private IP for 100+ AWS services and customer services | Private access to AWS services (SSM, KMS, etc.) or expose your own service to other VPCs |
+| **VPC Endpoint – Gateway** | Free route-table-based endpoint for S3 and DynamoDB | Private EC2→S3 or EC2→DynamoDB without internet/NAT Gateway; no cost — S3 and DynamoDB only; works via route table, no ENI |
+| **VPC Endpoint – Interface (PrivateLink)** | ENI with private IP for 100+ AWS services and customer services | Private access to AWS services (SSM, KMS, etc.) or expose your own service to other VPCs — costs ~$0.01/hr/AZ + $0.01/GB; use Gateway endpoint for S3/DynamoDB instead |
 | **VPC Peering** | Direct private connection between two VPCs; non-transitive | Connecting a small number of VPCs; one-to-one; no transitive routing |
 | **Transit Gateway (TGW)** | Regional hub-and-spoke router connecting VPCs, VPNs, Direct Connect | Hub for many VPCs or accounts; replaces complex peering mesh; supports multicast |
 | **Direct Connect (DX)** | Dedicated private 1/10/100 Gbps connection from on-premises to AWS | Consistent high-bandwidth, low-latency hybrid connectivity; compliance; large data transfer |
@@ -190,61 +190,61 @@ A dense, scannable rapid-review reference covering every commonly-tested AWS ser
 
 ## 9. If You See X → Pick Y: Disambiguation Table
 
-| If the scenario says… | The correct answer is… | Why |
+| If the scenario says… | The correct answer is… | Why / nuance |
 |---|---|---|
-| Need stateful firewall at **instance level** | **Security Group** | SGs are stateful (return traffic auto-allowed); apply to ENIs |
-| Need to **explicitly DENY** specific IPs at subnet level | **NACL** | NACLs support deny rules; SGs do not; NACLs are stateless |
-| Fan-out: **one event → multiple consumers** simultaneously | **SNS → multiple SQS queues** | SNS fan-out pattern; each SQS queue gets a copy for independent processing |
-| Decouple producer/consumer, handle **burst traffic, one consumer** | **SQS** | Queue buffers messages; consumers pull at their own pace |
-| Route events from **AWS services or SaaS** based on content rules | **EventBridge** | Native AWS event bus; supports 90+ AWS sources and SaaS partners |
-| Real-time **streaming, multiple consumers, replay** capability | **Kinesis Data Streams** | Ordered shard log; multiple consumer groups read independently; 7-day retention |
-| HTTP/HTTPS routing by **path or hostname** (microservices) | **ALB** | Layer-7 routing rules; path-based and host-based conditions |
-| **Static IP**, ultra-low latency, TCP/UDP, or **PrivateLink** | **NLB** | Layer-4; preserves source IP; static Elastic IPs; PrivateLink target |
-| Shared **Linux** file system across many instances | **EFS** | NFS, multi-AZ, concurrent mounts; scales automatically |
-| Shared **Windows** file system, AD integration | **FSx for Windows** | SMB/NTFS; Active Directory; DFS Namespaces |
-| High-performance parallel FS for **HPC/ML** | **FSx for Lustre** | Sub-ms latency; integrates with S3 as a data repo |
-| Block storage for **EC2**, best price/performance | **EBS gp3** | Independently provision IOPS/throughput; cheaper than gp2 at same performance |
-| **Guaranteed IOPS** for mission-critical DB | **EBS io2 Block Express** | Up to 256K IOPS; 99.999% durability; sub-ms latency |
-| **Infrequent large sequential** reads (log archive) | **EBS st1** | HDD; high throughput; not suited for random I/O |
-| **RDS Multi-AZ** vs **Read Replica** | Multi-AZ = **HA/failover** (sync standby, no reads); Read Replica = **read scalability** (async, readable) | Multi-AZ survives AZ failure; Read Replicas reduce read load |
-| MySQL/PostgreSQL needing **higher throughput than RDS** | **Aurora** | 5× MySQL, 3× PostgreSQL performance; shared storage cluster |
-| **Variable/unpredictable** relational workload, want to scale to zero | **Aurora Serverless v2** | ACU auto-scaling; pay per second; good for dev, multi-tenant |
-| **Key-value at massive scale**, single-digit ms, serverless | **DynamoDB** | NoSQL; infinite scale; Global Tables for multi-Region |
-| DynamoDB **read-heavy**, need **microsecond** latency | **DAX** | DynamoDB Accelerator; write-through cache; no app code change |
-| In-memory cache needing **persistence, replication, Pub/Sub** | **ElastiCache Redis** | Rich data structures, TTL, replication, Multi-AZ, Lua scripts |
-| Simple **stateless cache**, multi-thread, no persistence needed | **ElastiCache Memcached** | Multi-threaded; horizontal scaling; no persistence |
-| Static content delivery to **global users** with caching | **CloudFront** | CDN; 400+ edge locations; caches at edge; S3/ALB/EC2 origin |
-| TCP/UDP global acceleration, **static anycast IPs**, non-HTTP | **Global Accelerator** | Routes over AWS backbone; consistent IP; instant failover; not a CDN |
-| **Private EC2 → S3** without NAT/internet (free) | **S3 Gateway VPC Endpoint** | Free; route-table based; only for S3 and DynamoDB |
-| Private access to **AWS service** (SSM, KMS, ECR) from VPC | **Interface VPC Endpoint (PrivateLink)** | Creates ENI in subnet; charged hourly; 100+ services supported |
-| Expose **your own service** privately to other VPCs/accounts | **PrivateLink / Endpoint Service** (backed by NLB) | Consumer creates interface endpoint; traffic stays in AWS network |
-| Connect **many VPCs** in hub-and-spoke (transitive routing) | **Transit Gateway** | Single managed router; transitive; cross-Region peering supported |
-| Connect **two VPCs** directly, small scale | **VPC Peering** | Simple, free within Region; non-transitive; limited scale |
-| **Consistent, dedicated** hybrid connection (high bandwidth) | **Direct Connect** | Physical dedicated line; consistent latency; avoid public internet |
-| **Quick, cheap** hybrid connection or DX backup | **Site-to-Site VPN** | IPsec over internet; minutes to provision; lower cost |
-| App authentication (sign-up/sign-in) returning **JWT** | **Cognito User Pool** | User directory; handles auth; issues ID/access tokens |
-| Mobile app needs **temporary AWS credentials** to access S3/DDB | **Cognito Identity Pool** | Exchanges Cognito/federated token for STS temporary credentials |
-| **Auto-rotate** DB passwords and audit access | **Secrets Manager** | Native rotation for RDS/Aurora/Redshift; costs per secret |
-| **Config and non-rotating secrets** cheaply | **SSM Parameter Store** | Free standard tier; no rotation; hierarchical path-based access |
-| Detect **threats** in AWS account (compromised creds, crypto mining) | **GuardDuty** | ML on VPC Flow Logs, CloudTrail, DNS; no agents needed |
-| **Vulnerability scanning** on EC2 AMIs, ECR images, Lambda | **Inspector** | CVE/CIS; automated continuous scanning; does not analyze behavior |
-| Find **PII/sensitive data** in S3 buckets | **Macie** | ML-based data classification; S3-specific |
-| **Forensic investigation** after a security alert | **Detective** | Visualizes entity behavior over time; graph-based investigation |
-| **Cross-account** EC2→another account's S3 | **STS AssumeRole** | EC2 instance profile assumes role in target account; no long-term creds |
-| **Backup & Restore** DR (cheapest, longest RTO) | Cheapest: backup data to S3/Glacier; restore on demand | RTO: hours–days; RPO: hours |
-| **Pilot Light** DR (minimal footprint, faster than B&R) | Core DB running; minimal compute; scale out on DR event | RTO: hours; RPO: minutes |
-| **Warm Standby** DR (reduced fleet always running) | Scaled-down prod in DR Region; scale to full on failure | RTO: minutes; RPO: seconds |
-| **Multi-site Active-Active** DR (lowest RTO/RPO) | Full traffic in multiple Regions simultaneously | RTO: near zero; RPO: near zero; highest cost |
-| **Reserved Instances** vs **Savings Plans** vs **Spot** | RI = commit to specific instance type/Region; SP = flexible commit to $/hr usage; Spot = up to 90% discount, interruptible | Spot for fault-tolerant batch; SP for flexible committed use; RI for predictable specific instances |
-| **Analyze past costs** and forecast | **Cost Explorer** | Historical trends, RI recommendations, forecasts |
-| **Alert when budget threshold crossed** | **Budgets** | Proactive alerts; can trigger Lambda/SNS action |
-| **Detailed line-item billing** for custom analytics | **CUR** | Hourly/daily granularity; delivered to S3; query with Athena |
-| Route 53 **blue/green or A/B traffic split** | **Weighted routing** | Assign weight 0-255; gradually shift traffic between record sets |
-| Route 53 **active-passive failover** | **Failover routing** with health check | Primary record; secondary failover record activated when health check fails |
-| Route 53 serve users from **closest Region** | **Latency routing** | Routes based on measured latency between user and AWS Regions |
-| Route 53 serve users **by country/continent** | **Geolocation routing** | Match user source IP to geographic location; must have default record |
-| Route 53 all records **equally** (load balance with DNS) | **Multivalue Answer** | Returns up to 8 healthy records; not a substitute for ELB |
-| **NAT Gateway** vs **S3 Gateway Endpoint** for private EC2→S3 | **Gateway Endpoint is free**; NAT Gateway charges per GB | Use gateway endpoint to eliminate NAT data-processing costs for S3/DynamoDB |
+| Need stateful firewall at **instance level** | **Security Group** | SG is stateful — return traffic is auto-allowed, allow rules only; NACL is stateless so you'd have to manually open ephemeral return ports (1024–65535) and it supports explicit Deny, not SG. |
+| Need to **explicitly DENY** specific IPs at subnet level | **NACL** | NACLs support Deny rules evaluated in number order; SGs are allow-only. Because NACLs are stateless, you must also allow outbound ephemeral ports (1024–65535) for return traffic — the classic exam gotcha. |
+| Fan-out: **one event → multiple consumers** simultaneously | **SNS → multiple SQS queues** | SNS is push-based pub/sub: one publish delivers to all subscribers simultaneously. SQS alone serves only one consumer group; each SQS queue behind SNS gets an independent copy. |
+| Decouple producer/consumer, handle **burst traffic, one consumer** | **SQS** | SQS buffers/pull for one consumer group; SNS pushes to many simultaneously. Use SQS when you need backpressure or async processing, not fan-out. |
+| Route events from **AWS services or SaaS** based on content rules | **EventBridge** | EventBridge does content-based routing/filtering across 90+ AWS sources and SaaS partners, plus scheduling. SNS fans out without content filtering; SQS queues without routing. |
+| Real-time **streaming, multiple consumers, replay** capability | **Kinesis Data Streams** | Ordered shard log; each consumer reads at its own position; up to 365-day replay retention. SQS deletes a message once consumed — no replay, no parallel independent readers. Firehose delivers to a single destination without replay. |
+| HTTP/HTTPS routing by **path or hostname** (microservices) | **ALB** | ALB is Layer-7 and supports path-based and host-based routing rules; NLB is Layer-4 only and routes by IP/port with no HTTP awareness. |
+| **Static IP**, ultra-low latency, TCP/UDP, or **PrivateLink** | **NLB** | NLB is Layer-4 with static Elastic IPs and is the only ELB type that can be a PrivateLink target. ALB has dynamic IPs and no native PrivateLink support. |
+| Shared **Linux** file system across many instances | **EFS** | EFS is NFS-based, multi-AZ, and scales automatically; EBS is single-instance block storage (except Multi-Attach io2 in limited use cases). |
+| Shared **Windows** file system, AD integration | **FSx for Windows** | FSx for Windows is SMB/NTFS with native Active Directory and DFS Namespaces support; EFS does not support SMB or Windows ACLs. |
+| High-performance parallel FS for **HPC/ML** | **FSx for Lustre** | Sub-ms latency, hundreds of GB/s throughput, native S3 integration as a data repository; EFS cannot match Lustre's raw HPC throughput. |
+| Block storage for **EC2**, best price/performance | **EBS gp3** | gp3 lets you independently provision IOPS and throughput without paying for more capacity, and is cheaper than gp2 at equivalent performance; io2 is for missions needing guaranteed high IOPS beyond gp3's 16,000 IOPS ceiling. |
+| **Guaranteed IOPS** for mission-critical DB | **EBS io2 Block Express** | Up to 256,000 IOPS, 99.999% durability, sub-ms latency; gp3 maxes at 16,000 IOPS and 1,000 MB/s throughput. |
+| **Infrequent large sequential** reads (log archive) | **EBS st1** | st1 is a throughput-optimized HDD tuned for sequential reads/writes; io2/gp3 are more expensive SSDs suited for random I/O, not large sequential cold data. |
+| **RDS Multi-AZ** vs **Read Replica** | Multi-AZ = **HA/failover** (sync standby, not readable); Read Replica = **read scalability** (async, readable) | Multi-AZ standby is synchronously replicated but cannot serve reads — it exists only for automatic AZ-failure failover. Read Replicas are readable but use async replication (can lag) and do not auto-promote on primary failure. |
+| MySQL/PostgreSQL needing **higher throughput than RDS** | **Aurora** | Aurora's shared distributed storage delivers 5× MySQL and 3× PostgreSQL throughput vs. standard RDS, supports up to 15 readable replicas, and auto-heals storage; standard RDS does not. |
+| **Variable/unpredictable** relational workload, want to scale to zero | **Aurora Serverless v2** | Aurora Serverless v2 auto-scales in fine-grained ACUs and can scale to near-zero; standard Aurora has a fixed instance size and incurs cost even at idle. |
+| **Key-value at massive scale**, single-digit ms, serverless | **DynamoDB** | DynamoDB is a fully serverless NoSQL store with single-digit-ms latency at any scale and Global Tables for multi-Region active-active; RDS cannot scale horizontally without significant re-architecture. |
+| DynamoDB **read-heavy**, need **microsecond** latency | **DAX** | DAX is a write-through in-memory cache sitting in front of DynamoDB, delivering microsecond reads with no application code change; ElastiCache Redis requires application-level cache logic and doesn't natively understand DynamoDB. |
+| In-memory cache needing **persistence, replication, Pub/Sub** | **ElastiCache Redis** | Redis supports persistence (AOF/RDB), Multi-AZ replication, Pub/Sub, and rich data structures; Memcached is volatile — data is lost on node restart and has no replication. |
+| Simple **stateless cache**, multi-thread, no persistence needed | **ElastiCache Memcached** | Memcached is multi-threaded and simpler; Redis adds persistence and replication overhead. If a node dies, losing cache data is acceptable here — choose Memcached to minimize cost and complexity. |
+| Static content delivery to **global users** with caching | **CloudFront** | CloudFront is a CDN that caches HTTP/HTTPS content at 400+ edge locations; Global Accelerator does NOT cache — it optimizes network routing for dynamic/non-cacheable traffic. |
+| TCP/UDP global acceleration, **static anycast IPs**, non-HTTP | **Global Accelerator** | Global Accelerator provides two static anycast IPs and routes TCP/UDP over the AWS backbone; CloudFront only handles HTTP/HTTPS and uses dynamically changing IPs unsuitable for IP allowlisting. |
+| **Private EC2 → S3** without NAT/internet (free) | **S3 Gateway VPC Endpoint** | Gateway endpoint is completely free and works via route table entry for S3 and DynamoDB only; Interface endpoint (PrivateLink) costs ~$0.01/hr/AZ + $0.01/GB — never pay for Interface when Gateway suffices. |
+| Private access to **AWS service** (SSM, KMS, ECR) from VPC | **Interface VPC Endpoint (PrivateLink)** | Interface endpoints cover 100+ services via an ENI in your subnet; Gateway endpoints only support S3 and DynamoDB. Interface endpoints cost ~$0.01/hr/AZ + $0.01/GB, so use Gateway for S3/DynamoDB. |
+| Expose **your own service** privately to other VPCs/accounts | **PrivateLink / Endpoint Service** (backed by NLB) | PrivateLink keeps traffic on the AWS network; VPC Peering requires non-overlapping CIDRs and is not scalable for exposing a service to many consumers. |
+| Connect **many VPCs** in hub-and-spoke (transitive routing) | **Transit Gateway** | TGW is a regional hub that supports transitive routing and cross-Region peering; VPC Peering is non-transitive — each pair needs its own peering connection, which doesn't scale. |
+| Connect **two VPCs** directly, small scale | **VPC Peering** | VPC Peering is simple and free within a Region for a small number of VPCs; Transit Gateway adds cost and is overkill for two VPCs. |
+| **Consistent, dedicated** hybrid connection (high bandwidth) | **Direct Connect** | DX is a physical dedicated private line with consistent low latency; Site-to-Site VPN runs over the public internet with variable latency and lower max bandwidth. |
+| **Quick, cheap** hybrid connection or DX backup | **Site-to-Site VPN** | VPN is provisioned in minutes over the internet at low cost; Direct Connect takes weeks to provision and requires physical cross-connect. |
+| App authentication (sign-up/sign-in) returning **JWT** | **Cognito User Pool** | User Pools are a user directory that handles sign-up/sign-in and issues JWT tokens (ID, access, refresh); Identity Pools do not authenticate users — they exchange tokens for temporary AWS credentials. |
+| Mobile app needs **temporary AWS credentials** to access S3/DDB | **Cognito Identity Pool** | Identity Pools exchange a User Pool JWT (or social IdP token) for short-term STS credentials; User Pools only issue JWT tokens, not AWS credentials. |
+| **Auto-rotate** DB passwords and audit access | **Secrets Manager** | Secrets Manager has native rotation for RDS/Aurora/Redshift and costs $0.40/secret/month; SSM Parameter Store has no built-in rotation — you'd need to build custom Lambda automation. |
+| **Config and non-rotating secrets** cheaply | **SSM Parameter Store** | Standard parameters are free; Secrets Manager charges $0.40/secret/month even for secrets that never rotate. Use Parameter Store for app config and non-rotating values. |
+| Detect **threats** in AWS account (compromised creds, crypto mining) | **GuardDuty** | GuardDuty uses ML on VPC Flow Logs, CloudTrail, and DNS logs to detect behavioral threats; Inspector scans for software vulnerabilities (CVEs), not behavioral anomalies. |
+| **Vulnerability scanning** on EC2 AMIs, ECR images, Lambda | **Inspector** | Inspector does continuous CVE/CIS benchmark scanning; GuardDuty detects runtime threats and unusual API behavior, not software vulnerabilities. |
+| Find **PII/sensitive data** in S3 buckets | **Macie** | Macie uses ML to classify and detect PII/sensitive data in S3; GuardDuty detects threats but does not scan object content for sensitive data. |
+| **Forensic investigation** after a security alert | **Detective** | Detective builds a graph of entity behavior over time for root-cause analysis; GuardDuty generates the initial finding but does not provide investigation tooling. |
+| **Cross-account** EC2→another account's S3 | **STS AssumeRole** | EC2 instance profile assumes a cross-account IAM role via STS; no long-term credentials are stored. Resource-based S3 bucket policies alone cannot grant the calling identity temporary credentials. |
+| **Backup & Restore** DR (cheapest, longest RTO) | Cheapest: backup data to S3/Glacier; restore on demand | RTO: hours–days; RPO: hours. Lowest cost because no standby infrastructure runs — you pay only for storage until disaster strikes. |
+| **Pilot Light** DR (minimal footprint, faster than B&R) | Core DB running; minimal compute; scale out on DR event | RTO: hours; RPO: minutes. Only the critical data tier is live; compute must be provisioned on failover, unlike Warm Standby where it already runs scaled-down. |
+| **Warm Standby** DR (reduced fleet always running) | Scaled-down prod in DR Region; scale to full on failure | RTO: minutes; RPO: seconds. A reduced-capacity stack is always running and can scale up quickly; costs more than Pilot Light because compute is always on. |
+| **Multi-site Active-Active** DR (lowest RTO/RPO) | Full traffic in multiple Regions simultaneously | RTO: near zero; RPO: near zero; highest cost. All Regions serve live traffic; no failover needed — traffic shifts via Route 53 or Global Accelerator. |
+| **Reserved Instances** vs **Savings Plans** vs **Spot** | RI = commit to specific instance family/size/Region; SP = commit to $/hr (flexible across types/Regions/Fargate/Lambda); Spot = up to 90% off, interruptible with 2-min warning | Steady workload needing specific capacity → RI (deepest discount for that exact type); steady + flexible or includes Fargate/Lambda → Savings Plans; fault-tolerant/interruptible batch → Spot. |
+| **Analyze past costs** and forecast | **Cost Explorer** | Cost Explorer provides historical trend visualizations, RI/SP coverage reports, and forecasts; Budgets is prospective (alert when threshold is crossed), not analytical. |
+| **Alert when budget threshold crossed** | **Budgets** | Budgets sends proactive alerts and can trigger automated actions (Lambda/SNS/IAM policy); Cost Explorer is for analysis and forecasting, not alerting. |
+| **Detailed line-item billing** for custom analytics | **CUR** | CUR delivers hourly/daily granular line-item data to S3 queryable with Athena; Cost Explorer shows visualizations but not raw per-resource hourly granularity. |
+| Route 53 **blue/green or A/B traffic split** | **Weighted routing** | Weighted routing assigns a 0–255 weight to each record; gradually shift traffic by adjusting weights — a weight of 0 removes a record from rotation without deleting it. |
+| Route 53 **active-passive failover** | **Failover routing** with health check | Failover routing promotes the secondary record only when the primary's health check fails; Weighted routing cannot detect health and always distributes traffic. |
+| Route 53 serve users from **closest Region** | **Latency routing** | Latency routing measures actual AWS-measured latency between the user's location and each Region; Geolocation routing uses IP-to-geography mapping and doesn't measure real latency. |
+| Route 53 serve users **by country/continent** | **Geolocation routing** | Geolocation routing maps source IP to a geographic location; a default record is required or unmatched locations get NODATA. Latency routing doesn't support geographic-restriction requirements. |
+| Route 53 all records **equally** (load balance with DNS) | **Multivalue Answer** | Multivalue Answer returns up to 8 healthy records and is health-check-aware; it is NOT a substitute for ELB (no connection persistence or Layer-7 features). |
+| **NAT Gateway** vs **S3 Gateway Endpoint** for private EC2→S3 | **Gateway Endpoint is free**; NAT Gateway charges per GB | Gateway endpoint eliminates NAT data-processing costs ($0.045/GB) for S3 and DynamoDB traffic; NAT Gateway is still needed for other internet-bound traffic but should not be used for S3/DynamoDB. |
 
 ---
 

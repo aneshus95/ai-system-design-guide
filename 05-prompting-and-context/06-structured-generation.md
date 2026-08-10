@@ -22,6 +22,10 @@ Historically, getting JSON was a struggle of "only return JSON, no other text."
 - **Benefit**: 100% syntactical validity. The model literally cannot output a string that is not a valid JSON.
 - **Behind the scenes**: The serving engine masks the vocabulary at each step, ensuring only valid JSON characters (e.g., `{`, `"`, `:`, `[`) can be picked next.
 
+> **Why (the rationale):** Prompt-only requests for JSON ("respond only in JSON") rely on the model's willingness to comply — which fails under high temperature, long outputs, or complex schemas. JSON mode enforces the constraint at the *inference engine* level, making compliance a mathematical guarantee rather than a behavioral one.
+> **When to use:** Any production pipeline that programmatically parses model output. Always prefer structured output modes over prompt-based JSON requests when the provider supports it. The only exception is when the schema is too complex or dynamic to express as a static JSON schema — in that case, fall back to prompt-based with a validate-and-retry loop.
+> **Nuances & gotchas:** Structured generation guarantees valid JSON *syntax* — it does NOT guarantee semantic correctness. A schema-valid `{"sentiment": "positive"}` can still be wrong. Field values, data types, and required fields are enforced by the schema, but content accuracy depends entirely on the model's knowledge and reasoning. Always validate semantics with Pydantic/Zod after structural validation passes.
+
 ---
 
 ## Function Calling & Tool Use
@@ -38,11 +42,19 @@ Function calling is structured generation where the LLM "picks" a function and p
 
 **Nuance**: **Parallel Function Calling** is now standard. A model can decide to call 5 different tools simultaneously (e.g., check account balance, check credit score, check loan rates) and aggregate the results.
 
+> **Why (the rationale):** Function calling bridges the gap between natural language reasoning and typed, executable API calls. It externalizes action specification into a schema the model must fill — combining the model's NL understanding with the reliability guarantees of structured output for the most security-sensitive part of an agentic system (the action).
+> **When to use:** Whenever the model needs to take a real-world action (API calls, database queries, tool use in agents). Prefer function calling over "generate a command and parse it" patterns — the schema enforces argument types and names, dramatically reducing parsing bugs and injection surface.
+> **Nuances & gotchas:** Parallel function calling is powerful but requires the caller to handle concurrent execution and partial failures gracefully. The model may hallucinate argument values — especially for fields that require knowledge it doesn't have (e.g., a user ID it was never told). Always validate argument values against business logic constraints; schema compliance does not guarantee argument correctness. Tool schemas consume context tokens and can themselves become an injection surface if tool descriptions are user-controlled.
+
 ---
 
 ## Constrained Decoding (CFG & Regex)
 
 For self-hosted models (Llama-cpp, vLLM via Outlines), we use **Context-Free Grammars (CFG)** or **Regex**.
+
+> **Why (the rationale):** Provider JSON/tool modes are black boxes — you cannot control the decoding mechanism. For self-hosted models, constrained decoding gives you full control: you can enforce arbitrary formats (phone numbers, dates, enums, full JSON schemas, even code syntax) at the logit level, making invalid output *impossible* rather than just unlikely. It is also often faster than free decoding for highly constrained outputs because forced single-legal-token steps can be skipped.
+> **When to use:** Self-hosted model deployments (vLLM, llama.cpp, Outlines) where you need strict format guarantees that provider APIs don't expose, or where the schema is too specific for standard JSON mode. Use regex for flat patterns (dates, phone numbers, enum values); use CFG for nested/recursive structures (full JSON, code).
+> **Nuances & gotchas:** Constrained decoding requires access to the model's raw logits — it works on self-hosted models or provider "strict" modes; with standard API calls you must fall back to validate-and-retry. It guarantees format, not truth — a constrained model can still generate wrong values within valid structure. Overly tight constraints (e.g., a regex that allows only one valid string) effectively force the output rather than generate it, which may not reflect the model's actual prediction.
 
 ```python
 # Outlines Pattern
@@ -147,6 +159,10 @@ For complex data extraction (e.g., 50 fields from a medical record), don't do it
 - **Stage 2 (Text-to-JSON)**: Use a smaller, cheaper model to convert those natural language facts into a strict JSON schema.
 - **Benefit**: Reduces "hallucination under pressure"—large models struggle when forced to reason AND follow strict syntax simultaneously.
 
+> **Why (the rationale):** When forced to simultaneously reason about content *and* maintain JSON syntax in a large schema, the model's attention is split between two competing tasks. Separating them allows each stage to specialize: Stage 1 uses the full model capability for content accuracy; Stage 2 uses a cheaper, schema-focused model for reliable format conversion.
+> **When to use:** Schemas with 20+ fields, hierarchical structures, or when you observe omission hallucinations (missing or placeholder-filled fields) in single-pass extraction. For simple schemas (5–10 flat fields), the overhead of two-stage is not justified.
+> **Nuances & gotchas:** Two-stage extraction doubles latency and API calls. Errors in Stage 1 (missing a fact in the free-text pass) propagate silently to Stage 2 — the schema will be structurally valid but factually incomplete. Stage 1 must be evaluated separately from Stage 2 to catch content errors before format conversion. The "cheaper model" in Stage 2 still needs to be capable enough to correctly map ambiguous natural language to typed fields.
+
 ---
 
 ## Validation & Formatting Errors
@@ -158,6 +174,10 @@ Even with "JSON mode," the **Logic** inside the JSON might be wrong (e.g., a fie
 2. If it fails, send the **Traceback** back to the model:
    "Error: Field 'age' must be an integer, got 'twenty'. Fix and re-generate."
 3. Most models fix the error on the first retry.
+
+> **Why (the rationale):** Structured generation guarantees syntax but not semantics. Cross-field constraints (e.g., `end_date > start_date`), enum value correctness, and required-field completeness are semantic properties that the grammar/schema cannot enforce at the logit level — only post-hoc validation catches them.
+> **When to use:** Always run schema validation as the final gate before consuming model output in any downstream system. The validate-and-retry pattern is a lightweight safety net for the semantic gap that constrained decoding leaves open.
+> **Nuances & gotchas:** Most models correct validation errors on the first retry when given a precise error message — but not always. Cap retries at 2–3 to avoid infinite loops. If the same validation error repeats, the error is likely a systematic model failure on that field (model doesn't know the correct value) rather than a formatting slip — retry won't help; escalate or flag for human review. Sending full tracebacks back to the model also re-exposes the system prompt context, which is an injection surface.
 
 ---
 

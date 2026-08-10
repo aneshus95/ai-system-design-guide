@@ -19,6 +19,10 @@ Not every model has to run in someone else's cloud. Running LLMs **locally**, on
 
 The key mental model: these tools are **not substitutes**. They occupy different layers.
 
+> **Why (the rationale):** Each layer of the local-inference stack solves a different problem: experience-layer tools (Ollama, LM Studio) make models easy to run for developers; inference engines (llama.cpp, MLX) optimize compute across hardware targets; serving systems (vLLM, TGI) add concurrency and throughput for multi-user endpoints; mobile runtimes (ExecuTorch, Core ML) target power- and memory-constrained devices.
+> **When to use:** Choose by your deployment target and concurrency requirements — Ollama for solo development, vLLM for shared production endpoints, ExecuTorch/Core ML for mobile apps. Never conflate the layers.
+> **Nuances & gotchas:** Ollama and LM Studio do NOT scale to concurrent users — they serialize requests. vLLM is GPU-centric and has limited CPU-only support. MLX is Apple Silicon-only. llama.cpp is the portability fallback (CPU/GPU, any OS) but is not the throughput leader. ExecuTorch is not a replacement for vLLM on server hardware; it targets embedded and mobile.
+
 | Tool | Layer | What it is for |
 |------|-------|----------------|
 | **Ollama** | Experience layer / local daemon | One-command model pull and run, OpenAI-ish API, single-user dev. Builds on llama.cpp, and uses Apple MLX on Apple Silicon in recent versions. |
@@ -36,6 +40,10 @@ The key mental model: these tools are **not substitutes**. They occupy different
 
 Ollama and LM Studio are excellent for prototyping and wrong for a shared production endpoint, for an architectural reason worth teaching.
 
+> **Why (the rationale):** Ollama was designed for single-developer local use — simple, fast to set up, one model at a time. Production serving requires concurrent request handling, KV memory efficiency, and graceful queue management under load. vLLM was designed from the ground up for these constraints.
+> **When to use:** Use Ollama for solo dev/prototyping and prompt iteration. Switch to vLLM (or TGI/TensorRT-LLM) the moment you need to serve more than one user at a time, or share the endpoint across a team or product.
+> **Nuances & gotchas:** The 19x throughput gap (793 vs 41 tok/sec from the Red Hat benchmark) is a *structural* difference — not a configuration gap that can be closed by tuning Ollama. Ollama's queuing model also means requests fail under backpressure instead of waiting; vLLM queues them. The benchmark was run on a datacenter GPU, so "vLLM beats Ollama" is a software architecture comparison, not a "GPU beats Mac" comparison.
+
 Ollama defaults to serving requests with very limited parallelism and queues excess requests first-in-first-out; a full queue returns an error. Each parallel slot also statically multiplies the context memory allocation. LM Studio is built for single-user scenarios without rate limiting or auth. Neither is designed to turn concurrent demand into throughput.
 
 **vLLM** is, via two mechanisms: **PagedAttention** (the KV cache stored in non-contiguous blocks like OS paging, cutting the 60-80% KV memory waste of naive serving to under ~4%) and **continuous batching** (swap a finished request out and a queued one in mid-batch). The clearest first-party benchmark, from Red Hat: on a single datacenter GPU running an 8B model, vLLM reached roughly **793 tokens/sec versus Ollama's ~41**, about 19x, with far lower tail latency, and even a tuned Ollama trailed across all concurrency levels.
@@ -45,6 +53,10 @@ The takeaway is not "vLLM is tuned better." It is structural: Ollama and LM Stud
 ---
 
 ## When Local Beats Cloud (and When It Does Not)
+
+> **Why (the rationale):** Cloud APIs charge per token with variable pricing; local hosting has fixed hardware costs. The economics flip at steady high volume. Privacy, offline operation, and latency floor create non-economic forcing functions for local deployment regardless of cost.
+> **When to use:** Local wins for privacy/regulated data that cannot leave the device, air-gapped environments, tight latency requirements where network round-trip is the bottleneck, and sustained high-volume workloads above the break-even point. Cloud wins for spiky/unpredictable demand, frontier-quality requirements, low/medium volume, and when you lack infrastructure ops capacity.
+> **Nuances & gotchas:** "Privacy" as a reason for local deployment is weakening — major providers now offer zero-data-retention enterprise tiers that may satisfy HIPAA/GDPR with contractual guarantees. The self-hosted break-even (~few million tokens/day) requires factoring in ops labor, reliability, and GPU reservation costs — not just GPU $/hr. A hybrid approach (small/offline local, frontier/spiky cloud) is almost always better than an all-or-nothing choice.
 
 **Lean local or edge when:**
 - **Privacy or regulated data** that cannot leave the box (HIPAA, GDPR, contractual residency). A caveat to teach: the major API providers now offer zero-data-retention enterprise tiers, so "privacy" alone no longer automatically decides for local.
@@ -60,6 +72,10 @@ The takeaway is not "vLLM is tuned better." It is structural: Ollama and LM Stud
 
 Quantization is what makes local serving viable; the [Quantization Deep Dive](../03-training-and-adaptation/07-quantization-deep-dive.md) covers the math, so here is just the deployment layer.
 
+> **Why (the rationale):** A 70B model at FP16 requires ~140GB VRAM — far beyond any consumer GPU or phone. 4-bit quantization (Q4_K_M) reduces this to ~40GB, making it feasible on a high-end consumer rig or Mac Studio. Without quantization, only 7B models fit on mainstream consumer hardware.
+> **When to use:** Always on consumer hardware (mandatory). On datacenter hardware, prefer FP8 or BF16 for quality; use quantization only when VRAM is insufficient. For mobile/edge, 4-bit is the standard floor.
+> **Nuances & gotchas:** Q4_K_M is not a single quality level — quality varies significantly by model, task, and domain. Math and code are more sensitive to quantization than general chat. Going below Q4 (Q2/Q3) can degrade reasoning by 5–10%+ and is rarely worth the VRAM savings unless the model literally doesn't fit otherwise. The VRAM rule of thumb covers weights only — add KV cache and runtime overhead before assuming a model fits.
+
 **GGUF** is the local-model format used by llama.cpp, Ollama, and LM Studio. Common quant levels trade quality for size: Q4_K_M is the practical sweet spot (roughly 1-3% quality loss versus FP16 at about a quarter of the size), Q5_K_M is noticeably better for code and reasoning at under ~1% loss, Q8_0 is effectively lossless at about half FP16, and Q2/Q3 save the most memory but degrade math and reasoning by 5-10% or more.
 
 The **VRAM rule of thumb**:
@@ -73,6 +89,10 @@ then add the KV cache (it grows with context length times concurrent requests) p
 ---
 
 ## Hardware
+
+> **Why (the rationale):** Consumer GPUs are capped at 24–32GB VRAM, Apple Silicon shares all system RAM as GPU memory (uniquely enabling large models on a Mac), phones are bandwidth-constrained to sub-3B models, and NPUs have limited operator support for transformer-style attention. Matching model to hardware is the first architectural decision in any local deployment.
+> **When to use:** Use this table as a sizing guide before downloading a model. Add KV cache and runtime overhead (10–20%) to the model size estimate before concluding it fits.
+> **Nuances & gotchas:** VRAM/RAM figures are weight-only — a 7B Q4 model at ~4.5GB needs 5–8GB total with runtime overhead and KV cache for a few concurrent turns. Apple Silicon's unified memory is a genuine advantage, but memory bandwidth on Apple chips is still below a datacenter GPU, so speed lags. "AI PC" NPU TOPS numbers are marketing — real LLM speed on NPUs is gated by operator support and memory bandwidth, not raw TOPS.
 
 A model-size-to-hardware guide (Q4 quant assumed; planning guidance, not guarantees):
 
@@ -94,6 +114,10 @@ Notes:
 ---
 
 ## Prototype to Production
+
+> **Why (the rationale):** The prototype-to-production gap in local deployment is primarily about the serving engine, not the model. Ollama's concurrency limitations mean a prototype that works fine solo fails immediately under shared team or user load. Switching to vLLM (same OpenAI-compatible API) is the critical transition.
+> **When to use:** Follow this path for any local serving workflow that will serve more than a single developer. For mobile/edge, the transition is to ExecuTorch or Core ML (different path with export and quantization steps).
+> **Nuances & gotchas:** The most common pitfall is treating Ollama as a production server — it will serialize requests and fail under load. A close second is forgetting KV cache when sizing memory, especially for long-context use cases. Model quantization level should be finalized before production deployment — changing it later requires re-validating quality on your task.
 
 1. **Prototype** with Ollama (CLI) or LM Studio (GUI) on a GGUF Q4_K_M model; validate quality and prompts on the smallest model that passes.
 2. **Pick the largest model and best quant** that fits the target hardware with KV-cache headroom.

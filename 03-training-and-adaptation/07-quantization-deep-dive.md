@@ -32,13 +32,25 @@ Traditional models use **BF16** (16-bit). Quantization seeks to reduce this to *
 ### 1. NF4 (NormalFloat4)
 The gold standard for fine-tuning (QLoRA). It assumes weights follow a normal distribution and maps them to a set of 16 values.
 
+> **Why (the rationale):** Standard 4-bit integer formats place their quantization bins uniformly across the value range, which is a poor match for LLM weights that are clustered around zero in a normal distribution. NF4 spaces its 16 bins to match the normal distribution's density, preserving more information per bit.
+> **When to use:** Use NF4 whenever you are running QLoRA fine-tuning. It is the right 4-bit format for training (base model quantization) because it minimizes quality loss. For pure inference deployment, AWQ or EXL2 may be faster on specific hardware.
+> **Nuances & gotchas:** NF4 is optimized for the zero-centered normal distribution of pretrained weights — if weights have been significantly shifted from that distribution (e.g., heavily fine-tuned models), the benefit over standard Int4 diminishes. NF4 is a storage format; operations must dequantize to BF16 for computation, adding a small compute overhead.
+
 ### 2. AWQ (Activation-aware Weight Quantization)
 Instead of quantizing all weights equally, AWQ identifies the **1% of "salient" weights** that are most important for quality and keeps them in higher precision.
 - **Pro**: Better accuracy than GPTQ.
 
+> **Why (the rationale):** All weights are not equally important — a small fraction of "salient" weights have an outsized impact on activations and output quality. Quantizing them to 4-bit causes disproportionate quality loss. AWQ protects only those critical weights at higher precision while aggressively quantizing the rest.
+> **When to use:** Use AWQ for production inference deployments on Nvidia or other modern GPUs where you need the best accuracy-at-4-bit. It is the preferred inference quantization method over GPTQ when your framework supports it (vLLM, TGI, etc.).
+> **Nuances & gotchas:** AWQ requires a calibration dataset to identify salient weights — the quality of calibration data affects which weights are flagged. If the calibration set is not representative of your use case, salient weights for your domain may not be protected. AWQ is also a post-training method — it does not involve any gradient updates, so it cannot recover quality lost to very aggressive quantization (2-3 bit) the way QAT can.
+
 ### 3. FP8 (Multi-Node Standard)
 Hardware-native quantization supported by Nvidia's Transformer Engine.
 - **Why it wins**: It provides the speed of Int8 but with the dynamic range of Float16, making it stable for both training and inference.
+
+> **Why (the rationale):** Integer formats (Int8, Int4) have fixed exponent ranges and work well for inference but are unsuitable for training because gradient updates require dynamic range. FP8 is a floating-point format that preserves dynamic range while cutting bits in half versus BF16 — enabling it to be used natively in both training and inference workloads.
+> **When to use:** Use FP8 on H100/B200 hardware for production inference and training. It is the right default for any serious large-scale deployment on modern Nvidia infrastructure. On older GPUs (A100 and below), fall back to BF16 for training and Int8/AWQ-4bit for inference.
+> **Nuances & gotchas:** FP8 has two sub-formats (E4M3 and E5M2) with different precision/range tradeoffs — choosing the wrong one for a given operation causes instability. Requires Nvidia's Transformer Engine or equivalent to manage scaling correctly; naive FP8 without proper loss scaling can silently degrade quality. Not yet universally supported across all frameworks and model architectures.
 
 ---
 
@@ -49,10 +61,18 @@ Hardware-native quantization supported by Nvidia's Transformer Engine.
 - **Pros**: Cross-platform (Mac, Linux, Windows), single file, highly portable.
 - **Cons**: Slower than pure GPU formats.
 
+> **Why (the rationale):** Not all deployments have dedicated Nvidia GPUs. GGUF enables quantized LLM inference on consumer hardware — Mac, Windows, Linux — by supporting hybrid CPU+GPU execution where layers are split between system RAM and GPU VRAM as available.
+> **When to use:** GGUF is the right choice when deploying to diverse or mixed hardware environments, for local/on-device inference, or when portability across operating systems matters more than maximum throughput. It is the standard for open-source local inference (Ollama, LM Studio, llama.cpp-based tools).
+> **Nuances & gotchas:** GGUF/llama.cpp performance on CPU-only is significantly slower than GPU-accelerated alternatives — adequate for personal use but not production serving at scale. Throughput on Nvidia GPUs is lower than EXL2 or TRT-LLM even when GPU layers are enabled. The format supports a range of quantization levels (Q2 through Q8), with quality varying significantly across them.
+
 ### EXL2 (ExLlamaV2)
 - **Deployment**: GPU-only (Nvidia).
 - **Pros**: The **fastest 4-bit format on Nvidia GPUs**. Significant performance boost over AutoGPTQ/AWQ.
 - **Cons**: Inflexible (Nvidia only).
+
+> **Why (the rationale):** EXL2 is designed exclusively to maximize tokens-per-second on Nvidia GPUs, sacrificing portability for raw throughput. It achieves this through a custom CUDA kernel optimized specifically for 4-bit matrix multiplication at LLM inference workloads.
+> **When to use:** Use EXL2 when you have a fixed Nvidia GPU inference environment and maximum throughput is the primary goal — e.g., a single-GPU inference server where latency or tokens-per-second is the binding constraint.
+> **Nuances & gotchas:** EXL2 is Nvidia-only and incompatible with AMD, Mac (Metal), or CPU inference. It requires the ExLlamaV2 runtime and is not supported by mainstream serving frameworks (vLLM, TGI) in the same way GGUF or AWQ are. Quantization calibration quality matters — poorly calibrated EXL2 models can have quality regressions not seen in the perplexity numbers.
 
 ---
 
@@ -65,6 +85,10 @@ In long-context RAG (1M+ tokens), the **KV Cache** often consumes more VRAM than
 
 **Nuance**: Modern serving frameworks (vLLM, SGLang, TensorRT-LLM) now support **Streaming Quantization** where the KV cache is compressed on-the-fly, allowing 4x higher concurrency on the same GPU.
 
+> **Why (the rationale):** The KV cache stores computed key/value vectors for every token in the context window. For long contexts (100K–1M tokens), this dwarfs the model weights in VRAM consumption. Quantizing the KV cache to FP8 or Int4 dramatically reduces this footprint, enabling either longer contexts or higher concurrent request counts on the same hardware.
+> **When to use:** Enable KV cache quantization whenever you are serving long-context requests (>32K tokens) or need to maximize concurrency on a fixed GPU. For short-context workloads, the VRAM savings are minimal and the added complexity is not worth it.
+> **Nuances & gotchas:** KV cache quantization introduces approximation error that accumulates over long sequences — quality degradation is more noticeable at very long contexts (500K+ tokens) where errors compound. This is separate from weight quantization and can be enabled or disabled independently. Some attention heads are more sensitive to KV quantization than others; mixed-precision KV caches (FP8 for insensitive heads, BF16 for sensitive ones) are an emerging mitigation.
+
 ---
 
 ## Quantization-Aware Training (QAT)
@@ -72,6 +96,10 @@ In long-context RAG (1M+ tokens), the **KV Cache** often consumes more VRAM than
 Instead of quantizing a model *after* it's trained (Post-training Quantization), QAT simulates quantization *during* the training process.
 - **Result**: The model learns to compensate for the lost precision.
 - **Status**: Mandatory for models smaller than 3B parameters to remain useful at 4-bit.
+
+> **Why (the rationale):** PTQ is fast but treats the already-trained model's weights as fixed and just rounds them — the model cannot adapt to the precision loss. QAT inserts fake quantization operations during training so the model's gradients flow through the quantization error, teaching the model to place weights in positions that are robust to rounding.
+> **When to use:** QAT is necessary when PTQ produces unacceptable accuracy loss — primarily for models under 3B parameters at 4-bit, and for any model at 2-bit or lower. For larger models (7B+) at 4-bit, PTQ (AWQ, GPTQ) is usually sufficient and far cheaper.
+> **Nuances & gotchas:** PTQ is fast but can drop accuracy significantly at aggressive quantization levels or small model sizes; QAT recovers most of that loss at the cost of a full training run. QAT adds significant training complexity and time — it is not a drop-in replacement for PTQ. The fake-quantization operations during training do not perfectly replicate hardware quantization behavior, so there can still be a small quality gap between QAT training simulation and actual deployment.
 
 ---
 

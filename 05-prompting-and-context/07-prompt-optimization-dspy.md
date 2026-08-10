@@ -22,6 +22,10 @@ In traditional prompting, changing a model (e.g., from GPT-5.5 to Claude Sonnet 
 - **Logic**: Defined by **Modules** (e.g., ChainOfThought, ReAct).
 - **Optimization**: The system automatically finds the best prompt and examples for a *specific* model to fulfill that logic.
 
+> **Why (the rationale):** Hand-written prompts are point-in-time artifacts — they encode formatting assumptions specific to one model at one snapshot. When the model changes (version update, provider switch, cost-driven downgrade), prompts break silently. DSPy decouples the task definition from the prompt text, making the pipeline model-agnostic and re-compilable.
+> **When to use:** Multi-model pipelines, systems that will switch models over time, production LLM pipelines where prompt brittleness has caused repeated incidents, or teams that spend significant time on prompt tuning. Not worth the setup overhead for one-off scripts, simple single-prompt applications, or tasks where zero-shot with clear instructions already works reliably.
+> **Nuances & gotchas:** DSPy optimization is not free — it requires a labeled training/dev set, LLM calls for the optimization loop (cost), and time to compile. The quality of the optimizer output is bounded by the quality of the metric. If the metric is a poor proxy for real quality (e.g., exact match for a nuanced generation task), DSPy will optimize toward that proxy, not toward actual quality. DSPy does NOT eliminate the need for a good metric — it amplifies whatever signal the metric provides.
+
 ---
 
 ## Signatures & Modules
@@ -40,6 +44,10 @@ class MultiHopQA(dspy.Signature):
 qa_system = dspy.ChainOfThought(MultiHopQA)
 ```
 
+> **Why (the rationale):** Traditional prompts hard-code both the task definition AND the formatting instructions into a single string. Signatures extract the task definition into a reusable, model-agnostic specification — the optimizer handles formatting. This makes the logic portable across models and verifiable independent of any specific prompt wording.
+> **When to use:** Any task where you can define the I/O contract clearly. Signatures become most valuable when composing multiple modules (e.g., retrieve → reason → answer), where the optimizer can tune each step independently. For tasks with ambiguous or fluid I/O boundaries, the overhead of formalization may exceed the benefit.
+> **Nuances & gotchas:** The docstring in a Signature acts as the task description sent to the optimizer — it needs to be accurate and specific, not just a comment. Vague docstrings produce vague prompts. The `desc` field on OutputField shapes the optimizer's output expectations; missing or generic descriptions cause the optimizer to produce generic prompts that don't constrain the output format.
+
 ---
 
 ## Teleprompters (Optimizers)
@@ -49,6 +57,10 @@ Teleprompters are algorithms that iterate on your program to improve accuracy.
 2. **MIPROv2**: A Bayesian optimizer that tries different instruction phrasings and selects the one that maximizes your score. Still the flagship optimizer in the 3.x line.
 
 **Why it matters**: You no longer guess if "Be helpful" or "Think carefully" is better. The optimizer proves it with data.
+
+> **Why (the rationale):** Human prompt engineers guess at which instruction phrasing or which examples to include — a high-dimensional search problem with no gradient. Teleprompters automate this search with principled algorithms: BootstrapFewShot searches the example space; MIPROv2 searches the instruction space. Both use the metric as signal rather than human intuition.
+> **When to use:** BootstrapFewShot when you have a pool of candidate examples and want automatic selection. MIPROv2 when you suspect instruction phrasing is the bottleneck — particularly after a model swap where previously effective wording no longer works. Both require a dev set and multiple LLM calls during optimization; run them offline, not at inference time.
+> **Nuances & gotchas:** BootstrapFewShot generates candidates by running the model on training data — if the model performs poorly on that data, the bootstrapped examples will be low quality. MIPROv2 can overfit to the dev set; always evaluate the compiled prompt on a held-out test set. The number of optimization trials is a cost-quality knob — more trials improve results but cost proportionally more in LLM calls.
 
 ---
 
@@ -64,6 +76,10 @@ In DSPy, your prompt is like a weight in a neural network. You don't "hardcode" 
 Optimization requires a **Metric** (a function that returns a score).
 - **Exact Match**: `prediction.answer == target.answer`
 - **LLM-as-Judge**: Use a larger model (Claude Opus 4.7, GPT-5.5 reasoning) to grade the output of a smaller model (Llama 4 8B, Claude Haiku 4.5).
+
+> **Why (the rationale):** The metric is the optimization objective — without it, DSPy has no signal to improve on. The metric must correlate with real-world quality, or the optimizer will maximize a proxy that diverges from what you actually want. Exact match is reliable but too strict for open-ended tasks; LLM-as-Judge provides human-aligned scoring but adds cost and introduces judge bias.
+> **When to use:** Exact match for classification, short factual QA, or any task with a deterministic ground truth. LLM-as-Judge for generation tasks (summaries, code quality, reasoning quality) where human-labeled data is sparse and exact match would penalize valid paraphrases. Prefer a combination — exact match as a hard filter, LLM-as-Judge for quality scoring above the filter.
+> **Nuances & gotchas:** LLM-as-Judge is not ground truth — it reflects the judge model's biases (verbosity preference, self-similarity bias if using the same model family). An LLM judge can be gamed by the optimizer if both share the same stylistic preferences, producing prompts that score well but generalize poorly. Always validate metrics against human judgments on a sample before trusting DSPy's optimization against them.
 
 ---
 

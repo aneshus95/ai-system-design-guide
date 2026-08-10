@@ -21,6 +21,10 @@ Modern agency is often described as:
 
 **Nuance**: In 2023, agents were "wrappers" around chat models. Today, agents are increasingly **Integrated**. Frontier models (Claude Opus 4.7, GPT-5.5 with reasoning, DeepSeek-R2) have the "Thinking" process baked into pre-training, making the agent loop more stable and less prone to "stalling."
 
+> **Why (the rationale):** The formula captures the minimum viable parts needed to go beyond single-turn Q&A: without tool use the agent cannot affect the world; without memory it cannot carry context across steps; without feedback it cannot self-correct. Combining all four is what separates an agent from a chatbot.
+> **When to use:** Adopt this architecture when a task requires multiple steps, external data sources, or decisions that depend on prior results — i.e., whenever a single prompt cannot fully solve the problem.
+> **Nuances & gotchas:** More components mean more failure surfaces. Memory can become stale or poisoned; tools can fail or return noisy results; the reasoning model can hallucinate mid-loop. A single-agent with tight scope often outperforms a complex agent with every component enabled because there is less to go wrong.
+
 ---
 
 ## System 1 vs. System 2 Thinking
@@ -34,6 +38,10 @@ Architecting an agent requires choosing the right "Thinking Mode":
 
 **The Design Pattern**: Use System 1 models for "Fast UI" and "Routing." Use System 2 models for "Decision Gates" and "Complex Planning."
 
+> **Why (the rationale):** System 1 models are fast and cheap but prone to pattern-matching errors on novel multi-step problems. System 2 models trade latency and cost for higher path reliability by running internal chain-of-thought before committing to an action.
+> **When to use:** Use System 1 for routing, classification, and low-stakes actions where latency matters. Use System 2 at decision gates — whenever an error is expensive to recover from (irreversible tool calls, financial actions, multi-branch planning). Mixed architectures use System 1 for the bulk of steps and System 2 only at critical junctions.
+> **Nuances & gotchas:** System 2 models cost significantly more per token and add latency; using them for every step in a long loop is often prohibitive. Extended thinking tokens also count against context limits. System 2 does not eliminate hallucination — it reduces the rate but wrong internal reasoning still propagates.
+
 ---
 
 ## Agency Levels
@@ -46,12 +54,20 @@ Not every autonomous system is an "Agent." We categorize them by the **Level of 
 4. **L3: Autonomous Planner**: Decomposes a goal into a graph of sub-tasks.
 5. **L4: Ambient Agent**: Runs in the background, intervenes only when necessary.
 
+> **Why (the rationale):** The spectrum exists because higher autonomy brings higher value but also higher risk and cost. Picking the right level prevents over-engineering (L4 for a one-shot query) and under-engineering (L0 for a complex multi-step workflow).
+> **When to use:** Use the lowest level that reliably solves the problem. L0–L1 for deterministic ETL and single-tool tasks. L2 for interactive, exploratory tasks with unpredictable tool results. L3 for software engineering and research tasks that require parallel sub-work. L4 for continuous monitoring and proactive alerting.
+> **Nuances & gotchas:** Each level up multiplies failure modes: L3 introduces decomposition failure (sub-tasks have hidden dependencies); L4 introduces agentic drift (the agent loses the original goal over time). Human-in-the-loop checkpoints become harder to inject at higher levels, so safety mitigations must be designed upfront, not retrofitted.
+
 ---
 
 ## Core Components
 
 ### 1. The Reasoning Model (The Executive)
 The CPU of the agent. It determines the "Path to Success."
+
+> **Why (the rationale):** The reasoning model is the decision-making hub — it interprets observations, selects tools, and synthesizes results. Without it, the other components are disconnected pipes with no coordination.
+> **When to use:** Choose a System 2 (reasoning) model when errors are costly or when the task requires planning across many steps. A System 1 model suffices when actions are reversible and the tool set is small.
+> **Nuances & gotchas:** The model is also the primary failure point: hallucinated tool arguments, infinite loops on errors, and getting stuck re-trying the same broken action are all reasoning-model failures. Step limits, negative constraints, and secondary observer models are the standard mitigations.
 
 ### 2. Tools (The Limbs)
 Interfaces (APIs, Browsers, DBs) that allow the agent to affect the world.
@@ -61,6 +77,10 @@ Interfaces (APIs, Browsers, DBs) that allow the agent to affect the world.
 ### 3. Memory (The Experience)
 - **Short-term**: Context window (KV Cache).
 - **Long-term**: Vector DBs or persistent state (e.g., Mem0).
+
+> **Why (the rationale):** Without memory, every session starts from zero. Short-term memory (context window) holds the current task state; long-term memory makes the agent useful across sessions by retaining preferences, past failures, and learned procedures.
+> **When to use:** Use short-term memory for all tasks. Add long-term memory when the agent needs to recall cross-session user preferences, avoid repeating past mistakes, or apply learned workflows consistently. Skip long-term memory for stateless, single-turn operations where persistence adds cost without benefit.
+> **Nuances & gotchas:** Long-term memory introduces poisoning, staleness, and cross-tenant leakage risks. A 1M-token context window does NOT replace a proper memory architecture — cost per token is prohibitive for large-scale use, and model attention degrades on very long contexts (the "lost in the middle" problem).
 
 ---
 

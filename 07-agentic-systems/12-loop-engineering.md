@@ -31,6 +31,10 @@ Two invariants run through everything in this chapter:
 
 Each generation of practice wraps the previous one without replacing it. You still write prompts; you just stop driving the model by hand.
 
+> **Why (the rationale):** Prompt engineering alone hits a ceiling — no amount of prompt tuning lets a single call handle tasks that require intermediate tool results to inform next steps. The shift to loop engineering moves the source of reliability from "better instructions to the model" to "better harness around the model," which is a structural improvement that scales independently of model quality.
+> **When to use:** Move from prompt engineering to loop engineering when your task genuinely requires iterative tool use where each step's output determines the next; do not add a loop for tasks that are structurally one-shot (single-call transforms, fixed-sequence pipelines) — it adds latency and non-determinism with no benefit.
+> **Nuances & gotchas:** Each layer adds a new class of failure modes. Loops introduce stagnation, runaway spend, and context rot that do not exist in single-call systems. "A strong model in a weak harness loses to a decent model in a great one" is directionally true but overstated — harness engineering cannot compensate for a model that cannot reason about the task domain.
+
 | Layer | Unit of work | What you tune | What it optimizes |
 |-------|--------------|---------------|-------------------|
 | **Prompt engineering** | One model call | Wording, examples, format | A single good response |
@@ -75,6 +79,10 @@ The key conceptual jump is Reflexion's outer loop. ReAct's inner loop learns wit
 
 The narrow technical artifact is the **inner agent loop**: the cycle a harness runs within a single agent run. It iterates because long-horizon tasks cannot finish in one forward pass, and because tool results must feed back before a final answer.
 
+> **Why (the rationale):** The inner loop is the minimum viable agentic artifact — without it, the model can only act on information present at the start, and cannot adapt based on tool results. Every more sophisticated pattern (verification loops, orchestrator-workers, improvement loops) is built on top of this foundation.
+> **When to use:** All agents that use tools need an inner loop; the design choices within it (how to handle observations, when to terminate, how to detect stagnation) are where most production reliability engineering happens — invest in this layer before adding outer loops.
+> **Nuances & gotchas:** Most engineering leverage in the inner loop is in the deterministic harness components (termination logic, stagnation detector, structured observations), NOT in the model call itself. The component that most teams underinvest in is the Verify step — without an external verifier, the loop exits on the model's self-report, which is unreliable.
+
 ```mermaid
 flowchart TD
     T[Trigger] --> A[Assemble context]
@@ -109,6 +117,10 @@ The components below are where the engineering lives. Most of the work is in the
 
 Loop engineering is the art of stacking loops: nesting more sophisticated outer loops around the inner one, with human judgment inserted at natural checkpoints. The four levels below are a synthesis of the patterns the field has converged on, not a single canonical numbering.
 
+> **Why (the rationale):** Stacking loops progressively unlocks capability (Level 1: multi-step work; Level 2: verified output; Level 3: event-driven autonomy; Level 4: self-improving system) while each level adds engineering complexity. Matching loop level to task horizon prevents over-engineering simple tasks and under-engineering complex ones.
+> **When to use:** Start at Level 1 and only add outer levels when you have evidence that the inner level is the bottleneck. Level 2 (verification) should be added to almost every production loop that produces any output a human or system will act on. Level 4 (improvement) is a product investment, not a starting point.
+> **Nuances & gotchas:** Each additional level multiplies the failure surface and token cost; Level 3 (event-driven) requires always-on infrastructure. The "inner/outer dual loop" variant that resets strategy on stall (rather than retrying the same step) is often the highest-leverage addition to a Level 1 loop and should be considered before moving to higher levels.
+
 ```mermaid
 flowchart TD
     subgraph L4[Loop 4: Improvement / hill-climbing]
@@ -141,6 +153,10 @@ When loops run in parallel (orchestrator-workers, or a tool DAG), give each bran
 
 Match the loop architecture to the task. Use exploratory, high-variance loops where the environment is unpredictable; switch to planned, cheaper execution once a sequence has converged; drop back to exploration on errors.
 
+> **Why (the rationale):** No single loop pattern dominates across all task types. ReAct's flexibility comes at the cost of token spend; Plan-and-Execute's efficiency comes at the cost of mid-run adaptability. The table of patterns is a decision matrix, not a ranked list — the right pattern is the cheapest one that still handles the task's uncertainty profile.
+> **When to use:** Default to ReAct/retry for novel or unpredictable environments where you cannot pre-enumerate tool sequences; switch to Plan-and-Execute or ReWOO once the task type is well-understood and the tool sequence is predictable; use LLMCompiler when subtasks are genuinely independent and parallel execution materially reduces latency.
+> **Nuances & gotchas:** Generator-verifier separation (maker-checker) is not a loop pattern per se but should be added to almost any pattern that produces consequential output — the cost of a second model call is low relative to the cost of a wrong output. "Compose, do not frameworkize" is the most commonly violated principle: teams reach for orchestrator-workers before they have exhausted what a well-designed single-agent inner loop can do.
+
 | Pattern | Model calls per task | Latency | Token cost | Adaptability | Use when |
 |---------|----------------------|---------|------------|--------------|----------|
 | **ReAct / retry** | High (one per step) | High | High | Highest | Unpredictable environments, exploration |
@@ -164,6 +180,10 @@ A few patterns earn their place in almost every production loop:
 ## Termination and Budget Control
 
 A natural stop signal (the model returns text with no tool calls) is **necessary but not sufficient**. The harness must separately verify goal completion. Every production loop should carry at least one criterion from each of three categories.
+
+> **Why (the rationale):** The most expensive real-world agent incidents (400 tool calls in 5 minutes, 847-step runs with no answer, tens of thousands of dollars in spend over days) share a single root cause: the termination logic lived inside the agent or was absent entirely. External budget enforcement is not a nice-to-have — it is the primary mechanism that separates safe loops from expensive ones.
+> **When to use:** Every production loop, without exception, must have an external budget guard (at the gateway, not in agent code) and at least one stagnation detector; tune the specific thresholds based on your observed task step distributions — a loop that legitimately takes 30 steps should not be killed at 10.
+> **Nuances & gotchas:** Rate-of-spend is a more reliable runaway signal than cumulative spend because a healthy agent rarely sustains high token throughput (it waits on I/O); sustained high throughput is the anomaly. Self-policed budget checks (stop checks in agent code) are security theater — a buggy or jailbroken agent skips its own guard. Termination must escalate to a human with a precise blocking question, not silently fail — silent failure leaves the user with no result and no explanation.
 
 | Stop condition | Typical default | Enforced by |
 |----------------|-----------------|-------------|
@@ -200,7 +220,11 @@ The reported failure cases are not hypothetical: an agent that called a broken t
 
 ## Context and Memory in Long Loops
 
-Long loops fail quietly through **context rot**: output quality degrades as the window fills with stale instructions, old tool output, and failed attempts. It sets in before the hard context limit, which makes it insidious. Long-context research finds that frontier models degrade with input length even when the answer is present. More raw context is not free reliability; curation beats stuffing.
+Long loops fail quietly through **context rot**: output quality degrades as the window fills with stale instructions, old tool output, and failed attempts.
+
+> **Why (the rationale):** Context rot is the most insidious long-loop failure because it degrades quality gradually and invisibly — the loop keeps running and producing output, but the quality has eroded. Unlike a crash, there is no error signal; you only discover it when a human reviews the output or a downstream system rejects it.
+> **When to use:** Apply context management strategies (externalize state, fresh context per iteration, compaction) from the first prototype, not after you observe quality degradation — by then the production data is already corrupted. Subagent isolation (each subagent in its own fresh context) is the strongest structural defense and should be the default architecture for multi-hour builds.
+> **Nuances & gotchas:** A larger context window is NOT a fix for context rot — long-context research shows models degrade with input length even when the answer is present (Chroma, 2025). Compaction loses information; keep originals addressable for audit. Fresh context per iteration requires externalizing state to disk or a DB, which itself requires discipline about what state is worth persisting versus discarding. It sets in before the hard context limit, which makes it insidious. Long-context research finds that frontier models degrade with input length even when the answer is present. More raw context is not free reliability; curation beats stuffing.
 
 | Strategy | What it does |
 |----------|--------------|
@@ -217,7 +241,11 @@ Subagent isolation is the most robust structural defense against context rot in 
 
 ## Verification and Grading
 
-The loop is only as trustworthy as the thing that grades it. Models grade themselves optimistically and reward-hack when the same model both produces and evaluates. Research on intrinsic self-correction is sobering: without an external signal, naive self-reflection can degrade reasoning rather than improve it.
+The loop is only as trustworthy as the thing that grades it. Models grade themselves optimistically and reward-hack when the same model both produces and evaluates.
+
+> **Why (the rationale):** Without external verification, the loop exit condition is "the model says it is done," which is systematically unreliable — models declare success prematurely, miss edge cases, and reward-hack toward whatever metric they are told to optimize. A structurally separate verifier is the difference between a loop that converges on correctness and one that converges on a convincing-sounding wrong answer.
+> **When to use:** Always use code-based verification (tests, type checks, linters, exit codes) where it is applicable — it is fast, cheap, and objective. Add LLM-as-judge for semantic or stylistic dimensions that code cannot check. Reserve human grading for the initial calibration of LLM judges and for high-stakes final decisions.
+> **Nuances & gotchas:** Research (Huang et al., 2024) shows intrinsic self-correction without an external signal can degrade reasoning rather than improve it — the model second-guesses correct answers. "Grade outcomes, not tool-call sequences" avoids penalizing valid alternative approaches, but requires outcome predicates that are harder to write than trajectory comparisons. LLM judges must be calibrated: uncalibrated judges can show 30-40% disagreement with human experts on the same traces (qualitative estimate from practitioner reports). Research on intrinsic self-correction is sobering: without an external signal, naive self-reflection can degrade reasoning rather than improve it.
 
 | Method | Speed | Cost | Character | Best for |
 |--------|-------|------|-----------|----------|
@@ -275,6 +303,10 @@ When you tune the harness, change one knob at a time, average 3 to 6 runs to bea
 ## The Maturity Ladder
 
 Take a loop from supervised to mostly autonomous in stages. Each phase earns the next.
+
+> **Why (the rationale):** Deploying a high-autonomy loop without first earning trust through lower-autonomy phases is the fastest way to lose confidence in agentic systems — one well-publicized incident from an untested autonomous loop can set back adoption across an organization. The ladder is a trust-building framework, not just a technical checklist.
+> **When to use:** Always start at Phase 1 (Observe) for any new agent or new task domain, regardless of how reliable the underlying model seems; the maturity gates (edge cases mapped, exits reliable, runaways caught, stable steps scripted) are empirical tests, not assumptions.
+> **Nuances & gotchas:** Phases 3 and 4 require engineering investment in monitoring and eval infrastructure that must be justified by observed loop value from Phases 1 and 2 — do not build circuit breakers and eval harnesses before you have evidence that the loop produces value worth protecting. The "distill and demote" step in Phase 4 (compiling reliable LLM steps into deterministic scripts) is the highest-leverage cost reduction move available but is frequently skipped because it requires careful observation of which steps have truly converged.
 
 | Phase | Autonomy | What you add | Gate to promote |
 |-------|----------|--------------|-----------------|

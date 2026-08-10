@@ -32,9 +32,17 @@ The agent writes a 10-step plan and follows it strictly.
 - **Pros**: High performance, easy to parallelize.
 - **Cons**: Brittle. If step 2 fails, steps 3-10 are useless.
 
+> **Why (the rationale):** Writing the full plan upfront lets the model reason about dependencies and order before execution begins, enables parallel dispatch of independent steps, and prevents the model from getting distracted by noisy tool results mid-run.
+> **When to use:** Use static planning when the steps are well-understood in advance and the environment is stable (e.g., generating a financial report from five known APIs, running a fixed ETL pipeline, executing a pre-defined test suite). The task must be predictable enough that a plan written at step 0 is still valid at step 8.
+> **Nuances & gotchas:** Static plans are brittle — one unexpected tool result at step 2 can invalidate steps 3–10. Re-planning is more expensive than initial planning (it requires context re-evaluation of all prior steps). Static planning does NOT handle tasks where the required actions depend on what earlier observations actually return.
+
 ### Dynamic (Adaptive)
 The agent writes a plan, but **Re-evaluates** after every tool call.
 - **Best practice**: Use **Checkpointed Planning**. The agent is forced to "Commit" its progress to a state store after every major sub-goal to allow for recovery and "Backtracking" if the plan fails.
+
+> **Why (the rationale):** Dynamic planning keeps the plan in sync with reality — if an early tool call returns unexpected data, the plan updates before taking the next step. This trades the parallelism advantage of a static plan for correctness in unpredictable environments.
+> **When to use:** Use dynamic planning for exploratory or research tasks where early results determine what to investigate next (web research, debugging unknown systems, data exploration). Checkpointed planning is essential for any task that takes more than a few minutes — without checkpoints, any failure requires a full restart.
+> **Nuances & gotchas:** Re-evaluation after every step is expensive in both tokens and latency. Without a step budget, adaptive plans can wander indefinitely. Backtracking to a checkpoint is only useful if the checkpoint state is actually durable — in-memory checkpoints are lost on any crash.
 
 ---
 
@@ -43,6 +51,10 @@ The agent writes a plan, but **Re-evaluates** after every tool call.
 The model's internal "Thinking" window (Inference scaling) acts as a **Hidden Planner**.
 - Instead of using a separate "Planner LLM," we use a reasoning model (Claude Opus 4.7, GPT-5.5 extended thinking, DeepSeek-R2) to generate a "Mental Draft."
 - This draft is translated into a **Task DAG (Directed Acyclic Graph)** that the orchestrator executes.
+
+> **Why (the rationale):** Using the model's internal chain-of-thought as the planner eliminates the need for a separate Planner LLM call — the reasoning model plans and acts in one step. Extended thinking tokens are hidden from the user but do the same work as an external plan-generation step, making the architecture simpler and cheaper.
+> **When to use:** Use inference-time scaling (CoT / extended thinking) as the primary planning mechanism when using a reasoning-native model (Claude Opus 4.7, GPT-5.5 reasoning, DeepSeek-R2). It is the right default for single-agent complex tasks. Add an external explicit planner only when you need the plan to be inspectable, editable, or used to spawn parallel sub-agents.
+> **Nuances & gotchas:** Extended thinking tokens count against the context window and cost more per token. The internal plan is NOT visible or auditable unless the model is configured to output it. For compliance or debugging use cases, an explicit external plan (outputted as structured text before execution) is preferable to a hidden mental draft. Reasoning models can still produce wrong plans — internal CoT reduces the rate but does not eliminate it.
 
 ---
 
@@ -55,6 +67,10 @@ For massive tasks (e.g., "Build a full-stack app"), we use **Sub-Agent Spawning*
 
 **Critical Nuance**: Each sub-agent is given a **Minimal Context** (only what it needs) to prevent token bloat and hallucination.
 
+> **Why (the rationale):** Some tasks are too large and complex for a single agent's context window or for a flat list of steps. Recursive decomposition maps the problem structure to an agent hierarchy — each level only needs to reason about its own sub-scope, keeping every context window small and focused.
+> **When to use:** Use recursive decomposition for software engineering scale tasks (full application builds, large codebase refactors), long research projects where sub-domains are truly independent, or any task where a flat plan would exceed 20+ steps. The sub-tasks must be genuinely decomposable without hidden cross-dependencies.
+> **Nuances & gotchas:** Decomposition depth must be hard-capped (typically 3 levels) to prevent recursive spawning from becoming a fork bomb. Hidden dependencies between sub-agents (e.g., the frontend needs an API contract from the backend before it can proceed) break the independence assumption and cause integration failures at consolidation. Consolidation itself is non-trivial — merging outputs from 3+ sub-agents requires the master agent to understand how each piece fits, which adds context and reasoning load at exactly the point where the context is already largest.
+
 ---
 
 ## Tree Search (MCTS)
@@ -63,6 +79,10 @@ For high-stakes decisions, we use **Monte Carlo Tree Search (MCTS)** within the 
 - The agent "Simulates" 10 possible tool calls.
 - A **Reward Model** (or a separate LLM prompt) scores each simulation.
 - The agent follows the path with the highest reward.
+
+> **Why (the rationale):** MCTS evaluates multiple action paths internally before committing to any real-world tool call. This reduces costly external API calls and avoids irreversible actions based on a single greedy prediction — the agent commits only to the path with the best simulated outcome.
+> **When to use:** Use MCTS (or inference-time search more broadly) for high-stakes, low-frequency decisions where correctness is worth significant compute — strategic planning, scientific experiment design, security reasoning. It is not appropriate for high-frequency, latency-sensitive tasks where simulating 10 paths per step is prohibitively slow and expensive.
+> **Nuances & gotchas:** MCTS requires a reward model — and the reward model itself can be wrong. A poorly calibrated reward function will confidently select the wrong path. Simulation of tool calls is inherently approximate; the simulated outcome and the real tool result may diverge significantly in dynamic environments. The compute cost scales with the branching factor and depth, so MCTS is rarely used for more than 2–3 look-ahead steps in practice.
 
 ---
 

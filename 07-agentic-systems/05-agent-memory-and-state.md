@@ -31,6 +31,10 @@ Agents use a tiered approach to storage:
 | **L3** | Semantic Memory | SQL / Knowledge Graph | User preferences, "The Truth" |
 | **L4** | Procedural Memory | Skills Registry / Tool Policies / Workflow Graph | "How do I perform this task?" |
 
+> **Why (the rationale):** A flat "stuff everything in context" approach hits cost, latency, and quality limits quickly. The four-tier hierarchy matches different memory types to the right storage technology — fast for current-task data (L1), scalable and searchable for past experiences (L2), reliable and queryable for stable facts (L3), and governed and versioned for learned procedures (L4).
+> **When to use:** Every production agent needs at least L1 (it exists by default). Add L2 when the agent must avoid repeating past failures. Add L3 when cross-session user preferences or stable domain facts matter. Add L4 when the agent performs the same class of task repeatedly and should learn the canonical procedure over time.
+> **Nuances & gotchas:** Picking the wrong tier is a design error with predictable failure modes: a session preference promoted to L3 leaks across sessions; a stable user fact left in L2 gets evicted after a few weeks (Day-30 problem); a poisoned skill in L4 propagates to every future invocation. The architecture question is not "should we remember this?" but "at which tier, with which freshness contract, and with which eviction rule?"
+
 ### Practical Properties of Each Tier
 
 The tiers differ on more than purpose. Read pattern, write pattern, latency budget, and freshness expectations each push toward different storage tech:
@@ -56,6 +60,10 @@ Production agents no longer just store the "Messages"; they store the **State Ob
 - **The Scratchpad**: A dedicated section of the prompt where the agent "writes notes" to itself that are NOT shown to the user.
 - **KV Cache Tiling**: For long-running agents, we use **Prefix Caching** to keep the "System Instruction" and "Standard Tools" warm in GPU memory, only swapping the dynamic task state.
 
+> **Why (the rationale):** Storing a full State Object (not just message history) gives the agent a structured workspace — the scratchpad separates internal reasoning from user-visible output, and the KV cache makes repeated system-prompt content essentially free after the first call.
+> **When to use:** Always use a scratchpad for complex multi-step tasks. Enable prefix caching whenever the system prompt and tool schemas are stable across turns — this is a significant cost and latency win for long-running loops.
+> **Nuances & gotchas:** Working memory is lost at session end — anything worth keeping must be explicitly written to L2/L3 before the session closes. KV cache is invalidated by any change to the cached prefix (even a timestamp), so keep the cached portion truly stable. Very long reasoning traces in L1 consume context budget rapidly and can crowd out the actual task content.
+
 ---
 
 ## Episodic Memory: Past Experiences
@@ -63,6 +71,10 @@ Production agents no longer just store the "Messages"; they store the **State Ob
 Episodic memory stores "Runs" or "Trajectories."
 - If an agent failed to scrape a website last Tuesday, episodic memory should prevent it from trying the same failing selector today.
 - **Pattern**: When a task completes, summarize the "Lessons Learned" and store them in a vector DB. At the start of a new task, perform a **Self-Search** for similar previous tasks.
+
+> **Why (the rationale):** Without episodic memory, every run starts cold — the agent has no awareness of what has failed before and will repeat identical mistakes across sessions. Storing trajectories and lessons allows the agent to detect similarity to past tasks and skip known-bad paths.
+> **When to use:** Add episodic memory when the agent will run the same class of task repeatedly over days or weeks, when external systems (websites, APIs) change unpredictably, or when failure is expensive enough that learning from past runs has clear ROI.
+> **Nuances & gotchas:** Episodic stores degrade over time if not pruned (Day-30 problem). Low-quality or hallucinated trajectory summaries dilute retrieval quality — the 10 useful lessons get buried by 1,000 low-signal entries. Vector similarity search is fuzzy; an episode about a different API can surface as a false positive and mislead the agent. Retrieval cost (100–300ms) adds latency to every task start.
 
 ---
 
@@ -73,6 +85,10 @@ Semantic memory stores "Facts" about the user or the environment.
 - *"The production DB is offline between 3 AM and 4 AM."*
 
 **Best practice**: Use a **Knowledge Graph** for semantic memory. Unlike vector search (which is fuzzy), a graph provides deterministic retrieval of entities and relationships (e.g., `User` -- `OWNER_OF` --> `Project_A`).
+
+> **Why (the rationale):** Stable facts — preferences, entity relationships, operational constraints — should not live in a vector store because fuzzy similarity retrieval is wrong for exact-match lookups. A knowledge graph provides deterministic, multi-hop queries ("what projects does this user own, and which of those are in production?") that vector search cannot reliably answer.
+> **When to use:** Use semantic memory for facts that are: stable (change rarely), queryable by entity (not just by semantic similarity), and correctness-critical (a wrong fact here fails every downstream turn). Use a vector store (L2) when approximate similarity is acceptable and the write volume is high.
+> **Nuances & gotchas:** Semantic memory has the highest consequence of errors — a bad fact in L3 poisons every future turn until corrected. Write-time extraction (LLM parsing a conversation into triples) introduces hallucination risk; the HaluMem benchmark shows 60–80% of memory errors originate at extraction. Bitemporal storage (valid_from / valid_to) is essential for facts that change over time — without it, stale facts accumulate silently.
 
 ---
 
@@ -91,6 +107,10 @@ Examples:
 * "When writing SQL, always inspect the schema first, generate a query, run validation, and explain assumptions."
 
 Procedural memory is especially important for agentic systems because many tasks are not just about remembering facts. They require following the right sequence of actions.
+
+> **Why (the rationale):** Without procedural memory, an agent re-derives the correct sequence for every task invocation, wasting tokens and risking inconsistency. Encoding proven step sequences as versioned skills means the agent reliably follows the canonical process and only deviates when the situation genuinely requires it.
+> **When to use:** Use procedural memory for recurring task types where there is a known-correct sequence (report generation, SQL workflows, customer complaint handling). The value is proportional to task frequency — a procedure run once does not justify the overhead of encoding and maintaining it.
+> **Nuances & gotchas:** Procedural memory has the highest governance cost — a bad skill propagates to every future invocation of that task type. Skills need explicit versioning, deprecation paths, and A/B testing against newer approaches. Procedural memory does NOT replace judgement — it encodes the happy path. Edge cases still require the reasoning model to override the procedure, which it may fail to do if the skill prompt is too directive.
 
 ---
 

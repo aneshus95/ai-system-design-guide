@@ -43,6 +43,10 @@ Evol-Instruct is a recursive process where an LLM takes a simple instruction and
 # matrix addition with error handling and unit tests, adhering to PEP8."
 ```
 
+> **Why (the rationale):** Manual creation of complex, diverse instruction-response pairs is extremely expensive and slow. Evol-Instruct enables a small seed set of simple instructions to be automatically expanded into thousands of progressively harder and more varied training examples, with no human effort per example.
+> **When to use:** Use Evol-Instruct when you have a small high-quality seed dataset and need to scale it to a large, diverse training set. It is especially effective for coding tasks where complexity can be systematically increased (add error handling, multi-threading, edge cases).
+> **Nuances & gotchas:** Evolved instructions can become unnaturally convoluted — they pile on constraints in ways real users would not phrase requests. This can cause the model to excel at artificial benchmarks while underperforming on natural user queries. De-noising (removing AI-isms) is important but imperfect; filtering evolved examples for naturalness is recommended.
+
 ---
 
 ## Constitutional AI & AI Feedback (RLAIF)
@@ -55,6 +59,10 @@ Developed by Anthropic and widely adopted across the industry, RLAIF uses a "Con
 3. **Revise**: Model A produces a better version based on the critique.
 4. **Train**: The final (Prompt, Revise) pair is added to the SFT set.
 
+> **Why (the rationale):** Human labelers are expensive, slow, and inconsistent. RLAIF replaces per-example human judgment with a written constitution that an AI judge applies at scale — enabling millions of preference labels and revisions without human annotation at each step.
+> **When to use:** Use RLAIF when you need to generate large quantities of preference or alignment training data and cannot afford human annotators at that scale. Constitutional AI is especially effective for safety and tone alignment where explicit principles can be written down.
+> **Nuances & gotchas:** RLAIF inherits the biases and blind spots of the judge model — the constitution is only as good as the judge's ability to apply it, and the judge can misapply or circumvent its own rules. The revision loop can also converge to AI-isms: overly hedged, verbose, or unnaturally cautious text that satisfies the constitution but alienates real users. Human spot-checking of the critique-revise loop output is essential.
+
 ---
 
 ## Verifiable Synthetic Data
@@ -66,6 +74,10 @@ The biggest risk of synthetic data is **Model Collapse** (the model learning its
 - **Code**: Run generated code against test cases (Unit Tests).
 - **RAG**: Use "Gold Context" to generate questions where the answer is explicitly in the text.
 
+> **Why (the rationale):** Unverified synthetic data risks propagating the teacher model's errors into the training set, causing the student to learn and amplify those errors (model collapse). Verifiable data breaks this cycle — only examples that pass an external, model-independent check enter the training set.
+> **When to use:** Always prefer verifiable synthetic data when your domain supports it (math, code, formal logic, structured QA with a known source document). For open-ended domains (creative writing, general conversation) where external verification is not possible, rely on quality filtering and human spot-checks instead.
+> **Nuances & gotchas:** Verifiable domains are a minority of real-world tasks. Even within them, verification is not perfect — a unit test suite can pass while the code has logical bugs, and a math answer can match the gold answer through a wrong method. Verification catches the most egregious errors but not all subtle reasoning failures.
+
 ---
 
 ## De-biasing and Diversity
@@ -73,6 +85,10 @@ The biggest risk of synthetic data is **Model Collapse** (the model learning its
 Synthetic data is used to "fill the gaps" in human data.
 - **Languages**: Generating high-quality text in low-resource languages (e.g., Swahili, Marathi) by translating conceptual templates.
 - **Logic**: Creating 1,000,000 variations of a specific logical fallacy to "harden" the model against it.
+
+> **Why (the rationale):** Human internet data is skewed — English dominates, certain logical error types are rarely demonstrated with correct resolutions, and certain demographic perspectives are underrepresented. Synthetic data can deliberately oversample underrepresented categories to fill these gaps in ways that human data collection cannot practically achieve.
+> **When to use:** Use targeted synthetic de-biasing when you have identified a specific model weakness (fails on a certain language, falls for a specific reasoning fallacy, performs poorly on a demographic group's typical queries) that is confirmed to stem from data underrepresentation.
+> **Nuances & gotchas:** Synthetic diversity fixes data gaps but introduces a new risk: the synthesized minority-class data may be lower quality than native examples (e.g., machine-translated Swahili may have unnatural phrasing). Generating "variations of a logical fallacy" can also inadvertently teach the model to recognize only synthetic patterns of that fallacy rather than the real-world versions.
 
 ---
 

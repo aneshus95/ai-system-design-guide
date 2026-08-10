@@ -26,6 +26,10 @@ Retrieval-Augmented Generation (RAG) is the architectural pattern of providing a
 
 **Rule of thumb**: Fine-tuning is for **Form** (style, tone, syntax); RAG is for **Fact** (knowledge, data, grounding).
 
+> **Why (the rationale):** LLM weights are frozen at training time — any knowledge they encode becomes stale and can't be audited. RAG externalizes knowledge into a retrievable store so facts can be updated, cited, and deleted without retraining the model. Fine-tuning teaches *how* to behave; RAG supplies *what* to know.
+> **When to use:** Choose RAG when knowledge changes frequently, requires citations/auditability, must stay fresh post-deployment, or spans a corpus too large to bake into weights. Reach for fine-tuning instead when you need to change *style*, *format*, or *domain-specific reasoning patterns* — not raw facts.
+> **Nuances & gotchas:** RAG does NOT guarantee factual accuracy — it only grounds the model in retrieved text, which itself may be wrong or stale. Retrieval failures (the three gaps below) silently produce unfounded answers. RAG also adds latency, a retrieval pipeline to maintain, and a new failure mode: confidently citing an irrelevant chunk.
+
 ---
 
 ## The RAG Taxonomy
@@ -36,17 +40,33 @@ Production RAG systems are categorized by their "Agentic Depth":
 - **Flow**: User Query -> Vector Search -> Top-K -> LLM.
 - **Status**: Deprecated for production due to "Retrieval Gap" and low precision.
 
+> **Why (the rationale):** The simplest possible RAG loop — useful to establish a baseline and validate that retrieval + generation works end-to-end before investing in a more complex pipeline.
+> **When to use:** Demos, proof-of-concepts, and simple single-topic FAQ bots where the corpus is clean and queries are predictable. Do not ship to production for any use case where retrieval quality matters.
+> **Nuances & gotchas:** Low precision is the core failure — the bi-encoder cosine score is a rough proxy; the right answer often lands outside the top-K. Also cannot handle vocabulary mismatches (Gap 1b), multi-hop questions, or aggregative queries. Upgrading to Advanced RAG is almost always warranted before any production launch.
+
 ### 2. Advanced RAG (Multi-Stage)
 - **Flow**: Query Transformation -> Hybrid Search -> Reranking -> LLM.
 - **Key Nuance**: Uses **RRF (Reciprocal Rank Fusion)** to combine keyword and semantic results.
+
+> **Why (the rationale):** Naive RAG's single-pass vector search leaves recall on the table (vocabulary mismatches) and ranks badly (cosine proximity ≠ relevance). Hybrid search + reranking fixes both gaps deterministically in a fixed-cost pipeline.
+> **When to use:** The production default for the vast majority of RAG workloads — from internal knowledge bases to customer-facing search. Use this unless queries are genuinely multi-hop/ambiguous (→ Agentic) or aggregative (→ GraphRAG).
+> **Nuances & gotchas:** "Advanced" still uses a deterministic pipeline, so it cannot self-correct if the first retrieval misses entirely. Adding a reranker adds latency (typically 100–200 ms extra); budget for it. Query rewriting helps but requires an LLM call — cache aggressively for repeated queries.
 
 ### 3. Agentic RAG (Loop-based)
 - **Flow**: Agent analyzes query -> Decides which tools/indices to search -> Evaluates results -> Re-retrieves if info is missing.
 - **Techniques**: Self-RAG, Corrective RAG (CRAG).
 
+> **Why (the rationale):** Some queries cannot be answered in one retrieval pass — the answer to step 1 determines what to look up in step 2. A static pipeline cannot form a step-2 query it doesn't know yet; a reasoning loop can.
+> **When to use:** Multi-hop questions ("CEO of the company that acquired Figma"), ambiguous queries where the first retrieval may miss, workflows that need to query multiple distinct indexes or external APIs conditionally.
+> **Nuances & gotchas:** Each loop iteration adds an LLM call; a 3–4 hop loop typically takes 8–12 s end-to-end. Non-deterministic by design — the same query may take different paths. Loops can run unbounded without a token/turn budget cap. Use constrained frameworks (LangGraph, DSPy) and Adaptive RAG routing to avoid applying the loop overhead to easy queries.
+
 ### 4. GraphRAG (Structured context)
 - **Flow**: Extract entities/relationships -> Build Knowledge Graph -> Traverse graph to find "connected knowledge."
 - **Win**: Solves "Aggregative Questions" (e.g., "Summarize all legal risks across 50 documents").
+
+> **Why (the rationale):** Flat vector retrieval sees isolated chunks; it cannot follow a chain of entity relationships spanning dozens of documents that share no surface text. A knowledge graph makes those connections explicit and traversable.
+> **When to use:** Aggregative questions ("summarize all themes across 500 reviews"), multi-hop relationship queries ("who approves policy X in region Y?"), and domains where inter-document connections are the primary signal (legal citation chains, biomedical pathways, fraud rings).
+> **Nuances & gotchas:** Extraction is expensive — building a quality graph over a large corpus requires many LLM calls and costs can be significant. Maintenance is the hidden cost: the graph becomes stale as documents change and needs periodic re-extraction. GraphRAG is overkill if fewer than ~30% of your RAG failures are graph-shaped — fix retrieval first.
 
 ### The through-line: each level buys accuracy with latency, cost, and complexity
 
@@ -111,6 +131,10 @@ With context windows like Gemini 1.5 Pro (2M+) and Claude Sonnet 4.6 (1M+), RAG 
 **Architectural Decision**: 
 - If your corpus is > 100k tokens and dynamic: Use **Standard RAG**.
 - If your corpus is < 100k tokens: Use **In-Context RAG**.
+
+> **Why (the rationale):** When the whole corpus fits in the context window, a retrieval pipeline adds operational complexity with no benefit — the model can simply read everything. But even with caching, attending over millions of tokens per query is orders of magnitude more expensive than retrieving ~2k tokens.
+> **When to use:** In-Context RAG when the corpus is stable and fits under ~50k tokens (e.g., a product FAQ or a single reference document). Standard RAG when the corpus is dynamic, large, or multi-source; or when latency and per-query cost matter.
+> **Nuances & gotchas:** Prompt caching removes the re-computation cost (prefill) but NOT the per-query attention cost over the full cached context — so a 2M-token cached context is still far more expensive per query than 2k tokens of retrieved context. ICR also does NOT solve freshness: adding new data still requires updating the static context. And long-context models are still susceptible to lost-in-the-middle attention degradation at very large sizes.
 
 Decision tree for picking between standard RAG and in-context RAG:
 

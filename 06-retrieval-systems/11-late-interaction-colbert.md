@@ -19,6 +19,10 @@ Late Interaction is a retrieval paradigm that sits between fast-but-imprecise **
 
 ## The Retrieval Architecture Spectrum
 
+> **Why (the rationale):** Every retrieval architecture makes a trade between when query and document interact: early (cross-encoder, most accurate, too slow to scale), never (bi-encoder, fastest, least accurate), or late at the token level (ColBERT — the middle ground). Understanding this spectrum is required to choose the right architecture for your precision, latency, and storage constraints.
+> **When to use:** Choose ColBERT when you need cross-encoder-level accuracy without cross-encoder latency, your corpus is under ~100M documents, and you can afford 2–4× the storage of a bi-encoder.
+> **Nuances & gotchas:** The spectrum is not a continuum in practice — the storage jump from bi-encoder to ColBERT is significant (one vector per token vs one per document). ColBERT's accuracy advantage is most pronounced on domain-specific and term-sensitive corpora; on simple factual queries over clean corpora, a well-tuned bi-encoder may close most of the gap.
+
 There are three fundamental architectures for neural retrieval. Understanding where late interaction fits is the key to the entire chapter.
 
 ```
@@ -71,6 +75,10 @@ CROSS-ENCODER (e.g., ms-marco-MiniLM):
 
 ## ColBERT Architecture
 
+> **Why (the rationale):** Standard bi-encoders compress an entire document into a single vector, averaging away the signal from rare or high-importance tokens. ColBERT preserves one 128-dim vector per token, allowing fine-grained matching where a rare term like "Widget-X" retains its own dedicated vector and is never diluted by surrounding words.
+> **When to use:** When your queries use specific terminology, proper nouns, or rare domain terms that get diluted in single-vector encoders. Legal, medical, technical, and product-catalog search are natural fits.
+> **Nuances & gotchas:** The 128-dim token embedding (vs. 768–1024 for bi-encoders) is a deliberate compression to keep storage manageable — it is not a quality shortcut. Document re-encoding is done offline; query encoding is done online per query, so latency is dominated by query encoding + MaxSim arithmetic, not by a full transformer pass over every document.
+
 ColBERT encodes queries and documents into **matrices of token-level embeddings** (not single vectors) and scores them using fine-grained token interactions.
 
 ### Encoding Phase
@@ -113,6 +121,10 @@ Token Embeddings:
 ---
 
 ## MaxSim: The Core Scoring Mechanism
+
+> **Why (the rationale):** A dot product between two single vectors asks "how similar are these overall meanings?" MaxSim asks "for each query word, what is the best-matching document word?" — allowing partial matches where "price" aligns with "costs" and "Widget-X" aligns with "Widget-X" independently. This token-level decomposition is what makes ColBERT robust to vocabulary mismatch.
+> **When to use:** MaxSim is intrinsic to ColBERT — you don't choose it separately. Its behavior matters most when query and document use different but related vocabulary (e.g., "cost" vs "price"), where single-vector similarity would underperform.
+> **Nuances & gotchas:** MaxSim sums the best match per query token — it does NOT check whether a document token was used multiple times. A document that perfectly matches 3 out of 6 query tokens may score higher than one that partially matches all 6. This can occasionally reward narrow matches over broad coverage. MaxSim also doesn't penalize a document for having irrelevant tokens; only query tokens contribute to the score.
 
 MaxSim (Maximum Similarity) is the operator that makes late interaction work. It is conceptually simple but surprisingly powerful.
 
@@ -158,6 +170,10 @@ Score(Q, D) = SUM over all qi of MAX over all dj of (qi . dj)
 ---
 
 ## ColBERTv2 and PLAID Indexing
+
+> **Why (the rationale):** ColBERT v1 stored one 512-byte float32 vector per token, making a 10M-document corpus require ~1 TB of vector storage — far more than a bi-encoder. ColBERTv2 addressed this with residual compression (cluster centroids + quantized residuals) without sacrificing retrieval accuracy, and PLAID made query-time scoring practical by progressively filtering the candidate set before doing full decompression.
+> **When to use:** ColBERTv2 + PLAID is the production-ready choice whenever you move beyond prototype scale. The original ColBERT is primarily of research interest.
+> **Nuances & gotchas:** PLAID's multi-stage centroid pruning can skip >99% of the corpus before exact scoring, but this means its speed advantage is largest on large corpora. On small corpora (<100K docs), the overhead of centroid lookup may make it slower than a brute-force MaxSim. Also: residual compression introduces a small, tunable accuracy trade-off — increasing bits per residual dimension improves accuracy but increases storage.
 
 The original ColBERT (2020) had a critical limitation: **storage**. Storing 128-dim vectors for every token in every document is expensive. A corpus of 10M documents with 200 tokens each would require ~256 GB of vector storage.
 
@@ -353,6 +369,10 @@ response = chain.invoke("What features does the Enterprise plan include?")
 
 ### Pattern 1: ColBERT as Primary Retriever
 
+> **Why (the rationale):** When accuracy is the primary constraint and the corpus fits within ColBERT's practical storage budget (roughly 2–4× a bi-encoder's index), using ColBERT as the sole retriever eliminates the recall ceiling imposed by a weaker first-stage retriever.
+> **When to use:** Medium-scale corpora (1M–50M docs) in domain-specific search (legal, medical, technical) where term-level precision matters and you have the GPU capacity to serve the PLAID index.
+> **Nuances & gotchas:** ColBERT as a primary retriever still benefits from a parallel BM25 index for exact-match queries (statute numbers, case IDs) — ColBERT's token embeddings don't perfectly preserve exact-string matching for very rare tokens.
+
 ```
 Query ──► ColBERT (PLAID) ──► Top 20 ──► LLM
 ```
@@ -360,6 +380,10 @@ Query ──► ColBERT (PLAID) ──► Top 20 ──► LLM
 Best for: medium-scale corpora (1M-50M docs) where accuracy is paramount and you can afford the storage overhead.
 
 ### Pattern 2: ColBERT as Reranker (Most Common)
+
+> **Why (the rationale):** At web scale (100M+ docs), the ColBERT index is too large to serve as the primary retriever. Using a cheap bi-encoder or BM25 for first-stage recall, then ColBERT's pre-computed document token vectors for reranking, gives the accuracy of ColBERT at a fraction of the infrastructure cost — because only the query needs encoding at query time.
+> **When to use:** Large-scale corpora where ColBERT as a primary retriever would require too much storage or GPU memory. Also the recommended starting point when ColBERT is a new addition to an existing pipeline.
+> **Nuances & gotchas:** The reranking pool size (top-1000 from first stage) is a critical parameter. If the first stage misses relevant documents (low Recall@1000), ColBERT reranking cannot recover them. Monitor first-stage recall independently before attributing quality issues to the reranker.
 
 ```
 Query ──► BM25 or Bi-Encoder ──► Top 1000 ──► ColBERT Rerank ──► Top 20 ──► LLM

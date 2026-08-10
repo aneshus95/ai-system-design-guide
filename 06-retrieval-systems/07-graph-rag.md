@@ -140,6 +140,10 @@ A modern GraphRAG pipeline consists of three phases:
    - **Local Search**: Find a node and its neighbors.
    - **Global Search**: Use **Community Summaries** to answer high-level questions.
 
+> **Why (the rationale):** Vector retrieval operates on isolated chunks — it finds semantically similar text but cannot follow a chain of relationships (A relates to B relates to C) that never co-occur in a single chunk. By pre-extracting entities and relationships into a traversable graph, GraphRAG makes those implicit connections explicit and queryable at retrieval time.
+> **When to use:** When your failure analysis shows that graph-shaped questions (multi-hop relationship queries, aggregative synthesis across many documents) constitute a meaningful share of your workload — roughly 30%+ of RAG failures. See the decision flow at the top of this file.
+> **Nuances & gotchas:** The extraction phase is expensive (LLM call per document/passage) and error-prone — entity resolution (recognizing that "OpenAI" and "Open AI" are the same node) is a hard problem. The graph becomes stale as documents change; plan for periodic re-extraction. Storage and query infrastructure for a graph database adds operational complexity beyond a standard vector DB.
+
 ---
 
 ## Community Summarization
@@ -151,6 +155,10 @@ A modern GraphRAG pipeline consists of three phases:
 
 **The Win**: This allows the model to answer "Big Picture" questions without reading 1M tokens.
 
+> **Why (the rationale):** Aggregative questions ("what are the recurring themes across 500 reviews?") cannot be answered by any top-K retrieval — you'd need to load the entire corpus into context. Community summaries pre-compress the information hierarchy so a global question can be answered by reading a small number of compact summaries rather than millions of raw tokens.
+> **When to use:** Specifically for global/aggregative questions over large corpora. If your queries are mostly local ("tell me about entity X"), community summaries add construction cost without benefit — use local graph traversal instead.
+> **Nuances & gotchas:** Community summaries must be regenerated whenever the corpus changes significantly — they are not incrementally updatable. Leiden clustering is stable for static corpora but requires re-running as the graph grows. Summary quality depends on the LLM used and can lose nuance that matters for precise answers. Microsoft's LazyGraphRAG defers summary generation to query time to avoid this upfront cost — worth considering for infrequently queried corpora.
+
 ---
 
 ## Entity-Relationship Retrieval
@@ -158,6 +166,10 @@ A modern GraphRAG pipeline consists of three phases:
 Production stacks use **Hybrid Graph-Vector Search**.
 - **Dense Pass**: Find the most similar nodes via embeddings.
 - **Graph Pass**: Traverse the edges of those nodes to find relevant "supporting" info that might not be semantically similar to the query but is logically connected.
+
+> **Why (the rationale):** Neither dense retrieval alone nor graph traversal alone is sufficient for complex queries. Dense retrieval finds the entry points (semantically relevant nodes) but misses logically connected evidence. Graph traversal finds connected evidence but needs a starting point. Combining them — use dense to find seed nodes, then traverse — captures both semantic relevance and logical connections in one pass.
+> **When to use:** The standard retrieval pattern for any production GraphRAG system handling mixed local and relational queries. Also the basis of the graph-as-reranker pattern described at the top of this file.
+> **Nuances & gotchas:** Graph traversal depth is a critical parameter — too shallow misses multi-hop connections, too deep floods the context with loosely related nodes. One or two hops is typically the practical limit. The expanded candidate set must still be reranked to avoid burying the most relevant nodes under distant graph neighbors.
 
 ---
 

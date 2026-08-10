@@ -20,6 +20,10 @@ Multi-modal RAG extends retrieval-augmented generation beyond plain text to hand
 
 ## Why Text-Only RAG Fails
 
+> **Why (the rationale):** Most enterprise documents are not plain text — financial reports convey trends through charts, technical manuals use diagrams, and research papers embed key findings in figures. A text-only pipeline either silently drops visual content or extracts garbled text fragments, losing the information the document was designed to communicate.
+> **When to use:** Build a multi-modal RAG pipeline when your corpus contains PDFs, slide decks, scanned documents, or reports where 30%+ of meaningful content is non-textual. If your corpus is genuinely plain text, adding multi-modal complexity is unnecessary overhead.
+> **Nuances & gotchas:** Adding multi-modal support is not free — VLM-based extraction costs ~$0.01–0.05 per page at ingest, and ColPali-style indexes store ~1024 vectors per page (vs 1 for bi-encoder). Don't add it speculatively; instrument what percentage of user queries fail because of visual content before building the pipeline.
+
 Traditional RAG pipelines parse documents into text chunks, embed them, and retrieve against a text query. This breaks on real-world documents:
 
 | Document Element | Text-Only RAG Behavior | Actual Information Lost |
@@ -40,6 +44,10 @@ There are three dominant patterns for multi-modal RAG, each with distinct trade-
 
 ### Pattern 1: Unified Embedding Space
 
+> **Why (the rationale):** A single shared index means one query can surface results across all modalities without routing logic. This is the simplest multi-modal architecture: minimal infrastructure, straightforward retrieval.
+> **When to use:** When your content is primarily natural images paired with text (e-commerce, media libraries) and you need rapid prototyping. Best with models explicitly trained for joint text-image embedding (CLIP, SigLIP).
+> **Nuances & gotchas:** Shared-space embeddings trade per-modality quality for simplicity — the embedding model must be a generalist. Tables require serialization to text first, which loses structure. Retrieval quality for charts and diagrams is typically weaker than Pattern 2. This does NOT work well for retrieval where the user's query is text but the best answer is a specific table row.
+
 ```
                      Shared Vector Space
                     +-------------------+
@@ -57,6 +65,10 @@ There are three dominant patterns for multi-modal RAG, each with distinct trade-
 
 ### Pattern 2: Modality-Specific Retrieval with Fusion
 
+> **Why (the rationale):** Different modalities have different embedding models tuned for them. Using a best-in-class text encoder for text and a best-in-class vision encoder for images, then fusing results via RRF, avoids the quality compromise of a single generalist model.
+> **When to use:** Production workhorse for mixed-content corpora (financial reports, research papers, technical manuals) where retrieval precision per modality matters. Recommended when you need to tune or swap retrieval components independently.
+> **Nuances & gotchas:** Fusion adds infrastructure complexity — you need separate indices, parallel query fans, and a merge step. RRF normalizes by rank, not by score, which can fail when one modality is overwhelmingly confident. Also, if the user's query is text-only, the image retriever may never fire even though a visual result would be ideal — the query analyzer must classify query intent, not just query modality.
+
 ```
   Query --> +----> Text Index    --> Top-K text chunks
             |
@@ -73,6 +85,10 @@ There are three dominant patterns for multi-modal RAG, each with distinct trade-
 - **Cons**: More infra complexity; fusion logic is non-trivial.
 
 ### Pattern 3: Vision-First (Page-as-Image)
+
+> **Why (the rationale):** Traditional document parsing pipelines (OCR → layout detection → table extraction → chart parsing) are brittle multi-stage systems where failures compound. ColPali's vision-first approach bypasses all of this by treating pages as images — a single model forward pass handles text, tables, charts, and diagrams simultaneously.
+> **When to use:** When your corpus is heavy in visually complex documents (presentations, infographics, multi-column PDFs, scanned reports) and you want to avoid building and maintaining a complex extraction pipeline. Especially compelling when OCR quality is poor.
+> **Nuances & gotchas:** ColPali stores ~1024 patch vectors per page instead of 1, making the index roughly 1000× larger per page than a text bi-encoder. Binary quantization is required at scale (1M+ pages). ColPali does NOT match text-based retrieval on pure-text queries — exact keyword search is weaker because text is embedded via vision patches, not tokenized. For corpora with mixed text-heavy and visual-heavy pages, Pattern 3 alone is not optimal.
 
 ```
   Document Page --> Screenshot/Render --> Vision Encoder --> Multi-vector Index
@@ -213,6 +229,10 @@ This "describe-then-embed" approach converts visual content into searchable text
 
 ## ColPali and Vision-Based Retrieval
 
+> **Why (the rationale):** Complex extraction pipelines require separate models for OCR, layout detection, table parsing, and chart understanding — each adding failure modes and maintenance burden. ColPali reduces this to a single model that produces patch-level embeddings directly from the page image, achieving strong retrieval on the exact document types where traditional pipelines fail hardest.
+> **When to use:** Document-heavy use cases where a significant fraction of pages contain charts, tables, or complex layouts. Works best when paired with a text retrieval path for pure-text queries (Pattern 2 + ColPali for the visual index).
+> **Nuances & gotchas:** ColPali's late-interaction scoring (MaxSim over patches) requires a multi-vector index capable of handling ~1024 vectors per document. Standard single-vector databases (most managed vector DBs) do NOT support this natively — you need Qdrant, Vespa, or a custom multi-vector index. Binary quantization reduces storage ~32× but drops some visual retrieval recall; validate on your own documents.
+
 ColPali represents a paradigm shift: instead of building complex OCR + layout + table extraction pipelines, treat each document page as a single image and let a vision-language model handle everything.
 
 ### How ColPali Works
@@ -310,6 +330,10 @@ So it is **not** "each patch vs. the whole query." It is **every query token vs.
 ---
 
 ## Table Extraction and Structured Data Retrieval
+
+> **Why (the rationale):** Row-by-row flattening destroys the column-header relationship that gives table cells meaning — "Q3 APAC $2.8M" in a flattened chunk is uninterpretable without knowing the column headers are "Quarter", "Region", "Revenue". Tables must be kept as atomic units with headers preserved.
+> **When to use:** Any corpus where numerical data (financial, scientific, operational metrics) is stored in tables. Table retrieval is frequently the answer to the highest-value user queries ("what was Q3 APAC revenue?") and gets the worst handling in default pipelines.
+> **Nuances & gotchas:** VLM-based table extraction is accurate but slow (~2–5s/page) and expensive. Rule-based parsers (Tabula, Camelot) are fast but fail on merged cells, multi-header rows, or rotated tables. Tables extracted as markdown are good for retrieval but may lose numerical precision if the VLM reads values incorrectly — always provide the original image alongside the extracted markdown for the generation step.
 
 Tables are the hardest modality for traditional RAG. Flattening a table row-by-row destroys the column-header relationships that give each cell meaning.
 

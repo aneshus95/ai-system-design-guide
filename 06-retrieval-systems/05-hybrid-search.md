@@ -142,9 +142,17 @@ def sparse_search(query: str, top_k: int = 10) -> list[Result]:
 **Pros:** Clear separation, can use best-in-class for each (e.g., Pinecone + Algolia), tune independently
 **Cons:** Two separate systems to maintain, higher latency (must wait for the slower engine)
 
+> **Why (the rationale):** Using best-of-breed systems for each retrieval type — a dedicated vector DB for semantic search and Elasticsearch/OpenSearch for keyword search — lets each system be independently tuned and scaled. Separation also makes it easier to debug which arm is underperforming.
+> **When to use:** When you already operate Elasticsearch or OpenSearch for keyword search and want to add semantic retrieval on top, rather than migrating to a unified system. Also useful when the two retrieval workloads have very different scaling requirements.
+> **Nuances & gotchas:** Two systems to maintain, monitor, and keep in sync — any ingest pipeline must write to both. Total latency is bounded by the slower engine; to avoid sequential stalls, both searches must run in parallel. Operationally the most complex hybrid architecture.
+
 ### Architecture 2: Native Hybrid (Single System)
 
 Some vector databases support hybrid natively:
+
+> **Why (the rationale):** Running dense and sparse retrieval in a single system eliminates the operational burden of two separate indexes, reduces latency (one round trip instead of two), and keeps ingest simple (one write path). Systems like Weaviate, Qdrant, and Elasticsearch v9 have made this the path-of-least-resistance default.
+> **When to use:** Greenfield deployments where you haven't yet committed to a keyword search stack, or teams that want a single system to maintain. The right default for most new production RAG systems.
+> **Nuances & gotchas:** Native implementations may offer less fusion flexibility than a custom parallel-retrieval setup — the alpha/weighting knobs are vendor-specific and sometimes limited. Fusion quality and sparse implementation vary by vendor; always benchmark on your own query distribution rather than assuming native hybrid equals best-in-class hybrid.
 
 ```python
 # Weaviate
@@ -186,6 +194,10 @@ Query --> Sparse (fast, broad) --> Top 1000
 ### Reciprocal Rank Fusion (RRF)
 
 RRF is the gold standard for combining results from two different search engines. It does not look at the *score* (which is incomparable across engines). It looks at the **rank**.
+
+> **Why (the rationale):** Vector cosine scores (0–1) and BM25 scores (0–∞) live on entirely incompatible scales — a single high BM25 score could swamp all semantic results if scores are naively summed. RRF sidesteps the normalization problem entirely by fusing on rank position, which is comparable across any two rankers regardless of their scoring schemes.
+> **When to use:** The default fusion method for hybrid search. Essentially always prefer RRF over raw score addition unless you have strong evidence that normalized scores are comparable and you need the extra signal.
+> **Nuances & gotchas:** RRF rewards consensus across lists — a document ranked #1 in only one list may lose to one ranked #3 in both lists. This is usually desirable, but for highly asymmetric queries (e.g., rare-token exact lookups where BM25 is unambiguously better), equal-weight RRF may under-reward the stronger signal. The k parameter (default 60) controls rank sensitivity; tuning it is rarely necessary but possible.
 
 ```python
 def reciprocal_rank_fusion(
@@ -343,6 +355,10 @@ Production stacks have moved beyond BM25 (simple word frequency) to **Learned Sp
 **Technique**: Models like **SPLADE v3** predict "importance weights" for every word in the dictionary.
 
 **Why?**: SPLADE can "expand" queries. If you search for "CPU," it might automatically add a small weight to the term "processor," even if "processor" is not in your query. It combines the exact-match power of sparse search with the conceptual power of dense search in a single storage format.
+
+> **Why (the rationale):** BM25 requires exact token overlap — it cannot bridge "CPU" to "processor." SPLADE learns to expand queries and documents with semantically related terms using a masked language model, giving sparse retrieval some of dense retrieval's synonym-bridging ability while retaining the exact-match precision and single-index simplicity of sparse vectors.
+> **When to use:** When you want to simplify infrastructure by storing both dense and sparse vectors in a single vector database (Qdrant, Milvus) rather than maintaining a separate Elasticsearch/BM25 index. Also useful when your vocabulary has many near-synonyms that BM25 misses but you don't want the full complexity of a dense-only or hybrid architecture.
+> **Nuances & gotchas:** SPLADE is a neural model — it adds inference cost at index time and query time compared to BM25. It may not generalize well to highly domain-specific tokens (serial numbers, proprietary product codes, acronyms coined after training) that BM25 handles trivially via exact match. Sparse SPLADE vectors can be large; inverted index storage may exceed BM25 storage for the same corpus.
 
 ### SPLADE Implementation
 

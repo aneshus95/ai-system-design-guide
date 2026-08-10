@@ -104,6 +104,10 @@ The most popular algorithm for production **in-memory** vector search.
 3. Multiple layers of abstraction (hierarchical)
 4. Search: navigate from top layer down, greedy nearest neighbor
 
+> **Why (the rationale):** Brute-force O(n·d) search is impractical at millions of vectors. HNSW achieves sub-linear search by maintaining a hierarchical graph where upper layers act as coarse "highways" — you navigate quickly to the right neighborhood, then search densely at the base layer. No training required and supports real-time inserts, making it the most operationally flexible ANN algorithm.
+> **When to use:** The default choice for most production vector indexes up to roughly 100M vectors where memory budget allows. Pinecone, Qdrant, Weaviate, and pgvector all use HNSW as their primary algorithm.
+> **Nuances & gotchas:** Memory-intensive — the graph structure adds ~1.5–2x overhead on top of raw vector storage (~80 GB RAM for 10M 1536-dim vectors). Heavy update workloads can degrade the graph structure temporarily. For billion-scale datasets, the RAM requirement becomes prohibitive — use DiskANN instead. ef_construction and ef_search are the primary tuning levers; higher values improve recall at the cost of build time and query latency respectively.
+
 ```
 Layer 2:   *--------*--------*
            |        |        |
@@ -135,6 +139,10 @@ The industry standard for **petabyte-scale** search.
 - Keeps the graph on SSD (NVMe) and only a tiny index in RAM
 - Uses the Vamana algorithm for efficient disk-based graph traversal
 
+> **Why (the rationale):** At billion-scale, HNSW requires terabytes of RAM — economically infeasible. DiskANN moves the graph to fast NVMe SSDs, keeping only a tiny in-RAM routing structure. NVMe latency (~0.1 ms) is close enough to RAM (~0.01 ms) that per-query latency penalty is small compared to the 10x+ cost reduction from replacing RAM with SSD.
+> **When to use:** Billion-scale indexes, or any deployment where the HNSW RAM requirement would require more than ~2–3 high-memory instances. Azure Cognitive Search and Milvus both offer DiskANN as an option for large-scale deployments.
+> **Nuances & gotchas:** Slightly higher latency than HNSW (disk I/O is unavoidable). Not ideal for workloads requiring very low P99 latency (sub-5 ms) at high QPS — the disk access pattern can cause tail-latency spikes. Update performance is somewhat lower than HNSW. NVMe quality matters: consumer-grade SSDs will underperform enterprise NVMe at sustained QPS.
+
 **Pros:**
 - 10x cheaper than HNSW for billion-scale datasets with <5ms latency penalty
 - 90-95% reduction in RAM requirements vs HNSW
@@ -153,6 +161,10 @@ Partition vectors into clusters, search only relevant clusters.
 1. Use k-means to create centroids
 2. Assign each vector to nearest centroid
 3. At query time: find nearest centroids, search those clusters
+
+> **Why (the rationale):** IVF trades some recall for lower memory than HNSW by partitioning the vector space into clusters and only searching the most relevant ones. The cluster-and-probe approach means you skip large swaths of the index entirely, which is fast and memory-efficient.
+> **When to use:** When memory constraints rule out HNSW and you can afford a training pass and periodic re-clustering. Most commonly used in combination with Product Quantization (IVF-PQ) for compressed large-scale indexes where sub-optimal recall is acceptable.
+> **Nuances & gotchas:** Requires an offline training step (k-means clustering) that must be re-run as data distribution shifts. Recall is sensitive to nprobe — search too few clusters and you miss relevant vectors; too many and you negate the speed benefit. Updates are tricky: new vectors can't easily join existing clusters without re-clustering or using a hybrid insert strategy.
 
 **Pros:**
 - Lower memory than HNSW
@@ -178,6 +190,10 @@ Compress vectors to reduce memory and speed up comparison.
 **Memory reduction:** 4-32x typical
 
 **Tradeoff:** Lower accuracy due to quantization loss
+
+> **Why (the rationale):** Storing full float32 vectors for billions of documents is impractical. PQ splits each vector into subvectors and replaces each with a code pointing to a learned centroid — achieving 4–32x compression by storing codebook indices instead of raw floats, while still enabling fast approximate distance computation.
+> **When to use:** Combined with IVF (IVF-PQ) for extremely large datasets where memory is the binding constraint and some recall loss is acceptable. Also used as a compression layer on top of HNSW in some implementations.
+> **Nuances & gotchas:** PQ introduces quantization error that accumulates across subvectors — recall can drop significantly with aggressive compression. Always re-score the shortlisted candidates with full-precision vectors ("asymmetric distance computation") to partially recover accuracy. Codebook training is another offline step that must match the data distribution.
 
 ### Flat Index (Brute Force)
 

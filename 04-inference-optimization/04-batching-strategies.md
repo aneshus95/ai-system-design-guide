@@ -17,11 +17,19 @@ Batching is the primary lever for increasing LLM throughput and reducing cost. S
 
 In traditional ML (Classification), we use **Static Batching** where all requests must be the same size and start/end together. This is inefficient for LLMs due to variable response lengths.
 
+> **Why (the rationale):** Static batching works for classification because outputs are always the same size (a single class label). LLM outputs are variable-length, so a batch of 32 requests might have outputs ranging from 5 to 5,000 tokens — the GPU idles for short requests waiting for the slowest one to finish.
+> **When to use:** Static batching is appropriate only for offline batch jobs with homogeneous output lengths (e.g., running the same summarization task over a fixed-length dataset). Never use static batching for real-time serving with mixed workloads.
+> **Nuances & gotchas:** Static batching's worst-case waste is proportional to the ratio of max-output to min-output length in a batch. Padding shorter sequences to the max length wastes both compute and memory. The "longest tail" problem means one unusually long response degrades the effective throughput for every other request in the batch.
+
 ---
 
 ## Continuous Batching (Iteration-level)
 
 Continuous batching (pioneered by Orca and vLLM) allows new requests to join the batch and finished requests to leave at the end of every individual token generation step.
+
+> **Why (the rationale):** The GPU's memory bandwidth capacity is wasted when short requests finish early and their slot sits idle inside a static batch. Continuous batching reclaims those slots instantly at the token level, filling them with queued requests so the GPU stays saturated throughout.
+> **When to use:** The default for any production LLM serving system with concurrent users. Should be enabled in vLLM, SGLang, TGI, and TensorRT-LLM. Replace any static batching configuration immediately.
+> **Nuances & gotchas:** Continuous batching increases aggregate throughput but can raise tail latency for individual requests — when new requests join mid-batch, they compete for the same KV cache VRAM. At very high concurrency, requests may queue at the prefill stage rather than the decode stage, leading to high TTFT. Continuous batching does NOT eliminate stalls from massive prefills — that's what Chunked Prefill solves.
 
 | Aspect | Static Batching | Continuous Batching |
 |--------|-----------------|---------------------|
@@ -36,6 +44,10 @@ Continuous batching (pioneered by Orca and vLLM) allows new requests to join the
 
 Previously, serving engines processed a batch of "Prefill" (heavy compute) OR a batch of "Decode" (heavy memory). 
 **In-Flight Batching** (TensorRT-LLM) allows mixing them:
+
+> **Why (the rationale):** Prefill is compute-bound and decode is memory-bound — they saturate different GPU resources. Running them concurrently allows idle compute capacity during decode to be used for a new request's prefill, improving overall GPU utilization without compromising either phase.
+> **When to use:** When your workload has a mix of new arriving requests and ongoing long generations. Most beneficial in TensorRT-LLM deployments on NVIDIA hardware; vLLM implements a variant via chunked prefill scheduling.
+> **Nuances & gotchas:** Prefill and decode compete for KV cache VRAM even when their compute is overlapped — a large in-flight prefill can still evict decode KV blocks if VRAM is tight. The performance benefit depends on the specific arrival rate and request lengths; measure on your workload before claiming the gain.
 - 1 request is in the Prefill phase.
 - 15 requests are in the Decode phase.
 - **Benefit**: The Prefill request utilizes the GPU's idle compute cores while the Decode requests utilize the memory bandwidth.
@@ -48,6 +60,10 @@ Massive context prompts (1M+ tokens) can hang a batch for seconds during the Pre
 
 **The fix: Chunked Prefill**
 Instead of prefilling 128k tokens at once, the engine breaks the prefill into smaller chunks (e.g., 4k tokens each) and interleaves them with the ongoing Decode steps of other users. This maintains a steady **TPOT** even when heavy requests arrive.
+
+> **Why (the rationale):** A single 1M-token prefill monopolizes the GPU for several seconds, preventing all decode requests from generating tokens during that window (TPOT spikes for everyone). Chunked Prefill breaks this monopoly by slicing the prefill into small chunks and interleaving them with decode steps — every user gets tokens at every iteration.
+> **When to use:** Essential when serving mixed workloads where some requests have very long prompts (>32k tokens) alongside short-prompt requests in the same batch. Default-enabled in modern vLLM and SGLang configurations.
+> **Nuances & gotchas:** Chunked prefill adds overhead because the KV cache for the chunked request is built incrementally — the request's first token is delayed by the number of chunks. The chunk size is a tunable tradeoff: smaller chunks reduce stalls but increase per-request overhead. Chunked prefill interacts with the block manager — partial prefill blocks must be allocated without knowing if the request will complete.
 
 ---
 

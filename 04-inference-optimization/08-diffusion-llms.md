@@ -19,6 +19,10 @@ Almost every LLM you use is autoregressive (AR): it emits one token per forward 
 
 An AR model factorizes a sequence left to right: each token is predicted from the past only, one per forward pass. A **masked diffusion model** instead learns to reconstruct a whole sequence from a corrupted (masked) version, refining all positions at once over a few denoising steps, with **bidirectional** attention (each position sees both past and future).
 
+> **Why (the rationale):** AR decoding is fundamentally serial — each token depends on the previous one, making parallelism across output positions impossible. Masked diffusion breaks this dependency by predicting all positions simultaneously from a masked starting point, committing many tokens per forward pass and yielding throughput an order of magnitude above AR at comparable quality on structured tasks.
+> **When to use:** When throughput and latency dominate quality requirements, outputs are short-to-medium and structured (code completion, infilling, structured extraction), and you can tolerate some quality gap on knowledge and multi-step reasoning. Not when frontier quality, long context, agentic tool-use, or variable-length output fidelity is required.
+> **Nuances & gotchas:** Masked diffusion optimizes a likelihood *lower bound*, not exact likelihood — this is a fundamental mathematical difference from AR models and contributes to quality gaps on hard reasoning. The speed advantage depends heavily on the unmasking schedule: aggressive unmasking is fast but incoherent; conservative unmasking approaches AR quality but sacrifices most of the speed. Bidirectional attention means no KV cache in the AR sense — every denoising step recomputes attention over the full (partially unmasked) sequence.
+
 The canonical reference is **LLaDA** (arXiv:2502.09992). The mechanism, at a teachable level:
 - **Forward process:** start from clean text; at noise level `t`, replace each token with a `[MASK]` with probability `t`. At `t=1` the sequence is fully masked.
 - **Reverse process:** a Transformer (a "mask predictor") is trained to predict the original token at every masked position simultaneously, optimizing a likelihood *lower bound* (not the exact likelihood AR models use).
@@ -32,7 +36,11 @@ The cleanest mental model is not "AR vs diffusion" but an **interpolation** betw
 
 ## The Speed Advantage and the Tradeoff
 
-The speedup comes from one place: **tokens committed per forward pass.** AR emits one; diffusion commits many over a few steps, so wall-clock throughput rises when the model can confidently unmask several positions at once. It is a latency and throughput win, not inherently a quality win.
+The speedup comes from one place: **tokens committed per forward pass.**
+
+> **Why (the rationale):** AR commits exactly 1 token per weight-load; diffusion can commit N tokens per pass (where N is determined by the unmasking schedule). For N=10 committed tokens per pass, throughput rises roughly 10x — subject to the number of denoising steps needed to reach acceptable quality.
+> **When to use:** Use the throughput numbers as a guide for code completion and structured generation benchmarks, not as guarantees for your task. Always benchmark with realistic decoding settings (number of steps, unmasking aggressiveness) that match the quality you need.
+> **Nuances & gotchas:** Vendor reported numbers (700–1,500 tok/sec) assume aggressive unmasking that may not match quality thresholds for your use case. The speed-quality tradeoff is *continuous* and controlled by the unmasking schedule — there's no single "diffusion speed." On knowledge-intensive or hard reasoning tasks, you may need so many denoising steps to reach acceptable quality that the throughput advantage over AR disappears. AR emits one; diffusion commits many over a few steps, so wall-clock throughput rises when the model can confidently unmask several positions at once. It is a latency and throughput win, not inherently a quality win.
 
 Reported throughput (all vendor or benchmark claims, conditions vary): commercial diffusion models report on the order of 700 to 1,500 tokens per second on a single datacenter GPU, which their makers frame as several times faster than speed-optimized AR baselines (up to ~10x for the best-case code-completion path, closer to ~5x for reasoning workloads). Independent measurement of one commercial model put it around 1,100 tokens per second.
 
@@ -59,6 +67,10 @@ Treat versions, speeds, and prices as a perishable snapshot.
 ## Hybrids: Draft with Diffusion, Verify with AR
 
 The most production-relevant work fuses the two paradigms:
+
+> **Why (the rationale):** Pure diffusion loses the exact AR target distribution and lacks the mature KV-cache/serving-stack of AR. Pure AR is slow. Hybrids (diffusion as drafter, AR as verifier; or block-diffusion) get the throughput benefits of diffusion while preserving AR distribution guarantees and, in block-diffusion, recovering KV caching and variable-length output.
+> **When to use:** TiDAR-style (diffusion draft, AR verify) is the most promising path for latency-critical production serving that needs AR quality guarantees. Block-diffusion is the path to incrementally get diffusion speed from an existing AR checkpoint. Use if you are actively experimenting with diffusion for production; otherwise monitor the space.
+> **Nuances & gotchas:** These approaches are research-stage — few production deployments exist as of mid-2026. TiDAR's 5x speedup claim is benchmark-specific. Block-diffusion requires retraining or fine-tuning the base model. The hybrid verification step requires running the AR model anyway, so VRAM and serving complexity are similar to standard speculative decoding.
 
 - **Diffusion as a speculative drafter.** A diffusion model proposes a block of tokens in parallel and an AR model verifies them, preserving the AR target distribution, analogous to [speculative decoding](03-speculative-decoding.md). TiDAR (arXiv:2511.08923) reports roughly 5x the tokens per second of AR while closing the quality gap, positioned to beat standard speculative decoding for latency-critical use.
 - **Block / semi-AR adaptation.** Fast-dLLM v2 (arXiv:2509.26328) adapts an existing AR model (Qwen) into a block-diffusion model with a block-wise KV cache and confidence-aware parallel decoding, the practical recipe for getting cacheable, fast diffusion decoding out of checkpoints you already have.

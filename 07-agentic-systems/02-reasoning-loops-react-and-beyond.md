@@ -34,6 +34,10 @@ The fundamental loop for 90% of agents:
 
 **Critique**: ReAct is fragile. If the search returns "No results," a naive ReAct agent will often try the same search again. Modern loops inject **"Negative Constraints"** (e.g., "Don't try search results we've already seen").
 
+> **Why (the rationale):** ReAct interleaves reasoning with action so the model can adapt to each tool result before deciding the next step. This beats "predict all steps upfront" when the environment is unpredictable — the model only commits to one action at a time based on real observations.
+> **When to use:** Use ReAct for exploratory, open-ended tasks (web research, debugging unknown systems, browsing unfamiliar APIs) where you cannot know the full action sequence in advance. It is the correct default for most agent tasks.
+> **Nuances & gotchas:** ReAct can loop or thrash without explicit step limits and negative constraints — a naive loop will retry the same failing action indefinitely. It is also strictly sequential; independent sub-tasks cannot run in parallel. For predictable workflows, Plan-and-Solve is faster and cheaper. ReAct observation windows grow with each step, consuming context budget rapidly in long tasks.
+
 ---
 
 ## Self-Reflexion Loops
@@ -52,6 +56,10 @@ graph TD
 
 **Benefit**: By storing these "Reflections" in short-term memory, the agent builds a "Mental Map" of what doesn't work during the current session.
 
+> **Why (the rationale):** Bare ReAct does not distinguish between a recoverable failure and a terminal dead-end — it just retries. The Critic step makes the failure signal explicit and forces the model to generate a verbal lesson before the next attempt, which substantially reduces repeated identical mistakes within a session.
+> **When to use:** Add Reflexion when the task involves noisy tool results (web scraping, unstable APIs) or when the action space is large enough that blind retries are likely to fail. It is especially valuable for coding agents (try → test → critique → revise) and multi-hop research.
+> **Nuances & gotchas:** Reflexion doubles (or more) the number of model calls per task. The Critic prompt is a second point of failure — a poorly designed critic can produce misleading lessons that send the Actor down a worse path. Lessons stored in session memory do NOT persist across sessions without an explicit write to episodic memory.
+
 ---
 
 ## Plan-and-Solve
@@ -64,6 +72,10 @@ Instead of deciding one step at a time (greedy approach), the agent creates a **
 
 **Why?**: Planning reduces "Stochastic Errors." By committing to a path, the model is less likely to get distracted by noisy tool results.
 
+> **Why (the rationale):** Writing the full plan first lets the model reason about dependencies and ordering before any tool is called, reducing mid-run drift and enabling parallel execution of independent steps — something a step-at-a-time ReAct loop cannot do.
+> **When to use:** Use Plan-and-Solve for well-defined, predictable workflows where the steps are known in advance (financial report generation from known APIs, multi-step data pipelines, code generation with a fixed spec). The environment must be stable enough that a plan written at step 0 is still valid at step 5.
+> **Nuances & gotchas:** Static plans are brittle — if one early step returns unexpected output, all downstream steps may be built on a wrong assumption. Re-planning is expensive (it requires a full reasoning pass with accumulated context). Plan-and-Solve does NOT handle environments where the required actions depend on what earlier tool calls actually return.
+
 ---
 
 ## Flow Engineering (LangGraph)
@@ -74,6 +86,10 @@ Modern agentic systems have moved from "Chat interfaces" to **"State Machines."*
 - **Micro-Agents**: Each node in the graph is a specialized "Prompt" or "Tool."
 
 **Key Nuance**: The "Agent" is no longer just the LLM; the agent is the **Graph Execution Engine**.
+
+> **Why (the rationale):** State machines make control flow explicit and inspectable. Instead of hidden emergent behavior inside one big prompt, every branch, loop, and handoff is a named edge in a graph. This is the difference between "hoping the model does the right thing" and "proving the system can only do what the graph allows."
+> **When to use:** Use graph-based flow engineering when the workflow has conditional branches, retry loops, or parallel tracks that must all converge — and when you need to checkpoint, resume, or visually audit what the agent did. It is the right choice for any production system that must be debuggable and explainable to a non-ML team.
+> **Nuances & gotchas:** Graphs add upfront design cost and framework coupling (LangGraph, Google ADK). Poorly designed graphs can still produce emergent failures at runtime if node logic is too broad. A graph does not eliminate prompt brittleness inside each node — it just makes the transitions explicit. For simple linear tasks, a graph is over-engineering.
 
 ---
 

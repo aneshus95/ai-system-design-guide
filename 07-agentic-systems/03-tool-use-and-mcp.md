@@ -29,6 +29,10 @@ Tool use occurs in a 3-step cycle:
 
 **Nuance**: Production stacks no longer "hardcode" tool definitions into the system prompt. They use **Dynamic Manifests** that fetch only necessary tools based on the user's intent.
 
+> **Why (the rationale):** Tools are what make an agent useful beyond generating text — they allow it to read live data, mutate state, and interact with external systems. The structured JSON call-and-response cycle is the minimal interface that any LLM can use without fine-tuning.
+> **When to use:** Any time the agent needs information that is not in its training data (live prices, DB records, file contents) or needs to take an action with real-world side effects (sending email, writing to a DB). Do NOT invoke tools for facts the model already knows reliably, as each tool call adds latency and a failure surface.
+> **Nuances & gotchas:** Tool call accuracy degrades significantly when more than ~20 schemas are in-prompt simultaneously (schema overload). Tool results are untrusted input — malicious tool responses can inject instructions back into the model (prompt injection via observation). Always validate and sanitize tool results before feeding them to the model.
+
 ---
 
 ## Model Context Protocol (MCP)
@@ -44,6 +48,10 @@ Developed by Anthropic (released November 2024) and now the universal tool-integ
 - **Portability**: Write a "Postgres Tool" once, use it in Claude, GPT, or Llama.
 - **Discoverability**: Standardized `list_tools` and `get_resource` commands.
 
+> **Why (the rationale):** Before MCP, every team wrote bespoke tool integrations that only worked with one model provider. MCP defines a single client-server contract so a tool built for Claude works with GPT or Gemini without rewriting. The process-boundary architecture also provides a security sandbox — a compromised tool argument only affects the MCP server process, not the agent runtime.
+> **When to use:** Use MCP any time you want portable, reusable tool integrations that can be swapped across model providers, deployed as cloud microservices, or shared across teams. Prefer MCP over inline function calling for production systems. Direct function calling (without MCP) is acceptable for rapid prototyping or when the tool is trivial and vendor lock-in is not a concern.
+> **Nuances & gotchas:** MCP adds operational overhead — you now have a separate server process (or cloud service) to run, monitor, and secure. STDIO transport has a known security footprint (May 2026 vulnerability class); migrate to HTTP transport with OAuth 2.1 for anything exposed beyond a single machine. MCP does NOT handle agent-to-agent communication — that is A2A's job. Over 2,300 public MCP servers exist but quality and security auditing vary widely.
+
 ---
 
 ## Defining High-Precision Tools
@@ -53,6 +61,10 @@ A production-quality tool must include:
 1. **Strict Type Validation**: Use Pydantic or Zod to enforce schemas before the model even sees the call.
 2. **Detailed Docstrings**: Describe *when NOT* to use the tool.
 3. **Confidence Thresholds**: Require the model to output a `confidence` score for the tool call.
+
+> **Why (the rationale):** The model's tool-calling accuracy is directly proportional to how precisely the tool is described. Vague descriptions cause the model to guess arguments; missing "when NOT to use" causes the model to call the wrong tool for edge cases; absent type validation allows malformed calls to reach the execution layer and fail noisily.
+> **When to use:** Apply high-precision tool definitions in any production system. The cost is a few extra lines of docstring and a Pydantic model — the benefit is dramatically fewer hallucinated arguments and easier debugging when calls fail.
+> **Nuances & gotchas:** Confidence thresholds are advisory — the model can output a high-confidence score and still be wrong. "When NOT to use" docstrings help but are not foolproof; adversarial or ambiguous inputs can still trigger incorrect tool selection. Over-constraining a tool's schema (too many required fields) can cause the model to avoid using it even when appropriate.
 
 ```python
 # MCP Server Example (Conceptual)
@@ -143,6 +155,10 @@ Google introduced the **Agent2Agent (A2A)** protocol in April 2025 to solve a pr
 ### What A2A Solves
 
 MCP defines how an agent connects to **tools and data**. A2A defines how an **orchestrator agent delegates tasks to a specialist agent** from a different vendor or framework, even when they do not share memory, tools, or context.
+
+> **Why (the rationale):** In enterprise settings, different teams build agents with different frameworks (LangGraph, CrewAI, Google ADK). Without A2A, cross-team delegation requires sharing code, runtime, and memory — which is impossible across organizational or vendor boundaries. A2A provides a vendor-neutral HTTP/SSE contract so any two agents can delegate tasks without coupling their internals.
+> **When to use:** Introduce A2A when crossing organizational or vendor boundaries — when your orchestrator needs to call an agent maintained by a different team, or integrate a third-party specialized agent (legal review, compliance check, financial processing). Keep all agents in a single framework when the team owns everything and low inter-agent latency is critical.
+> **Nuances & gotchas:** A2A adds HTTP round-trip overhead compared to in-process agent calls. Long-running A2A tasks require polling or SSE subscription for status updates — the orchestrator cannot simply await a return value. Agent Cards must be validated (v1.2 introduced JWS signing for this reason) — an unverified Agent Card can point your orchestrator at a malicious endpoint. A2A does NOT provide shared memory — each delegated agent starts with only what the task payload contains.
 
 ### Technical Foundation
 
@@ -291,6 +307,10 @@ The pipeline is deliberately conservative. Every layer can reject; only the resu
 ## Computer-Use Tools (Anthropic)
 
 Claude 3.5+ introduced native **computer-use** tools - the model can directly control a desktop or web browser. These are available via the Anthropic API:
+
+> **Why (the rationale):** Many enterprise workflows live inside GUIs that have no API — legacy software, web forms, desktop applications. Computer-use tools let an agent automate these workflows without requiring the software vendor to expose an API. This is the fallback when MCP-based tool integration is not possible.
+> **When to use:** Use computer-use when the target system has no API and automation via DOM manipulation or keyboard/mouse control is the only option. For anything that DOES have an API, prefer MCP-based tool calls — they are faster, cheaper, more reliable, and easier to audit than screenshot-based control.
+> **Nuances & gotchas:** Computer-use is slow (requires screenshot capture and analysis per action), expensive (more tokens per step), and fragile (UI changes break automation). It MUST run inside a sandboxed VM — never on a host machine with production access. Irreversible GUI actions (form submissions, file deletions) require explicit human approval; the model cannot reliably distinguish "review" from "submit" buttons without additional safeguards.
 
 | Tool | Capability | Notes |
 |------|------------|-------|

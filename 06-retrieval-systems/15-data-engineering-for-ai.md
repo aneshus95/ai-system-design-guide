@@ -44,6 +44,10 @@ The "most of the work" framing is durable: the widely cited heuristic that pract
 
 ## Ingestion
 
+> **Why (the rationale):** Feeding the wrong parser output — garbled text from a PDF renderer that can't handle multi-column layouts, or empty strings from a text path applied to a scanned image — contaminates every downstream stage silently. The garbage propagates into embeddings and gets retrieved confidently.
+> **When to use:** Always build content-type detection and parser routing into the ingestion layer, even for seemingly homogeneous corpora — production document collections are almost always more heterogeneous than they appear.
+> **Nuances & gotchas:** File extension cannot be trusted — use magic-byte detection (libmagic). Published parser benchmarks disagree significantly; benchmark parser choice on your own documents before selecting one. OCR noise from scanned PDFs measurably degrades retrieval quality downstream — budget for OCR validation as a separate quality step.
+
 The input is a heterogeneous pile (PDFs, scans, office docs, HTML, email, images). You must detect what each file is, route it to the right parser, and emit a normalized structured representation.
 
 - **File-type detection by content, not extension.** The standard is magic-number sniffing via `libmagic` (the library behind the Unix `file` command), exposed through bindings like `python-magic`. Parsers such as Unstructured auto-detect type this way and fall back to the extension.
@@ -66,6 +70,10 @@ A counterintuitive caveat worth teaching: **more filtering is not strictly bette
 
 ## Deduplication
 
+> **Why (the rationale):** Duplicate documents waste embedding cost, crowd out diverse evidence in the RAG context window, inflate training data volume without adding information, and — most critically — increase model memorization of repeated text (including PII). Dedup addresses retrieval quality, training efficiency, privacy risk, and eval integrity simultaneously.
+> **When to use:** Run deduplication at every scale. Even small corpora (thousands of documents) benefit from exact-hash dedup to avoid re-embedding updated documents with unchanged content.
+> **Nuances & gotchas:** Exact hashing misses near-duplicates (same content, different phrasing or formatting). MinHash misses semantic paraphrases. SemDeDup catches paraphrases but is expensive (embedding the entire corpus). Run as a cascade — exact first, then fuzzy, then semantic — stopping at the tier that catches your remaining duplicates. Over-aggressive dedup can also remove legitimate near-duplicates that differ in important details (e.g., two policy documents that differ in one critical clause).
+
 Dedup is the highest-leverage stage, and the clearest case for "shared infrastructure," because it pays off three ways. The foundational result (Lee et al., arXiv:2107.06499) reports that deduplicating training data makes models emit memorized text about 10x less often, reach equal or better accuracy in fewer steps, and, critically, **reduces train-test overlap, so dedup is also decontamination.** It also mitigates privacy risk by reducing memorization of repeated PII.
 
 The three tiers, run as a cascade (cheap-and-exact first, expensive-and-semantic last):
@@ -79,6 +87,10 @@ The production pattern composes them, MinHash first, then SemDeDup. State the th
 
 ## PII, Consent, and Governance
 
+> **Why (the rationale):** Once a document containing PII is embedded, the PII is baked into the vector and can be retrieved, memorized by a fine-tuned model, or reconstructed via embedding inversion attacks. Redaction must happen before the embedding step — retroactively cleaning a vector store is not feasible.
+> **When to use:** Required for any corpus containing user-generated content, customer data, health records, or any regulated personal information. Under GDPR and HIPAA, redaction and provenance tracking are not optional.
+> **Nuances & gotchas:** PII detection models have false negatives — novel or obfuscated PII (nicknames, partial numbers) is missed. Use defense in depth: NER-based detection + regex + context-word heuristics (Presidio's approach). Provenance metadata must be attached at ingest and preserved through the entire pipeline — you cannot comply with GDPR Right-to-be-Forgotten if you don't know which documents a user's data appears in.
+
 **PII detection and redaction.** Microsoft Presidio (MIT) is the open standard: an Analyzer that detects entities via NER plus regex, checksums, and context words, and an Anonymizer that redacts, replaces, masks, hashes, or encrypts, across text, images (with OCR), and structured data, deployable at corpus scale. Because dedup reduces duplication-driven memorization, privacy and dedup are linked.
 
 **Consent, licensing, and provenance** are now a regulatory requirement, not just hygiene. Under the EU AI Act, general-purpose-model providers must keep a copyright policy and publish a "sufficiently detailed summary" of training content using the AI Office's mandatory template, including data sources and respect for copyright opt-outs (this summary duty has applied to new general-purpose models since August 2025, with models already on the market given until August 2027). Output-marking obligations follow. The governance implication for the pipeline: every record carries source, license, consent status, and timestamp as metadata from ingestion onward, which is exactly what lineage (below) provides. Governance is not a final gate; it is metadata threaded through every stage. See [AI Governance and Compliance](../13-reliability-and-safety/04-ai-governance-and-compliance.md).
@@ -86,6 +98,10 @@ The production pattern composes them, MinHash first, then SemDeDup. State the th
 ---
 
 ## Quality Filtering and Enrichment
+
+> **Why (the rationale):** Low-quality documents (boilerplate, garbled OCR, off-topic content) increase retrieval noise, dilute the embedding space, and for fine-tuning, degrade model quality. Quality filtering is the upstream complement to chunking — bad documents that pass this stage become bad chunks that contaminate retrieval.
+> **When to use:** Apply heuristic filters as a cheap first pass on any web-sourced or user-uploaded corpus. Invest in model-based classifiers when the corpus is large enough that heuristics alone leave significant noise (typically >1M documents).
+> **Nuances & gotchas:** More filtering is NOT strictly better — FineWeb's ablations found many common heuristics had minimal positive impact, and Nemotron-CC reports that aggressive heuristic filtering discarded ~18% of tokens its own quality classifier rated as high-quality. Always ablate filters on a downstream eval (retrieval recall or fine-tuning task accuracy), not on a proxy metric. Never trust a quality classifier by reputation alone.
 
 **Quality filtering** comes in two families. **Heuristic** rules (length, symbol-to-word ratio, repetition, stopword presence) are cheap but cannot catch complex content noise. **Model-based classifiers** score quality or educational value; FineWeb-Edu trained a lightweight classifier on LLM-generated quality annotations and reported large downstream gains, matching a larger corpus with far fewer tokens. The flagged caveat: classifier filtering is not a free lunch (the "data-quality illusion" work argues it can be miscalibrated), so **always ablate filters on a downstream eval, never trust them by reputation.**
 
@@ -99,6 +115,10 @@ The production pattern composes them, MinHash first, then SemDeDup. State the th
 
 ## Pipelines and Orchestration
 
+> **Why (the rationale):** Data pipelines for AI have the same reliability requirements as any production data system — partial failures, retry semantics, and operational visibility — plus AI-specific concerns like idempotent re-embedding and CDC-driven freshness. Ad-hoc scripts don't scale to production corpora.
+> **When to use:** Adopt a proper orchestrator (Airflow, Dagster, Prefect) as soon as the pipeline has more than 2–3 stages or runs on a schedule. CDC-driven incremental indexing should replace full nightly re-index once the corpus exceeds a few thousand documents.
+> **Nuances & gotchas:** Airflow is the most widely deployed but requires careful DAG design for incremental recompute. Dagster's asset model handles incremental re-embedding more naturally. Spark and Ray are distributed compute engines, not orchestrators — they are scheduled BY the orchestrator, not instead of it. Without idempotent writes and a dead-letter queue, failed embedding jobs silently leave the index in a partial state.
+
 **Batch vs streaming.** Pretraining-corpus prep and bulk RAG indexing are batch jobs (Spark or Ray over object storage). RAG *freshness* is incremental: as source documents change, re-ingest only the deltas. Change Data Capture captures row-level source changes in real time, which for RAG maps to "detect changed, new, and deleted documents, re-parse and re-embed only those, then upsert or delete in the vector store," avoiding a full re-index and preventing stale or orphaned vectors.
 
 **Orchestrators.** Airflow is the default with the biggest ecosystem; Dagster is asset-based with incremental recompute that suits incremental RAG re-embedding; Prefect is the lighter-weight Pythonic option. Spark and Ray are the distributed compute the orchestrator schedules, not orchestrators themselves.
@@ -108,6 +128,10 @@ The production pattern composes them, MinHash first, then SemDeDup. State the th
 ---
 
 ## Data for Fine-Tuning
+
+> **Why (the rationale):** Fine-tuning data quality determines model behavior in ways that are hard to reverse post-training. Unlike RAG, where bad data can be corrected by updating the index, fine-tuning bakes data patterns into model weights. Getting the data right before training is a prerequisite, not an afterthought.
+> **When to use:** Invest heavily in fine-tuning data curation whenever you need the model to consistently follow domain-specific formats, styles, or reasoning patterns that cannot be achieved via prompting alone.
+> **Nuances & gotchas:** Decontamination is the must-do step most teams skip. N-gram decontamination is insufficient — paraphrased test items slip through and silently inflate benchmark scores. Use embedding or LLM-based decontamination. Synthetic data scales cheaply but risks diversity collapse if generated from a narrow seed set; track diversity metrics explicitly. The exact number of curated examples needed is dataset-specific; published thresholds ("1,000 examples beats 10,000") are illustrative, not empirical laws.
 
 The tail that diverges from RAG:
 - **Curation beats volume.** A small set of carefully curated examples often beats a large mediocre one; the quality triad is difficulty, quality, and diversity. (The exact "1,000 beats 10,000" figures are illustrative, not laws.)

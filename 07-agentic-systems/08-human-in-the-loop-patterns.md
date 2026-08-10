@@ -23,11 +23,19 @@ No agent is 100% reliable. **Human-in-the-Loop (HITL)** is the bridge that ensur
 | **Human-as-backup** | High | Only intervenes on error | Customer Support |
 | **Human-on-the-loop** | Max | Audits logs after completion | High-volume analysis |
 
+> **Why (the rationale):** No single HITL level is universally correct — the right level is the one that balances safety against throughput for the specific risk profile of the task. Forcing all tasks through human-in-command destroys the value of automation; allowing all tasks to run human-on-the-loop exposes you to unchecked irreversible actions.
+> **When to use:** Choose the level based on reversibility and stakes: irreversible high-stakes actions (legal, medical, financial commits) warrant human-in-command; reversible, high-volume, low-stakes tasks can go human-on-the-loop. When in doubt, start at a more conservative level and loosen only after earning trust through observed behavior.
+> **Nuances & gotchas:** HITL adds latency proportional to human response time — human-in-command is incompatible with sub-second SLA requirements. The spectrum is not a permanent assignment: a single agent run may shift levels mid-task (e.g., operating autonomously until it hits a write-side-effect that requires approval). Moving from human-in-command to human-on-the-loop requires demonstrated reliability, not just optimism.
+
 ---
 
 ## Interrupts and Breakpoints
 
 Modern architectures (LangGraph, Microsoft Agent Framework) use **Deterministic Breakpoints**.
+
+> **Why (the rationale):** Letting the agent decide when to pause for approval is insufficient — models under-escalate because they are optimized to complete tasks. Hard-coding the breakpoint in the harness, not in the model's instructions, makes the pause deterministic and un-bypassable regardless of how the model reasons about the situation.
+> **When to use:** Attach a deterministic breakpoint to every tool that triggers an irreversible or high-cost external action (`send_email`, `execute_payment`, `delete_record`, `deploy_to_prod`); do not attach them to read-only or easily reversible tools or operator fatigue will set in quickly.
+> **Nuances & gotchas:** State must be persisted to a database before the pause — holding the freeze in process memory means a server restart loses the approval context. The waiting time is bounded only by human response time, which can be hours or days; design the system to gracefully handle stale approvals and to allow rejection with a reason the agent can act on. Deterministic breakpoints do NOT work as a security control if the trigger condition can be bypassed by creative tool chaining.
 
 - **The Pattern**: The system is hardcoded to "Pause" before a specific sensitive tool is called (e.g., `execute_purchase` or `delete_user`).
 - **The Decision**: The environment waits for a user to send an `approve` or `reject` signal.
@@ -38,6 +46,11 @@ Modern architectures (LangGraph, Microsoft Agent Framework) use **Deterministic 
 ## Time-Travel Debugging (State Editing)
 
 Standard agents are "One-way." If they make a mistake in Step 3, the session is usually ruined.
+
+> **Why (the rationale):** Restarting a failed long-horizon run from scratch is expensive in tokens, time, and lost intermediate work. State injection allows surgical correction of a single bad observation or decision without discarding the entire trajectory — it turns debugging from a restart into an edit.
+> **When to use:** Most valuable in development/QA workflows where engineers are iterating on agent behavior, and in high-stakes production runs where a human expert can diagnose the exact wrong turn and correct it cheaply; less relevant in high-volume, short-lived agents where a full restart costs little.
+> **Nuances & gotchas:** Editing an intermediate state can create logical inconsistencies downstream if the agent's later steps assumed the original (wrong) observation — always review the full trajectory after injection. This is primarily a debugging and human-steering tool, NOT an automated recovery mechanism; it requires a skilled human who understands the agent's reasoning graph.
+
 - **Innovation**: **State Injection**. A human reviewer can "Go back" to the state at Step 3, edit the agent's observation or thought, and then "Resume" execution.
 - **Impact**: It allows humans to "Steer" the agent off a bad path without starting from zero.
 
@@ -46,6 +59,11 @@ Standard agents are "One-way." If they make a mistake in Step 3, the session is 
 ## Co-Reasoning (Shared Scratchpads)
 
 Instead of the human being a "Judge," they become a **"Partner."**
+
+> **Why (the rationale):** Post-hoc approval of a tool call only catches the action, not the flawed reasoning that led to it. Sharing the scratchpad shifts the review upstream to the point where correction is cheapest — before any side effects have been executed.
+> **When to use:** Best for complex, expert-domain tasks (legal analysis, medical decision support, financial planning) where a human expert can quickly spot faulty premises in the reasoning chain; less valuable for simple tasks where the reasoning is trivial and surfacing the scratchpad adds noise without insight.
+> **Nuances & gotchas:** Extended thinking / chain-of-thought scratchpads can be long and technical — raw display to non-technical users is counterproductive; you need a summary layer. Showing the scratchpad does NOT guarantee humans will read it carefully (see operator fatigue). Some model providers do not expose internal reasoning tokens, limiting what can be surfaced.
+
 - The agent shows its **Scratchpad** (Internal Thinking) to the human.
 - Characterized as: *"I am planning to use Tool A because of Fact B. Does that seem right to you?"*
 - **Benefit**: Catching reasoning errors *before* they translate into actions.
@@ -55,6 +73,10 @@ Instead of the human being a "Judge," they become a **"Partner."**
 ## Confidence-Based Escalation
 
 Using models that support "Logprobs" or built-in reasoning steps, we calculate an **Uncertainty Score**.
+
+> **Why (the rationale):** Hard-coded breakpoints only catch known-dangerous actions. Confidence-based escalation catches unknown-dangerous situations — cases where the action is routine but the model's certainty about the right path is low. It is the adaptive complement to deterministic breakpoints.
+> **When to use:** Use when your domain has a long tail of edge cases that are hard to enumerate upfront (billing disputes, ambiguous user intent, novel legal scenarios); less appropriate when the cost of false-positive escalations (paging a human for routine uncertainty) is high relative to the risk.
+> **Nuances & gotchas:** Not all model providers expose logprobs or reliable uncertainty signals — this pattern requires model-level support. Logprob-based confidence scores measure the model's token-level certainty, NOT semantic or factual correctness; a model can be highly confident about a wrong answer. Threshold tuning is difficult: too sensitive creates operator fatigue, too loose misses real edge cases, and the right threshold typically requires empirical calibration on your specific task distribution.
 
 - If the score exceeds a threshold, the agent **Automatically Pauses** and sends a notification to a human operator.
 - **Example**: An agent trying to resolve a complex billing dispute realizes the user's intent is ambiguous. It stops and says: *"I'm not 100% sure how to handle this specific refund case. One moment while I get a human expert to look at this."*

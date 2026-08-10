@@ -25,6 +25,10 @@ Loss = -sum(log P(token_i | token_1, ..., token_{i-1}))
 
 The model predicts the next token given the context. This simple objective, at scale, leads to emergent reasoning capabilities.
 
+> **Why (the rationale):** CLM with a decoder-only architecture is the simplest objective that produces general-purpose intelligence at scale. Encoder-decoder models require paired data; masked-language models require bidirectional context and are harder to scale to generation. Decoder-only CLM needs no labeled data and generalizes to any generative task.
+> **When to use:** Decoder-only CLM is the right choice for nearly all general-purpose LLM pretraining today. Encoder-only (BERT-style) makes sense only when you need deep contextual embeddings and will never generate text.
+> **Nuances & gotchas:** The "emergent reasoning" effect is scale-dependent — small models trained with CLM do not automatically reason well. Causal masking also means the model cannot attend to future tokens, which limits its ability to do tasks requiring bidirectional understanding (e.g., fill-in-the-middle) without architectural modifications.
+
 ---
 
 ## Data Curriculum and Quality
@@ -33,6 +37,10 @@ The focus has shifted from "More Data" to "Better Curriculum."
 
 ### The 100T Token Horizon
 Frontier models (Llama 4, GPT-5.5, Claude Opus 4.7, Gemini 3.1 Pro) are trained on 15T to 100T tokens. At this scale, **Deduplication** and **Quality Filtering** are the primary differentiators.
+
+> **Why (the rationale):** At trillion-token scale, marginal web data is low signal; the gains now come from removing duplicates (which cause over-fitting) and filtering noise. Raw volume is table stakes — quality of the signal is what differentiates frontier models.
+> **When to use:** Invest heavily in deduplication and filtering as soon as your token count crosses the tens-of-billions range. For smaller experimental runs, these matter less than simply getting enough data.
+> **Nuances & gotchas:** Aggressive deduplication can accidentally remove semantically important repeated concepts (e.g., mathematical formulas appearing in many papers). Fuzzy/semantic deduplication is safer than exact match but more expensive to run.
 
 ### Data Mixture Standard
 | Component | Percentage | Purpose |
@@ -54,10 +62,18 @@ Research shows that increasing code in the pretraining mix improves a model's pe
 `Data Tokens (D) ≈ 20 * Parameters (N)`
 For a 70B model, this suggests ~1.4T tokens.
 
+> **Why (the rationale):** Chinchilla asks: given a fixed compute budget, what split between model size and token count minimizes loss? The 20:1 ratio is the compute-optimal answer for training cost. It was the dominant strategy when most researchers cared about minimizing GPU-hours spent training.
+> **When to use:** Chinchilla ratios apply when your primary constraint is training compute and you plan to use the model only for research or short-lived proof-of-concepts where deployment cost is not a concern.
+> **Nuances & gotchas:** Chinchilla optimality does NOT mean the model is the best to deploy. It ignores the total cost of serving the model in production. In practice, almost no frontier production model follows Chinchilla ratios today.
+
 ### The Inference-Optimal Paradigm
 Modern models (Llama 3, Llama 4) are **heavily overtrained** relative to Chinchilla.
 - **Why?**: Training cost is paid once; inference cost is paid billions of times.
 - **Result**: Small models (8B) are now trained on 15T+ tokens, making them as capable as older 70B models but much cheaper to serve.
+
+> **Why (the rationale):** Training is a one-time cost; inference runs continuously at scale. By over-training a smaller model, you "bake in" more intelligence per parameter, dramatically reducing the VRAM and cost of every single inference request thereafter.
+> **When to use:** Any model destined for production deployment where it will handle millions of requests. The crossover point where over-training pays off is roughly when you expect to serve the model for more than a few weeks at real traffic.
+> **Nuances & gotchas:** Over-training a model does not raise its capability ceiling — it compresses existing capability into fewer parameters. There is a point of diminishing returns (the loss curve flattens). It also does not help with tasks the model simply could not learn regardless of token count.
 
 | Strategy | Token/Param Ratio | Best For |
 |----------|-------------------|----------|
@@ -75,9 +91,17 @@ Sudden jumps in loss that can ruin a training run.
 - **Standard fix**: **Periodic Checkpointing** and **Automatic Rollbacks**.
 - **Architecture fix**: **Residual Scaling** (initializing weights such that the residual branch starts at near-zero).
 
+> **Why (the rationale):** At 100k+ GPU scale, a single loss spike that is not caught can corrupt the entire training run, wasting millions of dollars. Checkpointing provides insurance; residual scaling prevents the model from entering unstable states in the first place.
+> **When to use:** Checkpointing every N steps is always necessary at large scale. Residual scaling is an architectural decision made at model initialization — adopt it by default for any new large-scale training run.
+> **Nuances & gotchas:** Rollbacks waste the compute spent since the last checkpoint, so checkpoint frequency is a cost-stability tradeoff. Residual scaling alone does not prevent all spikes — learning rate warmup and gradient clipping are also required.
+
 ### 2. Precision: FP8 vs BF16
 - **BF16**: The 2023-2024 stability standard.
 - **FP8**: The current production standard. Supported natively by H100/B200, it halves memory usage and doubles throughput while maintaining training stability through **Stochastic Rounding**.
+
+> **Why (the rationale):** Lower precision = fewer bits per weight = more weights fit in VRAM and more operations per second. BF16's wide dynamic range made it the safe stability choice over FP16. FP8 halves BF16's memory footprint while preserving enough dynamic range for stable training when combined with stochastic rounding.
+> **When to use:** Use BF16 on older hardware (A100 and below) or when stability is paramount. Use FP8 on H100/B200 hardware where it is natively supported — the throughput gain is too large to leave on the table for serious production training runs.
+> **Nuances & gotchas:** FP8 training requires careful loss scaling and stochastic rounding implementation — using it naively (without Nvidia's Transformer Engine or equivalent) can cause silent numerical instability. Not all operations should be in FP8: master weights and optimizer states are typically kept in BF16 or FP32.
 
 ---
 

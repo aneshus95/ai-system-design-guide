@@ -31,6 +31,10 @@ We measure success by **Tokens per Dollar ($)**.
 
 The most effective cost-saving strategy is to use the **cheapest model capable of the task.**
 
+> **Why (the rationale):** Frontier models are 100x–1000x more expensive per token than small models, but 90%+ of real-world queries (greetings, simple lookups, structured extraction) don't require frontier-level capability. A tiered cascade matches model cost to task complexity, yielding 80%+ overall cost reduction without degrading quality on hard tasks.
+> **When to use:** When you have a high-volume production workload with mixed query complexity. Requires investment in the complexity classifier and threshold tuning. Not worth building for low-volume or uniform-complexity workloads.
+> **Nuances & gotchas:** The classifier itself can be wrong — misrouting a complex query to a small model produces bad answers that users see. Always build an "escalation" path (user retry, confidence-based fallback). The cascade adds latency for queries that are escalated. A poorly tuned classifier that sends too much traffic to Tier 2 can make the cascade *more* expensive than just using Tier 1 for everything.
+
 **The cascade pattern:**
 1. **Classifier**: A tiny model (0.5B) determines query complexity ($0.00).
 2. **Tier 1 (SLM)**: 90% of queries (greetings, simple Q&A) go to an 8B model ($).
@@ -44,6 +48,10 @@ The most effective cost-saving strategy is to use the **cheapest model capable o
 ## Small Language Models (SLMs) for Production
 
 3B-8B models (Llama 4 8B, Gemini 3.1 Flash, Claude Haiku 4.5) now match or beat the original GPT-4 from 2023 on most benchmarks.
+
+> **Why (the rationale):** Model capability per parameter has improved dramatically since 2022. A 2026-era 8B model has seen more training data, better architectures (GQA, RoPE, improved tokenizers), and RLHF/DPO alignment than GPT-4 did in 2023 — making it capable of handling the vast majority of real production tasks.
+> **When to use:** Entity extraction, classification, structured output generation, simple RAG retrieval answering, and templated content generation. Not suitable for complex multi-step reasoning, long document analysis requiring deep understanding, or tasks where errors are costly.
+> **Nuances & gotchas:** "Matches GPT-4 on benchmarks" doesn't always translate to production performance on your specific task — benchmark datasets may not reflect your query distribution. SLMs are much more sensitive to prompt quality than frontier models. Self-hosted SLMs require you to own the serving stack, monitoring, and updates — the operational cost is real and often underestimated.
 - **Use Case**: Entity extraction, sentiment analysis, simple RAG.
 - **Cost**: 100x cheaper to run than frontier models.
 - **Latency**: < 100ms response times.
@@ -58,6 +66,10 @@ DeepSeek V4 Flash (released April 24, 2026) reset the floor for cheap frontier-c
 
 For non-real-time workloads (batch processing, data extraction), use **GPU Spot Instances** (AWS Spot, Azure Spot, Lambda Labs).
 
+> **Why (the rationale):** Cloud providers sell unused GPU capacity at 50–90% discount as spot instances. For batch jobs that can tolerate interruption, this can cut compute costs by 2–10x compared to on-demand pricing — the single largest infrastructure cost lever for offline workloads.
+> **When to use:** Batch data extraction, training data generation, document processing pipelines, offline evaluation runs. Never for real-time, user-facing, or SLA-bound serving where a 30-second interruption notice is unacceptable.
+> **Nuances & gotchas:** Spot reclamation is not guaranteed to give 30 seconds — it's a best-effort notice. Live KV-Cache Migration requires the serving framework to support checkpointing and state transfer, which adds infrastructure complexity. Spot availability varies by GPU type and region; H100 spots are rare; A10G and A100 are more reliably available. Build idempotent jobs so reclaimed-and-restarted runs don't produce duplicates.
+
 - **Risk**: GPU can be reclaimed with 30-sec notice.
 - **Mitigation**: **Live KV-Cache Migration**. Serving frameworks can stream the KV cache of ongoing requests to another node as soon as the "Reclamation Signal" is received, ensuring no work is lost.
 
@@ -68,6 +80,10 @@ For non-real-time workloads (batch processing, data extraction), use **GPU Spot 
 - **System Prompt Caching**: Hard-code common prefixes to get 90% discounts.
 - **Output Truncation**: Strictly limit `max_tokens`.
 - **Negative Prompting**: "Don't be wordy" saves ~15% in output tokens (and thus cost).
+
+> **Why (the rationale):** Output tokens are 3–5x more expensive than input tokens at most providers (because generating is harder than reading). Every unnecessary output token is a multiplied cost. Similarly, long system prompts sent without caching burn input budget on every request, even if the prompt is static.
+> **When to use:** Apply all three techniques by default in any production deployment that uses a provider API. System prompt caching has zero quality impact; output truncation requires knowing your expected max response length; negative prompting is a quick prompt-engineering win with minimal downsides.
+> **Nuances & gotchas:** Setting `max_tokens` too low can truncate valid responses mid-sentence, degrading quality. Negative prompting ("be concise") has diminishing returns — some models treat it as conflicting with helpfulness instructions. System prompt caching requires the prefix to remain exactly constant; even a timestamp in the system prompt breaks the cache every request.
 
 ---
 

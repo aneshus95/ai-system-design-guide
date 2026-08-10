@@ -27,6 +27,10 @@ Reasoning: The user is neutral about the weather but negative about the service.
 Sentiment: Mixed
 ```
 
+> **Why (the rationale):** Raw input→output pairs alone can teach format but not decision logic. Adding a reasoning field (even one sentence) primes the model to attend to *why* the label was chosen, which generalizes better to edge cases than pattern-matching the output string.
+> **When to use:** Add reasoning to examples when: the task has non-obvious decision boundaries (e.g., nuanced sentiment, edge-case classification), or when you observe the model mimicking format but getting the label wrong. For purely format-anchoring tasks (e.g., "always output a two-sentence summary"), reasoning is unnecessary overhead.
+> **Nuances & gotchas:** Reasoning in examples boosts quality but adds tokens per example — this compounds quickly with many examples. The reasoning must be *accurate*; a wrong explanation in an example teaches the model a wrong heuristic. Gold-standard examples that are not representative of real query distribution can cause the model to generalize poorly to out-of-distribution inputs.
+
 ---
 
 ## How many examples?
@@ -51,6 +55,10 @@ In production RAG or Classification, don't use the same static examples for ever
 
 **Result**: Drastically higher accuracy because the model sees "local" patterns relevant to the current user.
 
+> **Why (the rationale):** Static examples are a one-size-fits-all compromise — they may be highly relevant for some queries and near-useless for others. Dynamic selection makes ICL adaptive, giving the model examples from the exact "neighborhood" of the current query in the input space.
+> **When to use:** Production pipelines with diverse query types, large example libraries (50+ curated examples), and where you observe accuracy variance across query topics. Not worth the added infrastructure complexity for narrow, homogeneous tasks where 3–5 static examples already cover the space.
+> **Nuances & gotchas:** The quality of dynamic selection is capped by the quality of your embeddings and the diversity of your example library. Near-duplicate retrieval (semantically similar but wrong-label examples) can actively harm performance. Retrieval latency adds to TTFT — keep the vector lookup on a fast in-memory store. If all your queries are similar, static examples may outperform dynamic selection with less operational overhead.
+
 ---
 
 ## The Importance of Labelling Nuance
@@ -58,6 +66,10 @@ In production RAG or Classification, don't use the same static examples for ever
 Frontier models are sensitive to **Distribution Bias** in examples.
 - If you provide 5 "Positive" examples and 1 "Negative," the model will bias toward "Positive."
 - **Fix**: Always use **Label Balancing**. Ensure your few-shot examples roughly mirror the expected output distribution or are perfectly balanced (1:1).
+
+> **Why (the rationale):** The model's prior over output labels is partially overridden by what it observes in the few-shot set. An imbalanced example set trains a biased in-context prior, producing systematic over-prediction of the majority label regardless of the actual input.
+> **When to use:** Apply label balancing by default in any classification task. Mirroring the real-world label distribution is the right choice when your task genuinely has imbalanced classes (e.g., fraud detection where 99% of examples are non-fraud) — perfectly balanced examples would actually mislead the model about the prior.
+> **Nuances & gotchas:** Label balance addresses frequency bias, but not *positional* bias — models still show recency bias toward the last example. Always shuffle example order across requests. Permutation testing (running the same examples in multiple orders) during development catches both biases before deployment.
 
 ---
 
@@ -67,6 +79,10 @@ Frontier models are sensitive to **Distribution Bias** in examples.
 "Translate this code like a translator would move a poem from French to English—preserving the soul (logic) but changing the syntax."
 
 **Few-Shot CoT**: Providing 2 examples where the reasoning is explicit. This "primes" the model's attention to focus on logic rather than just mimicking the output string.
+
+> **Why (the rationale):** Analogies convey *qualitative intent* that is hard to specify literally — they offload the burden of exhaustive constraint-writing onto the model's pre-trained world knowledge. Few-Shot CoT upgrades plain few-shot by showing the model *how to reason*, not just what the answer looks like, which generalizes far better to novel inputs.
+> **When to use:** Analogy prompting is most effective when there is a rich, well-known source domain that maps cleanly to your target task (code translation, style transformation). Few-Shot CoT is the right choice when the task involves multi-step logic and you observe the model producing correct-looking but wrong-logic outputs with standard few-shot.
+> **Nuances & gotchas:** Analogy prompting can backfire if the analogy has misleading connotations — the model may over-apply it in ways you didn't intend. Few-Shot CoT adds significant token overhead (each example now includes a reasoning trace). If the provided reasoning examples contain errors, the model will learn the wrong reasoning pattern.
 
 ---
 

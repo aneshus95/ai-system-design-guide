@@ -19,6 +19,10 @@ An agent run is not a request/response handler. It calls tools, reads documents,
 
 Agents are long-running, stateful, side-effecting processes, which breaks three assumptions:
 
+> **Why (the rationale):** Standard request/response infrastructure assumes that retrying a failed call is safe, that process memory survives deploys, and that the same code produces the same result on re-run. Agents violate all three — a retry can double-charge a card, a deploy can drop a days-long pause, and an LLM re-run produces a different response. Durable execution exists specifically to close these gaps, not as a general reliability pattern.
+> **When to use:** Recognize this failure model applies to your agent when it has at least one of: irreversible external side effects, runs that span process lifetimes or deploy cycles, or nondeterministic steps (LLM calls) whose outputs must be stable across retries.
+> **Nuances & gotchas:** The three broken assumptions are independent — an agent can violate one without violating the others. A read-only research agent has recorded-nondeterminism issues but no side-effect risk; the right solution (framework checkpointing) is different from a payment-processing agent that needs exactly-once guarantees.
+
 - **Exactly-once side effects.** If a tool call succeeds but the agent crashes before recording it, a resumed run may retry the call, meaning duplicate payments, tickets, or deploys. The core ambiguity is that after a mid-activity crash you cannot tell whether the side effect committed or only its acknowledgment was lost, so a naive retry sends it twice.
 - **Human-in-the-loop pauses that survive restarts.** An agent may need to block on an approval for hours or a day without losing progress or burning compute. A pause held in process memory dies on the next deploy.
 - **Recorded nondeterminism.** You cannot replay an LLM call and pretend it is the same event; the same prompt can produce a different response. The output must be recorded the first time and reused during recovery.
@@ -28,6 +32,10 @@ Naive retries re-run side effects; naive checkpoints that save state only betwee
 ---
 
 ## The Durable-Execution Model
+
+> **Why (the rationale):** Saving a state snapshot after each step (checkpointing) is insufficient because it leaves an unsafe window between executing a side effect and recording it. The event journal model closes this by treating every completed step as an immutable, replayable record — recovery re-runs the workflow code against the log and skips already-completed steps instead of re-executing them.
+> **When to use:** Adopt the full durable-execution model (Temporal, Restate, DBOS) when your agent has irreversible side effects AND must survive crashes mid-step; use simpler framework checkpointing when the agent is mostly reasoning with idempotent or recoverable tools where re-executing from a prior state snapshot is acceptable.
+> **Nuances & gotchas:** Deterministic replay imposes a hard constraint — workflow code must not contain direct time calls, random numbers, or network calls; these must be pushed into activities. The versioning hazard is the most common production incident: changing workflow code while old runs are in-flight breaks replay of those runs unless the change is versioned with the engine's versioning primitives.
 
 The core pattern is **workflows-as-code plus an append-only event history plus deterministic replay.** Systems like Temporal record an immutable event history for each workflow; if a worker crashes at step 5 of 10, another worker replays the history to reconstruct in-memory state and resumes at step 6.
 
@@ -45,6 +53,10 @@ The cost of replay-based determinism is **versioning**: because long-running wor
 
 ## Tools
 
+> **Why (the rationale):** The durable-execution tool landscape exists on a spectrum of operational overhead vs. capability. Choosing the wrong weight class means either paying cluster-management cost for a simple agent that only needed idempotency keys, or under-investing with a queue-and-retry pattern for an agent that needs durable timers and exactly-once semantics.
+> **When to use:** Match the tool to the operational constraints and failure modes: DBOS when your side effects are mainly Postgres writes and you want zero new infrastructure; Restate for low-ops, HTTP-native, stateful sessions; Inngest for event-driven TypeScript pipelines; Temporal for large-scale, complex, multi-language, long-running workflows where the deepest framework integrations matter; Step Functions when you are all-in on AWS and a declarative state machine fits your workflow shape.
+> **Nuances & gotchas:** All of these tools require structuring agent work as distinct steps/activities, which requires rethinking code that was written as a monolithic loop. Temporal's cluster (or Temporal Cloud subscription) is a genuine operational dependency that adds cost and complexity. Newer tools (Restate, DBOS, Inngest) have smaller communities and ecosystems than Temporal, which may matter for debugging and long-term support.
+
 | Tool | Where state lives | Footprint | Notes |
 |------|-------------------|-----------|-------|
 | **Temporal** (reference) | A separate cluster (or Temporal Cloud) | High | Event history plus deterministic replay; many languages; proven at large scale; deepest agent-framework integrations. |
@@ -58,6 +70,10 @@ The approaches differ in where they put the durability boundary. Temporal trades
 ---
 
 ## Mapping Durable Execution onto Agent Loops
+
+> **Why (the rationale):** Wrapping the agent loop as a workflow and each tool call as an activity is the structural move that converts a fragile in-memory loop into a crash-safe, resumable process. Without this mapping, crashes at any step force a full restart; with it, only the specific activity that failed is retried, and the workflow resumes from exactly where it stopped.
+> **When to use:** Apply this mapping when adopting a durable-execution engine; the mapping also clarifies which LangGraph checkpointing mode to pick (checkpoint at exit vs. before each step) based on the cost of re-executing the last step on a crash.
+> **Nuances & gotchas:** Framework-native checkpointing (LangGraph) recovers state but does NOT provide exactly-once side-effect guarantees or durable timers — the gap matters most for irreversible tool calls. The honest tension: most agent failures in practice are from logic bugs, not infrastructure crashes, so full durable execution may solve a less common failure mode while adding significant operational complexity.
 
 The core mapping: the **agent loop becomes a workflow, and each model call and tool call becomes a durable activity.** On a crash, completed model calls and tool invocations replay from the log rather than re-execute, so you do not re-pay tokens or re-fire side effects, and you can even fix a bug and resume a running app.
 

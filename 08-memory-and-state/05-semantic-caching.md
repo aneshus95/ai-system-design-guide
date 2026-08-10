@@ -23,6 +23,10 @@ Caching has evolved from exact string matching to **Semantic Matching**. Semanti
 | **Efficiency**| Low (Minor typos break cache) | High (Understands intent) |
 | **Risk** | Zero | Semantic Drift (Returning wrong answer) |
 
+> **Why (the rationale):** Exact caching has near-zero hit rate in practice for natural language queries because users rarely phrase the same question identically. Semantic caching captures the 30-70% of queries that are functionally equivalent but worded differently, converting what would be expensive LLM calls into sub-millisecond cache lookups.
+> **When to use:** High-volume LLM-backed features with predictable query distributions — FAQ bots, product search, code-explanation tools. Poor fit for conversational agents where every query is contextually unique (the cached answer for "what does it mean?" depends entirely on the prior turn). Start with an exact cache first; only add semantic caching once you have data showing many near-duplicate queries.
+> **Nuances & gotchas:** Semantic drift is the fundamental risk — a cached answer that was correct for query A is served for query B because they are close in embedding space, but B has a different correct answer. This produces silent wrong answers with no error signal. Threshold selection is a manual art: too loose causes drift, too tight eliminates cache benefit and you are just paying the embedding tax for nothing.
+
 ---
 
 ## The Semantic Matching Pipeline
@@ -33,6 +37,10 @@ Caching has evolved from exact string matching to **Semantic Matching**. Semanti
 4. **LLM Verification**: For high-stakes queries, a tiny "Verifier Model" (e.g., GPT-5.5-mini, Claude Haiku 4.5) checks if the cached response actually answers the new query.
 5. **Update**: If no hit, call the LLM and store the new result in the vector cache.
 
+> **Why (the rationale):** The pipeline is designed to be progressive — fast and cheap checks first (embedding + vector search), slow and expensive fallbacks only when needed (LLM verification, then full LLM call). This allows sub-millisecond hits for clear cache matches while maintaining correctness gates for edge cases.
+> **When to use:** Use the full 5-step pipeline for domains where wrong answers are costly (medical, legal, financial). For low-stakes consumer apps, steps 1-3 with a tight threshold are sufficient. Skip step 4 entirely if the verifier model's cost approaches the cost of the primary LLM call.
+> **Nuances & gotchas:** The embedding model used at write time and at read time must be identical — changing embedding models (e.g., upgrading from `text-embedding-3-small` to a newer model) invalidates the entire cache because vector distances are no longer comparable. Step 5 (storing new results) can create cache poisoning if the first LLM call for a query returned a wrong answer — that wrong answer is now cached and will be served at high confidence to future similar queries.
+
 ---
 
 ## RedisVL and GPTCache
@@ -42,6 +50,10 @@ Standard stack:
 - **Hybrid Caching**: Using Redis for both metadata (keys) and vector payloads.
 - **TTL**: Semantic caches should have a TTL (Time-To-Live). The common pattern is **Dynamic TTL**: popular answers live longer while "stale" information is evicted regularly.
 
+> **Why (the rationale):** RedisVL co-locates vector search and key-value metadata in the same Redis instance, eliminating the extra network hop of a separate vector DB for cache lookups. This keeps the total cache lookup latency in the single-digit millisecond range even at high query rates.
+> **When to use:** When you already operate Redis in your stack and want to add semantic caching without introducing a new infrastructure component. If you need more sophisticated filtering (by date, category, user segment) before similarity search, a dedicated vector DB (Qdrant, Weaviate) may offer richer query APIs.
+> **Nuances & gotchas:** TTL is essential but often forgotten at implementation time. A semantic cache without TTL will serve arbitrarily stale answers indefinitely — for time-sensitive domains (news, pricing, regulatory info) this is a correctness failure, not just a freshness concern. Dynamic TTL requires tracking access frequency per entry, which adds write overhead on every cache hit.
+
 ---
 
 ## Multimodal Semantic Caching
@@ -49,6 +61,10 @@ Standard stack:
 With native multimodal frontier models (Gemini 3.1 Pro, GPT-5.5, Claude Opus 4.7), we now cache **Image and Audio queries**.
 - **Visual Similarity**: Caching the description of an image if a semantically similar image was processed before.
 - **Audio Fingerprinting**: Caging transcripts for similar voice commands.
+
+> **Why (the rationale):** Multimodal LLM calls (image + text, audio + text) are significantly more expensive than text-only calls in both cost and latency. If many users upload similar images (product photos of the same SKU, screenshots of the same UI) or issue similar voice commands, multimodal semantic caching reuses the expensive prior result.
+> **When to use:** High-volume pipelines where a bounded set of media inputs is repeatedly submitted — e-commerce product image analysis, voice command interfaces with a known command vocabulary. Less useful for creative or open-ended image/audio workflows where each input is genuinely unique.
+> **Nuances & gotchas:** Image similarity in embedding space does not guarantee that the cached response answers the new query correctly — two visually similar product photos may have different defects that require different answers. Audio fingerprinting for voice commands is brittle to accents, background noise, and speaking rate variation that changes the acoustic fingerprint without changing the semantic intent. These edge cases are harder to catch than the equivalent text drift.
 
 ---
 

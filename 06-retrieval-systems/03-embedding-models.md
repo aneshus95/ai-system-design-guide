@@ -23,6 +23,10 @@ Traditionally, if you embedded text into 1,536 dimensions, you were stuck using 
 - **The Win**: You can embed at 1,536 dims, but index only the first **64 dims** for a "fast search" pass, then refine the top results with the full 1,536 dims.
 - **Efficiency**: 20x reduction in memory/index size with <2% drop in accuracy.
 
+> **Why (the rationale):** At billion-vector scale, storing full-precision high-dimension vectors in RAM becomes prohibitively expensive. MRL enables a two-pass search: use a compact low-dimension prefix for cheap broad retrieval, then re-score with the full vector only on the shortlisted candidates — achieving near-full accuracy at a fraction of the memory footprint.
+> **When to use:** Indexes with 100M+ vectors where memory cost or latency is a constraint. Also useful when you want a single model that can serve multiple latency/cost tiers (fast cheap search vs. slow accurate search) from the same embeddings.
+> **Nuances & gotchas:** Requires a model specifically trained with MRL — you cannot truncate dimensions from a standard embedding and get equivalent quality. The accuracy drop from truncation is small but non-zero; always validate on your specific corpus. Not a substitute for quantization — MRL and binary/int8 quantization are complementary and can be stacked.
+
 ---
 
 ## Late Interaction: ColBERT v2
@@ -32,6 +36,10 @@ Standard embeddings are "Bi-Encoders" (one vector per chunk). **ColBERT** (Conte
 - **How**: Instead of 1 vector per chunk, ColBERT stores 1 vector **per token**.
 - **Interaction**: At query time, the model compares every token in your query to every token in the documents (the "MaxSim" operation).
 - **Status**: ColBERT v2 (and successors like ColPali, ColQwen2.5, ColNomic for documents and pages-as-images) is drastically compressed via PLAID indexing, making it feasible for production. It achieves much higher precision for "needle in a haystack" technical queries.
+
+> **Why (the rationale):** A single-vector bi-encoder averages away token-level signal — a query about "GPU memory *limit*" may be close to a doc about "GPU memory *speed*" in vector space, because both share a dense "GPU memory" centroid. ColBERT's MaxSim operation finds the best match for each query token individually, capturing fine-grained relevance that a single aggregated vector loses.
+> **When to use:** High-precision technical retrieval — code search, scientific papers, medical literature, or any "needle in a haystack" workload where subtle token-level differences determine relevance. Also valuable for visually complex documents via ColPali (page-as-image embeddings).
+> **Nuances & gotchas:** Index storage is significantly larger than bi-encoder — storing one vector per token rather than per document multiplies storage by the average document length. PLAID compression is essential for production viability but adds complexity. Query-time latency is higher than bi-encoder lookup (though much lower than a cross-encoder). Not necessary for general semantic retrieval where broad topic similarity is sufficient.
 
 ---
 
@@ -43,6 +51,10 @@ Storing `float32` vectors is expensive. Production indexes lean heavily on **in-
   - **Memory**: 32x reduction.
   - **Speed**: Hamming distance (XOR operations) is 10x faster than Cosine similarity on modern CPUs.
 - **Int8/Int4**: Supported natively by models like `text-embedding-3-small`.
+
+> **Why (the rationale):** At scale, float32 vector indexes consume enormous RAM — a 100M-vector 1536-dim index exceeds 600 GB in float32. Binary quantization reduces that by 32x, enabling billion-scale indexes on commodity hardware. The XOR-based Hamming distance is also CPU-SIMD-accelerated, dramatically increasing query throughput.
+> **When to use:** Large-scale indexes (tens of millions of vectors or more) where memory cost or query throughput is a bottleneck. Binary quantization works best as a first-pass filter followed by float32 re-scoring of the shortlist (the same two-pass pattern as MRL). Int8 is a good middle ground when binary's accuracy loss is too large for the domain.
+> **Nuances & gotchas:** Binary quantization trades accuracy for efficiency — the quality loss is acceptable in many cases but must be validated on your corpus (not assumed). It does NOT work with all embedding models; the model must be trained or fine-tuned to produce quantization-friendly vectors (e.g., via MRL or explicit binary-aware training). Re-scoring with full-precision vectors after binary-pass filtering is essential to recover accuracy.
 
 ---
 
@@ -70,6 +82,10 @@ Text-only RAG silently throws away the charts, tables, diagrams, and layout sign
 - **Unified vision-text embeddings**: Cohere Embed v4, Voyage-Multimodal-3.5, Gemini Embedding 001 all share a single vector space, so you can query "where is the emergency shutoff valve?" against schematics.
 - **Page-as-image with late interaction**: ColPali, ColQwen2.5, and ColNomic embed each page render directly, skipping fragile OCR and preserving visual hierarchy.
 - **CLIP-family models**: Still useful for image-heavy catalogs (e-commerce, media) where text-image alignment is the core signal.
+
+> **Why (the rationale):** In many real-world documents (engineering manuals, annual reports, scientific papers), the critical information lives in figures, charts, or visual layouts that text-only pipelines silently discard. Multimodal embeddings make visual content a first-class retrieval citizen, enabling queries like "find the wiring diagram for circuit breaker X" to match an actual diagram.
+> **When to use:** Corpora where figures, charts, or page layout carry significant information — PDFs with complex diagrams, product catalogs with images, slide decks. Use unified text+image embeddings when you need a single index over mixed content; use ColPali-style visual retrieval when OCR quality is poor or page layout is the primary signal.
+> **Nuances & gotchas:** Multimodal indexes are larger and more expensive than text-only indexes. Unified embedding spaces require the model to align very different modalities — quality varies by model and domain, and may be weaker than text-only retrieval for purely textual content. ColPali-style page embedding bypasses OCR entirely but cannot return granular text spans — only full pages. At generation time, you still need a multimodal LLM to reason over retrieved images; a text-only LLM will ignore them.
 
 ---
 

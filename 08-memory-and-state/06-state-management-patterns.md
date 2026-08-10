@@ -28,6 +28,10 @@ class AgentState(TypedDict):
 ```
 **Best practice**: State should be **Strictly Typed** and **Append-Only** whenever possible to prevent data loss during long execution loops.
 
+> **Why (the rationale):** Without a single typed state object, different nodes in the graph maintain their own local variables, leading to inconsistency, hidden coupling, and debugging nightmares when a node reads stale data from a prior run. A central typed state makes the agent's full "working memory" explicit and inspectable at every step.
+> **When to use:** Any agent with more than two steps in its execution flow. Simple one-shot LLM wrappers do not need a state object — but as soon as you have tool calls, loops, or conditional branching, formalize the state.
+> **Nuances & gotchas:** "Append-only" is ideal but not always practical — tool_results that are large JSON payloads will bloat the state quickly. The state is serialized to disk on every checkpoint; large states (megabytes of tool outputs) can cause significant I/O overhead. Fields like `iteration_count` must be explicitly guarded against runaway loops — an agent that increments without a ceiling can spin indefinitely and exhaust your API budget.
+
 ---
 
 ## State Machines (LangGraph)
@@ -35,6 +39,10 @@ class AgentState(TypedDict):
 Industry has converged on **Cyclic Graphs** (State Machines).
 - **Nodes**: Functions that take the state and return an update.
 - **Edges**: Conditional logic that determines the next node based on state values (e.g., `if state['error'] -> goto 'recovery_node'`).
+
+> **Why (the rationale):** A while-loop is opaque — you cannot visualize it, unit-test individual steps, or add parallel execution without restructuring the entire control flow. A graph-based state machine makes control flow a first-class data structure, enabling observability, modular testing, and features like checkpointing and time-travel without custom plumbing.
+> **When to use:** Any agent that has conditional branching, retry logic, or parallel sub-tasks. If your agent is strictly linear (A → B → C, no branching), a simple sequential pipeline is simpler than LangGraph and should be preferred.
+> **Nuances & gotchas:** LangGraph adds framework overhead — nodes must conform to its state-update contract, and debugging graph execution requires familiarity with LangGraph's tracing tools. Cycles in the graph require explicit termination conditions or the agent will loop indefinitely. The Mermaid visualization is useful for documentation but can become misleading once dynamic edges are involved (edges whose target is computed at runtime are not statically representable in the diagram).
 
 ---
 
@@ -45,6 +53,10 @@ In production, agents can run for minutes or hours.
 - **Resiliancy**: If the server crashes, the orchestrator retrieves the last `checkpoint_id` and resumes exactly where it left off.
 - **UX**: This allows for **Asynchronous Agents** where the user gets an "I'm working on it" message and a notification 10 minutes later when the state is "Complete."
 
+> **Why (the rationale):** Without checkpointing, any infrastructure failure (server crash, timeout, OOM) means the agent must restart from the beginning — wasting all prior LLM calls and tool results. Checkpointing turns a brittle, all-or-nothing execution into a resumable workflow that can survive partial failures.
+> **When to use:** Any agent task expected to take more than a few seconds, or any task that involves expensive irreversible tool calls (API writes, file system changes, database mutations) where replaying from scratch is either costly or dangerous. Also essential for HITL flows where a human reviews state mid-execution.
+> **Nuances & gotchas:** Checkpointing every node creates high write frequency to Postgres/Redis — at scale this becomes a bottleneck. Checkpoint granularity is a tuning decision: checkpoint every node vs. every N nodes vs. only after expensive tool calls. Resume-after-crash assumes idempotent tool calls — if a tool call was in-flight when the crash occurred, replaying it may create duplicate side effects (double writes, double API calls). Always design tool wrappers to be idempotent.
+
 ---
 
 ## Parallel State (Fork/Join)
@@ -53,12 +65,20 @@ For complex tasks, we **Fork** the state.
 1. **Fan-out**: Send the state to 3 sub-agents (e.g., Researcher A, B, and C).
 2. **Fan-in (Join)**: A "Manager" agent receives the outputs of all three and merges them back into the main state object.
 
+> **Why (the rationale):** Sequential sub-task execution is the easiest to implement but leaves parallelizable work on the table. For independent subtasks (e.g., researching three separate topics), fan-out reduces total wall-clock time proportionally to the number of parallel branches.
+> **When to use:** When sub-tasks are genuinely independent — no sub-task depends on the output of another. If sub-tasks have dependencies, fan-out introduces race conditions or requires complex synchronization. Also consider whether the API/tool rate limits of sub-agents allow parallel execution without throttling.
+> **Nuances & gotchas:** Fan-in (merge) is the hard part. The Manager agent must reconcile potentially contradictory outputs from parallel sub-agents — if Researcher A and B find conflicting facts, the merge step needs an explicit conflict resolution strategy, not just concatenation. Memory usage scales with the number of parallel branches since each sub-agent holds a copy of the state. Cost also scales linearly — 3 parallel branches make 3x as many LLM calls in the same wall-clock time.
+
 ---
 
 ## Time-Travel (State Rewriting)
 
 As covered in the HITL chapter, state management allows for **Human Intervention**.
 - A developer can browse the session history, find a "bad turn," edit the state object at that specific timestamp, and **Re-run** the graph from that point.
+
+> **Why (the rationale):** When an agent goes down a wrong path, discarding the entire session is wasteful — all prior tool calls and correct intermediate results are lost. Time-travel lets a human correct a single decision point and replay only from there, reusing all prior correct work.
+> **When to use:** High-stakes agentic workflows where human oversight is required (legal, medical, financial, code deployment). The capability is also invaluable for developer debugging — finding and fixing the root cause of a bad agent decision without re-running the full task.
+> **Nuances & gotchas:** Time-travel re-runs from a past checkpoint, but the external world may have changed since then — tool calls that were safe to replay (read-only API calls) are fine, but write calls (sending an email, making a database update) replayed from a prior checkpoint can produce duplicate side effects. Engineers must tag tool calls as idempotent-safe vs. side-effect-bearing before enabling time-travel in production.
 
 ---
 

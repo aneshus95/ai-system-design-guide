@@ -34,11 +34,19 @@ Reinforcement Learning from Human Feedback (RLHF) involves three steps:
 
 **Nuance**: Traditional RLHF is now considered too complex/unstable for most teams due to the overhead of training a separate Reward Model and the instability of PPO.
 
+> **Why (the rationale):** SFT alone teaches the model to mimic good responses but cannot directly optimize for human preference rankings. RLHF bridges this gap by encoding human preferences into a reward model and then using RL to maximize that reward — enabling the model to be steered toward responses humans prefer even in novel situations not covered by SFT data.
+> **When to use:** RLHF (PPO-based) is justified when you have significant human annotation capacity, a large team that can manage RL infrastructure, and need very precise control over preference modeling. It is still used at labs (OpenAI, Anthropic) for frontier alignment but is rarely the right first choice for most product teams.
+> **Nuances & gotchas:** RLHF requires four models in memory simultaneously (policy, reference, reward model, and value network), which is extremely VRAM-intensive. PPO is notoriously sensitive to hyperparameters and subject to reward hacking — the policy learns to exploit the reward model's blind spots rather than genuinely improving. The reward model itself can have biases (e.g., preferring longer, verbose responses).
+
 ---
 
 ## DPO: Direct Preference Optimization
 
 DPO is the industry standard. It eliminates the Reward Model.
+
+> **Why (the rationale):** DPO skips the reward model of RLHF — it is mathematically equivalent to RLHF's optimal solution but implemented as a simple classification loss on preference pairs. This removes the most fragile and expensive components: no separate reward model to train, no PPO with its four-model memory requirement, and no reward hacking via an exploitable neural reward surface.
+> **When to use:** DPO is the right default alignment method for almost all teams. Use it after SFT when you have preference data (winning/losing response pairs) and want to align the model without the infrastructure overhead of RLHF. It is simpler, stabler, and cheaper than PPO.
+> **Nuances & gotchas:** DPO needs preference pairs (chosen vs rejected), not just good examples — collecting these is itself a labeling cost. DPO is an offline method: it learns from a fixed dataset and hits a quality ceiling once the model's distribution diverges from the reference data distribution. It does NOT eliminate the alignment tax — over-applying DPO or drifting too far from the reference model can still erode general capabilities. The KL penalty (reference model) is essential; without it the model can collapse.
 
 ### How it Works:
 DPO uses the LLM itself as the Reward Model by mathematically deriving the optimal policy directly from preference data.
@@ -60,11 +68,19 @@ DPO uses the LLM itself as the Reward Model by mathematically deriving the optim
 2. A **Judge Model** (e.g., GPT-5.5, Claude Opus 4.7) or a **Rule-based Reward** (e.g., Code Execution) ranks them in real-time.
 3. The model updates its policy immediately based on this "Online" feedback.
 
+> **Why (the rationale):** Offline DPO trains on a fixed dataset — once the model improves past the quality level of that dataset, the preference pairs are no longer at its frontier and the gradient signal shrinks. Online DPO continuously generates fresh preference pairs from the current model, keeping the training signal at the edge of the model's capability.
+> **When to use:** Use online DPO/RLOO when you have a scalable automated judge (code executor, math verifier, or a strong LLM judge) and your model has already been through an initial offline DPO phase and plateaued. This is the bridge between simple DPO and full RLVR.
+> **Nuances & gotchas:** Online alignment is significantly more expensive than offline DPO — you pay inference cost for every training step. If the judge model is itself imperfect (LLM judge rather than rule-based), the model can learn to fool the judge rather than genuinely improve. Requires careful monitoring for distribution collapse and reward hacking.
+
 ---
 
 ## Alignment for Reasoning Models (o1/DeepSeek-R1 style)
 
 Aligning "Thinking" models requires a shift from **Response Preference** to **Process Preference**.
+
+> **Why (the rationale):** Standard alignment rewards the final answer, but reasoning models produce long chains of thought. Rewarding only correct final answers fails because the model can reach the right answer through unfaithful or flawed reasoning — and that flawed reasoning gets reinforced. Rewarding the CoT process ensures the model learns correct thinking, not just correct guessing.
+> **When to use:** Apply process-preference alignment (verification-based RL) when the model is a "thinking" model producing CoT and you have access to a verifiable correctness oracle (math checker, code test runner). Do not apply this to general conversational alignment where "process" is subjective.
+> **Nuances & gotchas:** Verifying intermediate reasoning steps (not just the final answer) is extremely hard outside math and code — in most domains you cannot programmatically check whether a reasoning step is valid. "Verification-based RL" is therefore not a general solution; it is domain-constrained to problems with objectively checkable answers.
 
 | Feature | Standard Alignment | Reasoning Alignment |
 |---------|-------------------|---------------------|

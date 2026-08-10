@@ -21,6 +21,10 @@ Evaluation is the hardest unsolved problem in RAG. You can build a retrieval pip
 
 ## The RAG Triad
 
+> **Why (the rationale):** "Answers are wrong" is a symptom, not a diagnosis. The triad decomposes end-to-end failure into three independent dimensions — each pointing to a different root cause and a different fix. Without decomposition, engineers waste time fixing the generator when the retriever is broken (or vice versa).
+> **When to use:** Use the triad as the primary diagnostic framework any time you receive quality complaints about a RAG system. It is the starting point before investing in any pipeline change.
+> **Nuances & gotchas:** The three dimensions are not always independent — bad retrieval (low context relevance) can cause low answer relevance without any fault in the generator. Evaluate each dimension in isolation before drawing causal conclusions. Also, the triad does NOT measure latency, cost, or citation accuracy — treat it as a quality-only framework supplemented by operational metrics.
+
 The RAG Triad is the foundational framework for evaluating RAG systems. It decomposes correctness into three independent dimensions, each catching a different failure mode.
 
 ```
@@ -102,6 +106,10 @@ The RAG Triad is the foundational framework for evaluating RAG systems. It decom
 ---
 
 ## RAGAS Framework and Metrics
+
+> **Why (the rationale):** Creating ground-truth annotations for RAG evaluation is expensive and slow. RAGAS provides reference-free metrics that estimate retrieval and generation quality using only the query, retrieved context, and generated answer — making it possible to evaluate from day one without a labeled dataset.
+> **When to use:** Use RAGAS for rapid iteration in the early stages of pipeline development, for CI regression testing on the golden set, and for production sampling where speed and cost matter more than annotation precision.
+> **Nuances & gotchas:** Reference-free metrics are approximations, not ground truth. RAGAS faithfulness decomposes the answer into atomic claims and checks entailment — but it uses an LLM to do both, inheriting LLM-as-judge biases. A high RAGAS faithfulness score does not guarantee the answer is factually correct — only that it is grounded in the retrieved context (which may itself be wrong). Always calibrate against a human-labeled sample.
 
 RAGAS (Retrieval Augmented Generation Assessment) is the most widely adopted open-source evaluation framework for RAG, providing reference-free metrics that do not require ground-truth answers.
 
@@ -375,6 +383,10 @@ Sources: [RAGAS — faithfulness & answer relevancy](https://docs.ragas.io/en/st
 
 ## LLM-as-Judge for RAG
 
+> **Why (the rationale):** Human evaluation is the gold standard but doesn't scale beyond hundreds of examples per week. LLM-as-judge extends evaluation to millions of examples automatically and is particularly effective for subjective dimensions (relevance, completeness, tone) where heuristics fail.
+> **When to use:** Use LLM-as-judge for any quality dimension that requires reading comprehension — faithfulness, answer relevance, completeness, and citation accuracy. Do NOT use it as the sole metric for production quality gates without human calibration.
+> **Nuances & gotchas:** Known biases (verbosity, self-preference, position) can silently skew scores. A judge model from the same family as the generator will rate its own outputs more favorably. Binary (YES/NO) judgments are more reliable than Likert scales. Always measure Cohen's Kappa against human labels on at least 100 examples before trusting the judge in automated decisions.
+
 Using an LLM to evaluate another LLM's output is the dominant evaluation paradigm. It scales where human evaluation cannot, but has known biases.
 
 ### How It Works
@@ -420,6 +432,10 @@ Using an LLM to evaluate another LLM's output is the dominant evaluation paradig
 ---
 
 ## Building Golden Test Sets
+
+> **Why (the rationale):** Reference-free metrics catch many issues but cannot measure correctness against ground truth. A golden test set provides the stable, human-verified baseline that makes regression testing meaningful — without it, you cannot distinguish a genuine quality improvement from a metric artifact.
+> **When to use:** Invest in a golden test set as soon as your pipeline has any production traffic. Start small (50–100 questions), grow from real failure cases, and freeze each version before using it as a regression gate.
+> **Nuances & gotchas:** Synthetic test sets (RAGAS-generated) are a useful bootstrap but encode the biases of the generator model. A model that was used to create synthetic questions may score well on those questions without being good in production. Always human-review at least 20% of synthetic examples. Never modify a frozen test set — create a new version. Adversarial and "unanswerable" questions (10–15% of the set) are critical for measuring robustness.
 
 A golden test set is a curated, versioned collection of (query, expected_context, expected_answer) triples that serves as the ground truth for regression testing.
 
@@ -498,6 +514,10 @@ testset.to_pandas().to_csv("golden_set_draft_v4.csv")
 ---
 
 ## Automated Regression Testing
+
+> **Why (the rationale):** RAG pipelines have many interacting components — a chunk size change that improves one query type can silently degrade another. Automated regression testing is the only way to catch these cross-cutting regressions before they reach users.
+> **When to use:** Gate every change that touches chunking, embedding model, reranker, system prompt, or retrieval configuration. Even "minor" prompt edits can shift faithfulness scores significantly.
+> **Nuances & gotchas:** Regression tests are only as good as the golden set they run against. If the golden set covers only "easy" queries, regressions on hard multi-hop questions go undetected. The 5% regression threshold is a starting point — tighter gates (3%) are appropriate for faithfulness in regulated industries.
 
 Every RAG pipeline change (new embeddings, chunk size, prompt edit, reranker swap) needs automated regression testing before deployment.
 

@@ -18,6 +18,10 @@ Knowledge distillation is the process of transferring the intelligence from a la
 
 Small models (e.g., Llama 4 8B, Gemini 3.1 Flash, Claude Haiku 4.5) are not trained on raw web data alone. They are trained on **Synthetic Data** generated or curated by a much larger model (e.g., GPT-5.5, Claude Opus 4.7, or Llama 4 405B).
 
+> **Why (the rationale):** Training a small model from scratch on raw web data forces it to spend capacity filtering noise and learning low-quality patterns. A teacher model provides a "purified curriculum" — structured, high-quality examples with implicit signal about which features matter — allowing the student to learn more efficiently than from raw data alone.
+> **When to use:** Distillation is the right first move whenever you need a capable small model and have access to a strong teacher (via open weights or API). It is almost always more compute-efficient than training a small model from scratch or applying RLVR directly to a small base.
+> **Nuances & gotchas:** Distillation transfers the teacher's knowledge but also its biases and failure modes. A student trained exclusively on teacher outputs may score high on common benchmarks while being narrower and more brittle than a model trained on diverse human data. License restrictions (OpenAI, Anthropic API ToS) often forbid using API outputs to train competing models — verify before building a commercial distillation pipeline.
+
 | Model | Role | Intelligence Source |
 |-------|------|---------------------|
 | **Teacher** | Large (100B+ Params) | Pretraining on 50T+ tokens |
@@ -30,8 +34,16 @@ Small models (e.g., Llama 4 8B, Gemini 3.1 Flash, Claude Haiku 4.5) are not trai
 ### 1. Hard Label Distillation
 The student learns from the teacher's final predictions (e.g., the answer to a question).
 
+> **Why (the rationale):** Hard labels are easy to collect (just run inference on the teacher) and work well for straightforward tasks where the correct answer is unambiguous. They are effectively standard SFT on teacher-generated data.
+> **When to use:** Use hard label distillation when you only have API access to the teacher (no logits available) or when the task has clear, discrete correct answers. For complex open-ended generation, soft labels are usually superior.
+> **Nuances & gotchas:** Hard labels discard the teacher's uncertainty signal. The student sees only the winner, not how close the runner-up was — which means the student does not learn the rich relational structure in the teacher's knowledge.
+
 ### 2. Soft Label Distillation (Temperature Scaling)
 The student learns from the teacher's **probability distribution** (Logits). This is much richer because it tells the student not just the right answer, but which wrong answers were "almost" right.
+
+> **Why (the rationale):** The teacher's full probability distribution over tokens contains far more information than its top-1 prediction. A high-confidence prediction tells the student one thing; a soft distribution where several tokens have non-trivial probability tells the student about the entire relational structure of the domain.
+> **When to use:** Prefer soft label distillation whenever you have access to the teacher's logits (open-weight teacher). The quality improvement over hard labels is significant, especially for tasks with nuanced or ambiguous correct answers.
+> **Nuances & gotchas:** Soft label distillation requires white-box access to the teacher — you cannot extract logits from a closed API. The temperature hyperparameter (T) must be tuned: too low and you recover hard labels; too high and all tokens look equally probable, erasing the signal.
 
 ```python
 # Distillation Loss (KL Divergence):
@@ -48,10 +60,18 @@ Student matches the teacher's text responses.
 - **Pros**: Easy to implement via API.
 - **Cons**: Only learns behavioral surface patterns.
 
+> **Why (the rationale):** Output distillation is the only option when the teacher is a closed-API model. It is conceptually simple — generate teacher responses to a large prompt set, then SFT the student on them.
+> **When to use:** Use output distillation when you need to distill from a proprietary model (via API) and have no choice but to use its text outputs. Also appropriate when the task is behaviorally simple enough that surface-pattern matching suffices.
+> **Nuances & gotchas:** Output distillation is subject to "linguistic mimicry" — the student learns to sound like the teacher (confident, fluent) without acquiring the same reasoning depth. Hallucination risk is high if the student over-indexes on confident-sounding teacher outputs that happen to be wrong.
+
 ### Feature/Hidden State Distillation
 Student matches the inner **Hidden States** (vector representations) of the teacher.
 - **Requirement**: You need access to the teacher's weights (Open Weights).
 - **Pro**: The student learns the teacher's "internal conceptual map," leading to much higher reasoning depth.
+
+> **Why (the rationale):** Text outputs are a compressed, lossy projection of the teacher's internal representations. By aligning on hidden states directly, the student learns the intermediate computational structure — not just the final answer — leading to deeper reasoning transfer.
+> **When to use:** Use feature distillation when you have a strong open-weight teacher and need the best possible quality transfer to the student. It is especially valuable for reasoning and math tasks where the intermediate conceptual structure matters.
+> **Nuances & gotchas:** Hidden state distillation requires the teacher and student to have compatible architectures (same layer structure or an alignment projection layer). It adds training complexity and memory overhead. It is not possible with closed API models — open-weight access is a hard requirement.
 
 ---
 
@@ -66,12 +86,20 @@ Models like o1, DeepSeek-R1, and Claude Opus 4.7 use SDP to improve without new 
 
 **Result**: The model "distills itself" by keeping only the high-quality reasoning paths.
 
+> **Why (the rationale):** Human-labeled reasoning traces are extremely expensive and limited in supply. SDP uses an external verifier (not a human) to filter the model's own outputs, enabling unlimited high-quality training data generation for verifiable domains without human annotators.
+> **When to use:** SDP is the right approach for improving reasoning in domains with verifiable ground truth — math, formal proofs, code with test suites. It does not require a separate teacher model; the model improves by learning from its own best outputs.
+> **Nuances & gotchas:** SDP requires a reliable external verifier — without it, you cannot distinguish correct from incorrect reasoning paths. It also requires the model to already be capable enough to produce correct solutions some fraction of the time (if the model never gets anything right, there is nothing to distill from). It does not transfer well to subjective or open-ended tasks where "correctness" cannot be programmatically verified.
+
 ---
 
 ## Quantization-Aware Distillation
 
 Standard quantization (e.g., 16-bit to 4-bit) causes a small drop in accuracy.
 **The Fix**: Use Knowledge Distillation *during* the quantization process. The 16-bit model acts as the teacher, guiding the 4-bit model to minimize its error. This is how modern 4-bit models match 16-bit performance.
+
+> **Why (the rationale):** Post-training quantization (PTQ) introduces approximation errors that accumulate across layers. Quantization-aware distillation gives the quantized model a correction signal from the full-precision version during the quantization process itself, allowing it to compensate for the precision loss rather than just tolerating it.
+> **When to use:** Use quantization-aware distillation when PTQ produces unacceptable quality degradation, especially for models below 7B or at aggressive quantization levels (3-bit or below). For standard 4-bit quantization of 7B+ models, PTQ alone (AWQ, GPTQ) is often sufficient.
+> **Nuances & gotchas:** Quantization-aware distillation is significantly more expensive than PTQ — it requires a training run, not just a one-shot calibration. The full-precision teacher must remain accessible in memory during training, adding VRAM overhead. It is not a substitute for QLoRA (which trains new adapters); it is a method to recover the base model's quality after quantization.
 
 ---
 

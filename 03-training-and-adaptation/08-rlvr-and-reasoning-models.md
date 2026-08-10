@@ -19,6 +19,10 @@ The frontier reasoning models (OpenAI's o-series, DeepSeek-R1, Qwen's thinking m
 
 RLVR replaces RLHF's learned reward model with a deterministic **verifier** that returns a reward from a ground-truth check: did the final answer match (math), did the code pass the unit tests, does the proof check. The policy is the LLM; the environment is a single-turn generation of a long chain of thought followed by an answer; the reward is computed by a numeric/string match or by running the code.
 
+> **Why (the rationale):** RLHF's learned reward model is itself a neural network that can be gamed — the policy finds inputs the reward model scores highly but which are not actually good. A deterministic verifier (math checker, code executor) has no learnable surface to exploit; a correct answer is correct by definition. This makes RLVR more stable and scalable for reasoning tasks than RLHF.
+> **When to use:** RLVR is the right method when (a) your domain has objectively verifiable answers (math, code, formal logic), (b) the base model already has partial competence on the target tasks (can solve some fraction at pass@k), and (c) you have the compute and RL infrastructure to run it. For most teams, start with distillation — RLVR is the upgrade path when distillation plateaus.
+> **Nuances & gotchas:** RLVR only works in verifiable domains — it does NOT extend cleanly to general conversational quality, creative writing, or tasks where "correctness" is subjective. Even in verifiable domains, it does not eliminate gaming: models can pass verifiers through unfaithful reasoning or narrow pattern matching. The benefit depends heavily on the base model having headroom to improve; a model that already saturates the training domain gains little.
+
 **Why "verifiable" matters: it largely sidesteps reward-model hacking.** In RLHF the reward model is itself a neural net trained on preferences, and the policy learns to exploit its blind spots (the Goodhart / over-optimization problem). A verifier for "does this equal the gold answer" or "do all tests pass" has no soft, learnable surface to game in the same way; the reward is grounded in an external oracle. This is the core reason RLVR scales more stably than RLHF for reasoning. It does not *eliminate* gaming (see [Reward Design](#reward-design-and-failure-modes)), but it removes the easiest exploit.
 
 The loop, per step:
@@ -35,6 +39,10 @@ The canonical open result is **DeepSeek-R1** (arXiv:2501.12948; the peer-reviewe
 ## GRPO
 
 **Group Relative Policy Optimization** was introduced in DeepSeekMath (arXiv:2402.03300) and used as the RL engine for DeepSeek-R1.
+
+> **Why (the rationale):** PPO requires a value/critic network roughly the size of the policy model, approximately doubling VRAM requirements. For frontier LLMs this is economically prohibitive. GRPO eliminates the critic by using the statistics of a group of sampled completions for the same prompt as the baseline — making it practical to run RL on large models with single-terminal verifiable rewards.
+> **When to use:** GRPO (or a debiased variant like DAPO or Dr.GRPO) is the right RL algorithm for RLVR training on verifiable reasoning tasks. Use vanilla GRPO only as a baseline; prefer DAPO or Dr.GRPO for production runs to avoid length bias and zero-variance collapse.
+> **Nuances & gotchas:** GRPO has well-documented failure modes (zero-variance collapse, length bias) that its variants fix. Never run vanilla GRPO without monitoring response length drift and effective batch size shrinkage. GRPO's group-relative baseline assumes diverse rewards within the group — if the verifier is binary (pass/fail) and most groups are all-pass or all-fail, GRPO stalls. Prompt curation at the model's difficulty band is as important as the algorithm itself.
 
 **The PPO problem it removes.** PPO needs a **value/critic network**, typically the same size as the policy, to estimate the baseline for advantage computation. For LLMs that roughly doubles memory and adds a second model to train, and a value estimate for a long sequence with a single terminal reward is hard to learn. GRPO's move: **delete the critic.** Instead of a learned baseline, sample a **group** of completions for the same prompt and use the group's own reward statistics as the baseline.
 
@@ -69,6 +77,10 @@ The practical lesson: curate prompts at the model's difficulty band, and prefer 
 
 Even with a verifiable reward, the policy optimizes whatever the verifier *actually* measures, not what you meant.
 
+> **Why (the rationale):** Goodhart's Law applies even to verifiable rewards — the model optimizes the measurable proxy, not the underlying capability. Understanding failure modes is necessary to design rewards that are difficult to game and that actually produce the desired generalization.
+> **When to use:** Reward design is not a one-time decision. Treat it as an ongoing engineering process: monitor for gaming signals (length drift, unusual CoT patterns, verifier pass rates that diverge from human quality assessment) and iterate the reward specification as failures emerge.
+> **Nuances & gotchas:** The Spurious Rewards finding (arXiv:2506.10947) shows that training improvements can come from pretraining amplification rather than the reward signal itself — always test across multiple model families before attributing gains to your reward design. Format rewards (put reasoning in a tagged block) are necessary for parsing but must be kept small relative to correctness rewards or the model optimizes format over substance.
+
 - **Gaming the verifier.** Models can pass a checker without learning the pattern (for example, enumerating instance-level labels), a documented RLVR reward-hacking mode.
 - **"Miracle steps."** A chain of thought can reach the right final answer through *unfaithful* intermediate steps (arXiv:2510.07774). A pure outcome verifier rewards the correct answer and the bad reasoning along with it.
 - **Format vs correctness rewards.** R1-Zero-style recipes pair a small format reward (put reasoning in a tagged block, give a parseable answer) with the correctness reward. If the format reward is too large relative to correctness, the model optimizes the cheap, gameable signal.
@@ -82,6 +94,10 @@ A flagged, important caveat: the **Spurious Rewards** finding (arXiv:2506.10947)
 
 This is the chapter's most nuanced point: a genuine open question with three positions.
 
+> **Why (the rationale):** Knowing whether RL creates new capability or merely surfaces latent capability affects where to invest compute: if RL only sharpens, then improving the base model is the higher-leverage move. If RL expands the boundary, sustained RL investment is warranted on its own terms.
+> **When to use:** Use pass@k alongside pass@1 in your evaluation suite to distinguish sharpening from expansion. Curate RL training prompts to the model's edge-of-competence band (problems it fails at pass@1 but sometimes solves at pass@k) — this is where RL delivers most of its verified gains regardless of which thesis is correct.
+> **Nuances & gotchas:** The "RL only sharpens" finding comes from specific model families and evaluation setups; the counter-findings (ProRL, arXiv:2506.14245) are also real. The most defensible current position is the two-phase synthesis: early RL sharpens, prolonged RL at the competence edge expands. Do NOT use this debate to argue that RL is useless — it demonstrably raises pass@1 in practice, which is what users experience.
+
 - **RL sharpens, it does not add.** One line of work (arXiv:2504.13837) reports that RLVR models beat the base model at pass@1 but the base model matches or exceeds them at large pass@k, suggesting every reasoning path the RL model uses already existed in the base model; RL raises the probability of sampling a correct chain but narrows the explorable set.
 - **Prolonged RL expands the boundary.** Counter-results (ProRL, arXiv:2505.24864; and arXiv:2506.14245, which introduces a reasoning-aware CoT-Pass@K metric) report that with enough RL, models solve problems the base model fails at every k, and that RLVR improves *reasoning-correct* answers, not just lucky finals.
 - **Both, in two phases (the synthesis to lead with).** A reconciling view (arXiv:2510.04028) finds early RL exploits and sharpens (pass@1 up, pass@k flat) while prolonged RL explores and expands the boundary. The cleanest practical synthesis (arXiv:2512.07783) reports RL produces true gains (measured at high pass@k) **only when pretraining left headroom and the RL data targets the model's edge of competence**, problems it fails at pass@1 but can sometimes hit at pass@k. RL on already-solved or hopeless problems yields little.
@@ -93,6 +109,10 @@ That same work highlights **mid-training**: a stage between general pretraining 
 ## Distillation: The Cheaper Path
 
 For most teams, RL is the wrong first move.
+
+> **Why (the rationale):** RLVR requires RL infrastructure, prompt curation at the difficulty band, verifiable rewards, and tolerance for training instability — all for gains that a strong distillation pipeline often matches at a fraction of the cost. Distillation from a strong reasoner front-loads the compute into a one-time SFT pass rather than an iterative RL loop.
+> **When to use:** Start with distillation from the strongest available teacher. Move to RLVR only when distillation has plateaued and you have confirmed the capability ceiling is not the teacher's own ceiling (i.e., the teacher also fails on the frontier tasks you care about).
+> **Nuances & gotchas:** Distillation is bounded by the teacher's capability — it cannot exceed what the teacher can produce. Off-policy distillation also introduces exposure bias (student trained on teacher tokens, deployed on its own tokens). On-policy distillation addresses this but is more complex and the claimed sample-efficiency advantage (10x over RL) comes largely from single-vendor results as of 2026.
 
 **Off-policy distillation (SFT on a teacher's traces).** DeepSeek-R1 reports fine-tuning dense Qwen and Llama models on roughly 800K reasoning traces generated by R1, and that the distilled 32B model beats running large-scale RL directly on that same 32B base, which the paper notes takes far more compute and still does not match distillation. The lesson: for a small model on a known domain, distilling from a strong reasoner is more effective and far cheaper than doing your own RL.
 

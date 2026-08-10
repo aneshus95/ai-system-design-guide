@@ -34,6 +34,10 @@ Taking a RAG demo to production is where most of the real engineering lives. A n
 
 ## Pillar 1 — Retrieval Quality & Relevance
 
+> **Why (the rationale):** ~73% of RAG production failures trace to retrieval, not generation. Even a perfect generator cannot produce a correct answer from irrelevant or missing context. Investing in retrieval quality is the highest-leverage action in any RAG system.
+> **When to use:** Treat hybrid search (dense + BM25 + RRF) as the minimum viable retrieval setup for any production system. Add a reranker as the second step once retrieval recall is acceptable. Add query transformations only for specific query patterns that measurably fail.
+> **Nuances & gotchas:** Retrieval benchmarks (MTEB leaderboard) routinely mispredict real-corpus performance by 15–20% recall — always benchmark on your own data. GraphRAG outperforms dense RAG on multi-hop and relationship queries but loses on single-hop factoids and is significantly more expensive; use it selectively. Adding more retrieval techniques does not always compound positively — measure each addition on your actual query distribution.
+
 If retrieval is wrong, nothing downstream can save you — the generator can only work with what it's given.
 
 **Hybrid search + fusion.** Pure vector retrieval fails on **exact terms, IDs, SKUs, acronyms, and rare tokens** — embeddings blur exact-match signal. Combine dense + **BM25/sparse** and merge with **Reciprocal Rank Fusion (RRF)**, which fuses by *rank* (sidestepping incompatible score scales). Natively supported in Elasticsearch, OpenSearch, Weaviate, Qdrant, and (since late 2025) Pinecone. ([Weaviate hybrid](https://weaviate.io/blog/hybrid-search-explained) · [GoPenAI: hybrid/RRF](https://blog.gopenai.com/hybrid-search-in-rag-dense-sparse-bm25-splade-reciprocal-rank-fusion-and-when-to-use-which-fafe4fd6156e))
@@ -68,6 +72,10 @@ Sources: [Lost-in-the-middle mitigation](https://www.getmaxim.ai/articles/solvin
 
 ## Pillar 2 — Data Pipeline, Ingestion & Freshness
 
+> **Why (the rationale):** A corpus that is stale, poorly parsed, or missing metadata produces retrieval failures that look like model failures — leading engineers to invest in the wrong fix. Data quality and freshness are upstream of every retrieval and generation quality metric.
+> **When to use:** Implement CDC-driven incremental indexing as soon as your knowledge base changes more than once a day. Attach ACL and timestamp metadata at ingest — retrofitting it later requires a full re-index.
+> **Nuances & gotchas:** Deletion is the most commonly broken operation — deleted documents linger in the vector index and return "confident wrong answers" unless you explicitly manage tombstones. Full nightly re-index is wasteful and leaves a stale window; CDC re-indexes only changed documents. Vector similarity has no time dimension — recency weighting must be added explicitly if freshness matters to query quality.
+
 Garbage in, garbage out — **~80% of production RAG accuracy issues trace to data-quality problems** (vendor-reported, directional). ([NStarX](https://nstarxinc.com/blog/the-2-5-million-question-why-data-quality-makes-or-breaks-your-enterprise-rag-system/))
 
 **Parsing is the #1 leverage point.** Most production docs are *not* clean digital PDFs; a parser that flattens tables/columns/reading-order produces "plausible but wrong" retrievals. The two things that matter most: **OCR support and table handling** (tables hold the highest-value data). Tools: Unstructured, LlamaParse, **Azure AI Document Intelligence**, AWS Textract; vision-language parsing (ColPali/ColQwen render the page and skip parsing entirely). OCR noise measurably degrades downstream quality — budget for OCR-quality validation. ([Unstructured](https://unstructured.io/insights/rag-pipeline-challenges-from-data-ingestion-to-retrieval) · [OCR Hinders RAG, arXiv 2412.02592](https://arxiv.org/pdf/2412.02592))
@@ -87,6 +95,10 @@ Garbage in, garbage out — **~80% of production RAG accuracy issues trace to da
 ---
 
 ## Pillar 3 — Evaluation, Observability & Continuous Improvement
+
+> **Why (the rationale):** RAG quality degrades silently — embedding drift, corpus staleness, and distribution shift don't produce errors, they produce quietly wrong answers. Without instrumentation, you learn about quality problems from user complaints, not from monitoring.
+> **When to use:** Build a golden set and offline eval before shipping to production. Add online sampling (5–10% of traffic through automated eval) from the start — retrofitting observability after an incident is too late.
+> **Nuances & gotchas:** Automated metrics don't fully predict perceived quality — online signals (feedback, reformulation rate, abandonment) are the ground truth. LLM-as-judge has well-documented biases; calibrate against humans before trusting it in automated gates. Retrieval and generation metrics must be tracked separately — a combined score hides whether the retriever or the generator is the bottleneck.
 
 You cannot improve — or safely deploy — what you don't measure.
 
@@ -116,6 +128,10 @@ Precision/recall isolate retriever failures; faithfulness/relevancy isolate gene
 ---
 
 ## Pillar 4 — Latency, Scaling & Cost
+
+> **Why (the rationale):** Input tokens dominate RAG cost (80%+) and retrieval can account for 40%+ of end-to-end latency — making naive implementations both expensive and slow. Cost and latency optimization is not premature optimization; it determines whether the system is viable at production scale.
+> **When to use:** Model tiering (route cheap queries to small models), context compression, and semantic caching provide the biggest cost wins. Invest in ANN index tuning (HNSW vs DiskANN vs PQ) once you hit the memory limits of a single node.
+> **Nuances & gotchas:** Semantic cache hit rates in production are 20–45%, not the 95%+ sometimes cited — budget accordingly. Long-context "stuff everything" is economically unviable at scale (peer-reviewed estimates ~$0.12/query vs ~$0.005 for RAG). HNSW's recall/latency advantage comes at high memory cost (~4–9 TB RAM for 1B vectors) — DiskANN is the practical alternative for billion-scale corpora on a single machine.
 
 **Latency budget.** `E2E ≈ retrieval + rerank + prompt assembly + TTFT + tokens×TPOT + post`. A typical interactive P50 is **0.7–1.5 s**; retrieval can be a surprising **40%+ of TTFT**, so target ~200 ms total retrieval. **Stream tokens** (divides perceived latency ~5×) and **never embed the query in the hot path** — parallelize embed + search + rerank. Track **P99**, not just P50. ([RAG latency](https://perf-test.com/blog/rag-latency-optimization/))
 
@@ -148,6 +164,10 @@ Most production targets **95–99% recall@10** (pushing to 99.5%+ costs 2–5× 
 
 ## Pillar 5 — Security, Privacy, Governance & Safety
 
+> **Why (the rationale):** RAG introduces attack surfaces that don't exist in standard applications: indirect prompt injection via retrieved documents, knowledge-base poisoning, cross-tenant data leakage, and PII memorization in vectors. These are not theoretical — EchoLeak (CVE-2025-32711) was a real zero-click M365 Copilot exploit, and PoisonedRAG showed 97% attack success by injecting 5 documents into a 2.6M-doc corpus.
+> **When to use:** Apply security controls from day one — access control, PII redaction, and content delimiting must be in the initial architecture. Retrofitting them after launch means re-indexing the entire corpus and auditing every log.
+> **Nuances & gotchas:** Prompt injection guardrails are bypassable (>70% bypass rate in one study) — layer defenses rather than relying on a single control. Authorization must be enforced at retrieval time with pre-filter, not post-filter — post-filtering leaks via timing and score side channels. Embeddings themselves are sensitive data (Vec2Text recovers 50–92% of short text from vectors) — apply the same encryption and access controls to your vector store as to your source documents.
+
 The most under-built pillar, and the one that ends careers. Anchor to the **[OWASP GenAI RAG Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/RAG_Security_Cheat_Sheet.html)** and **[NIST AI 600-1](https://www.intechopen.com/online-first/1242753)**.
 
 **Access control — the cardinal rule: "don't retrieve what the user can't see."**
@@ -173,6 +193,10 @@ The most under-built pillar, and the one that ends careers. Anchor to the **[OWA
 ---
 
 ## Pillar 6 — Reliability, Deployment & LLMOps
+
+> **Why (the rationale):** LLM-based systems have novel failure modes compared to traditional services: quality degradation without errors, silent embedding drift, runaway agent costs, and cascading failures when retries amplify outages. Reliability engineering must extend beyond uptime to cover quality, cost, and version coherence.
+> **When to use:** Implement retries + fallback chains + circuit breakers from the start. Add shadow → canary → blue-green deploys before your first embedding model upgrade (a model swap requires full re-index — the worst time to not have a rollback plan).
+> **Nuances & gotchas:** The #1 incident cause in production RAG is ingestion-pipeline drift silently corrupting the index — not LLM API latency. Version everything (embedding model, chunking config, prompt templates, index) and treat a mismatch as a hard error. A runaway agent loop is a real cost risk — one documented case went from $127 to $47K/week undetected for 11 days; budget alerts and per-query cost caps are not optional.
 
 **Layered resilience — each pattern for a different failure class:** retries (transient) → fallbacks (persistent single-provider) → circuit breakers (systemic).
 - **Retries:** exponential backoff + jitter, cap ~30s, ~4 total attempts; respect provider `Retry-After`; only retry *retryable* errors (network, cold start, brief 429) — **not** auth/content-filter/context-length. Without circuit breakers, retries amplify outages.
@@ -201,6 +225,10 @@ The most under-built pillar, and the one that ends careers. Anchor to the **[OWA
 ---
 
 ## The Cross-Cutting Killer: Embedding Versioning & Drift
+
+> **Why (the rationale):** Vectors from two different embedding models live in incompatible vector spaces — cosine similarity between them is meaningless. An unversioned embedding model upgrade silently mixes old and new vectors in the same index, causing cosine scores to drop (e.g., from 0.85+ to ~0.65) with no error message and no code change.
+> **When to use:** Apply versioning discipline immediately — pin the embedding model, store the model version in per-vector metadata, and block retrieval if the configured model doesn't match the model that produced the index. This is non-negotiable before your first embedding model upgrade.
+> **Nuances & gotchas:** Partial re-embedding is a trap — even re-embedding 10% of the corpus with a new model leaves a mixed-version store that produces silently wrong similarity scores across the boundary. The only safe path is a full re-index (blue-green). An embedding model swap also silently invalidates your entire semantic cache — version-tag cache keys with the embedding model hash.
 
 This deserves its own section because it silently destroys production systems and cuts across ingestion, retrieval, caching, and ops.
 

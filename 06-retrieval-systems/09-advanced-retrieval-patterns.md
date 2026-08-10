@@ -24,6 +24,10 @@ Complex user queries are often "Compound Queries."
   3. "Reasons for Q4 revenue variance"
 - **Implementation**: Use an LLM to generate these 3 sub-queries, search the DB for ALL of them, and aggregate the context.
 
+> **Why (the rationale):** A single embedding of a compound query ("Compare Q3 vs Q4 revenue and explain the drop") will land in a blended vector region that matches neither the Q3 data chunks nor the Q4 data chunks well. Decomposing into sub-queries gives each retrieval pass a tight, focused query that lands precisely in the right part of the embedding space.
+> **When to use:** Whenever the user query contains multiple distinct information needs that would be answered by different chunks. Signals include "compare X and Y," "what caused Z," questions with multiple entities, or questions that span different time periods.
+> **Nuances & gotchas:** Each sub-query is a separate retrieval call — 3 sub-queries means 3x retrieval cost and latency (unless parallelized). The LLM call to generate sub-queries adds its own latency. Aggregating results from multiple queries into a coherent context for the generator requires deduplication and careful ordering. Does NOT help when the query is already simple — applying decomposition universally wastes resources.
+
 ---
 
 ## Hypothetical Document Embeddings (HyDE)
@@ -34,6 +38,10 @@ Queries are short; documents are long. This "Asymmetry" causes retrieval failure
   2. Ask the LLM: "Write a 1-paragraph hypothetical answer to this."
   3. **Embed the hypothetical answer** instead of the query.
 - **Why?**: The hypothetical answer is in the same "Vector neighborhood" as the real documents, leading to much higher recall.
+
+> **Why (the rationale):** A 5-word query and a 300-word document chunk occupy different statistical regions of embedding space — even when the query is a perfect match for the document's content, the dimensional mismatch causes a retrieval gap. A hypothetical answer is paragraph-length and uses the same vocabulary and style as real documents, landing in the right vector neighborhood.
+> **When to use:** Domains with a significant query-document length asymmetry, or where users ask short questions about long technical content. Effective for open-domain QA, technical documentation retrieval, and research-paper search where query brevity is the norm.
+> **Nuances & gotchas:** HyDE hallucination is a real risk — if the LLM writes a plausible-sounding but factually wrong hypothetical, the embedding may retrieve real documents that are factually similar to the wrong answer, reinforcing the error. This is especially dangerous for factual queries about real entities. Mitigate by combining HyDE results with direct-query results via RRF. Adds an LLM call per query — budget the latency.
 
 ---
 
@@ -54,6 +62,10 @@ Instead of just storing the raw document, we store "Enriched" meta-data.
 - **Q&A Generation**: Generate 5 questions this document answers and embed those *with* the document.
 - **Status**: Most high-end RAG systems now embed **"Questions"** rather than **"Answers"** to match the user's query intent.
 
+> **Why (the rationale):** User queries are phrased as questions, but documents are written as answers — they live in asymmetric parts of the embedding space. By generating and storing the questions a document answers, you create vectors that are stylistically and semantically close to the actual user queries that should retrieve that document.
+> **When to use:** When you observe that relevant documents are frequently not retrieved because the query phrasing doesn't match the document's declarative style. Particularly effective for FAQ-style corpora, policy documents, and knowledge-base articles where the document answers specific questions but never states those questions explicitly.
+> **Nuances & gotchas:** Requires an LLM call per document at index time for question generation — significant cost for large corpora. The generated questions may not cover the full range of actual user queries; you're enriching with the model's prediction of likely questions, not real user queries. If you have real query logs, those are far more valuable than synthetic questions. Storage grows proportionally to the number of questions generated per document.
+
 ---
 
 ## In-Context Reranking
@@ -63,6 +75,10 @@ With 1M-2M context windows now standard (Claude Sonnet 4.6, Gemini 3.1 Pro), **R
 2. Put all 100 in the context window.
 3. Ask the model: "Read these 100 docs and identify the 5 most relevant. Then, use those 5 to answer."
 - **Win**: This utilizes the model's **Long Context Reasoning** to perform reranking without needing a separate Cross-Encoder model.
+
+> **Why (the rationale):** A separate cross-encoder reranker is a dedicated model to maintain, deploy, and scale. When you already have a powerful frontier LLM in the pipeline, its reading comprehension and relevance judgment is arguably better than a specialized reranker — and for small candidate sets, loading everything into context is operationally simpler than hosting a second model.
+> **When to use:** When the retrieval candidate count is moderate (up to a few hundred chunks), the LLM is already in the pipeline with prompt caching reducing cost, and operational simplicity matters more than the latency overhead of attending over a large context. Good for low-QPS, high-stakes search (legal, medical review) where the extra reasoning quality is worth the cost.
+> **Nuances & gotchas:** Attending over 100 retrieved chunks is expensive — the input cost scales linearly with candidate count, and prompt caching only helps if the same static context is reused across queries (unlikely for dynamic retrieval). The "lost-in-the-middle" problem means the LLM may still miss chunks placed deep in the middle of 100 documents. This pattern does NOT replace a cross-encoder at high QPS — a dedicated reranker is dramatically cheaper and faster when volume is the constraint.
 
 ---
 

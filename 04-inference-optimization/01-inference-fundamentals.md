@@ -19,12 +19,22 @@ LLM inference is not a single operation; it consists of two distinct computation
 
 ### 1. The Prefill Phase (Prompt Processing)
 The model processes the entire input prompt in a single pass.
+
+> **Why (the rationale):** Prompts can be processed in a single parallel matrix-matrix multiply because all tokens are already known upfront, saturating GPU compute efficiently. This is fundamentally different from decoding because you don't need to generate sequentially — the whole prompt is a batch.
+> **When to use:** Always the first step before any token is generated; optimize this phase when TTFT (Time To First Token) is the SLA bottleneck or when prompts are very long (>10k tokens).
+> **Nuances & gotchas:** Prefill is compute-bound, not memory-bound — the bottleneck is TFLOPS, not HBM bandwidth. FlashAttention speeds up prefill by reducing memory reads during attention; FP8 on H100/B200 gives ~2x speedup. Long prompts slow TTFT even though individual tokens are processed in parallel. Disaggregated serving puts prefill on dedicated compute-heavy GPUs precisely because it has different hardware needs than decode.
+
 - **Computation**: High-parallelism matrix multiplications.
 - **Bottleneck**: **Compute-bound** (limited by GPU TFLOPS).
 - **Time Complexity**: $O(N)$ where $N$ is input length (but parallelized).
 
 ### 2. The Decode Phase (Token Generation)
 The model generates tokens one by one, where each token depends on the previous ones.
+
+> **Why (the rationale):** Auto-regressive generation requires each token to be conditioned on all previous ones, making parallelism across output positions impossible. This forces a sequential matrix-vector multiply per step, which is inherently memory-bound.
+> **When to use:** The decode phase is unavoidable in auto-regressive LLMs. Optimize it when TPOT (Time Per Output Token) or cost-per-token is the bottleneck, or when output lengths are long (>200 tokens).
+> **Nuances & gotchas:** Decode is ~5–20x less GPU-efficient than prefill per byte of weights loaded. GPU utilization is 20–40% because each step only reuses weights for one token. Speculative decoding and continuous batching are the main levers; quantization (4-bit) cuts bytes moved per token. Pure scaling of TFLOPS doesn't help decode — only increased HBM bandwidth or reduced data movement does.
+
 - **Computation**: Sequential processing, one row of the weight matrix at a time.
 - **Bottleneck**: **Memory-bound** (limited by memory bandwidth).
 - **Time Complexity**: $O(M)$ where $M$ is output length (sequential).
@@ -117,6 +127,10 @@ flowchart TB
 ## Hardware-Enabled Optimizations (FP8)
 
 **FP8 (8-bit Floating Point)** is the native precision for inference on H100 and B200 GPUs.
+
+> **Why (the rationale):** FP8 halves the bytes moved per weight compared to FP16/BF16, directly addressing the memory-bandwidth bottleneck of decode, while hardware FP8 tensor cores on H100/B200 double throughput for prefill. Unlike INT8, FP8 has a wider dynamic range that fits LLM activations without per-tensor calibration.
+> **When to use:** Default for all inference on H100 and B200 when using vLLM, TensorRT-LLM, or frameworks with Dynamic FP8 Scaling. Use when accuracy loss below 0.1% is acceptable (nearly always). Not applicable on A100 or older GPUs (no hardware FP8 support).
+> **Nuances & gotchas:** FP8 does NOT automatically fix poor batching or long context — if you're memory-bound due to a tiny batch, FP8 helps only modestly. Outlier activations can degrade model quality if scaling is static; Dynamic FP8 Scaling (per-layer scales) is required for safe deployment. FP8 KV cache is a separate technique from FP8 weights and requires its own validation.
 
 - **Benefit**: 2x faster than FP16/BF16 with negligible (<0.1%) accuracy loss.
 - **How it works**: Uses a smaller mantissa and larger exponent than Int8, allowing it to represent the dynamic range of LLM activations more accurately without complex calibration.

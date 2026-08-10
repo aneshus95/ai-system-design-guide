@@ -51,6 +51,10 @@ Instead of splitting at every 500 characters, we split at logical boundaries:
 
 **Best practice**: Use **Markdown-Aware Splitting**. If a document has `#` headers, ensure the header is prepended to *every* child chunk to preserve context (Contextual Chunking).
 
+> **Why (the rationale):** Fixed-size splitting is content-blind and routinely cuts mid-sentence or mid-paragraph, producing chunks that embed poorly and confuse the LLM. Recursive splitting respects the document's own structure at zero additional cost — no model calls, no special parsers.
+> **When to use:** The sane default for any mixed-text corpus (documentation, wikis, reports). Use it unless your corpus is code (→ AST splitting), tables/PDFs (→ layout-aware parsing), or chunks are still ambiguous after splitting (→ semantic chunking or Contextual Retrieval).
+> **Nuances & gotchas:** Recursive splitting is still token-count-aware — it will eventually fall back to word-level splits for pathologically long paragraphs. Markdown-aware prepending of headers is important: without it, a child chunk like "See table above" has no context of what document section it belongs to. Does not detect topic shifts within a paragraph — for that, semantic chunking is needed.
+
 **How the recursion actually works.** The splitter tries the *biggest* separator first and only drops to a smaller one when a piece is still over the size limit — so it always cuts at the most natural boundary available:
 
 ```
@@ -72,6 +76,10 @@ Semantic chunking uses an embedding model to detect "topic shifts."
 2. Group sentences as long as their embedding similarity stays above a threshold (e.g., 0.82).
 3. If similarity drops, start a new chunk.
 
+> **Why (the rationale):** Structural boundaries (paragraphs, newlines) don't always align with topic boundaries. A single paragraph may jump between two ideas; semantic chunking finds the true semantic seam, so each chunk's vector represents one coherent idea rather than a blend.
+> **When to use:** Heterogeneous or unstructured documents — transcripts, wikis, mixed reports — where a single paragraph routinely covers multiple topics and retrieval precision is the bottleneck (low nDCG on evals). Worth adding when recursive splitting still produces low-precision retrievals.
+> **Nuances & gotchas:** Requires embedding every sentence at index time — substantially more expensive than recursive splitting. The cosine-threshold is brittle and domain-sensitive: too high → excessive tiny chunks; too low → unrelated sentences merge. A cross-encoder segmenter (which learns break points end-to-end) is more reliable than a hand-tuned threshold. Does NOT fix recall problems (missed chunks) — those need hybrid search or contextual retrieval.
+
 **Nuance**: Production pipelines increasingly use **Cross-Encoder Segmenters**. A tiny model scans the text and predicts a "Separator token" at every semantic break. This is 10x more accurate than cosine-similarity thresholding.
 
 **Why bother — and why it's fiddly.** The goal is that each chunk is *one complete idea*, so its vector isn't a blur (back to the tension above). But it carries real cost, which is why it isn't the default:
@@ -92,6 +100,10 @@ This is the industry standard for production RAG.
   3. **Index only the children**.
   4. At retrieval, if a child matches, **return the full parent context** to the LLM.
 - **Why?**: The child is small and easy for the vector DB to match. The parent provides enough context for the LLM to actually reason correctly without "Broken Context" hallucinations.
+
+> **Why (the rationale):** Small chunks retrieve precisely but leave the LLM with incomplete context; large chunks give full context but embed poorly. Hierarchical chunking decouples the match unit (small) from the context unit (large), getting both benefits simultaneously.
+> **When to use:** When evals show good retrieval recall but poor faithfulness/answer quality — the model retrieved the right chunk but lacked surrounding context to reason correctly. Also useful for long-form documents (legal, financial, technical manuals) where a single fact is meaningless without its section.
+> **Nuances & gotchas:** Must de-duplicate returned parents — if multiple children of the same parent match, you return the parent once, not multiple times (which would waste context and skew ranking). Extra storage required for both parent and child representations. The parent size is a tuning decision: too large and it re-introduces context dilution; too small and it doesn't solve the context problem.
 
 **This is the direct answer to the retrieval-context tension:** search with the *small* thing (precision), feed the LLM the *big* thing (context) — you stop trading one for the other.
 
@@ -116,13 +128,25 @@ See [Contextual Retrieval](10-contextual-retrieval.md) for the complementary tri
 - **Strategy**: Use AST (Abstract Syntax Tree) parsing.
 - **Rule**: Never split a function mid-body. Keep imports and class declarations with their methods.
 
+> **Why (the rationale):** Token-count-based splitting cuts functions mid-body, producing fragments that neither embed meaningfully nor execute. The function is the natural atomic unit of code meaning; AST splitting preserves it.
+> **When to use:** Any corpus containing source code — internal codebases, documentation with code examples, open-source reference material. Non-negotiable for code retrieval; character-level splitting produces near-useless results.
+> **Nuances & gotchas:** AST parsing is language-specific — you need per-language parsers (tree-sitter is the common cross-language choice). Very large classes or files may still exceed token limits after AST splitting; in that case, split at the method level and include the class signature + imports as a prefix.
+
 ### 2. Table Chunking
 - **Strategy**: Use Markdown formatting for tables.
 - **Modern pattern**: "Summarized Tables." Store a natural language summary of the table in the vector DB, but return the full Markdown table to the LLM.
 
+> **Why (the rationale):** Raw table markdown embeds terribly — the vector is dominated by pipe characters and column headers rather than semantic meaning, so natural-language queries won't match it. A natural-language summary embeds well for retrieval while the full table preserves structure for the LLM's reasoning.
+> **When to use:** Any corpus with structured tables — financial reports, product specs, pricing sheets, comparison grids. Use summarized-table + full-table return (dual representation) as the default for tabular content.
+> **Nuances & gotchas:** The summarization itself requires a VLM or LLM call at index time — an additional cost per table. For aggregation/analytical queries over large tables (sums, filters, ranks), vector retrieval cannot compute answers; route those to text-to-SQL instead. A single row serialized as "Column: Value, Column: Value" embeds far better than a raw pipe-separated row for lookup queries.
+
 ### 3. PDF/Layout Chunking
 - **Strategy**: Use **Vision-Language Model (VLM)** pre-processing (e.g., ColPali).
 - **Nuance**: Instead of just text, store embeddings that represent the *positional layout* of the page, ensuring charts and sidebars don't get mixed into body text.
+
+> **Why (the rationale):** PDF reading order is 2-D, not linear. Naive text extraction interleaves multi-column text, merges captions into body paragraphs, and drops figures entirely — producing chunks that are incoherent or missing critical information. Layout-aware parsing reconstructs the document's logical structure before chunking.
+> **When to use:** Any PDF-heavy corpus with multi-column layouts, figures, tables, charts, or scanned pages. Use parse-then-chunk for mostly-text PDFs; use ColPali/ColQwen visual embedding when figures and layout are the primary information carriers (e.g., engineering diagrams, annual reports, scientific papers).
+> **Nuances & gotchas:** OCR quality gates matter — OCR noise cascades into embedding noise downstream. Layout parsers are imperfect on dense or unusual layouts and may mis-classify elements. ColPali-style visual retrieval skips OCR but produces a heavier multi-vector index. Both approaches are significantly more expensive at index time than plain text splitting.
 
 **The unifying principle:** chunk on the content's *own* natural unit, not on a token count.
 - **Code** — a function is the atomic unit of meaning; split it mid-body and you get a fragment that neither retrieves well nor runs. AST parsing cuts on function/class boundaries and keeps imports with the code that needs them.
@@ -273,7 +297,15 @@ Two upgrades help across almost any corpus:
 
 **Late Chunking — the cheap, broad win.** Flip the order: embed the *whole document* first with a long-context embedding model, *then* split the resulting token embeddings into chunks (mean-pool each span). Because every chunk's vector was computed with the full document in view, it carries long-range context — a chunk that only says "It supports 40W" inherits the surrounding "Model X charger" signal. No per-chunk LLM call, so it's cheap. Best when chunks are ambiguous alone (pronouns, headers, cross-references). ([FutureAGI — advanced chunking](https://futureagi.com/blog/advanced-chunking-techniques-for-rag/))
 
+> **Why (the rationale):** Standard chunking embeds each chunk in isolation — a chunk saying "It" or "the above" has no idea what it refers to, producing a weak, generic vector. Late chunking gives every chunk full-document awareness at the cost of just one long-context embedding pass rather than per-chunk LLM calls.
+> **When to use:** Documents with heavy use of co-references, pronouns, section cross-references, or numeric references to nearby context ("the following table"). Particularly valuable for technical documentation, legal contracts, and structured reports with many intra-document references.
+> **Nuances & gotchas:** Requires a long-context embedding model capable of processing the full document in one pass — not all models support this. Document length is still bounded by the embedding model's context window. Does NOT eliminate the need for chunking; it only improves the contextual richness of the resulting chunk vectors.
+
 **Contextual Retrieval — the max-accuracy win.** Prepend a short, LLM-generated context blurb to each chunk *before* embedding it ("This is from the 2025 Model X drone manual, battery section: ..."). Anthropic reported this cuts retrieval failures by **49%**, and **67% combined with a reranker** — a bigger gain than upgrading from a cheap to an expensive embedding model. The cost is one LLM call per chunk at index time, heavily amortized by prompt caching. ([Anthropic — Contextual Retrieval](https://www.anthropic.com/news/contextual-retrieval))
+
+> **Why (the rationale):** Chunks lose their meaning when isolated from the document they came from. A blurb like "From the 2025 drone manual, battery section" injected before the chunk text makes the vector anchored to its true semantic context, dramatically reducing false retrievals where the same phrase appears in unrelated documents.
+> **When to use:** When accuracy is the primary goal and you can afford LLM calls at index time. The 49% recall improvement makes this the single highest-ROI chunking enhancement available, especially for multi-document corpora where the same phrases recur across unrelated sources.
+> **Nuances & gotchas:** Adds one LLM call per chunk at ingest — significant upfront cost for large corpora, though prompt caching substantially reduces it when many chunks share the same document prefix. The blurb quality matters: generic blurbs ("This chunk is about X") are less useful than specific ones naming the source, section, and purpose. The improvement is in retrieval precision, not generation quality — you still need a good reranker and prompt for the final answer.
 
 | | Late Chunking | Contextual Retrieval |
 |---|---|---|

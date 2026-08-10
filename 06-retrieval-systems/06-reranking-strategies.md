@@ -80,6 +80,10 @@ Document --> Encoder --> Doc Embedding +
 
 Production retrieval uses a two-stage funnel:
 
+> **Why (the rationale):** Bi-encoders are fast because they pre-compute document embeddings independently of any query — but independent encoding means the model can't see query-document interactions. A cross-encoder reads them jointly, letting attention flow between query tokens and document tokens, producing far more accurate relevance scores. The two-stage pipeline gets both: bi-encoder speed for broad recall, cross-encoder accuracy for the final shortlist.
+> **When to use:** Any production RAG system where answer quality matters more than the lowest possible latency. The reranker is typically the highest-ROI single addition to a naive retrieval pipeline — it fixes the precision gap without touching chunking, embedding models, or indexing infrastructure.
+> **Nuances & gotchas:** Reranking adds latency proportional to the number of candidates (O(n) cross-encoder calls). It ONLY helps chunks that were already retrieved — it cannot rescue a missed chunk (that's a recall/Gap 1 problem). Budget the candidate count carefully: K=50 is the typical sweet spot between quality and latency. Reranking does NOT replace hybrid search; they fix different gaps (precision vs. recall).
+
 ```
 +----------------------------------------------------------------+
 |  STAGE 1: Retrieval (Bi-Encoder)                                |
@@ -384,6 +388,10 @@ def optimize_candidate_count(test_set, retriever, reranker):
 
 LLMs can score relevance but are expensive:
 
+> **Why (the rationale):** Cross-encoders are strong but have a fixed relevance notion baked in at training time. An LLM can apply nuanced, task-specific relevance judgment: "is this passage useful for a senior engineer debugging a production incident?" — a kind of relevance a generic reranker was never trained for.
+> **When to use:** High-stakes, low-volume retrieval where the relevance judgment is complex or domain-specific — legal document review, medical literature synthesis, expert-level technical search. When the query is long or multi-part and cross-encoders hit their token limit. When you don't have the volume to justify training or hosting a specialized reranker.
+> **Nuances & gotchas:** 10–100x more expensive than a cross-encoder per candidate and 1–3 s latency vs. ~100 ms. Non-deterministic — the same query can produce different orderings across runs. Cannot scale to high QPS workloads. Listwise (ranking all docs together) is generally more accurate than pointwise (scoring each independently) but uses more tokens per call. Should be a last resort or offline step, not a real-time path for most applications.
+
 ```python
 def llm_rerank(
     query: str,
@@ -472,6 +480,10 @@ To solve the latency problem of LLM-based reranking, we now use **Distilled Smal
 - **Process**: Take a giant model (e.g., GPT-5.2), have it rerank 1 million pairs, and use those labels to "distill" a tiny 0.1B parameter model.
 - **Result**: You get 95% of the reranking quality of a giant model with the latency of a standard CPU lookup (< 10ms).
 - **Production pattern:** Use cross-encoder normally, LLM for fallback on low-confidence reranking scores.
+
+> **Why (the rationale):** LLM-based relevance labels capture nuanced judgment that generic cross-encoder training data doesn't. Distilling those labels into a small fast model lets you bake that LLM-level quality into a model that runs fast enough for production — essentially using the LLM as a teacher to improve the cross-encoder student.
+> **When to use:** When you need better-than-standard-cross-encoder quality but cannot serve LLM-based reranking at query time due to latency or cost. Most valuable for specialized domains where publicly trained cross-encoders perform poorly and you have the resources for a distillation run.
+> **Nuances & gotchas:** Requires generating a large, high-quality labeled dataset of (query, document, relevance) triples from the LLM — this itself costs tokens and time. The distilled model inherits the LLM's relevance biases, including any errors or blind spots. Domain shift is a risk: a model distilled on your current corpus may degrade as the corpus evolves.
 
 ---
 

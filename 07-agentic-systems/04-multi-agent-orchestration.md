@@ -24,6 +24,10 @@ A single agent with 50 tools experiences **Cognitive Load**.
 2. **Parallelism**: Multiple agents can work on independent sub-tasks simultaneously.
 3. **Decoupled Evaluation**: You can evaluate the "Writer Agent" separately from the "Researcher Agent."
 
+> **Why (the rationale):** A single agent cannot hold 50 tools' schemas in-prompt without degrading selection accuracy, cannot run independent sub-tasks concurrently, and cannot be independently evaluated for quality by specialization. Multi-agent architectures solve all three by splitting responsibility across smaller, focused agents.
+> **When to use:** Switch to multi-agent when a single agent's context would need to exceed a manageable size, when sub-tasks are demonstrably independent and can run in parallel, or when different sub-tasks need different model capabilities (fast cheap model for search, expensive reasoning model for planning). For simple linear tasks, a single agent with a few tools is almost always better — multi-agent adds coordination overhead and new failure modes.
+> **Nuances & gotchas:** Multi-agent systems do NOT automatically improve quality — they can lower it if decomposition is wrong (sub-tasks with hidden dependencies produce coherent-looking but incorrect partial answers). Coordination overhead (state passing, write conflicts, supervisor latency) can erase the parallelism benefit for small workloads. A single well-prompted agent is often better than a complex multi-agent graph for tasks that fit comfortably in one context window.
+
 ---
 
 ## The Supervisor Pattern (Hierarchical)
@@ -36,6 +40,10 @@ The most common enterprise pattern as of 2026.
 
 **Architecture**: LangGraph remains the dominant framework for implementing these state-aware hierarchical loops. The Claude Agent SDK, Google ADK, and Microsoft Agent Framework all support this pattern natively as of 2026.
 
+> **Why (the rationale):** The supervisor acts as a coordinator that stays focused on the goal while cheap worker models handle the bulk of execution. This keeps the expensive reasoning model's context clean (it sees plans and summaries, not raw tool outputs) and allows task-level parallelism across workers.
+> **When to use:** Use the Supervisor pattern when a task naturally decomposes into parallel sub-tasks of different types (e.g., research + code + write), when you want cost efficiency (cheap workers, expensive supervisor only for planning), or when you need independent quality evaluation of each sub-component. It is the standard choice for software engineering agents, report generation, and multi-source research.
+> **Nuances & gotchas:** The supervisor is a single point of failure — if its decomposition is wrong, all workers produce correct answers to wrong questions (decomposition failure). The supervisor's context grows with each worker result, causing context dilution in long tasks. Iterative confirmation of sub-task feasibility before workers begin mitigates but does not eliminate this. The Reviewer agent adds cost; skip it only for non-critical tasks.
+
 ---
 
 ## Swarms (The OpenAI Pattern)
@@ -45,6 +53,10 @@ The most common enterprise pattern as of 2026.
 - One agent "Hands off" the conversation to another.
 - **Key concept**: `Handoff(TargetAgent)`.
 - **Benefit**: No central "Manager" bottleneck. The conversation flows naturally between specialized entities.
+
+> **Why (the rationale):** Swarms eliminate the supervisor bottleneck — there is no single model that must plan the entire task. Instead, each agent is responsible for recognizing when its part is done and who should take over next, which distributes the planning load and reduces latency when agents can directly route to peers.
+> **When to use:** Use swarms for customer-facing conversational workflows where the task category shifts naturally (e.g., a support bot that hands off to a billing agent, then to a tech agent). The hand-off metaphor maps well to human-like service conversations. Less suited for tasks that require tight coordination across parallel sub-tasks.
+> **Nuances & gotchas:** Without a central coordinator, it is hard to enforce a global goal — an agent can hand off prematurely or to the wrong agent. Debugging swarms is harder than debugging supervisor trees because there is no single plan to inspect. Circular handoffs (agent A → agent B → agent A) are a real failure mode without explicit loop detection.
 
 ---
 
@@ -119,6 +131,10 @@ The biggest challenge in multi-agent systems is the **Shared Blackboard**.
 3. **Write Conflicts**: When two agents try to modify the same Global State.
    - **Best practice**: Use **Transactional Handoffs**. An agent can only write to the global state when it "Owns" the lock.
 
+> **Why (the rationale):** Without a disciplined state model, two parallel agents writing to the same shared object will corrupt each other's outputs. The Shared Blackboard pattern gives every agent visibility into the global result while transactional handoffs prevent concurrent writes from racing.
+> **When to use:** Use explicit global state (Shared Blackboard) when agents need to read each other's partial results to do their own work (e.g., a formatter that must see the writer's draft). Use purely local state when agents are fully independent (e.g., parallel web scrapers whose results are only combined at the end).
+> **Nuances & gotchas:** Transactional handoffs serialize access and can become a throughput bottleneck if many agents contend for the lock. Global state growth (context dilution) degrades the supervisor's ability to track the goal. Checkpointing global state to durable storage (not just in-memory) is essential for long-running tasks — in-memory state is lost on any agent crash or timeout.
+
 ---
 
 ## Peer-to-Peer (P2P) Debate
@@ -128,6 +144,10 @@ For high-accuracy tasks (e.g., Legal or Medical), we use **Agentic Debate**.
 - **Agent B**: Tries to find flaws in Agent A's answer.
 - **Agent A**: Refines the answer based on B's critique.
 - **Result**: Convergence on a higher-quality result than any single agent could produce.
+
+> **Why (the rationale):** A single agent cannot reliably critique its own output because its internal reasoning is anchored to its first answer. A separate adversarial agent with a different (or the same) model produces independent criticism without the anchoring bias, surfacing failure modes the proposer missed.
+> **When to use:** Use P2P debate for high-stakes, low-throughput tasks where quality matters more than speed or cost — legal document review, medical triage, security audit, or any domain where a single missed error has a large cost. Do not use it for bulk or latency-sensitive tasks; each debate round at least doubles the model call count.
+> **Nuances & gotchas:** Debate does NOT guarantee convergence on the correct answer — both agents can be wrong and agree with each other (model collusion). If both use the same base model and training data, they share the same blind spots. Use different model families or inject domain-specific ground-truth constraints into the critic's prompt to reduce collusion risk.
 
 ---
 

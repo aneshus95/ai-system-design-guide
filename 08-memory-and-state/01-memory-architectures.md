@@ -22,6 +22,10 @@ LLM memory has evolved from "history buffers" to a **Three-Tiered Cognitive Arch
 | **L2** | Episodic Memory | Past experiences | Vector DB / Local Graph | 100-300ms |
 | **L3** | Semantic Memory | General knowledge | Global Graph / SQL / Mem0 | >500ms |
 
+> **Why (the rationale):** A flat single-tier architecture (e.g., putting everything in the context window) hits token limits, explodes cost, and suffers "lost in the middle" attention failures. The three-tier model isolates speed-critical, session-scoped, and durable knowledge into appropriate stores so each is optimized for its access pattern.
+> **When to use:** Any agent that needs to persist knowledge across sessions or serve multiple users. If your agent is purely single-turn and stateless, L1 alone may suffice — but as soon as users expect continuity, the three-tier model becomes necessary.
+> **Nuances & gotchas:** The latency numbers assume a warm cache and a nearby vector DB; cold starts add hundreds of milliseconds. L2 retrieval quality degrades sharply if embeddings are mismatched with the query model (embedding model drift). L3 becomes a liability without a pruning strategy — stale facts in a knowledge graph can mislead the model more than having no memory at all.
+
 ---
 
 ## Tier 1: Working Memory (L1)
@@ -32,6 +36,10 @@ L1 is the **active focus** of the model.
 - **Management Strategy**: **Sliding Windows** and **Prefix Caching** (vLLM/PagedAttention).
 - **Redundancy Note**: We only keep the most recent turns and critical system instructions in L1.
 
+> **Why (the rationale):** L1 is the only tier the model can directly attend to during inference — everything else must be retrieved and injected here first. It is the fastest and most expressive tier, but also the most expensive per token.
+> **When to use:** Always. L1 is mandatory for every inference call. The design question is what to put in it — only the currently relevant slice of L2/L3 should be injected, not the entire history.
+> **Nuances & gotchas:** Larger context windows do not eliminate "lost in the middle" — models still attend more strongly to tokens at the very beginning and end of the window. Filling L1 with everything available is tempting but costs more and often hurts reasoning quality on the immediate task.
+
 ---
 
 ## Tier 2: Episodic Memory (L2)
@@ -40,6 +48,10 @@ L2 stores "What happened previously" in this session or past sessions with this 
 - **Storage**: Vector databases (Pinecone, Weaviate, Qdrant).
 - **Retrieval**: Semantic search. If the user asks "What did we talk about last Tuesday?", L2 provides the answer.
 - **Pattern**: **Experience Replay**. Agents retrieve successful past trajectories to guide current decisions.
+
+> **Why (the rationale):** Without L2, every session starts cold. L2 enables continuity — agents can recall prior outcomes, avoid repeating mistakes, and surface relevant past interactions — without the token cost of keeping full history in L1.
+> **When to use:** When users return across multiple sessions, or when an agent must learn from its own past trajectories (e.g., tool-use success/failure history). Less valuable for purely transactional, single-turn use cases.
+> **Nuances & gotchas:** Vector search retrieves semantically similar content, not temporally ordered content — "what happened last Tuesday" requires a time-filtered query, not just cosine similarity. Retrieval precision degrades as the index grows unless you namespace and prune aggressively. Stale episodic memories (outdated plans, changed preferences) can be retrieved with high confidence and mislead the model.
 
 ---
 
@@ -50,6 +62,10 @@ L3 stores **Immutable Facts** and **Learned Rules**.
 - **Mem0**: A managed service that extract facts (e.g., "User likes Dark Mode") and makes them available globally.
 - **Truth Anchoring**: L3 acts as the "Ground Truth" when L1 and L2 provide conflicting information.
 
+> **Why (the rationale):** L3 provides durable, structured knowledge that does not need to be re-derived from raw conversation logs each session. It acts as a stable anchor that prevents the model from re-learning things it already knows or contradicting established facts.
+> **When to use:** Whenever the system needs to maintain facts that outlive individual sessions — user preferences, organizational relationships, domain rules. Also essential for multi-tenant systems where facts about one user must be globally consistent across channels and agents.
+> **Nuances & gotchas:** Calling L3 "Immutable" is aspirational, not literal — facts do change (users switch jobs, preferences evolve) and L3 must handle updates and conflict resolution. Without a PII-scrubbing layer during consolidation, sensitive data from L1 conversations bleeds into a persistent store that is much harder to audit and purge.
+
 ---
 
 ## Memory Consolidation Patterns
@@ -58,6 +74,10 @@ Memories move between tiers via **Consolidation**:
 1. **Extraction**: An LLM "Reviewer" extracts facts from L1 at the end of a session.
 2. **Indexing**: Facts are stored in L2 (as vectors) and L3 (as graph nodes).
 3. **Decay**: Old, non-reinforced memories are moved from L2 to cold storage (L3) or deleted.
+
+> **Why (the rationale):** Without consolidation, L2/L3 either stay empty (no cross-session memory) or accumulate every raw token (index overload). Consolidation is the quality gate that converts ephemeral context into durable, retrieval-friendly knowledge.
+> **When to use:** Run consolidation at end-of-session (or asynchronously after the session closes) so it does not add latency to the live interaction. Trigger early consolidation for sessions that are unusually long or information-dense.
+> **Nuances & gotchas:** The extraction LLM can hallucinate facts that were never stated, injecting false beliefs into L3. A verification step (checking extracted facts against the source turn) is important for high-stakes domains. Decay logic that removes "non-reinforced" memories must be carefully tuned — a fact mentioned once but critically important (e.g., "user has a nut allergy") should not be evicted by a simple frequency heuristic.
 
 ---
 

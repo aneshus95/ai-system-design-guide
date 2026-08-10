@@ -18,6 +18,10 @@ Deploying LLMs at scale requires a robust infrastructure layer that handles load
 
 The gateway is the "Traffic Controller" for your AI workload.
 
+> **Why (the rationale):** Without a gateway, clients would need to know which backend holds their cached KV prefix, models couldn't be rotated without downtime, and a single heavy user could monopolize GPU slots for everyone. The gateway decouples clients from the fleet, enabling safe rollouts, fair scheduling, and output filtering in one layer.
+> **When to use:** Essential for any multi-tenant, multi-model, or production deployment. Not needed for single-user local inference. Add it before you go beyond a single model replica serving a single team.
+> **Nuances & gotchas:** Context Tracker (sticky sessions for prompt cache) and load balancing are in tension — routing always to the same GPU undermines load distribution. This tension is usually resolved by routing to a "cache affinity group" rather than a single node. Standard API gateways (nginx, Kong) lack LLM-specific features like token-quota rate limiting and EOS-token-aware connection management; use LLM-aware proxies (LiteLLM, Envoy with custom filters) instead.
+
 | Component | Responsibility |
 |-----------|---------------------------|
 | **Auth & Rate Limiting** | Token-based quotas and tenant isolation. |
@@ -33,12 +37,22 @@ For models that don't fit on a single GPU (e.g., Llama 4 405B requires ~800GB VR
 
 ### 1. Tensor Parallelism (TP)
 Splits individual layers/tensors across multiple GPUs.
+
+> **Why (the rationale):** A 70B model requires ~140GB VRAM in FP16 — too large for a single 80GB H100. Tensor Parallelism shards each weight matrix across GPUs and runs each layer's math in parallel, reducing per-layer latency by the shard factor (e.g., 4x GPUs → roughly 4x faster per layer, minus communication overhead).
+> **When to use:** Default for any model that doesn't fit on a single GPU within a single node. Requires NVLink for efficient all-reduce communication; do not use TP across nodes connected only by InfiniBand (that's where PP takes over).
+> **Nuances & gotchas:** Each TP step requires an all-reduce communication between all shards — at TP=8, this is 7 synchronization points per layer per token. On slow inter-GPU links, communication can dominate latency. TP does NOT reduce peak KV cache memory proportionally — KV cache is typically replicated or split separately. Beyond TP=8 (one node), communication overhead grows and returns diminish rapidly.
+
 - **Latency**: Low (Fastest).
 - **Communication**: High (Requires NVLink).
 - **Standard**: Used for 90% of production serving within a single node (8x GPUs).
 
 ### 2. Pipeline Parallelism (PP)
 Splits different layers (e.g., layers 1-40 on GPU 1, 41-80 on GPU 2).
+
+> **Why (the rationale):** For models too large for a single node (e.g., Llama 4 405B at ~800GB), layers must be distributed across nodes connected by InfiniBand. PP allows this by assigning different model depth ranges to different GPU nodes and passing activations between them sequentially.
+> **When to use:** Only when the model cannot fit on a single node even with maximum TP. Prefer TP within a node and PP across nodes. Avoid PP for latency-sensitive serving if possible.
+> **Nuances & gotchas:** PP adds the latency of all pipeline stages in series for a single request — a 4-stage pipeline means a token waits for 4 sequential GPU computations before it's ready. Bubble time (idle GPU slots between micro-batches) is an inherent throughput loss that grows with shallow pipelines. Deep batching (many micro-batches in flight) is needed to fill the pipeline and reduce bubbles, which conflicts with low-latency goals.
+
 - **Latency**: High (Micro-batching overhead).
 - **Efficiency**: Lower util (Bubble time).
 - **Standard**: Used only for massive models spanning multiple nodes.
@@ -58,6 +72,10 @@ Kubernetes operators (like **Kube-Ray** or **Gloo**) manage "GPU Pools" in produ
 ## Streaming and Long-Lived Connections
 
 LLMs are almost always served via **Server-Sent Events (SSE)** or **WebSockets**.
+
+> **Why (the rationale):** LLM responses are not available atomically — tokens arrive one at a time over seconds. Streaming immediately surfaces each token to the user, making the experience feel much faster even when total response time is unchanged. Waiting for the full response before sending it adds TPOT-equivalent latency for the entire response.
+> **When to use:** Always for user-facing interactive applications. Batch or offline pipelines (data extraction, document transformation) can use synchronous non-streaming requests.
+> **Nuances & gotchas:** Standard L4 load balancers use connection-level routing and cannot re-balance after the streaming connection is established — sticky connections mean a single slow GPU node can't be bypassed mid-stream. L7 load balancers (Envoy, Istio) that detect EOS tokens can re-balance between turns. SSE is one-directional (server-to-client) and simpler; WebSockets are bidirectional but add connection management complexity. Streaming responses are harder to cache at the API gateway layer.
 
 **Infrastructure challenge**: Standard load balancers (Layer 4) struggle with long-lived AI connections.
 - **The Fix**: Use **Layer 7 Load Balancers** (Envoy/Istio) that understand the "End of Sequence" token and can re-balance traffic *between* user turns rather than just at the connection level.

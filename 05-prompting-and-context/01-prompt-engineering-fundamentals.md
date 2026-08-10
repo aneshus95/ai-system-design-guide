@@ -23,6 +23,10 @@ Effective prompting is about maximizing **Intent Disclosure** while minimizing *
 
 **Principle**: "Prompting is Programming in Natural Language." Treat your prompts like code (Version control, Unit tests).
 
+> **Why (the rationale):** LLMs are generative systems with high variance — the same model will produce wildly different outputs for subtly different inputs. Explicit intent + constraint narrows the probability distribution of the model's output to the region you actually want, reducing unpredictable behavior in production.
+> **When to use:** Always — this is the foundation of every prompt, not an optional layer. The intent+constraint frame is especially critical when deploying in production where you cannot inspect every output.
+> **Nuances & gotchas:** "Constraint" must be *specific*. Saying "be professional" is not a constraint; "do not use bullet points, do not apologize, do not ask clarifying questions" is. Overly long constraint lists can cause the model to drop some constraints under attention pressure — prioritize the highest-stakes ones.
+
 ---
 
 ## The Instruction Hierarchy
@@ -36,6 +40,10 @@ Production systems use a tiered message structure:
 | **User** | The specific, dynamic query. | Susceptible to injection; must be isolated. |
 | **Assistant**| History of previous turns. | Source of "recency bias." |
 
+> **Why (the rationale):** Without a hierarchy, a user message can override safety rules or persona constraints set by the operator. The tiered structure means the model has a clear authority ranking to resolve conflicts, reducing the risk of instruction hijacking.
+> **When to use:** Any multi-turn or multi-party system — chatbots with operator personas, API products where end-users shouldn't override operator policies, or agentic systems where tool results must not gain instruction authority.
+> **Nuances & gotchas:** The hierarchy is enforced by RLHF training, not cryptographic guarantees — a sufficiently clever injection can still blur role boundaries. Assistant-turn messages are especially risky: injecting a fake "Assistant:" history can prime the model to continue in a compromised direction (recency bias).
+
 ---
 
 ## Role Prompting
@@ -46,6 +54,10 @@ Assigning a persona is no longer just "You are a teacher." It is a **Capabilitie
 - **Strong**: "You are a Staff Software Engineer at a Tier-1 tech company specializing in high-concurrency Rust systems. You prioritize memory safety and zero-cost abstractions."
 
 **Why it works**: It focuses the model's attention on the specific subset of its training data related to that high-level expertise, reducing irrelevant hallucinations.
+
+> **Why (the rationale):** A vague persona leaves the model sampling from a broad distribution of "coder" behavior — ranging from beginner tutorials to expert architecture discussions. A precise, high-specificity persona narrows that distribution to the expert tier, improving output quality without any examples or extra tokens.
+> **When to use:** Whenever the domain, quality bar, or stylistic register matters — code review, legal analysis, technical writing. Less necessary for frontier models on simple factual tasks where persona adds overhead without measurable gain.
+> **Nuances & gotchas:** Role prompting does NOT give the model knowledge it doesn't have — it cannot make a model know a library it was never trained on. It steers *style and focus*, not capability. Overly fictional or contradictory personas (e.g., "You are a human, never an AI") can create fragile behavior under adversarial probing.
 
 ---
 
@@ -68,6 +80,10 @@ $USER_INPUT_HERE
 
 **Delimiters to use**: XML tags (`<context>`, `</context>`), Markdown headers (`#`), or triple quotes (`"""`).
 
+> **Why (the rationale):** Without delimiters, the model must infer where instructions end and data begins. In long prompts, it can misread user-provided text as a directive — the root of many prompt injection vulnerabilities. Clear structural markers make the boundary unambiguous.
+> **When to use:** Any prompt that mixes trusted instructions with untrusted data (user text, retrieved documents, tool outputs). Critical in RAG pipelines and agentic systems where external content is injected at runtime.
+> **Nuances & gotchas:** Delimiter effectiveness depends on training — models like Claude are specifically trained to respect XML tag boundaries (H-Rank), while simpler models may still blend zones. Delimiters reduce injection risk but do not eliminate it; they must be combined with semantic defense layers for high-stakes applications.
+
 ---
 
 ## Zero-Shot vs. Few-Shot Efficiency
@@ -79,6 +95,10 @@ $USER_INPUT_HERE
 | **Use Case**| Simple chat, Summarization | Specific formatting, Subtle logic |
 
 **Strategy**: If the model is a "Frontier Reasoning" model (Claude Opus 4.7, GPT-5.5 with extended thinking, DeepSeek-R2), use **Zero-Shot + Clear Chain-of-Thought**. If it's a small model (8B), use **Few-Shot** to ground it.
+
+> **Why (the rationale):** Zero-shot relies on the model's pre-trained instruction-following; few-shot additionally steers the model's output *format and style* by demonstration. Few-shot is the fastest way to lock in a consistent output structure without fine-tuning.
+> **When to use:** Start with zero-shot. Add few-shot when: (1) output format is non-standard and the model keeps drifting, (2) the model is small or less instruction-tuned, or (3) a subtle classification boundary needs anchoring. Do not add examples just because more feels safer — each example eats context tokens and can bias toward the demonstrated label distribution.
+> **Nuances & gotchas:** Few-shot steers format and behavior without updating weights, but it does NOT teach the model new factual knowledge. Example order matters — models show recency bias toward the last example. Using imbalanced label distributions in examples biases classification outputs. With frontier models, >5 examples rarely improves accuracy further but linearly increases cost.
 
 ---
 

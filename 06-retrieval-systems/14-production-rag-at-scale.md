@@ -27,6 +27,10 @@ Production RAG is no longer a weekend project. It is a distributed system with r
 
 ## RAG vs Long Context
 
+> **Why (the rationale):** As context windows expand to 1M tokens, the naive approach — "stuff everything in" — becomes tempting. But long-context models pay per-token on every query, suffer accuracy degradation in the middle of long contexts, and cannot handle corpora larger than the window. RAG amortizes indexing cost and retrieves only what is needed, keeping per-query cost and latency manageable at scale.
+> **When to use:** Use long context when your corpus is small (<100K tokens), rarely changes, and you can afford the latency (30–45s) and cost (~$0.10/query). Use RAG for large, dynamic, or multi-tenant corpora where cost and latency constraints apply. The hybrid pattern — RAG to narrow, long context to reason — is the production default for complex synthesis tasks.
+> **Nuances & gotchas:** The "lost in the middle" problem (30%+ accuracy drop for middle-context information) is a real constraint even at 1M tokens — RAG sidesteps it by keeping context short. However, RAG is worse than long context for cross-document synthesis tasks where you need to see everything simultaneously.
+
 With every major frontier family now supporting 1M+ token context windows (Claude Opus 4.7, Claude Sonnet 4.6, GPT-5.5, Gemini 3.1 Pro, Qwen 3.6 Plus, Llama 4 Maverick), the question is no longer "RAG or long context?" but "When does each win?"
 
 ### The Decision Matrix
@@ -92,6 +96,10 @@ The winning architecture combines both: use RAG to retrieve the top candidates f
 ---
 
 ## Query Routing and Classification
+
+> **Why (the rationale):** Running every query through a full RAG pipeline (embed → search → rerank → generate with a large model) is 10–50× more expensive and slower than necessary for simple lookups or general-knowledge questions. Routing lets you serve 20–30% of queries cheaply (direct LLM or cache) while reserving expensive resources for queries that genuinely need them.
+> **When to use:** Implement routing once you have meaningful query volume (>1K queries/day) and a cost-per-query concern. The classification logic can be lightweight (rule-based fast path + a small LLM for ambiguous cases).
+> **Nuances & gotchas:** Router errors compound — misclassifying a complex query as "direct LLM" produces hallucinated answers without retrieval grounding. Monitor routing decisions and user feedback by route type. Rule-based fast paths (regex, keyword) are brittle on conversational queries where the user's intent is indirect.
 
 Not every query needs retrieval. A production system classifies incoming queries and routes them to the optimal handling path.
 
@@ -211,6 +219,10 @@ class DomainRouter:
 ---
 
 ## Semantic Caching for RAG
+
+> **Why (the rationale):** Many production workloads have high query repetition — support systems see the same questions daily, internal tools get the same policy lookups repeatedly. Semantic caching serves these queries in <50ms at near-zero cost instead of re-running the full pipeline every time.
+> **When to use:** Implement semantic caching when you have a production system with observable repeat query patterns. Measure hit rate before committing to the infrastructure — semantic caches require a vector database of their own and add a lookup step to every query.
+> **Nuances & gotchas:** Real production semantic cache hit rates are 20–45%, not 95% — the majority of queries are genuinely unique. Changing the embedding model silently invalidates the entire semantic cache (all cached embeddings use the old vector space). Version-tag cache keys with the embedding model hash. Staleness is a serious risk: a cached answer built from a document that was since updated will confidently deliver wrong information until the cache entry expires or is invalidated.
 
 Semantic caching recognizes when a new query has essentially the same meaning as a prior query and reuses the cached result. Production systems report up to 68% cost reduction and 65x latency improvement with well-tuned semantic caches.
 
@@ -564,6 +576,10 @@ vs. without speculation:
 ---
 
 ## Corrective RAG: Self-Checking Retrieval
+
+> **Why (the rationale):** Standard RAG generates from whatever it retrieved — even if the retrieved documents are completely irrelevant. CRAG adds a quality gate: grade the retrieved context first, and only generate if the context passes. If it doesn't, either reformulate the query and re-retrieve, or supplement with web search.
+> **When to use:** When your RAG system's biggest quality issue is hallucination caused by irrelevant retrieval (low context relevance in the RAG Triad). Most valuable for agentic workflows where the cost of a wrong answer is high.
+> **Nuances & gotchas:** CRAG adds latency — the relevance grading step is an additional LLM call. Every retry also adds latency and cost. Cap retries at 2–3 to prevent runaway loops. The relevance grader itself can fail (it's a model judgment call), so CRAG reduces hallucination frequency but does not eliminate it. CRAG does NOT help when the relevant document is simply not in the index.
 
 Corrective RAG (CRAG) adds a verification layer between retrieval and generation. The system evaluates whether retrieved documents actually answer the query before generating a response.
 
@@ -1209,6 +1225,10 @@ Separate read and write paths so that ingestion never degrades query latency.
 ---
 
 ## Multi-Tenant RAG Isolation
+
+> **Why (the rationale):** In a shared RAG system, a retrieval query that lacks proper tenant filtering can surface one tenant's private documents in another tenant's results — a critical data leak. Isolation must be enforced at the database layer, not only in application logic, because application-layer bugs can drop filters.
+> **When to use:** Any SaaS product where different customers (tenants) have private document collections. The choice of isolation model (silo vs pool vs bridge) is driven by compliance requirements and scale: regulated industries need silo isolation; cost-sensitive SMB products use the pool model.
+> **Nuances & gotchas:** The most common real-world failure is enforcing isolation at ingestion time only — permissions change after indexing, so an ingestion-time check goes stale. Isolation MUST be re-validated at retrieval time on every query. Post-retrieval filtering (filter after ANN search) is also insufficient — a timing or score-based side channel can reveal that a document exists even if its content is withheld.
 
 Multi-tenant RAG is the most common production pattern for SaaS products. Getting isolation wrong means data leaks between tenants, which is a critical security failure.
 

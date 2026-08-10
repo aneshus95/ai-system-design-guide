@@ -21,6 +21,10 @@ When a user's question needs **computation over structured data** — "what was 
 
 ## The Intuition
 
+> **Why (the rationale):** Vector RAG retrieves text that *looks similar* to the question — it cannot sum, count, filter, or join. When a question requires computation over structured data ("total revenue by region last quarter"), vector similarity is the wrong tool. Text-to-SQL uses the LLM only to write the query and delegates the actual computation to the database, where it belongs.
+> **When to use:** Route to Text-to-SQL when the user's question requires aggregation, filtering, ranking, or joining over structured tabular data. Route to RAG when the question requires retrieval of unstructured text (policies, documentation, prose).
+> **Nuances & gotchas:** Text-to-SQL is powerful but brittle on ambiguous schemas — cryptic column names, missing business-rule context, and multi-table joins are the main failure modes. Frontier models hit ~85% execution accuracy on Spider (clean, well-defined schemas) but significantly lower on real production warehouses with hundreds of tables and undocumented conventions. The gap is closed by the surrounding pipeline (schema linking, business-rule RAG, self-correction), not by a bigger model.
+
 Think of Text-to-SQL as a **translator sitting between a human and a database**. The human speaks English ("top 5 customers by spend this year"); the database only understands SQL. The LLM is the translator — but a translator who has never seen this particular database, so **you have to hand it a phrasebook first**: the table names, columns, and how things connect. Give it that context, and it writes the query; the database does the actual math.
 
 ```
@@ -105,6 +109,10 @@ A production Text-to-SQL system is not "prompt the LLM and run whatever it says.
 
 ## The Hard Parts
 
+> **Why (the rationale):** Text-to-SQL accuracy is not primarily a model capability problem — it is a context engineering problem. The model can only write correct SQL if it has accurate schema information, correct business rule definitions, and examples that match your dialect and conventions. Schema linking, business-rule injection, and few-shot selection are the engineering levers that determine real-world accuracy.
+> **When to use:** Address schema linking first when scaling to large databases (50+ tables). Invest in business-rule RAG when your domain has concepts that are not inferable from column names alone (fiscal year boundaries, customer tier definitions, status code meanings).
+> **Nuances & gotchas:** Schema linking is itself a retrieval problem — finding the relevant tables from hundreds of candidates uses the same embedding + keyword search techniques as document RAG. Errors at schema linking compound: picking the wrong table makes every downstream step generate plausibly-formatted but semantically wrong SQL. Ambiguity (e.g., "revenue" maps to three different columns) is better handled by surfacing assumptions or asking for clarification than by guessing silently.
+
 - **Schema linking at scale** — with hundreds of tables, picking the right ones is the #1 accuracy lever *and* the #1 failure point. Get it wrong and every downstream step is doomed.
 - **Business rules & tribal knowledge** — the hardest questions depend on logic that **isn't in the schema**: what "revenue" excludes, which status codes count as "shipped," fiscal-year boundaries. This context lives in PRDs, runbooks, and Slack — so you retrieve it with RAG and inject it.
 - **Ambiguity** — "last quarter," "best customer," "region" may map to several columns or interpretations. Production systems ask a clarifying question or expose their assumption.
@@ -114,6 +122,10 @@ A production Text-to-SQL system is not "prompt the LLM and run whatever it says.
 ---
 
 ## Guardrails (Non-Negotiable in Production)
+
+> **Why (the rationale):** An LLM generating SQL that runs against a production database is a code execution surface. A malicious user, a prompt injection in retrieved business rules, or simply a generation error could produce `DROP TABLE`, `DELETE FROM orders`, or `SELECT *` over billions of rows without guardrails. These controls are not optional and should be implemented before the first query runs.
+> **When to use:** Always. These are the minimum viable security controls for any Text-to-SQL system, regardless of scale or trust level.
+> **Nuances & gotchas:** A read-only database role is your strongest line of defense — it enforces safety at the database layer even if the LLM, the validator, and the application all fail simultaneously. LIMIT injection prevents runaway scans but doesn't prevent expensive aggregations over billions of rows — add query timeouts and scanned-byte caps. Permission scoping (row-level security) must apply the querying user's permissions, not the service account's permissions, or users can access data they aren't authorized to see.
 
 You're letting an LLM generate code that runs against your database — treat it as untrusted:
 
@@ -126,6 +138,10 @@ You're letting an LLM generate code that runs against your database — treat it
 ---
 
 ## Evaluation — Execution Accuracy & the Enterprise Cliff
+
+> **Why (the rationale):** String-matching SQL output is inadequate — two syntactically different queries can return identical results (and both are correct), while two syntactically similar queries can return different results (and one is wrong). Execution Accuracy evaluates semantic correctness by running both queries and comparing result sets.
+> **When to use:** Use Execution Accuracy as the primary metric for any Text-to-SQL system. Supplement with token-level metrics (BLEU, exact string match) only as cheap sanity checks, never as the primary evaluation signal.
+> **Nuances & gotchas:** Benchmark scores (Spider ~85% EX for frontier models) substantially overstate real-world performance — benchmarks use clean, well-documented schemas. On a real production warehouse with cryptic column names and undocumented business rules, the same model may score 40–60% without schema linking and business-rule context injection. The enterprise cliff is real: invest in the pipeline (schema linking, business-rule RAG, self-correction loop), not just model selection.
 
 - **Execution Accuracy (EX)** is the standard metric: **run the generated SQL *and* the gold SQL, and check the result sets match.** It rewards *semantic* correctness (two different queries that return the same rows both count) rather than exact string matching.
 - **Benchmarks:** **Spider** (cross-domain, unseen schemas, multi-table) and **BIRD** (large, messy, real-world databases + business knowledge). Frontier systems hit **~85%+ EX on Spider**.

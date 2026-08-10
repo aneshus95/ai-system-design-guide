@@ -18,6 +18,10 @@ The KV Cache is the most significant memory consumer in long-context AI systems.
 
 During generation, the model needs the Key (K) and Value (V) tensors for all previous tokens. Storing these in memory is expensive.
 
+> **Why (the rationale):** Without a KV cache, each decode step would recompute attention over the entire prompt and all prior tokens from scratch — O(N²) recomputation per token. The cache trades VRAM for speed by storing these tensors once and reusing them on every subsequent step.
+> **When to use:** Always enabled in modern serving stacks. Manage it carefully when context windows are long (>32k tokens) or concurrency is high — the cache dominates VRAM at those scales and directly caps batch size.
+> **Nuances & gotchas:** KV cache size grows linearly with sequence length AND with batch size — it's not a fixed cost. At 128k context, the KV cache for a single user on Llama 4 70B (~42 GB) can rival the model weights themselves. It does NOT cache query tensors (queries are always recomputed for the current token). The KV cache is the primary reason long-context serving is hard and why PagedAttention, GQA, and quantized KV cache exist.
+
 **VRAM Calculation (Llama 4 70B):**
 - **Tokens**: 128,000
 - **Precision**: BF16 (2 bytes/param)
@@ -59,6 +63,10 @@ Every term is something you can attack, and the rest of this module does exactly
 
 GQA is the modern standard for reducing KV Cache size without losing performance.
 
+> **Why (the rationale):** In Multi-Head Attention (MHA), each query head has its own dedicated KV head, requiring 64–128 KV heads per layer in large models. GQA reduces KV heads while keeping full query head count, shrinking cache size by 8x at a quality cost of under 0.2% — a very favorable tradeoff vs. the VRAM savings.
+> **When to use:** Standard for any production model trained or fine-tuned after 2023 (Llama 3+, Mistral, Qwen, Gemma). Prefer GQA over MQA when quality is important; use MQA only in extreme memory-constrained edge/mobile scenarios where you can tolerate 2–3% quality degradation.
+> **Nuances & gotchas:** GQA is a model architecture choice made at training time — you cannot apply it to an existing MHA model at inference without retraining. The 8x reduction applies to KV head count, not sequence length — long contexts still grow the cache linearly. GQA does not eliminate KV cache; it reduces the per-layer memory by the group ratio.
+
 | Method | Ratio | KV Cache Reduction | Quality Loss |
 |--------|-------|-------------------|--------------|
 | **Multi-Head (MHA)** | 1:1 | 1x (Baseline) | 0% |
@@ -73,6 +81,10 @@ GQA is the modern standard for reducing KV Cache size without losing performance
 
 Production systems use **Shared KV Caches** for prompts with common prefixes (e.g., a 100-page knowledge base shared by 1,000 users).
 
+> **Why (the rationale):** When thousands of users share the same system prompt or knowledge base, recomputing the full prefill for each request wastes both GPU compute and latency. Storing the shared KV cache once and reusing it eliminates redundant prefill computation.
+> **When to use:** When a common prefix (system prompt, document, tool schema) is shared across many requests and is long enough to make recomputation costly (typically >2k tokens). Use tiered caching (VRAM → HBM → SSD) when the shared corpus is larger than available VRAM.
+> **Nuances & gotchas:** Cache hits require routing the same user (or same prefix) to the same GPU node that holds the cached KV blocks — sticky sessions at the gateway are required. Cache invalidation is hard: a single token change in the prefix breaks the cache for all downstream users. Disk-tier cache access (SGLang's SSD tier) adds latency that must be measured against the compute saving.
+
 ### Disk vs. VRAM Caching
 - **VRAM Cache**: Instant access, strictly limited size.
 - **Disk/SSD Cache**: Slower access, nearly unlimited. Frameworks like **SGLang** use a tiered system: `Most Recent (VRAM) -> Frequent (HBM) -> Occasional (SSD)`.
@@ -82,6 +94,10 @@ Production systems use **Shared KV Caches** for prompts with common prefixes (e.
 ## API-level Context Caching (Prompt Caching)
 
 Major providers (OpenAI, Anthropic, Google, DeepSeek) now offer **Prompt Caching** discounts.
+
+> **Why (the rationale):** Providers pre-compute and store the KV cache for repeated prompt prefixes on their infrastructure, charging a lower rate for cache hits than for fresh computation. This transfers the caching benefit to API users without them managing any GPU state.
+> **When to use:** When your system prompt, tool schema, or shared document is long (>1k tokens for Anthropic, varies by provider) and the same prefix is sent in many requests. At ≥1.1–1.5x reuse, caching is cheaper; at <1x reuse, the write premium makes it more expensive.
+> **Nuances & gotchas:** Anthropic charges a 25% write premium on the first cache write — break-even is ~3–5x reuse for short prefixes. Cache TTL varies by provider (Anthropic: ~5 minutes unless refreshed; Google: billed hourly storage). The prefix must be an exact byte-for-byte match — any change, even a space, misses the cache. This does NOT provide semantic caching for different phrasings of the same question.
 
 | Provider | Feature Name | Pricing (Cached input) | Best For |
 |----------|--------------|------------------------|----------|
@@ -97,6 +113,10 @@ Major providers (OpenAI, Anthropic, Google, DeepSeek) now offer **Prompt Caching
 ## RAD-O: Retrieval Augmented Decoding
 
 RAD-O is a context-caching technique where the model **compresses** the KV cache of long documents into "Latent tokens."
+
+> **Why (the rationale):** At very long contexts (1M+ tokens) the raw KV cache is prohibitively large — storing it in full VRAM is infeasible. RAD-O compresses the KV representations of a document into a smaller latent representation, allowing much longer effective contexts on the same hardware.
+> **When to use:** When you need to serve 500k–2M token contexts on hardware with limited VRAM, and you can tolerate some quality loss from compression. Not needed for standard <128k context workloads where the full KV cache fits.
+> **Nuances & gotchas:** Compression introduces approximation — latent tokens are lossy representations of the original document, so fine-grained factual recall may degrade. The 10x compression ratio is approximate and model/document dependent. RAD-O is a research-stage technique; production deployments are limited as of 2026.
 - **How**: Instead of storing the full KV vectors for 1M tokens, it stores a compressed representation that is 10x smaller.
 - **Impact**: Enables 2M+ token contexts on hardware that previously only supported 200k.
 

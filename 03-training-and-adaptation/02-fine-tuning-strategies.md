@@ -33,6 +33,10 @@ Before fine-tuning, ask: **Can this be solved with Prompt Engineering or RAG?**
 
 The first step after pretraining. The model is trained on `(Prompt, Response)` pairs.
 
+> **Why (the rationale):** Pretraining produces a model that "knows things" but generates unconstrained text. SFT is the lowest-cost way to teach the model what a "good response" looks like — it shifts the output distribution toward helpful, structured, on-format answers without needing a reward model or RL loop.
+> **When to use:** SFT is almost always the first fine-tuning step for any production use case. It is especially valuable when you have a well-defined target format (JSON, step-by-step answers) or specific tone/persona requirements that prompting alone cannot enforce reliably.
+> **Nuances & gotchas:** SFT does NOT reliably inject new factual knowledge — the model tends to hallucinate rather than memorize new facts. It teaches format and style, not facts. Quality of examples dominates quantity; 1K expert-curated examples routinely outperform 1M noisy ones.
+
 ### The Quality Hierarchy
 **1,000 "Perfect" examples beat 1,000,000 noisy examples.**
 - **Golden Sets:** Hand-curated by domain experts (PhD level for technical tasks).
@@ -47,6 +51,10 @@ Also known as "Second-stage Pretraining."
 - **Objective**: Learn the statistical distribution of the domain language.
 - **Nuance**: Requires a much lower learning rate (~1/10th of original) to prevent "catastrophic forgetting."
 
+> **Why (the rationale):** When your domain has specialized vocabulary, notation, or conventions that are rare in the general pretraining corpus (medical ICD codes, legal Latin, financial acronyms, proprietary codebases), SFT alone cannot teach the model the underlying language — it only teaches response format. Continued pretraining rewires the model's base representations to "speak the domain."
+> **When to use:** Use when domain vocabulary is substantially out-of-distribution (e.g., rare language, internal jargon, niche technical notation). Skip it when the general model already understands the domain vocabulary and only the task format needs changing.
+> **Nuances & gotchas:** Continued pretraining requires large amounts of raw unlabeled domain text (tens of millions of tokens minimum to shift representations meaningfully). Using a learning rate too close to the original pretraining rate risks catastrophic forgetting of general capabilities. It is typically followed by SFT — it changes what the model knows, not how it responds.
+
 ---
 
 ## PEFT vs. Full-Parameter
@@ -58,6 +66,10 @@ Also known as "Second-stage Pretraining."
 | Risk | High (Catastrophic Forgetting) | Low |
 | Deployment | One model per task | One base model + multiple adapters |
 | **Verdict**| Reserved for foundation training | **The Production Standard** |
+
+> **Why (the rationale):** Full fine-tuning updates every weight, giving maximum expressivity but requiring enormous VRAM (storing weights, gradients, and optimizer states for every parameter) and risking catastrophic forgetting. PEFT methods update a tiny fraction of parameters, making large-model fine-tuning economically viable for most teams.
+> **When to use:** Full fine-tuning is justified only when you have a massive, unique dataset and need the absolute maximum adaptation quality — primarily for building a new foundation model. PEFT (LoRA/QLoRA) is the right default for virtually all production fine-tuning scenarios.
+> **Nuances & gotchas:** PEFT can underperform full fine-tuning on very large domain shifts (e.g., teaching a general model to become a specialized medical coder from scratch). Also, PEFT does NOT protect against forgetting perfectly — it reduces risk significantly but at very high learning rates forgetting can still occur. Multi-adapter serving is a key PEFT advantage that full fine-tuning cannot match.
 
 ---
 
@@ -75,6 +87,10 @@ Also known as "Second-stage Pretraining."
 To maximize throughput, we "pack" multiple short examples into a single 4k or 8k sequence, separated by EOS tokens.
 - **Challenge**: Self-attention might leak across examples.
 - **Solution**: **FlashAttention with block-masking** to prevent cross-example attention.
+
+> **Why (the rationale):** Short training examples leave most of the GPU's allocated sequence length empty (padding tokens), wasting compute. Packing fills that sequence with multiple real examples, dramatically increasing GPU utilization and training throughput.
+> **When to use:** Packing is most valuable when your dataset has many short examples (e.g., QA pairs, classification tasks). For datasets of uniformly long examples, the benefit is minimal. Always enable block-masking when packing — without it, the attention leak silently corrupts gradients.
+> **Nuances & gotchas:** Block-masking is not enabled by default in all training frameworks — verify it is active before running. Incorrect packing without block-masking can cause the model to learn spurious cross-example dependencies, leading to subtle but hard-to-diagnose quality regressions.
 
 ---
 

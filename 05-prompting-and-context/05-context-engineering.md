@@ -23,6 +23,10 @@ Models like Gemini 3.1 Pro (1M), Claude Sonnet 4.6 (1M), Claude Opus 4.7 (1M), a
 **Insight**: "Context is the new RAG."
 For datasets under 100,000 documents, it is often more accurate and faster to put the entire dataset in the context window than to use an external vector database. This is called **"In-Context RAG."**
 
+> **Why (the rationale):** Vector retrieval introduces a "retrieval gap" — if the embedding search misses the relevant chunk, the model never sees it. Loading the entire dataset eliminates the retrieval step entirely, achieving 100% recall and enabling cross-document reasoning that chunk-based RAG cannot do.
+> **When to use:** Datasets that fit within the context window (practically up to ~500k–1M tokens after accounting for instruction overhead and output reserve), tasks requiring cross-document reasoning or 100% recall, and workloads where the same large context is reused across many queries (making prompt caching economically viable). Prefer RAG for datasets that exceed the window, data that changes frequently, or per-user access control needs.
+> **Nuances & gotchas:** A 1M-token context window does not mean reliability is uniform across that range — context rot degrades accuracy as the window fills, and attention remains strongest at the beginning and end. Cold prefill on a 1M-token prompt is expensive; this only becomes cost-efficient with prompt caching (cache-hit rates near 100%). "In-Context RAG" is NOT a substitute for knowledge the model doesn't have; it only works for content you supply.
+
 ---
 
 ## Agentic Context Engineering
@@ -32,6 +36,10 @@ Prompt engineering writes one good instruction. **Context engineering** curates 
 ### Context Rot: Why Context Is a Finite Resource
 
 A 1M-token window does not mean you should fill it. Models suffer **context rot**: accuracy degrades as the token count grows, because attention scales with n-squared pairwise relationships and training data skews toward shorter sequences. Treat context as a budget with diminishing returns, not free space. The job is to keep the **smallest high-signal set of tokens** that still lets the model act correctly.
+
+> **Why (the rationale):** Attention is not uniform — the model's focus on any given token degrades as the window grows, both due to the mathematical cost of n² pairwise attention and because training data skews toward shorter, denser sequences. Filling the window with low-signal tokens crowds out high-signal ones.
+> **When to use (this concern):** Active context management (compaction, pruning, just-in-time loading) becomes critical when: agent tasks run for more than ~20 tool calls, retrieved document volume exceeds 50k tokens, or you observe accuracy degradation in long sessions that cannot be explained by task complexity alone.
+> **Nuances & gotchas:** Context rot is not a cliff — it degrades gradually and non-uniformly across query types. The "lost-in-the-middle" effect means critical information in the middle of a large context is disproportionately affected. There is no single token count threshold where rot begins; it depends on the task, model, and content type.
 
 ### The Five Core Techniques
 
@@ -144,6 +152,10 @@ In 2023, models lost accuracy for information in the middle of the prompt.
 - **Best Practice**: Place critical instructions and gold-standard examples at the **very beginning** and **very end** of your prompt. Middle = raw data/knowledge chunks.
 - **Use chunk ordering**: Rerank retrieved documents so most relevant are first and last.
 
+> **Why (the rationale):** Attention weights in a transformer are influenced by position — tokens at the beginning (primacy) and end (recency) of the context receive disproportionately stronger attention. Instructions or key facts buried in the middle of a long context are less reliably attended to.
+> **When to use:** This is a placement rule that applies to all long-context prompts. It is especially important in RAG pipelines where you control chunk ordering, and in system prompts that mix instructions with injected reference data.
+> **Nuances & gotchas:** Frontier models have improved significantly on this problem but have not eliminated it — do not assume perfect recall from mid-context positions. Document reranking (most relevant first and last) is a low-cost intervention with meaningful accuracy gains on long-context tasks. Placing instructions at both ends (sandwich pattern) is more robust than placing them only at the start.
+
 ---
 
 ## Context Budgeting & Token Awareness
@@ -169,6 +181,10 @@ Almost all major providers (OpenAI, DeepSeek, Anthropic, Google) support **Prefi
 
 **The Architectural Choice**: Design your system to keep the "System Prompt + Base Knowledge" static to maintain a 100% cache hit rate.
 
+> **Why (the rationale):** Large shared prefixes (a codebase, a policy document, a knowledge base) are expensive to re-prefill on every call. Prefix caching stores the KV-cache for a reused prefix, turning a 100x cost penalty into a near-zero prefill cost — making long-context architectures economically viable for production.
+> **When to use:** Any system where a large document or knowledge base is reused across multiple user queries — code assistants, document QA, customer service with a shared policy document. The break-even is roughly 2 reuses of the prefix within the cache TTL (typically minutes to hours depending on provider).
+> **Nuances & gotchas:** Prefix caching only works if the prefix is *identical and leading* — any change to the cached prefix (even one token) invalidates the cache for everything after that point. Dynamic per-user injection into the system prompt breaks caching; instead, inject user-specific content after the static cached prefix. Cache TTLs vary by provider and are not always guaranteed; cold-start requests still pay full prefill cost.
+
 ---
 
 ## Contextual Compression (RAD-L)
@@ -176,6 +192,10 @@ Almost all major providers (OpenAI, DeepSeek, Anthropic, Google) support **Prefi
 For extremely long contexts (10M+), we use **Reasoning-Aware Deletion (RAD-L)**.
 - **How**: A tiny auxiliary model (0.1B) scans the text and removes "filler" words, common linguistic patterns, and irrelevant sections *before* the prompt is sent to the giant frontier model.
 - **Benefit**: Reduces prompt size by 20-50% with <1% drop in accuracy.
+
+> **Why (the rationale):** For contexts exceeding 1M tokens, the main model's prefill cost and context-rot risk both become severe. A tiny cheap compressor runs fast (0.1B parameters) and removes filler that the main model would spend expensive attention on anyway, preserving signal-to-noise ratio before the heavy inference call.
+> **When to use:** Extremely long inputs — legal documents, large codebases, scientific literature — where token volume significantly exceeds what the main model can attend to reliably. Not worth the added pipeline complexity for contexts under ~100k tokens where the main model handles them well directly.
+> **Nuances & gotchas:** The <1% accuracy drop claim is task-dependent — compression that is safe for summarization may silently drop critical details for precise fact extraction. The compressor can misidentify important technical terms or rare phrases as "filler." Always evaluate RAD-L on your specific task before deploying; the compression ratio vs. accuracy trade-off is not universal.
 
 ---
 

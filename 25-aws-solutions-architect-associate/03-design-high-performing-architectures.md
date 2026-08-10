@@ -77,6 +77,10 @@ AWS offers [over 750 EC2 instance types](https://aws.amazon.com/ec2/instance-typ
 
 **Selection principle:** When the question mentions a *specific bottleneck* (slow CPU → C family; out-of-memory → R family; disk I/O → I family), match the family. When cost is the constraint alongside performance, consider Graviton variants (see below).
 
+> **Why (the rationale):** EC2 instance families let you match the dominant hardware resource to the dominant workload bottleneck — avoiding over-provisioning while hitting performance targets.
+> **When to use:** Exam scenario names a constraint: "CPU-bound encoding" → C family; "memory-intensive in-memory DB" → R/X family; "high random I/O NoSQL" → I family; "GPU ML training" → P/G family; "ML inference at scale" → Inf family.
+> **Nuances & gotchas:** Inf (Inferentia) is inference-only, not training; Trn (Trainium) is training-only. GPU instances (P/G) are very expensive — use only when parallelism can exploit CUDA/GPU cores. HPC (hpc7g) requires EFA and Cluster placement group to realise benefit. D-family uses magnetic HDD (high capacity/low IOPS), not NVMe — don't confuse with I-family's NVMe.
+
 ---
 
 ### AWS Lambda — Memory, Concurrency & Provisioned Concurrency
@@ -114,6 +118,10 @@ sequenceDiagram
 
 **Key rule:** Provisioned concurrency must point to a **version or alias** — NOT `$LATEST`.
 
+> **Why (the rationale):** Lambda cold starts add 100 ms–10 s of latency at first invocation; provisioned concurrency pre-warms environments to eliminate this. Reserved concurrency acts as a hard cap to protect downstream systems from being overwhelmed.
+> **When to use:** Provisioned concurrency → latency-sensitive APIs, real-time applications where cold start is unacceptable. Reserved concurrency → throttle a Lambda to protect a downstream DB or third-party API; guarantee minimum capacity for a critical function.
+> **Nuances & gotchas:** Provisioned concurrency costs extra (per GB-hour of provisioned environments) even if unused — size it carefully. Reserved concurrency of 0 effectively disables a function entirely. Provisioned concurrency does NOT apply to `$LATEST` — it requires a published version or an alias. Scaling provisioned concurrency via Application Auto Scaling targets `LambdaProvisionedConcurrencyUtilization`; recommended target ~70%. Memory controls CPU allocation — doubling memory can halve execution time, often reducing net cost.
+
 ---
 
 ### ECS / EKS / Fargate
@@ -127,6 +135,10 @@ sequenceDiagram
 
 For *high performance*: ECS/EKS on EC2 lets you pick instance family (C for CPU, R for memory). Fargate abstracts this — specify vCPU and memory directly (0.25–16 vCPU; 0.5–120 GB RAM for ECS Fargate).
 
+> **Why (the rationale):** ECS simplifies container orchestration without Kubernetes complexity; EKS is for Kubernetes-native workloads. Fargate removes all node/cluster management overhead — the trade-off is less control over instance type and slightly higher per-unit cost.
+> **When to use:** ECS + Fargate → spiky/variable container workloads, teams that want serverless containers. ECS + EC2 → predictable load needing cost optimisation (can use Spot). EKS → existing Kubernetes manifests, Helm charts, or complex scheduling requirements. EKS + Fargate → K8s workloads without any node management.
+> **Nuances & gotchas:** Fargate does NOT support GPU instances or Windows containers on EKS Fargate. ECS on EC2 requires you to manage instance scaling separately from task scaling. EKS control plane costs ~$0.10/hr regardless of node count. ECS and EKS are different control planes — you cannot mix tasks/pods between them. Fargate uses ephemeral storage (20 GB default, up to 200 GB); there is no persistent local disk — use EFS for shared persistent storage.
+
 ---
 
 ### Auto Scaling for Performance
@@ -139,6 +151,10 @@ For *high performance*: ECS/EKS on EC2 lets you pick instance family (C for CPU,
 - **Predictive Scaling:** ML-based forecast — scales proactively before load arrives.
 
 **Warm pools** (EC2 Auto Scaling): pre-initialise instances in `Stopped` state so they join quickly without full boot delay.
+
+> **Why (the rationale):** Auto Scaling maintains performance under unpredictable load without paying for always-on capacity; each policy type trades off responsiveness, simplicity, and cost differently.
+> **When to use:** Target Tracking → most scenarios (simplest, self-adjusting). Step Scaling → when you need different scaling magnitudes per alarm threshold. Scheduled Scaling → known traffic patterns (daily peaks, flash sales). Predictive Scaling → recurring cyclical load where pre-scaling before the burst matters.
+> **Nuances & gotchas:** Target Tracking cannot scale to zero — minimum capacity is 1 unless combined with scheduled scaling. Predictive Scaling requires at least 24 hours of historical CloudWatch data to generate a forecast. Warm pools reduce instance launch latency but incur cost for stopped instances. Auto Scaling does NOT automatically replace unhealthy instances unless you enable health check replacement.
 
 ---
 
@@ -170,6 +186,18 @@ graph LR
 | **Spread** | Maximum availability — each instance on isolated hardware | Max 7 instances per AZ | Critical distinct instances (e.g., primary DB + replica) |
 | **Partition** | Large distributed apps with rack-level isolation, aware of which partition they are on | — | Hadoop, Cassandra, Kafka |
 
+> **Why — Cluster placement group:** Collocates instances on the same rack/AZ for the lowest possible inter-instance latency and highest bandwidth — needed for tightly coupled HPC/MPI jobs where inter-node communication dominates runtime.
+> **When to use:** HPC MPI workloads, big-data jobs requiring high aggregate network throughput between nodes, ML training across multiple GPU instances.
+> **Nuances & gotchas:** Cluster PG is in a single AZ — if the AZ or rack has a failure, all instances are affected (correlated failure risk). Adding instances later may fail with "insufficient capacity" if the rack is full — launch all instances at once. Not suitable for HA workloads. Must use Enhanced Networking (ENA/EFA) to realise full bandwidth.
+
+> **Why — Spread placement group:** Places each instance on distinct underlying hardware (separate racks), maximising fault isolation for a small set of critical instances.
+> **When to use:** Small number of critical instances that must not fail together — e.g., primary DB + standby, ZooKeeper quorum, primary + secondary application nodes.
+> **Nuances & gotchas:** Hard limit of **7 instances per AZ** per spread PG — not suitable for large fleets. Spread PG can span multiple AZs (up to 7 per AZ in each AZ). Not for large distributed apps — use Partition PG instead.
+
+> **Why — Partition placement group:** Groups instances into logical partitions where each partition is on a separate set of racks, providing rack-level isolation across a large fleet.
+> **When to use:** Large distributed/replicated workloads — Hadoop HDFS, Apache Cassandra, Apache Kafka — where you want topology awareness (instances can query which partition they are in) and rack-level isolation without the 7-instance limit.
+> **Nuances & gotchas:** Up to **7 partitions per AZ**; each partition can hold many instances (no per-partition instance limit). Instances within the same partition still share physical racks — a rack failure affects a partition, not the whole cluster. Not the same as Spread (which guarantees each instance on its own rack).
+
 ---
 
 ### Elastic Fabric Adapter (EFA)
@@ -177,6 +205,10 @@ graph LR
 [EFA](https://aws.amazon.com/hpc/efa/) is a network interface for EC2 that enables **OS-bypass** communication between instances using the libfabric API. Delivers HPC-class inter-node latency and bandwidth — required for tightly-coupled MPI workloads, ML training across multiple nodes.
 
 EFA is **only used with Cluster placement groups** for maximum benefit. Supported on specific instance types (Hpc, P4, Trn1, etc.).
+
+> **Why (the rationale):** Standard TCP/IP adds OS-level overhead for every packet; EFA's OS-bypass delivers near-wire-speed latency for MPI all-reduce and ML collective operations that would otherwise be bottlenecked by the OS network stack.
+> **When to use:** Tightly coupled HPC MPI workloads (fluid dynamics, molecular dynamics, seismic analysis), large-scale ML training with collective communications (NCCL, MPI) across multiple GPU/Trn1 nodes.
+> **Nuances & gotchas:** EFA is a Linux-only feature — not supported on Windows. Works only within a single VPC/AZ (used with Cluster PG). EFA does NOT improve single-instance network performance — only inter-instance performance in HPC scenarios. ENA (standard enhanced networking) is still used for all other network traffic on the same instance alongside EFA.
 
 ---
 
@@ -192,6 +224,10 @@ EFA is **only used with Cluster placement groups** for maximum benefit. Supporte
 | Graviton4 | Latest gen | R8g, M8g, C8g |
 
 Graviton also runs in **Fargate** and **Lambda** (arm64 architecture). Select arm64 in Lambda → up to 34% better price-performance for eligible workloads.
+
+> **Why (the rationale):** Graviton ARM processors deliver better price-performance than equivalent x86 instances by AWS's own silicon design, without vendor licensing costs — ideal when you need performance at lower spend.
+> **When to use:** Any Linux-compatible workload that can be compiled for arm64 — web servers, APIs, containers, Java/Python/Node.js apps. Lambda arm64 is a simple toggle for 20–34% cost savings on compute-bound functions.
+> **Nuances & gotchas:** Graviton is ARM64 — binaries compiled for x86 will NOT run without recompilation or emulation. Windows workloads cannot use Graviton (Windows on ARM EC2 is not supported on AWS). Managed services like RDS, ElastiCache, OpenSearch also offer Graviton instances — same selection logic applies. Not suitable for workloads with x86-only dependencies (specific ISA intrinsics, 32-bit executables).
 
 #### 🎯 On the exam — Compute
 
@@ -228,6 +264,18 @@ Source: [Amazon EBS volume types — AWS docs](https://docs.aws.amazon.com/ebs/l
 
 **gp3 vs gp2:** gp3 decouples IOPS from size — you can provision up to 16,000 IOPS and 1,000 MiB/s *independently* without adding storage. gp3 is almost always cheaper and better than gp2.
 
+> **Why — gp3:** Replaces gp2 as the default general-purpose SSD. Decouples IOPS and throughput from volume size, giving you control without paying for unnecessary storage.
+> **When to use:** Default choice for boot volumes, development workloads, general databases, and any workload not requiring > 16,000 IOPS or sub-millisecond latency.
+> **Nuances & gotchas:** gp2 ties IOPS to size (3 IOPS/GiB, max 16,000 IOPS at 5.3+ TiB); gp3 gives 3,000 IOPS free regardless of size. gp3 baseline throughput is 125 MiB/s free; provisioning higher throughput (up to 1,000 MiB/s) costs extra. gp3 does NOT support Multi-Attach (io1/io2 do). Max 80,000 IOPS only on Nitro-based instances.
+
+> **Why — io2 Block Express:** The only EBS volume type offering sub-millisecond average latency, up to 256,000 IOPS, 4,000 MiB/s throughput, and 99.999% durability — for mission-critical databases.
+> **When to use:** SAP HANA, Oracle, SQL Server with > 64,000 IOPS needs, or any workload requiring 99.999% volume durability and sub-ms consistent latency.
+> **Nuances & gotchas:** io2 Block Express is only available on Nitro instances. io2 (non-Block Express) has the same 64,000 IOPS cap as io1. Multi-Attach (attach same io2 to up to 16 Nitro instances) requires a cluster-aware file system — NOT a standard file system. io2 Block Express requires compatible instance type; not all io2-supported instances support Block Express.
+
+> **Why — st1 (Throughput Optimised HDD):** Delivers high sequential throughput at much lower cost than SSDs — ideal for workloads that read/write large blocks sequentially, not random I/O.
+> **When to use:** Big data processing (Hadoop), data warehousing input data, log processing, streaming ingest to disk — any workload whose bottleneck is sequential MB/s, not IOPS.
+> **Nuances & gotchas:** st1 and sc1 CANNOT be boot volumes. st1 is optimised for throughput, not IOPS — random I/O workloads will see poor performance. Burst throughput of 250 MiB/s per TB (max 500 MiB/s) is credit-based; sustained workloads may not sustain burst. sc1 is cheaper but max 250 MiB/s — use only for cold, infrequently accessed archival data.
+
 #### HDD Volumes
 
 | Attribute | st1 (Throughput Optimised HDD) | sc1 (Cold HDD) |
@@ -262,6 +310,10 @@ flowchart TD
 - **Persistence:** Data is **lost** when the instance stops, terminates, hibernates, or the hardware fails.
 - **Use cases:** Temporary scratch data, buffer/cache, replicated data (e.g., Kafka brokers, Cassandra nodes — data is replicated to other nodes anyway).
 
+> **Why (the rationale):** Instance store is physically attached to the host server — no network hop — delivering the highest possible IOPS and throughput of any EC2 storage option at no additional cost (included in instance price).
+> **When to use:** Scratch space for HPC jobs, temporary buffers, shuffle storage for Spark/Hadoop, or replicated distributed databases (Kafka, Cassandra) where application-level replication makes storage loss tolerable.
+> **Nuances & gotchas:** Instance store is ephemeral — data is permanently lost on instance stop, termination, hibernation, or host hardware failure. You CANNOT detach and reattach instance store volumes (unlike EBS). Cannot be snapshotted to S3. Not suitable as a primary data store for anything that must survive a reboot/stop. Instance store size and type are fixed by the instance type — you cannot resize independently.
+
 ---
 
 ### Amazon EFS
@@ -285,6 +337,10 @@ flowchart TD
 
 EFS supports **Multi-AZ** access, SMB is **not** supported (that's FSx for Windows). EFS is billed per GB-month stored.
 
+> **Why (the rationale):** EFS provides a fully managed, elastic shared file system accessible from multiple EC2 instances, containers, and Lambda simultaneously — removing the need to pre-provision or manage storage capacity.
+> **When to use:** Shared POSIX file system for Linux workloads — CMS web farms, container shared volumes (ECS/EKS), Lambda accessing shared files, home directories, code repositories accessed by multiple compute nodes.
+> **Nuances & gotchas:** EFS is NFS (Linux only) — Windows workloads need FSx for Windows (SMB). Performance mode is set at creation and CANNOT be changed later. Max I/O mode has slightly higher latency than General Purpose — use only for highly parallel workloads with 10s to 100s of nodes. Elastic throughput mode (recommended) automatically bursts; Provisioned throughput costs extra regardless of usage. EFS One Zone stores data in a single AZ — cheaper but no Multi-AZ redundancy. EFS is billed per GB stored (no pre-provisioning) — can be more expensive than EBS for large fixed datasets.
+
 ---
 
 ### Amazon FSx
@@ -297,6 +353,22 @@ EFS supports **Multi-AZ** access, SMB is **not** supported (that's FSx for Windo
 | **FSx for Windows File Server** | SMB | Windows (+ Linux via Samba) | Up to 12 GB/s | Windows ACLs, DFS, AD integration | Windows shared file share (CIFS/SMB) |
 | **FSx for NetApp ONTAP** | NFS, SMB, iSCSI | Windows, Linux, macOS | Up to 80 GB/s | Multi-protocol, SnapMirror, tiering, instant clones | Lift-and-shift NetApp, multi-OS access, hybrid cloud |
 | **FSx for OpenZFS** | NFS | Windows, Linux, macOS | Up to 12.5 GB/s | ZFS features (snapshots, clones), sub-ms latency | ZFS workloads, low-latency NFS |
+
+> **Why — FSx for Lustre:** Lustre is the de facto parallel file system for HPC and ML — it can deliver over 1 TB/s aggregate throughput by striping data across multiple OSTs, and it integrates natively with S3 as a data repository.
+> **When to use:** HPC simulations, ML training where many GPU/CPU nodes need simultaneous high-throughput access to a shared dataset; scenarios where you want to import from / export to an S3 data lake.
+> **Nuances & gotchas:** Linux-only (Lustre client). Two deployment types: Scratch (no replication, cheaper, temporary) vs Persistent (replicates within AZ, for long-running workloads). S3 integration is lazy — data is loaded on first access (lazy loading) unless you explicitly import it. FSx for Lustre does NOT span AZs — it's a single-AZ service.
+
+> **Why — FSx for Windows File Server:** Provides fully managed Windows SMB shares with native Active Directory, DFS Namespaces, and Windows ACL support — the only AWS managed option for Windows CIFS/SMB.
+> **When to use:** Windows workloads needing shared drives (\\server\share), lift-and-shift of on-premises Windows file servers, any workload requiring SMB protocol, AD integration, or DFS.
+> **Nuances & gotchas:** EFS does NOT support SMB/Windows — you must use FSx for Windows for Windows file shares. FSx for Windows can also be accessed from Linux using Samba. Supports Multi-AZ for HA. Not suitable for Linux HPC workloads — use FSx for Lustre.
+
+> **Why — FSx for NetApp ONTAP:** The only FSx variant supporting NFS + SMB + iSCSI simultaneously, with enterprise ONTAP features (SnapMirror, instant clones, tiering to S3) — ideal for multi-OS environments and hybrid cloud.
+> **When to use:** Lift-and-shift of existing NetApp ONTAP arrays, workloads needing simultaneous NFS + SMB access (mixed Windows/Linux), cross-region replication via SnapMirror, or storage tiering from SSD to S3.
+> **Nuances & gotchas:** Most feature-rich and typically most expensive FSx option. iSCSI support means it can also serve as block storage to on-premises servers. SnapMirror provides cross-region DR replication — unique among FSx variants. Instant clones (FlexClone) create space-efficient writable copies instantly — useful for dev/test.
+
+> **Why — FSx for OpenZFS:** Provides sub-millisecond NFS latency with ZFS features (snapshots, data compression, instant clones) — best for workloads needing very low NFS latency with copy-on-write semantics.
+> **When to use:** Lift-and-shift of ZFS workloads (OpenZFS on Linux, Solaris ZFS), dev/test environments needing instant clones, applications requiring NFS with consistent sub-ms latency.
+> **Nuances & gotchas:** NFS only (no SMB, no iSCSI). Single-AZ deployment — not Multi-AZ. Instant clones (ZFS clones) are space-efficient but clone and parent share blocks — deleting parent requires clone promotion. Lower max throughput ceiling than FSx for Lustre — not suitable for HPC at scale.
 
 ```mermaid
 flowchart TD
@@ -321,6 +393,18 @@ flowchart TD
 - **Byte-range fetches:** Download a specific byte range with `Range` HTTP header — parallelise downloads, retry only failed parts.
 - **S3 Transfer Acceleration:** Routes uploads through CloudFront edge locations via optimised AWS backbone — best for long-distance transfers (e.g., user in Asia uploading to bucket in US-EAST-1). [FAQ](https://aws.amazon.com/s3/transfer-acceleration/)
 - **S3 Select / Glacier Select:** Push down SQL filtering to S3 — retrieve subset of data, reducing bandwidth and cost.
+
+> **Why — Multipart upload:** Uploading a large object as a single stream is slow and must restart from scratch on failure. Multipart splits the object into parts uploaded in parallel, then assembled server-side — faster and more resilient.
+> **When to use:** Required for objects > 5 GB; AWS recommends using it for objects > 100 MB. Use it for any large file upload (video, database dumps, ML model artifacts).
+> **Nuances & gotchas:** If a multipart upload is never completed, incomplete parts accumulate in S3 and are billed — set an S3 Lifecycle rule to abort incomplete multipart uploads after N days. Maximum part size: 5 GB; minimum (except last part): 5 MB; max 10,000 parts per object.
+
+> **Why — S3 Transfer Acceleration:** Routes uploads through the nearest CloudFront edge location and then over the AWS private backbone to the destination region — dramatically improving long-distance upload speed.
+> **When to use:** Users in distant geographies uploading to a single-region S3 bucket (e.g., APAC users uploading to us-east-1). Only beneficial for cross-region/long-distance transfers.
+> **Nuances & gotchas:** Transfer Acceleration costs extra per GB transferred (on top of standard S3 transfer pricing) — it does NOT help for same-region or short-distance transfers, and AWS even provides a speed comparison tool to check before enabling. Transfer Acceleration does NOT cache content — it is upload acceleration only (not a CDN). Uses a different endpoint URL (`bucketname.s3-accelerate.amazonaws.com`).
+
+> **Why — Byte-range fetches:** Downloading a large object in parallel byte-range requests dramatically increases throughput and allows retry of only failed ranges, similar to how download managers work.
+> **When to use:** Downloading large S3 objects (video files, large datasets) where maximising download throughput or partial retrieval of object headers/metadata is needed.
+> **Nuances & gotchas:** S3 returns partial content (HTTP 206 Partial Content) — application must reassemble ranges. Also useful to fetch just the first N bytes of an object (e.g., read file headers) without downloading the entire object. Does not require any S3 configuration — it's a standard HTTP Range header feature.
 
 #### 🎯 On the exam — Storage
 
@@ -351,6 +435,10 @@ flowchart TD
 - Can be promoted to standalone DB (disaster recovery use case).
 - Each read replica has its own DNS endpoint — app must be read-replica-aware.
 
+> **Why (the rationale):** RDS read replicas offload read traffic from the primary instance, scaling read throughput horizontally without scaling the primary (which handles writes).
+> **When to use:** Read-heavy workloads (reporting, analytics queries, read-intensive APIs) where the primary is CPU or I/O saturated by reads. Cross-region replicas serve both read scaling and DR purposes.
+> **Nuances & gotchas:** Replication is asynchronous — replicas may lag behind the primary (eventual consistency). A read replica promoted to standalone loses its replica relationship — you cannot re-attach it. Each replica has its own endpoint — the application must direct reads to replica endpoints; RDS does NOT automatically load-balance reads (unlike Aurora). Cross-region read replicas incur data transfer costs. Read replicas do NOT provide automatic failover — for HA failover use Multi-AZ (which is a standby, not a read replica).
+
 #### Amazon Aurora
 
 [Aurora](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html) is AWS's high-performance relational DB engine:
@@ -358,6 +446,14 @@ flowchart TD
 - **Shared storage architecture:** 6 copies of data across 3 AZs automatically. Up to **15 Aurora Replicas** (vs 5 for RDS).
 - **Aurora Global Database:** Primary region + up to 5 secondary read-only regions. < 1 second replication lag. Failover in < 1 minute.
 - **Aurora Serverless v2:** Automatically scales capacity from 0.5 to 128 Aurora Capacity Units (ACUs). Scales in fine-grained increments (0.5 ACU steps). Supports Multi-AZ, Global Database, RDS Proxy, IAM auth, Performance Insights. [AWS blog](https://aws.amazon.com/blogs/database/read-scalability-with-amazon-aurora-serverless-v2/)
+
+> **Why — Aurora vs RDS:** Aurora uses a shared distributed storage layer (6 copies across 3 AZs) that eliminates storage replication lag, supports up to 15 read replicas (vs 5 for RDS), and provides sub-10ms replica lag — making it substantially faster at scale.
+> **When to use Aurora:** MySQL/PostgreSQL-compatible workloads that need more than 5 read replicas, global low-latency replication (Aurora Global Database), or want storage to auto-scale without managing disk size.
+> **Nuances & gotchas:** Aurora reader endpoint load-balances reads across all replicas automatically — unlike standard RDS. Aurora Global Database secondary regions are read-only; promotion to writer takes < 1 minute for planned failover. Aurora does NOT support Oracle or SQL Server — use RDS for those. Aurora storage auto-scales in 10 GiB increments up to 128 TiB — you never set storage size manually.
+
+> **Why — Aurora Serverless v2:** Eliminates the need to manage or pre-size database instances — capacity scales in 0.5 ACU steps within seconds, paying only for what's consumed.
+> **When to use:** Variable/unpredictable relational workloads, development/test environments, multi-tenant SaaS with per-tenant spikes, or any scenario where provisioning a fixed instance would waste money at low load.
+> **Nuances & gotchas:** Aurora Serverless v2 does NOT scale to zero (minimum 0.5 ACU) — use Aurora Serverless v1 if you need scale-to-zero (but v1 has longer cold start and fewer feature support). v2 supports Multi-AZ, Global Database, RDS Proxy — v1 does not. ACU scaling can take a few seconds — during a sudden burst, a brief performance dip may occur before scaling completes. Billed per ACU-hour consumed.
 
 ```mermaid
 graph LR
@@ -385,6 +481,10 @@ graph LR
 - **Write sharding:** Append a random suffix (1–N) to the key and scatter writes; scatter-gather reads.
 - For time-series: include a date shard in the key.
 
+> **Why (the rationale):** DynamoDB distributes data by partition key hash — a low-cardinality or skewed key concentrates all traffic on one partition, causing throttling even when total table capacity appears sufficient.
+> **When to use write sharding:** When the natural partition key is low-cardinality or time-based (e.g., `status = "PENDING"`, `date = "2026-08-10"`) and writes would concentrate on a single partition.
+> **Nuances & gotchas:** Each partition supports 3,000 RCU/s and 1,000 WCU/s — these are PER-PARTITION limits, not table-wide. With Adaptive Capacity, DynamoDB automatically reallocates capacity to hot partitions, but it cannot exceed the per-partition ceiling. On-demand mode also has per-partition limits — it is NOT immune to hot partition throttling on sudden extreme traffic spikes. Write sharding adds scatter-gather complexity to reads.
+
 #### GSI vs LSI
 
 | Feature | **GSI** (Global Secondary Index) | **LSI** (Local Secondary Index) |
@@ -396,6 +496,14 @@ graph LR
 | Throughput | Own RCU/WCU provisioned separately | Shares table's throughput |
 | Use case | Query on any non-key attribute | Query same partition key with different sort |
 
+> **Why — GSI:** Allows querying DynamoDB on any attribute as the partition key — essentially a new logical projection of the table maintained asynchronously.
+> **When to use:** You need to query on an attribute that is not the table's partition key — e.g., query orders by `customer_id` when the table partition key is `order_id`. Can be added at any time.
+> **Nuances & gotchas:** GSIs support eventually consistent reads ONLY — you cannot request strong consistency from a GSI. GSIs have their own provisioned RCU/WCU separate from the base table — underpowering the GSI causes GSI write throttling which can back-pressure base table writes. Only projected attributes are available from a GSI (choose ALL, KEYS_ONLY, or INCLUDE at creation). GSI can be added or deleted at any time after table creation.
+
+> **Why — LSI:** Enables querying items in the same partition with a different sort key — for one-to-many relationships where multiple sort orders on the same entity are needed.
+> **When to use:** Query same partition key with an alternate sort key AND you need strong consistency — e.g., game scores for a `user_id` sorted by date in one query and by score in another.
+> **Nuances & gotchas:** LSI CANNOT be added after table creation — this is a permanent, irrevocable design decision. LSI shares the table's RCU/WCU (no separate capacity). LSI contributes to the 10 GB per-partition item collection size limit; exceeding it causes `ItemCollectionSizeLimitExceededException` on writes. If you missed creating the LSI at table creation, you must create a new table and migrate data.
+
 #### Capacity Modes
 
 | Mode | How it works | Best for |
@@ -403,6 +511,10 @@ graph LR
 | **On-demand** | Pay per request; auto-scales instantly | Unpredictable/spiky traffic, new tables |
 | **Provisioned** | Set RCU/WCU; use Auto Scaling to adjust | Predictable traffic; cost optimization |
 | **Provisioned + Auto Scaling** | DynamoDB automatically adjusts provisioned capacity | Gradually changing predictable load |
+
+> **Why (the rationale):** Capacity mode determines whether you pay for consumed requests (On-Demand) or reserved throughput (Provisioned) — the choice trades cost predictability vs flexibility.
+> **When to use:** On-Demand → new tables with unknown traffic, highly spiky or unpredictable workloads. Provisioned → steady, predictable traffic where over-provisioning can be minimised; Provisioned + Auto Scaling → workloads that scale gradually (not sudden spikes).
+> **Nuances & gotchas:** On-Demand is more expensive per request than Provisioned at high steady-state traffic — run the math at scale. Switching from Provisioned to On-Demand can be done at any time; switching from On-Demand back to Provisioned can only be done once per 24 hours. On-Demand still has per-partition throughput limits — sudden 2× traffic spikes may cause brief throttling even in On-Demand mode (though DynamoDB doubles the peak capacity it adapts to).
 
 #### DynamoDB DAX
 
@@ -412,6 +524,10 @@ graph LR
 - API-compatible — no application code changes beyond pointing to DAX endpoint.
 - Write-through cache; supports strongly consistent reads from DynamoDB (bypasses cache).
 - Best for: read-heavy workloads, repeated reads of same items, gaming leaderboards, session stores.
+
+> **Why (the rationale):** DAX reduces DynamoDB read latency from single-digit milliseconds to microseconds by caching item-level and query results in a managed in-memory cluster — no code changes to query logic required.
+> **When to use:** Read-heavy DynamoDB workloads with hot items accessed repeatedly — gaming leaderboards, product catalogs, session caches, repeated GetItem/Query on the same keys.
+> **Nuances & gotchas:** DAX is for DynamoDB ONLY — it does NOT work with RDS, Aurora, or any other database (use ElastiCache for those). DAX is a write-through cache — writes go to DynamoDB first, then update the cache. Strongly consistent reads bypass the DAX cache and go directly to DynamoDB. DAX runs inside your VPC and requires a DAX cluster (not serverless) — you pay per node-hour. DAX does NOT help with write-heavy workloads or table scans on non-cached data.
 
 ---
 
@@ -432,6 +548,10 @@ graph LR
 | Session store | Yes | Yes (simpler) |
 | Leaderboards / sorted sets | Yes | No |
 | **Choose when** | Need persistence, replication, complex data types, Pub/Sub, Geo queries | Need pure horizontal scale, simplest possible cache, multi-threaded performance |
+
+> **Why — ElastiCache Redis:** Provides a feature-rich in-memory store with persistence, replication, Multi-AZ failover, complex data structures (sorted sets, streams, pub/sub) — the right choice when the cache also needs to be durable or highly available.
+> **When to use:** Session state that must survive cache node failure, leaderboards (sorted sets), real-time Pub/Sub messaging, rate limiting, geospatial queries, or any scenario needing HA with automatic failover.
+> **Nuances & gotchas:** Memcached has NO persistence and NO replication — a Memcached node failure means all cached data is lost. Memcached is multi-threaded (better CPU utilisation on high-core machines); Redis is single-threaded per shard but supports Redis Cluster for horizontal scale. Redis Cluster shards data across up to 500 nodes but adds complexity for cross-shard operations. For the exam: if the scenario mentions persistence, replication, Pub/Sub, sorted sets, or HA → Redis. "Simple horizontal cache with no persistence" → Memcached. ElastiCache (either engine) is NOT a replacement for DAX for DynamoDB — they serve different layers.
 
 ```mermaid
 flowchart TD
@@ -455,6 +575,10 @@ flowchart TD
 - Supports RDS MySQL, PostgreSQL, MariaDB, and Aurora MySQL/PostgreSQL.
 - IAM authentication and Secrets Manager integration.
 - Automatic failover to standby replica in < 66 seconds (faster than without proxy).
+
+> **Why (the rationale):** Lambda and microservices open and close database connections per invocation — at scale this overwhelms RDS/Aurora's connection limit (PostgreSQL max ~5,000, MySQL ~16,000 depending on instance). RDS Proxy pools and multiplexes these connections onto a smaller set of long-lived DB connections.
+> **When to use:** Lambda functions connecting to RDS/Aurora (classic scenario), microservices architectures with many short-lived connections, any workload that causes `too many connections` errors at the database.
+> **Nuances & gotchas:** RDS Proxy is NOT free — it costs per vCPU-hour of the underlying DB instance. RDS Proxy does NOT speed up queries — it only manages connections. It does improve failover time: RDS Proxy pins connections to the new primary automatically in < 66 s vs the typical 1–2 minute DNS propagation without proxy. RDS Proxy requires the DB to be in the same VPC (or accessible via VPC). Supports MySQL, PostgreSQL, MariaDB, and Aurora equivalents — does NOT support Oracle or SQL Server.
 
 #### 🎯 On the exam — Databases
 
@@ -484,6 +608,10 @@ flowchart TD
 - Integrates with **WAF**, **Shield**, **ACM** (free SSL certs for CloudFront).
 - **Cache invalidation:** API call to remove objects before TTL expires.
 
+> **Why (the rationale):** CloudFront caches content at 400+ global edge locations — users retrieve cached content from a nearby PoP instead of hitting the origin, reducing latency and origin load dramatically.
+> **When to use:** Static content delivery (images, CSS, JS, video), dynamic content acceleration via AWS backbone, API acceleration, S3 static website with global users, any scenario requiring a CDN.
+> **Nuances & gotchas:** CloudFront caches HTTP/HTTPS content (Layer 7) — it does NOT accelerate raw TCP/UDP (use Global Accelerator for that). CloudFront does NOT provide static IP addresses — it uses DNS (AnyCast DNS); if on-premises requires a static IP, use Global Accelerator. Cache invalidations cost money after the first 1,000 paths/month free. Lambda@Edge runs in AWS Regions nearest the origin; CloudFront Functions run at all edge locations and are cheaper but limited to lightweight JS. CloudFront signed URLs/cookies are the way to restrict content access — S3 pre-signed URLs don't leverage CloudFront caching.
+
 ---
 
 ### DynamoDB DAX (as edge cache)
@@ -501,6 +629,10 @@ See [section 3](#dynamodb-dax) above. DAX sits *in-region* between application a
 - Supports **TCP and UDP** — gaming, IoT, VoIP, and HTTP.
 - **No caching** — proxies packets at the edge, unlike CloudFront.
 - Fast failover (< 30 seconds) between regions.
+
+> **Why (the rationale):** Global Accelerator routes user traffic over the AWS private global network from the nearest edge PoP to the regional endpoint — reducing the number of internet hops and providing consistent low latency globally, with static IPs that never change.
+> **When to use:** TCP/UDP applications (gaming, IoT, VoIP), HTTP applications needing static IPs (on-premises whitelisting), multi-region active-active with fast failover (< 30 s), or any scenario where the bottleneck is internet routing variability.
+> **Nuances & gotchas:** Global Accelerator does NOT cache content — it is NOT a CDN. Use CloudFront for caching HTTP; use Global Accelerator for IP-level routing and non-HTTP protocols. The 2 static Anycast IPs are permanent — endpoints (ALB, NLB, EC2, EIP) behind them can change without changing client config. Global Accelerator supports both TCP and UDP — CloudFront supports HTTP/HTTPS and WebSocket only. DDoS protection via AWS Shield Standard is included (same as CloudFront).
 
 ---
 
@@ -540,6 +672,14 @@ See [section 3](#dynamodb-dax) above. DAX sits *in-region* between application a
 
 **AWS PrivateLink** is also how SaaS vendors expose services to customers privately — service consumer creates an Interface endpoint; service provider registers a VPC Endpoint Service.
 
+> **Why — Gateway Endpoint:** Lets EC2/Lambda access S3 and DynamoDB without traversing the public internet, NAT Gateway, or IGW — improving security and eliminating NAT data-processing charges.
+> **When to use:** Any workload in a private subnet that needs to access S3 or DynamoDB — add a Gateway endpoint to the route table. It's free and has no bandwidth limit.
+> **Nuances & gotchas:** Gateway endpoints support ONLY S3 and DynamoDB — nothing else. They work via route table entries (not ENIs) and are region-specific. A Gateway endpoint cannot be used from on-premises (Direct Connect / VPN) — use Interface endpoints for that. Gateway endpoints are free; Interface endpoints cost per hour and per GB.
+
+> **Why — Interface Endpoint (PrivateLink):** Provides a private ENI in your subnet that routes to any PrivateLink-enabled AWS service (over 100 services) or SaaS product — without an IGW, NAT, or public IP.
+> **When to use:** Private subnet access to services beyond S3/DynamoDB (e.g., Secrets Manager, KMS, ECR, CloudWatch, SSM, API Gateway), or accessing partner SaaS privately, or allowing on-premises systems via Direct Connect to reach AWS services privately.
+> **Nuances & gotchas:** Interface endpoints cost ~$0.01/hr per AZ plus $0.01/GB — this adds up at scale (unlike Gateway endpoints which are free). Each service needs its own endpoint. DNS resolution must be enabled (private DNS by default) — the service's default DNS name resolves to the private IP of the endpoint. Interface endpoints can be accessed from on-premises via Direct Connect or VPN (Gateway endpoints cannot).
+
 ---
 
 ### Transit Gateway
@@ -551,6 +691,10 @@ See [section 3](#dynamodb-dax) above. DAX sits *in-region* between application a
 - **TGW Network Manager** for global network monitoring.
 - **Inter-region peering:** Connect TGWs across regions over AWS backbone.
 - Supports VPN and Direct Connect Gateway attachments.
+
+> **Why (the rationale):** VPC peering scales as O(N²) — connecting N VPCs requires N×(N-1)/2 peering connections, each managed separately. Transit Gateway collapses this to a hub-and-spoke model with one attachment per VPC, plus centralised routing policy.
+> **When to use:** Connecting more than ~5–10 VPCs, hybrid connectivity (many VPCs to on-premises via single Direct Connect or VPN), shared services VPC pattern, multi-region network with TGW inter-region peering.
+> **Nuances & gotchas:** TGW is regional — it does NOT span regions natively; use inter-region TGW peering for cross-region. Transit Gateway costs per attachment per hour PLUS per GB processed — can be expensive at high traffic volumes. VPC peering is free (just data transfer costs) — for simple two-VPC connectivity, peering may be cheaper. TGW supports transitive routing (A → TGW → B); VPC peering is non-transitive. TGW route tables control which attachments can talk to each other (segmentation).
 
 ---
 
@@ -578,6 +722,14 @@ See [section 3](#dynamodb-dax) above. DAX sits *in-region* between application a
 | **Use case** | Large data transfers, consistent performance, compliance | Quick/temporary connectivity, DR backup for DX |
 
 **Accelerated Site-to-Site VPN:** Uses Global Accelerator to route VPN traffic over AWS backbone — improves performance of VPN while keeping IPsec encryption.
+
+> **Why — Direct Connect:** Provides a dedicated private circuit from on-premises to AWS — eliminating internet variability for workloads that need consistent high bandwidth or low latency, such as large data migrations, hybrid applications, or compliance requirements mandating private connectivity.
+> **When to use:** Large sustained data transfers, latency-sensitive hybrid apps, compliance mandating traffic not traverse the public internet, bandwidth needs exceeding VPN limits (> 1.25 Gbps).
+> **Nuances & gotchas:** Direct Connect is NOT encrypted by default — add MACsec (at the DX port level) or run a VPN tunnel over the DX connection for encryption. Setup takes weeks to months — not suitable for urgent connectivity. A single DX connection is a single point of failure — for HA, use two DX connections (to different DX locations) or DX + VPN as backup. Direct Connect Gateway allows a single DX connection to reach multiple AWS regions. VPN is encrypted (IPsec) but limited to ~1.25 Gbps per tunnel and subject to internet variability.
+
+> **Why — Site-to-Site VPN:** Provides encrypted IPsec connectivity over the public internet in minutes — useful for quick setup, temporary connectivity, or as a backup for Direct Connect.
+> **When to use:** Quick or temporary on-premises to AWS connectivity, DR backup for a Direct Connect failure, development/test environments, or when budget does not justify Direct Connect.
+> **Nuances & gotchas:** Each VPN connection provides two redundant tunnels (active/passive) — max ~1.25 Gbps per tunnel. Multiple VPN connections can be aggregated via ECMP on a Transit Gateway. Internet-based routing means latency is variable. Accelerated VPN (over Global Accelerator) improves latency but costs more.
 
 ---
 
@@ -634,6 +786,14 @@ graph LR
 
 **KDS throughput:** 1 MB/s or 1,000 records/s per shard (write); 2 MB/s per shard (read). Add shards to scale.
 
+> **Why — Kinesis Data Streams:** Provides durable, ordered, replayable real-time streaming ingestion with customisable consumer code — ideal when downstream processing must be flexible or when multiple consumers read the same stream independently.
+> **When to use:** Real-time analytics pipelines needing custom processing (Lambda, KCL, Flink), when you need to replay data, when ordering per shard matters, or when multiple independent consumers need to read the same stream.
+> **Nuances & gotchas:** KDS does NOT deliver to S3/Redshift/OpenSearch on its own — use Firehose for managed delivery. Each shard supports 1 MB/s write and 2 MB/s read — you must provision enough shards or use On-Demand mode. Default retention is 24 hours (extendable to 365 days at extra cost). With standard consumers, each shard supports up to 5 reads/s — use Enhanced Fan-Out (EFO) for up to 2 MB/s per consumer per shard with dedicated throughput. KDS is NOT serverless in provisioned mode — shard management is your responsibility.
+
+> **Why — Amazon Data Firehose:** A fully managed, zero-code streaming delivery pipeline — you configure a source and destination and Firehose handles batching, compression, encryption, format conversion, and delivery.
+> **When to use:** Delivering streaming data to S3, Redshift, OpenSearch, Splunk, or HTTP endpoints without writing consumer code. Common pattern: IoT → KDS → Firehose → S3 → Athena.
+> **Nuances & gotchas:** Firehose is near-real-time (minimum 60-second buffering window, or 1 MB buffer size trigger) — it is NOT true real-time/millisecond latency. Firehose cannot replay data (no retention) — it's a delivery pipe, not a stream store. Firehose can convert JSON to Parquet/ORC in-flight (via Glue schema) before landing in S3, reducing Athena query costs. Firehose can invoke Lambda for lightweight inline transformations before delivery.
+
 ---
 
 ### Amazon Athena
@@ -645,6 +805,10 @@ graph LR
 - Integrates with **AWS Glue Data Catalog** for schema metadata.
 - No infrastructure to manage.
 - **Federated queries:** Query data in RDS, DynamoDB, Redshift, on-premises via connectors.
+
+> **Why (the rationale):** Athena removes the need to load or transform data before querying — run standard SQL directly against data already in S3, paying only for the bytes scanned.
+> **When to use:** Ad-hoc analysis of data in S3 (logs, JSON exports, CSV dumps), one-off queries on an S3 data lake, querying Glue-catalogued tables, cost-effective analytics without an always-on cluster.
+> **Nuances & gotchas:** Athena costs $5 per TB scanned — use columnar formats (Parquet/ORC) and partitioning to reduce scanned bytes by 10–100×. Athena is NOT suitable for complex OLAP joins at petabyte scale with sub-second SLAs — use Redshift for that. Athena Federated Query uses Lambda-based connectors and is slower than native S3 queries. Athena is serverless — no cluster to manage, but also no persistent compute for warm caches between queries.
 
 ---
 
@@ -658,6 +822,10 @@ graph LR
 - **Glue DataBrew:** Visual data preparation (no-code).
 - Use when you need to transform/prepare data before loading into a data warehouse or data lake.
 
+> **Why (the rationale):** Glue provides a serverless ETL engine plus a centralised metadata catalog (Glue Data Catalog) that Athena, EMR, and Redshift Spectrum can all query for schema information — the glue between raw S3 data and query engines.
+> **When to use:** ETL pipelines to transform raw data before loading to Redshift or S3 data lake, auto-discovering schemas of new data sources (Glue Crawlers), maintaining a central schema catalog shared by Athena/EMR/Redshift Spectrum.
+> **Nuances & gotchas:** Glue ETL jobs run on Apache Spark serverlessly — there is a startup delay (minutes) for each job. Glue is NOT a query engine (that's Athena/Redshift). Glue Crawlers run on a schedule or on-demand — they do not update the catalog in real time. Glue DataBrew is a separate no-code data preparation tool. For simple data movement without transformation, use AWS Data Pipeline or Firehose instead. Glue is billed per DPU-second of ETL job execution.
+
 ---
 
 ### Amazon EMR
@@ -668,6 +836,10 @@ graph LR
 - Supports Spot instances for significant cost savings on transient workloads.
 - **EMR Serverless:** No cluster management — run Spark/Hive jobs without provisioning.
 - Choose EMR over Glue when you need full control of Spark configuration, complex multi-step pipelines, or frameworks beyond Spark (e.g., HBase).
+
+> **Why (the rationale):** EMR provides fully managed clusters running the open-source big data ecosystem (Spark, Hadoop, Hive, Presto, HBase, Flink) with fine-grained tuning control — for workloads where Glue's serverless Spark is insufficient or too limited.
+> **When to use:** Large-scale batch processing (log analytics, ML feature engineering, genomics), workloads requiring Hadoop ecosystem tools beyond Spark (HBase, Presto, Hive), complex multi-step pipelines needing Spark configuration tuning, or cost-sensitive batch jobs using Spot instances.
+> **Nuances & gotchas:** EMR on EC2 requires cluster management (instance sizing, scaling) — EMR Serverless removes this but has less tuning control. EMR clusters can use Spot instances for significant cost savings on fault-tolerant batch jobs (task nodes only — keep core nodes on On-Demand). EMR is billed per EC2 instance-hour plus EMR service charge — keep clusters transient (create for job, terminate after) to minimise cost. EMR does NOT replace Glue for simple ETL — Glue is simpler for standard transform/load tasks.
 
 ---
 
@@ -682,6 +854,10 @@ graph LR
 - **AQUA (Advanced Query Accelerator):** Distributed hardware-accelerated cache.
 - Use for: structured BI queries, dashboards, complex joins across large tables — **not** for real-time or operational workloads.
 
+> **Why (the rationale):** Redshift's columnar MPP architecture stores data in columns (enabling compression and column-pruning for queries), distributes query execution across many compute nodes, and is purpose-built for analytical queries joining large tables — far faster than row-based OLTP databases for these patterns.
+> **When to use:** Petabyte-scale structured OLAP analytics, complex BI queries with multi-table joins, dashboards connecting to Redshift directly, historical data analysis where sub-second latency is not required.
+> **Nuances & gotchas:** Redshift is NOT for OLTP (high-concurrency transactional inserts/updates/deletes) — use RDS/Aurora. Redshift Spectrum queries S3 directly (without loading data) but is slower and costs extra per TB scanned. RA3 nodes decouple compute and storage (in managed S3 cache) — scale each independently. Redshift does NOT auto-scale compute like Aurora Serverless — use Redshift Serverless if you need auto-scaling. Distribution style (KEY, ALL, EVEN) and sort keys dramatically affect query performance — poor design leads to data skew and slow queries.
+
 ---
 
 ### Amazon OpenSearch Service
@@ -693,6 +869,10 @@ graph LR
 - **OpenSearch Dashboards** (formerly Kibana) for visualisation.
 - Use for: search over application data, log analytics (e.g., ELK stack), real-time monitoring.
 
+> **Why (the rationale):** OpenSearch provides full-text search with relevance ranking, and near-real-time log analytics with rich aggregations — use cases that SQL/columnar databases handle poorly. It is the managed ELK (Elasticsearch + Kibana) stack replacement on AWS.
+> **When to use:** Full-text search over documents/product catalogs, log analytics (ingesting CloudWatch or application logs), real-time operational dashboards (via OpenSearch Dashboards), and anomaly detection on time-series log data.
+> **Nuances & gotchas:** OpenSearch is NOT a relational database — it does not support SQL joins or ACID transactions. OpenSearch scales horizontally by adding nodes/shards but requires careful index shard design (too few → hot shards; too many → overhead). OpenSearch Serverless is available but has different pricing and limitations vs provisioned. For the exam: "search" or "log analytics" or "Kibana dashboards" → OpenSearch. "OLAP analytics" → Redshift. "Ad-hoc SQL on S3" → Athena.
+
 ---
 
 ### Amazon MSK
@@ -702,6 +882,10 @@ graph LR
 - Choose MSK over Kinesis when: you need Apache Kafka specifically (existing Kafka ecosystem, Kafka Connect, Kafka Streams, MirrorMaker).
 - **MSK Serverless:** Auto-scales storage and throughput.
 - Higher operational ceiling than Kinesis for very high throughput Kafka workloads.
+
+> **Why (the rationale):** MSK provides a fully managed Apache Kafka cluster — for teams already using Kafka (Kafka Connect, Kafka Streams, MirrorMaker, Schema Registry) it avoids re-architecting to Kinesis.
+> **When to use:** Existing Kafka-based applications being migrated to AWS, workloads needing Kafka Connect sources/sinks, Kafka Streams stateful processing, or throughput requirements exceeding what Kinesis can provide cost-effectively.
+> **Nuances & gotchas:** MSK is more expensive and more operationally complex than Kinesis Data Streams — for greenfield streaming on AWS, Kinesis is simpler. MSK does NOT provide a managed schema registry by default (use AWS Glue Schema Registry). MSK Serverless has throughput and partition limits; provisioned MSK gives more control. Unlike Kinesis shards, Kafka partitions can be added but NOT removed. MSK nodes store data on attached EBS — storage costs scale with retention period and data volume.
 
 ---
 

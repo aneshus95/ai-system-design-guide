@@ -314,7 +314,7 @@ Day 2555: DELETE               ← end of 7-year retention
 [Amazon EBS pricing](https://aws.amazon.com/ebs/pricing/) — gp3 is the current-generation general purpose SSD, replacing gp2.
 
 > **Why (the rationale):** gp3 decouples IOPS and throughput from volume size, letting you tune performance independently and at lower base cost (~20% cheaper per GB than gp2). For most gp2 volumes, migrating to gp3 delivers equal or better performance at lower cost with zero downtime.
-> **When to use:** For any new EBS volume needing general-purpose SSD performance; migrate existing gp2 volumes to gp3 as a quick cost-reduction action. Use io2/io1 only when you need more than 16,000 IOPS or sub-millisecond latency guarantees.
+> **When to use:** For any new EBS volume needing general-purpose SSD performance; migrate existing gp2 volumes to gp3 as a quick cost-reduction action. Use io2/io1 only when you need more than 80,000 IOPS or the guaranteed sub-millisecond latency and 99.999% durability of io2 Block Express.
 > **Nuances & gotchas:** On gp2, IOPS scale with volume size (3 IOPS/GB) — so teams often over-provision volume size just to get enough IOPS, wasting storage cost. gp3 provides 3,000 IOPS and 125 MB/s **included at no extra charge regardless of size**. Additional IOPS beyond 3,000 on gp3 cost ~$0.005/IOPS-month; additional throughput beyond 125 MB/s costs ~$0.04/MB/s-month — verify your workload doesn't need these extras before assuming gp3 is always cheaper for high-IOPS volumes.
 
 | Feature | gp2 | gp3 |
@@ -322,8 +322,8 @@ Day 2555: DELETE               ← end of 7-year retention
 | Pricing (us-east-1) | ~$0.10/GB-month | ~$0.08/GB-month (~20% cheaper) |
 | Baseline IOPS | 3 IOPS/GB (min 100, max 16,000) | **3,000 IOPS included free** |
 | Baseline throughput | Up to 250 MB/s (tied to size) | **125 MB/s included free** |
-| Max IOPS | 16,000 | 16,000 |
-| Max throughput | 250 MB/s | 1,000 MB/s |
+| Max IOPS | 16,000 | 80,000 (requires ≥160 GiB, Nitro instance) |
+| Max throughput | 250 MB/s | 2,000 MB/s |
 | IOPS scaling | Coupled to volume size | **Independently configurable** |
 | Additional IOPS cost | N/A (bundled) | ~$0.005/provisioned IOPS-month (above 3,000) |
 | Additional throughput cost | N/A | ~$0.04/provisioned MB/s-month (above 125 MB/s) |
@@ -432,7 +432,7 @@ Day 2555: DELETE               ← end of 7-year retention
 
 - **Compute:** Billed per node-hour when the cluster is running.
 - **Storage:** Billed per GB-month at a fixed rate (~$0.024/GB-month for RMS) regardless of how much data fits on nodes.
-- **Pause/Resume:** For on-demand provisioned clusters, you can pause the cluster to suspend compute billing. During pause, you pay **only for backup storage** — ideal for dev/test clusters used during business hours only.
+- **Pause/Resume:** For on-demand provisioned clusters, you can pause the cluster to suspend compute billing. During pause, you continue paying for **Redshift Managed Storage (~$0.024/GB-month)** but not for compute — ideal for dev/test clusters used during business hours only.
 - RA3 is optimal when your data size exceeds what fits on compute nodes, or when you want to scale compute up/down independently of data size.
 
 ### 🎯 On the exam — Databases

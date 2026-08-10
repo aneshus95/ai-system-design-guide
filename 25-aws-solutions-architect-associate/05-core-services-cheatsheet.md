@@ -122,7 +122,7 @@ A dense, scannable rapid-review reference covering every commonly-tested AWS ser
 | **Cognito User Pools** | User directory for sign-up/sign-in with JWT tokens | App authentication — replace custom auth code; MFA, social login |
 | **Cognito Identity Pools** | Exchange Cognito/federated identity for temporary AWS credentials | Grant mobile/web users direct AWS service access (S3 upload, DynamoDB) |
 | **KMS** | Managed encryption key service; hardware-backed | Encrypting EBS, S3, RDS, Secrets Manager; envelope encryption; key rotation |
-| **CloudHSM** | Dedicated HSM cluster — you control keys, AWS has no access | FIPS 140-2 Level 3 compliance; offload SSL/TLS; custom key management |
+| **CloudHSM** | Dedicated HSM cluster — you control keys, AWS has no access | FIPS 140-3 Level 3 compliance; offload SSL/TLS; custom key management |
 | **Secrets Manager** | Stores, rotates, and audits secrets (DB passwords, API keys) | Auto-rotation of DB credentials; cross-account secret sharing; audit via CloudTrail |
 | **SSM Parameter Store** | Hierarchical key-value store for config and secrets; free tier | App configuration, non-rotating secrets; integrate with SSM Automation/Run Command |
 | **ACM** | Provisions and renews SSL/TLS certificates for AWS services | HTTPS on ALB, CloudFront, API Gateway — free managed certs, auto-renewal |
@@ -203,12 +203,12 @@ A dense, scannable rapid-review reference covering every commonly-tested AWS ser
 | Shared **Linux** file system across many instances | **EFS** | EFS is NFS-based, multi-AZ, and scales automatically; EBS is single-instance block storage (except Multi-Attach io2 in limited use cases). |
 | Shared **Windows** file system, AD integration | **FSx for Windows** | FSx for Windows is SMB/NTFS with native Active Directory and DFS Namespaces support; EFS does not support SMB or Windows ACLs. |
 | High-performance parallel FS for **HPC/ML** | **FSx for Lustre** | Sub-ms latency, hundreds of GB/s throughput, native S3 integration as a data repository; EFS cannot match Lustre's raw HPC throughput. |
-| Block storage for **EC2**, best price/performance | **EBS gp3** | gp3 lets you independently provision IOPS and throughput without paying for more capacity, and is cheaper than gp2 at equivalent performance; io2 is for missions needing guaranteed high IOPS beyond gp3's 16,000 IOPS ceiling. |
-| **Guaranteed IOPS** for mission-critical DB | **EBS io2 Block Express** | Up to 256,000 IOPS, 99.999% durability, sub-ms latency; gp3 maxes at 16,000 IOPS and 1,000 MB/s throughput. |
+| Block storage for **EC2**, best price/performance | **EBS gp3** | gp3 lets you independently provision IOPS and throughput without paying for more capacity, and is cheaper than gp2 at equivalent performance; io2 is for missions needing guaranteed high IOPS beyond gp3's 80,000 IOPS ceiling, sub-millisecond latency, or 99.999% volume durability. |
+| **Guaranteed IOPS** for mission-critical DB | **EBS io2 Block Express** | Up to 256,000 IOPS, 99.999% durability, sub-ms latency; gp3 maxes at 80,000 IOPS and 2,000 MB/s throughput (as of September 2025). |
 | **Infrequent large sequential** reads (log archive) | **EBS st1** | st1 is a throughput-optimized HDD tuned for sequential reads/writes; io2/gp3 are more expensive SSDs suited for random I/O, not large sequential cold data. |
 | **RDS Multi-AZ** vs **Read Replica** | Multi-AZ = **HA/failover** (sync standby, not readable); Read Replica = **read scalability** (async, readable) | Multi-AZ standby is synchronously replicated but cannot serve reads — it exists only for automatic AZ-failure failover. Read Replicas are readable but use async replication (can lag) and do not auto-promote on primary failure. |
 | MySQL/PostgreSQL needing **higher throughput than RDS** | **Aurora** | Aurora's shared distributed storage delivers 5× MySQL and 3× PostgreSQL throughput vs. standard RDS, supports up to 15 readable replicas, and auto-heals storage; standard RDS does not. |
-| **Variable/unpredictable** relational workload, want to scale to zero | **Aurora Serverless v2** | Aurora Serverless v2 auto-scales in fine-grained ACUs and can scale to near-zero; standard Aurora has a fixed instance size and incurs cost even at idle. |
+| **Variable/unpredictable** relational workload, want to scale to zero | **Aurora Serverless v2** | Aurora Serverless v2 auto-scales in fine-grained ACUs and supports true scale-to-zero (auto-pause, since November 2024 — set minimum ACU to 0 explicitly); standard Aurora has a fixed instance size and incurs cost even at idle. |
 | **Key-value at massive scale**, single-digit ms, serverless | **DynamoDB** | DynamoDB is a fully serverless NoSQL store with single-digit-ms latency at any scale and Global Tables for multi-Region active-active; RDS cannot scale horizontally without significant re-architecture. |
 | DynamoDB **read-heavy**, need **microsecond** latency | **DAX** | DAX is a write-through in-memory cache sitting in front of DynamoDB, delivering microsecond reads with no application code change; ElastiCache Redis requires application-level cache logic and doesn't natively understand DynamoDB. |
 | In-memory cache needing **persistence, replication, Pub/Sub** | **ElastiCache Redis** | Redis supports persistence (AOF/RDB), Multi-AZ replication, Pub/Sub, and rich data structures; Memcached is volatile — data is lost on node restart and has no replication. |
@@ -272,7 +272,7 @@ A dense, scannable rapid-review reference covering every commonly-tested AWS ser
 | **ASG** | Auto Scaling Group — collection of EC2 managed as a unit | Scale out/in based on policies; span multiple AZs |
 | **Target Group** | Collection of targets (EC2, Lambda, IP) for ELB to route to | Health-checked endpoints behind ALB/NLB |
 | **Origin Access Control (OAC)** | CloudFront mechanism to restrict S3 bucket access to CloudFront only | Prevents direct S3 URL access; replaces deprecated OAI |
-| **FIPS 140-2** | US government cryptographic module standard (Level 2 = KMS, Level 3 = CloudHSM) | Compliance requirement for regulated industries |
+| **FIPS 140-3** | US government cryptographic module standard (Level 3 = both KMS and CloudHSM) | Compliance requirement for regulated industries |
 | **SRD** | Scalable Reliable Datagram — AWS network protocol for EC2 Enhanced Networking | Lower latency, higher throughput compared to TCP for EC2 |
 | **Spot Instance** | Unused EC2 capacity at up to 90% discount; can be interrupted with 2-min notice | Fault-tolerant batch, CI/CD, stateless workloads; not for critical persistent tasks |
 | **Savings Plan** | Commit to $/hour usage for 1 or 3 years; flexible across instance types/Regions | Compute SP: most flexible; EC2 Instance SP: highest discount |

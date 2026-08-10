@@ -34,7 +34,7 @@ The single page to read the night before your **AWS Certified AI Practitioner (A
 
 ## The 40 highest-yield facts
 
-1. **Real-time endpoint** = always-on, ms latency, max **6 MB** payload, 60-sec timeout.
+1. **Real-time endpoint** = always-on, ms latency, max **25 MB** payload, 60-sec timeout.
 2. **Serverless inference** = scales to zero, intermittent traffic, ~**4 MB** payload, cold starts; you pick memory (up to 6 GB).
 3. **Asynchronous inference** = queued requests, large payloads (**up to 1 GB**), long processing (up to 1 hr), scales to zero — use for big payloads / long jobs needing an endpoint.
 4. **Batch Transform** = no persistent endpoint, reads from S3, **no strict payload limit**, cheapest for large offline volumes.

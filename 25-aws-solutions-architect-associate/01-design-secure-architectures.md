@@ -390,7 +390,7 @@ Every KMS key has a **key policy** (resource-based policy). Unlike IAM policies,
 
 > **Why (the rationale):** KMS operates on shared (multi-tenant) HSM infrastructure — AWS manages the HSM and theoretically has operational access to the hardware, even though key access is policy-controlled. CloudHSM eliminates that concern by giving you dedicated hardware in your VPC where AWS has zero ability to access keys. It also supports industry-standard APIs (PKCS#11, JCE) that some applications (Oracle TDE, SSL offloading) require and that KMS does not expose.
 > **When to use:** Compliance mandates requiring dedicated single-tenant key hardware, bring-your-own-key (BYOK) scenarios where you must import and retain sole custody, Oracle database Transparent Data Encryption (TDE), or custom cryptographic operations using PKCS#11/JCE that KMS does not support.
-> **Nuances & gotchas:** CloudHSM does NOT integrate natively with most AWS services — you cannot use a CloudHSM key to encrypt an S3 bucket, EBS volume, or RDS instance the way KMS can. You are responsible for the HSM cluster's availability — deploy at least two HSM nodes across two AZs. Cost is approximately $1.60/hour per HSM node (plus data charges) regardless of usage, vs KMS's pay-per-API-call model. If you lose your CloudHSM credentials and all backups, the key material is irrecoverable.
+> **Nuances & gotchas:** CloudHSM does NOT integrate natively with most AWS services — you cannot use a CloudHSM key to encrypt an S3 bucket, EBS volume, or RDS instance the way KMS can. You are responsible for the HSM cluster's availability — deploy at least two HSM nodes across two AZs. Cost is approximately $1.45–$1.60/hour per HSM node (varies by instance type; plus data charges) regardless of usage, vs KMS's pay-per-API-call model. If you lose your CloudHSM credentials and all backups, the key material is irrecoverable.
 
 | | KMS | CloudHSM |
 |---|---|---|
@@ -399,7 +399,7 @@ Every KMS key has a **key policy** (resource-based policy). Unlike IAM policies,
 | **FIPS level** | 140-3 Level 3 (since Feb 2025) | 140-3 Level 3 |
 | **APIs** | AWS KMS API | PKCS#11, JCE, OpenSSL (industry standard) |
 | **Integration** | Native with nearly all AWS services | Manual; used for custom crypto, Oracle TDE, SSL offload |
-| **Cost** | $1/month/key + API fees | ~$1.60/hour per HSM cluster node |
+| **Cost** | $1/month/key + API fees | ~$1.45–$1.60/hour per HSM cluster node (varies by instance type) |
 
 **Use CloudHSM when:** BYOK with true single-tenancy, Oracle DB Transparent Data Encryption (TDE), custom PKCS#11 operations, or compliance mandating dedicated hardware.
 

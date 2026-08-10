@@ -690,7 +690,7 @@ Aurora is a MySQL/PostgreSQL-compatible relational database built for the cloud 
 
 > **Why (the rationale):** Aurora's distributed storage layer (6 copies across 3 AZs) and shared-volume replica architecture give you significantly better availability, faster failover (~30 s vs. RDS ~60–120 s), and up to 15 read replicas versus RDS's 5 — with the same SQL interface.
 > **When to use:** New MySQL/PostgreSQL workloads that need high throughput, fast failover, or many read replicas. Cross-region low-RPO relational DR with Aurora Global Database. Variable/unpredictable workloads with Aurora Serverless v2.
-> **Nuances & gotchas:** Aurora replicas serve both reads AND as automatic failover targets — if the writer fails, the highest-priority replica is promoted automatically. Standard RDS Multi-AZ standby does neither. Aurora Global Database secondary regions are READ-ONLY until you explicitly promote one to primary during a failover. Promotion is a manual step (or automated via custom failover automation) and takes under 1 minute. Aurora Serverless v2 scales per ACU in fine-grained increments but there is a minimum ACU floor (cannot scale to absolute zero while running, unlike Lambda).
+> **Nuances & gotchas:** Aurora replicas serve both reads AND as automatic failover targets — if the writer fails, the highest-priority replica is promoted automatically. Standard RDS Multi-AZ standby does neither. Aurora Global Database secondary regions are READ-ONLY until you explicitly promote one to primary during a failover. Promotion is a manual step (or automated via custom failover automation) and takes under 1 minute. Aurora Serverless v2 scales per ACU in fine-grained increments and supports scale-to-zero (auto-pause, since November 2024) on supported engine versions — the default minimum is 0.5 ACU; set minimum to 0 explicitly to enable auto-pause.
 
 Sources: [Aurora User Guide](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html) · [Aurora Global Database](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html)
 
@@ -712,7 +712,7 @@ Sources: [Aurora User Guide](https://docs.aws.amazon.com/AmazonRDS/latest/Aurora
 
 | Feature | Detail |
 |---|---|
-| **Regions** | 1 primary (read/write) + up to **10 secondary** (read-only) regions |
+| **Regions** | 1 primary (read/write) + up to **10 secondary** (read-only) regions (as of May 2025) |
 | **Replication lag** | Typically **< 1 second** to secondary regions |
 | **Failover RTO** | **< 1 minute** to promote a secondary to primary |
 | **Replication mechanism** | Dedicated storage-level infrastructure (not DB-layer replication) |

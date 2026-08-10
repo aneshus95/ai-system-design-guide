@@ -262,11 +262,11 @@ Source: [Amazon EBS volume types — AWS docs](https://docs.aws.amazon.com/ebs/l
 | **Latency** | Single-digit ms | Single-digit ms | < 500 µs average | Sub-ms |
 | **Best for** | Most workloads, boot, dev/test | Older default workloads | Mission-critical DBs, SAP HANA | I/O-intensive DBs needing > 16K IOPS |
 
-**gp3 vs gp2:** gp3 decouples IOPS from size — you can provision up to 16,000 IOPS and 1,000 MiB/s *independently* without adding storage. gp3 is almost always cheaper and better than gp2.
+**gp3 vs gp2:** gp3 decouples IOPS from size — you can provision up to 80,000 IOPS and 2,000 MiB/s *independently* without adding storage. gp3 is almost always cheaper and better than gp2.
 
 > **Why — gp3:** Replaces gp2 as the default general-purpose SSD. Decouples IOPS and throughput from volume size, giving you control without paying for unnecessary storage.
-> **When to use:** Default choice for boot volumes, development workloads, general databases, and any workload not requiring > 16,000 IOPS or sub-millisecond latency.
-> **Nuances & gotchas:** gp2 ties IOPS to size (3 IOPS/GiB, max 16,000 IOPS at 5.3+ TiB); gp3 gives 3,000 IOPS free regardless of size. gp3 baseline throughput is 125 MiB/s free; provisioning higher throughput (up to 1,000 MiB/s) costs extra. gp3 does NOT support Multi-Attach (io1/io2 do). Max 80,000 IOPS only on Nitro-based instances.
+> **When to use:** Default choice for boot volumes, development workloads, general databases, and any workload not requiring > 80,000 IOPS or the guaranteed sub-millisecond latency and 99.999% durability of io2 Block Express.
+> **Nuances & gotchas:** gp2 ties IOPS to size (3 IOPS/GiB, max 16,000 IOPS at 5.3+ TiB); gp3 gives 3,000 IOPS free regardless of size. gp3 baseline throughput is 125 MiB/s free; provisioning higher throughput (up to 2,000 MiB/s) costs extra. gp3 does NOT support Multi-Attach (io1/io2 do). Max 80,000 IOPS requires at least 160 GiB volume size (500 IOPS/GiB) and Nitro-based instances.
 
 > **Why — io2 Block Express:** The only EBS volume type offering sub-millisecond average latency, up to 256,000 IOPS, 4,000 MiB/s throughput, and 99.999% durability — for mission-critical databases.
 > **When to use:** SAP HANA, Oracle, SQL Server with > 64,000 IOPS needs, or any workload requiring 99.999% volume durability and sub-ms consistent latency.
@@ -408,7 +408,7 @@ flowchart TD
 
 #### 🎯 On the exam — Storage
 
-- **High IOPS at lowest cost** → **gp3** (3,000 IOPS free; provision more up to 16,000 independently)
+- **High IOPS at lowest cost** → **gp3** (3,000 IOPS free; provision more up to 80,000 independently)
 - **Sustained max IOPS with highest durability / sub-ms latency** → **io2 Block Express** (256K IOPS, 99.999% durability)
 - **Big sequential throughput, HPC shared FS, integrates with S3** → **FSx for Lustre**
 - **Windows shared file share (CIFS/SMB) with AD** → **FSx for Windows File Server**
@@ -444,8 +444,8 @@ flowchart TD
 [Aurora](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html) is AWS's high-performance relational DB engine:
 
 - **Shared storage architecture:** 6 copies of data across 3 AZs automatically. Up to **15 Aurora Replicas** (vs 5 for RDS).
-- **Aurora Global Database:** Primary region + up to 5 secondary read-only regions. < 1 second replication lag. Failover in < 1 minute.
-- **Aurora Serverless v2:** Automatically scales capacity from 0.5 to 128 Aurora Capacity Units (ACUs). Scales in fine-grained increments (0.5 ACU steps). Supports Multi-AZ, Global Database, RDS Proxy, IAM auth, Performance Insights. [AWS blog](https://aws.amazon.com/blogs/database/read-scalability-with-amazon-aurora-serverless-v2/)
+- **Aurora Global Database:** Primary region + up to 10 secondary read-only regions (increased from 5 in May 2025). < 1 second replication lag. Failover in < 1 minute.
+- **Aurora Serverless v2:** Automatically scales capacity from 0 to 256 Aurora Capacity Units (ACUs) (scale-to-zero supported since November 2024; max increased to 256 ACUs in October 2024). Scales in fine-grained increments (0.5 ACU steps). Supports Multi-AZ, Global Database, RDS Proxy, IAM auth, Performance Insights. [AWS blog](https://aws.amazon.com/blogs/database/read-scalability-with-amazon-aurora-serverless-v2/)
 
 > **Why — Aurora vs RDS:** Aurora uses a shared distributed storage layer (6 copies across 3 AZs) that eliminates storage replication lag, supports up to 15 read replicas (vs 5 for RDS), and provides sub-10ms replica lag — making it substantially faster at scale.
 > **When to use Aurora:** MySQL/PostgreSQL-compatible workloads that need more than 5 read replicas, global low-latency replication (Aurora Global Database), or want storage to auto-scale without managing disk size.
@@ -453,7 +453,7 @@ flowchart TD
 
 > **Why — Aurora Serverless v2:** Eliminates the need to manage or pre-size database instances — capacity scales in 0.5 ACU steps within seconds, paying only for what's consumed.
 > **When to use:** Variable/unpredictable relational workloads, development/test environments, multi-tenant SaaS with per-tenant spikes, or any scenario where provisioning a fixed instance would waste money at low load.
-> **Nuances & gotchas:** Aurora Serverless v2 does NOT scale to zero (minimum 0.5 ACU) — use Aurora Serverless v1 if you need scale-to-zero (but v1 has longer cold start and fewer feature support). v2 supports Multi-AZ, Global Database, RDS Proxy — v1 does not. ACU scaling can take a few seconds — during a sudden burst, a brief performance dip may occur before scaling completes. Billed per ACU-hour consumed.
+> **Nuances & gotchas:** Aurora Serverless v2 supports scale-to-zero (minimum 0 ACU, since November 2024) — the default minimum is still 0.5 ACU; you must explicitly set minimum to 0 to enable auto-pause. Scale-to-zero requires supported engine versions (Aurora PostgreSQL 13.15+/14.12+/15.7+/16.3+, Aurora MySQL 3.08+). v2 supports Multi-AZ, Global Database, RDS Proxy — v1 does not. ACU scaling can take a few seconds — during a sudden burst, a brief performance dip may occur before scaling completes. Billed per ACU-hour consumed. Maximum scales up to 256 ACUs (as of October 2024).
 
 ```mermaid
 graph LR
@@ -574,11 +574,11 @@ flowchart TD
 - **How it helps:** Maintains a pool of long-lived connections to the DB and multiplexes thousands of application connections onto them.
 - Supports RDS MySQL, PostgreSQL, MariaDB, and Aurora MySQL/PostgreSQL.
 - IAM authentication and Secrets Manager integration.
-- Automatic failover to standby replica in < 66 seconds (faster than without proxy).
+- Automatic failover to standby replica is faster with RDS Proxy than without — the proxy pins clients to the new primary, reducing client-visible recovery time significantly (up to 79% faster for Aurora MySQL vs connecting directly).
 
 > **Why (the rationale):** Lambda and microservices open and close database connections per invocation — at scale this overwhelms RDS/Aurora's connection limit (PostgreSQL max ~5,000, MySQL ~16,000 depending on instance). RDS Proxy pools and multiplexes these connections onto a smaller set of long-lived DB connections.
 > **When to use:** Lambda functions connecting to RDS/Aurora (classic scenario), microservices architectures with many short-lived connections, any workload that causes `too many connections` errors at the database.
-> **Nuances & gotchas:** RDS Proxy is NOT free — it costs per vCPU-hour of the underlying DB instance. RDS Proxy does NOT speed up queries — it only manages connections. It does improve failover time: RDS Proxy pins connections to the new primary automatically in < 66 s vs the typical 1–2 minute DNS propagation without proxy. RDS Proxy requires the DB to be in the same VPC (or accessible via VPC). Supports MySQL, PostgreSQL, MariaDB, and Aurora equivalents — does NOT support Oracle or SQL Server.
+> **Nuances & gotchas:** RDS Proxy is NOT free — it costs per vCPU-hour of the underlying DB instance. RDS Proxy does NOT speed up queries — it only manages connections. It does improve failover time: RDS Proxy pins connections to the new primary automatically, significantly reducing client-visible failover time vs the typical 1–2 minute DNS propagation without proxy. RDS Proxy requires the DB to be in the same VPC (or accessible via VPC). Supports MySQL, PostgreSQL, MariaDB, and Aurora equivalents — does NOT support Oracle or SQL Server.
 
 #### 🎯 On the exam — Databases
 

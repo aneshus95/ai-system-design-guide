@@ -54,7 +54,7 @@ flowchart LR
 
 > **Why (the rationale):** Speech Marks decouple the timing metadata from the audio, enabling synchronized UI experiences (highlighted captions, lip-synced avatars) without building your own alignment algorithm.
 > **When to use:** Signal: "highlight text as it's read," "lip-sync an avatar/character," "word-level timing for captions." Viseme marks are specifically for mouth-shape animation.
-> **Nuances & gotchas:** Speech Marks requests are billed the same rate as speech synthesis (per character). You can request Speech Marks alongside audio or instead of audio. Viseme marks require a Neural or higher engine; they are not available on Standard.
+> **Nuances & gotchas:** Speech Marks requests are billed the same rate as speech synthesis (per character). You can request Speech Marks alongside audio or instead of audio. Viseme marks are supported on Standard, Neural, and Long-form engines; they are NOT available on the Generative engine.
 
 **Timing metadata**
 - **Speech Marks** — instead of (or alongside) audio, Polly returns JSON metadata with timing: **word**, **sentence**, **SSML**, and **viseme** marks. Used for **highlighting text as it's spoken** and **lip-syncing** avatars/characters (visemes = mouth shapes per phoneme).

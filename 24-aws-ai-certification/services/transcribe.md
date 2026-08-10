@@ -43,7 +43,7 @@ flowchart LR
 
 > **Why (the rationale):** Standard ASR struggles with domain jargon, product names, and acronyms. Custom vocabulary is a free quick fix; CLMs are heavier but give deeper accuracy gains for specialized domains.
 > **When to use:** Custom vocabulary → brand names, acronyms, medical/legal terms spelled correctly with minimal effort. CLM → highly technical domains (legal transcripts, scientific papers) where a word list isn't enough; requires a text corpus for training.
-> **Nuances & gotchas:** Custom vocabulary is FREE to use (no per-minute add-on). CLMs incur an extra per-minute charge when applied to a job and take time to train. Vocabulary filtering (profanity masking) is also free. You CANNOT use a CLM and custom vocabulary simultaneously on the same job — CLM is the higher-investment option that subsumes vocabulary needs.
+> **Nuances & gotchas:** Custom vocabulary is FREE to use (no per-minute add-on). CLMs incur an extra per-minute charge when applied to a job and take time to train. Vocabulary filtering (profanity masking) is also free. You CAN submit a CLM and a custom vocabulary on the same job via the API, but custom vocabulary effects (such as DisplayAs rendering) are silently ignored when a CLM is active — in practice the CLM takes precedence and vocabulary features have no effect.
 
 **Accuracy customization**
 - **Custom vocabulary** — a list of domain terms, product names, acronyms, or jargon so Transcribe spells them correctly. Lightweight; good first step.
@@ -133,7 +133,7 @@ Billed **per second** of audio (one-second increments), with a **15-second minim
 **Traps**
 - Transcribe ≠ Comprehend. Transcribe produces *text*; if the question asks for **sentiment, entities, or PII detection on text**, that's **Comprehend**. (Note: Transcribe *does* offer transcript-level PII redaction, and Call Analytics bundles sentiment — read carefully.)
 - Transcribe ≠ Polly. Polly is the **reverse** (text → speech). Don't pick Transcribe for "give the IVR a human voice."
-- **Custom vocabulary** (a word list) vs **custom language model** (trained on a text corpus) — the CLM is the heavier, more accurate option; a vocabulary list is the quick fix.
+- **Custom vocabulary** (a word list) vs **custom language model** (trained on a text corpus) — the CLM is the heavier, more accurate option; a vocabulary list is the quick fix. Note: if both are submitted on the same job, the CLM takes precedence and vocabulary effects (like DisplayAs) are silently ignored.
 - **Diarization** (one channel, label speakers) vs **channel identification** (multiple channels, one transcript each) — pick based on how the audio was recorded.
 - Translation is **not** a Transcribe feature — pair with **Amazon Translate**.
 

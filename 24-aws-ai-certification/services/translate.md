@@ -4,7 +4,7 @@
 
 > **Why (the rationale):** Amazon Translate is a purpose-built NMT service — lower cost per character, lower latency, and more consistent output than asking a general LLM to translate. It includes controls (custom terminology, formality, profanity masking, batch over S3) that LLMs don't expose natively. Pick Translate when the primary job is language conversion; pick Bedrock only when translation is bundled with generation or reasoning in the same step.
 > **When to use:** Localize an app/website/chat, translate a large document corpus in S3, add live captions in another language, or build the middle step of a Transcribe → Translate → Polly speech-translation pipeline. Signal: "translate text between languages," "localize content," "multilingual," "keep brand names intact."
-> **Nuances & gotchas:** Translate does NOT handle audio — the speech-translation pipeline requires three services (Transcribe → Translate → Polly). Formality control supports only six target languages (French, German, Hindi, Italian, Japanese, Spanish); don't assume it works for all languages. Active Custom Translation (ACT) costs ~4× standard — use free custom terminology for term-locking, reserve ACT for genuine style/domain adaptation. Batch and real-time text cost the same per character; DOCX real-time document translation costs more.
+> **Nuances & gotchas:** Translate does NOT handle audio — the speech-translation pipeline requires three services (Transcribe → Translate → Polly). Formality control supports nine target languages (French, German, Hindi, Italian, Japanese, Spanish, Dutch, Korean, Mexican Spanish); don't assume it works for all languages — verify the current list in the docs as it may expand. Active Custom Translation (ACT) costs ~4× standard — use free custom terminology for term-locking, reserve ACT for genuine style/domain adaptation. Batch and real-time text cost the same per character; DOCX real-time document translation costs more.
 
 ---
 
@@ -62,7 +62,7 @@ flowchart LR
 > **Why (the rationale):** ACT adapts translation style and domain terminology using your own example sentence pairs — giving custom-model quality without the cost and complexity of hosting a custom model.
 > **When to use:** When custom terminology is insufficient (you need tone, phrasing, or domain-specific sentence structure to match your style). Signal: "match our translation style," "adapt to our legal/medical/marketing register."
 > **Nuances & gotchas:** ACT costs ~4× the standard translation rate (~$60 vs $15 per million characters). If you only need term-locking, use custom terminology (free). ACT adapts output on the fly — no separate training step, but you must upload parallel data (bilingual example pairs) first.
-- **Formality** — set the politeness/register of the output. Supported for a subset of target languages: **French, German, Hindi, Italian, Japanese, Spanish**.
+- **Formality** — set the politeness/register of the output. Supported for a subset of target languages: **French, German, Hindi, Italian, Japanese, Spanish, Dutch, Korean, and Mexican Spanish** (9 languages as of late 2022; verify the current list in the docs).
 - **Profanity masking** — replace profane words/phrases in the output with a grawlix (`?$#@$`).
 - **Encryption & privacy** — integrates with KMS; content isn't used to train the models.
 
@@ -113,7 +113,7 @@ Pay-per-character (includes whitespace and punctuation), no minimum commitment, 
 - "**Translate** text between languages" (app, website, chat, docs) → **Amazon Translate**.
 - "Localize an app but **keep brand/product names** intact" → **Translate + custom terminology** (free).
 - "Adapt translations to **our domain/style without training a model**" → **Active Custom Translation** (parallel data).
-- "Control how **formal/polite** the translation is" → **Translate formality** (French, German, Hindi, Italian, Japanese, Spanish).
+- "Control how **formal/polite** the translation is" → **Translate formality** (French, German, Hindi, Italian, Japanese, Spanish, Dutch, Korean, Mexican Spanish).
 - "**Mask profanity** in output" → **Translate profanity masking**.
 - "Translate a **large set of documents** in S3" → **Translate batch (async) job**.
 - "Translate **spoken audio** into another language" (and maybe speak it back) → **Transcribe → Translate → Polly** pipeline.
@@ -145,7 +145,7 @@ Pay-per-character (includes whitespace and punctuation), no minimum commitment, 
 | TMX | Translation Memory eXchange — standard file format for bilingual glossaries and memories | Supported format for uploading custom terminology or parallel data to Translate |
 | Active Custom Translation (ACT) | Feature that uses parallel data (example translations) to adapt output to your style on the fly | Tailors translation to your domain without training or hosting a custom model |
 | Parallel data | Your own example source-target translation pairs used to train ACT | Teaches Translate to mimic your organization's preferred phrasing and terminology |
-| Formality | Translate option that controls the politeness register of the output (formal vs. informal) | Used for languages with distinct formal/informal forms (French, German, Hindi, Italian, Japanese, Spanish) |
+| Formality | Translate option that controls the politeness register of the output (formal vs. informal) | Used for languages with distinct formal/informal forms (French, German, Hindi, Italian, Japanese, Spanish, Dutch, Korean, Mexican Spanish) |
 | Profanity masking | Translate option that replaces offensive words in the output with a grawlix (`?$#@$`) | Keeps translated content appropriate for customer-facing or regulated contexts |
 | Grawlix | Typographic placeholder (`?$#@$`) substituted for profane words when masking is on | Indicates redacted content while preserving sentence flow |
 | Real-time document translation | Translate mode that converts a formatted document (text, HTML, DOCX) in one synchronous call | Preserves document structure and formatting alongside the translated content |

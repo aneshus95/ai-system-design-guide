@@ -446,8 +446,8 @@ Sources: [SageMaker JumpStart foundation models](https://docs.aws.amazon.com/sag
 ### Cost tradeoffs: token pricing & provisioned throughput <a name="cost-tradeoffs"></a>
 
 > **Why (the rationale):** On-demand token pricing has zero commitment and zero idle cost, making it ideal when volume is uncertain. Provisioned Throughput trades a fixed hourly fee for guaranteed capacity and consistent latency — the economics flip positive only at high sustained volume where on-demand costs would exceed the reservation cost.
-> **When to use:** On-demand → variable, low, or spiky workloads; prototyping; models you haven't committed to yet. Provisioned Throughput → steady high volume, SLA on latency, or you have a custom (fine-tuned) model (which *requires* PT). Batch inference → large offline jobs with no latency requirement, ~50% cost savings.
-> **Nuances & gotchas:** Provisioned Throughput is billed **by the hour whether or not you use it** — idle capacity still costs money. Custom/fine-tuned models CANNOT be invoked on-demand; they require Provisioned Throughput, which significantly raises the break-even volume. Longer output responses cost more than shorter ones — trimming max tokens is often the fastest cost reduction lever.
+> **When to use:** On-demand → variable, low, or spiky workloads; prototyping; models you haven't committed to yet. Provisioned Throughput → steady high volume, SLA on latency, or guaranteed capacity for a custom model. Batch inference → large offline jobs with no latency requirement, ~50% cost savings.
+> **Nuances & gotchas:** Provisioned Throughput is billed **by the hour whether or not you use it** — idle capacity still costs money. Historically, custom/fine-tuned models required Provisioned Throughput; as of 2025, on-demand deployment is available for select model families (Amazon Nova, Meta Llama), but check current Bedrock docs for the model you are using — the exam guide's original framing treats PT as the standard path for custom models. Longer output responses cost more than shorter ones — trimming max tokens is often the fastest cost reduction lever.
 
 **Plain English:** GenAI cost is driven mostly by **tokens** and by **how you buy capacity**. You balance cost against **responsiveness, availability, redundancy, performance, and regional coverage**.
 
@@ -471,7 +471,7 @@ Sources: [SageMaker JumpStart foundation models](https://docs.aws.amazon.com/sag
 - You buy **Model Units (MUs)**; each MU guarantees a **fixed number of input/output tokens per minute** for a specific model.
 - Billed **hourly**, whether or not you use the capacity.
 - Commitment terms: **No commitment** (delete anytime), **1 month**, or **6 months** — **longer commitment = bigger discount**.
-- **Required** to serve a **custom (fine-tuned) model**.
+- Traditionally **required** to serve a **custom (fine-tuned) model**; on-demand deployment is now available for select model families (Amazon Nova, Meta Llama) as of 2025.
 - Best for **steady, high-volume, predictable** workloads that need **guaranteed throughput / consistent latency**.
 
 Sources: [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/) · [Provisioned Throughput (Bedrock docs)](https://docs.aws.amazon.com/bedrock/latest/userguide/prov-throughput.html).
@@ -482,7 +482,7 @@ Sources: [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/) · [P
 | Commitment | None | None / 1 month / 6 months (longer = cheaper) |
 | Best for | Spiky, low, unpredictable traffic; prototyping | Steady, high-volume, predictable; guaranteed capacity |
 | Latency/throughput | Shared, can vary | Reserved, consistent |
-| Custom models | — | **Required for custom/fine-tuned models** |
+| Custom models | Available for select families (Nova, Llama) as of 2025 | **Traditional path for custom/fine-tuned models** |
 | Batch option | **Batch inference ~50% cheaper** for large offline jobs | — |
 
 **Other cost/architecture tradeoffs to recognize:**
@@ -636,7 +636,7 @@ All sources are official AWS documentation unless noted (noted items are used on
 | **CLV / CLTV (Customer Lifetime Value)** | Total revenue expected from a customer over their entire relationship | Business metric for measuring long-term GenAI impact on retention |
 | **Conversion rate** | Percentage of users who take a desired action | Business metric for measuring GenAI impact on sales or engagement |
 | **On-Demand pricing** | Pay-per-token Bedrock pricing with no capacity commitment | Best for variable, low, or unpredictable traffic |
-| **Provisioned Throughput** | Bedrock pricing that reserves model capacity at a fixed hourly rate per Model Unit | Required for custom models; best for steady high-volume workloads |
+| **Provisioned Throughput** | Bedrock pricing that reserves model capacity at a fixed hourly rate per Model Unit | Traditional requirement for custom models (on-demand now available for select families); best for steady high-volume workloads |
 | **Model Unit (MU)** | The capacity unit purchased for Provisioned Throughput; guarantees a fixed token rate per minute | Defines how much guaranteed capacity you have for a specific model |
 | **Batch inference** | Bedrock option for running large offline jobs at roughly 50% lower cost than on-demand | Best for bulk scoring where latency does not matter |
 | **IAM (Identity and Access Management)** | AWS service controlling who can call which APIs and access which resources | Always the customer's responsibility, even with fully managed services |

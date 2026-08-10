@@ -168,7 +168,7 @@ flowchart TB
 **Real-time** — the client sends the input **inline in the request** (small payload), gets the prediction back **in the same synchronous response**:
 ```mermaid
 flowchart LR
-    C["Client app"] -->|"input inline in request<br/>(payload ≤ 6 MB, synchronous)"| EP["Real-time endpoint<br/>(always-on instance)"]
+    C["Client app"] -->|"input inline in request<br/>(payload ≤ 25 MB, synchronous)"| EP["Real-time endpoint<br/>(always-on instance)"]
     EP -->|"prediction in the response (ms)"| C
 ```
 
@@ -397,7 +397,7 @@ flowchart TB
 
 > **Why (the rationale):** These pre-built managed services let you add AI capabilities without training, deploying, or hosting a model yourself. They shift operational burden to AWS so you pay only for API calls.
 > **When to use:** Use them when the AI task is a well-defined, standard capability (speech→text, text→speech, NLP, translation, chatbot, vision) and your data doesn't require a custom model. Reach for SageMaker AI only when you need to train or customize beyond what these pre-built services offer.
-> **Nuances & gotchas:** Comprehend detects bias in custom ML model predictions (via Clarify integration), NOT in LLM outputs — that's Guardrails. Lex handles conversational flow (ASR + NLU) but does NOT generate free-text answers; for generative responses combine Lex with Bedrock. Transcribe and Polly are one-directional (audio↔text) — neither translates language; that's Translate.
+> **Nuances & gotchas:** Comprehend is an NLP service (sentiment, entities, PII) — it does NOT detect bias in ML model predictions. Bias detection in custom ML model predictions is **SageMaker Clarify**'s job; Guardrails handles safety filtering for LLM outputs. Lex handles conversational flow (ASR + NLU) but does NOT generate free-text answers; for generative responses combine Lex with Bedrock. Transcribe and Polly are one-directional (audio↔text) — neither translates language; that's Translate.
 
 Know **one line of what** and **one line of when** for each. These are the "pre-trained, no-ML-expertise-needed" services the exam names.
 

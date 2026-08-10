@@ -37,7 +37,7 @@ This domain is **22% of the MLA-C01 exam** — the second-largest slice, and the
 flowchart TD
     A[I have a trained model.<br/>How should I serve it?] --> B{Need a prediction<br/>right now, per request?}
     B -->|No, I have a whole<br/>dataset to score| BATCH[Batch Transform<br/>no persistent endpoint]
-    B -->|Yes, live| C{Payload > 6 MB<br/>OR takes > 60s?}
+    B -->|Yes, live| C{Payload > 25 MB<br/>OR takes > 60s?}
     C -->|Yes, big/slow| ASYNC[Asynchronous Inference<br/>queued, results to S3]
     C -->|No| D{Traffic spiky /<br/>idle periods /<br/>OK with cold starts?}
     D -->|Yes, intermittent| SERVERLESS[Serverless Inference<br/>scales to zero]
@@ -77,15 +77,15 @@ Everything in this domain hangs off that flowchart. The rest is *how* to provisi
 🧠 **Plain English:** SageMaker gives you four ways to run inference. They differ mainly on **payload size, timeout, traffic pattern, and cost when idle**. This table is the single most tested thing in Domain 3 — memorize it.
 
 > **Why (the rationale):** Picking the wrong endpoint type means either over-paying for idle capacity (real-time for bursty workloads) or silently failing at inference time (real-time endpoint receiving a 1 GB payload). Each type optimizes a different cost/capability point.
-> **When to use:** Real-time for steady low-latency production traffic; serverless for spiky/intermittent traffic where paying zero when idle outweighs cold-start latency; asynchronous for large payloads (>6 MB), long inference (>60 s), or near-real-time queuing; batch transform for one-time or scheduled offline scoring of entire S3 datasets.
-> **Nuances & gotchas:** Real-time endpoint caps: **6 MB payload / 60 s timeout**; serverless caps: **4 MB payload / 60 s timeout, CPU only, no VPC, no Model Monitor, no GPU, no data capture**; asynchronous caps: **1 GB payload / 3600 s (1 hour)**; batch transform: no payload limit per object (splits large files into mini-batches up to 100 MB). You CANNOT convert a real-time endpoint to a serverless endpoint type — you must delete and recreate.
+> **When to use:** Real-time for steady low-latency production traffic; serverless for spiky/intermittent traffic where paying zero when idle outweighs cold-start latency; asynchronous for large payloads (>25 MB), long inference (>60 s), or near-real-time queuing; batch transform for one-time or scheduled offline scoring of entire S3 datasets.
+> **Nuances & gotchas:** Real-time endpoint caps: **25 MB payload / 60 s timeout** (regular) or 8 min (streaming); serverless caps: **4 MB payload / 60 s timeout, CPU only, no VPC, no Model Monitor, no GPU, no data capture**; asynchronous caps: **1 GB payload / 3600 s (1 hour)**; batch transform: no payload limit per object (splits large files into mini-batches up to 100 MB). You CANNOT convert a real-time endpoint to a serverless endpoint type — you must delete and recreate.
 
 ⚙️ **The comparison table (exam gold):**
 
 | Attribute | **Real-Time Endpoint** | **Serverless Inference** | **Asynchronous Inference** | **Batch Transform** |
 |---|---|---|---|---|
 | **Best for** | Steady traffic, low latency | Spiky/intermittent traffic, idle gaps | Large payloads, long processing, near-real-time | Score a whole dataset, no persistent endpoint |
-| **Max payload** | **6 MB** | **4 MB** | **1 GB** | **100 MB per mini-batch** (large files split) |
+| **Max payload** | **25 MB** | **4 MB** | **1 GB** | **100 MB per mini-batch** (large files split) |
 | **Max processing time (timeout)** | **60 s** | **60 s** | **1 hour** (`InvocationTimeoutSeconds` ≤ 3600) | Effectively unbounded (job runs to completion) |
 | **Latency** | Milliseconds | Milliseconds **+ cold start** when scaling from 0 | Seconds–minutes (queued) | N/A (throughput job) |
 | **Scales to zero?** | ❌ No (min 1 instance) | ✅ **Yes** — pay $0 when idle | ✅ Yes — can auto-scale to 0 instances when queue empty | N/A (no endpoint) |
@@ -100,7 +100,7 @@ Everything in this domain hangs off that flowchart. The rest is *how* to provisi
 ```mermaid
 flowchart LR
     subgraph RT[Real-Time]
-      RQ[Client] -->|sync, 6MB, 60s| RE[Always-on instances]
+      RQ[Client] -->|sync, 25MB, 60s| RE[Always-on instances]
       RE --> RR[Response in ms]
     end
     subgraph AS[Asynchronous]
@@ -119,7 +119,7 @@ flowchart LR
 - You **cannot** convert a real-time endpoint → serverless (you get a `ValidationError`); serverless → real-time is one-way.
 
 🎯 **"If you see X, pick Y" for endpoint types:**
-- "Payload is a **1 GB video/genomics file**, inference takes minutes" → **Asynchronous** (only one that allows >6 MB & >60 s in a live endpoint).
+- "Payload is a **1 GB video/genomics file**, inference takes minutes" → **Asynchronous** (only one that allows >25 MB & >60 s in a live endpoint).
 - "Requests **come in bursts with long idle gaps**, want to pay nothing when idle, milliseconds latency OK with occasional cold start" → **Serverless**.
 - "Need a **GPU** and it's **spiky/idle** traffic" → serverless can't do GPU → use **Asynchronous** (scales to 0 *and* supports GPU) or a real-time endpoint with auto-scaling.
 - "One-off scoring of an S3 dataset, results back to S3, no live endpoint" → **Batch Transform**.
@@ -500,7 +500,7 @@ flowchart LR
 
 | If the question says… | Pick / remember |
 |---|---|
-| Payload **> 6 MB** or inference **> 60 s** on a live endpoint | **Asynchronous inference** (1 GB, 1 hr) — not real-time |
+| Payload **> 25 MB** or inference **> 60 s** on a live endpoint | **Asynchronous inference** (1 GB, 1 hr) — not real-time |
 | **Spiky/intermittent** traffic, pay **$0 when idle**, cold starts OK | **Serverless inference** (scales to 0) |
 | Need **GPU** but traffic is spiky/idle | **Asynchronous** (serverless has **no GPU**) |
 | Score a whole **S3 dataset once**, no live endpoint | **Batch transform** |

@@ -31,7 +31,7 @@ See also: [Amazon Bedrock service reference](../services/bedrock.md) · [Amazon 
 
 > **Why (the rationale):** `InvokeModel` gives direct access to a model's native request schema, which is needed for capabilities not yet surfaced in the Converse API (e.g., generating embeddings via Titan Embeddings, or using provider-specific features like extended thinking parameters for some models).
 > **When to use:** Embeddings (Titan Embeddings, Cohere Embed), image generation (Titan Image Generator, SDXL), or any model feature not exposed through `Converse`. For all new text-generation and tool-use builds, prefer `Converse`.
-> **Nuances & gotchas:** The request/response body is **model-specific** — a request body that works for Claude will break if you swap to Llama without rewriting it. `InvokeModel` is authorized by `bedrock:InvokeModel` — there is no separate `bedrock:InvokeModel` vs `bedrock:Converse` action; Converse uses the same permission.
+> **Nuances & gotchas:** The request/response body is **model-specific** — a request body that works for Claude will break if you swap to Llama without rewriting it. `InvokeModel` is authorized by `bedrock:InvokeModel` — there is no separate `bedrock:Converse` IAM action; the `Converse` API reuses the same `bedrock:InvokeModel` permission.
 
 [`InvokeModel`](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html) sends a raw JSON body directly to one model. The request shape is model-specific (Claude's body looks different from Llama's), the response is model-specific, and there is no built-in multi-turn history. Use it only when:
 

@@ -85,6 +85,12 @@ Domain 1 is divided into three task statements per the [official SAA-C03 exam gu
 
 Always grant only the minimum permissions required. Use [AWS IAM Access Analyzer](https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html) to validate and tighten policies based on actual access patterns.
 
+#### IAM Roles vs IAM Users
+
+> **Why (the rationale):** IAM users carry permanent long-term access keys that never expire and accumulate over time — a single leaked key grants persistent access until someone manually deletes it. Roles issue short-lived STS tokens that expire automatically, eliminating that standing exposure. Roles also enable service-to-service trust without embedding credentials anywhere.
+> **When to use:** Use an IAM role whenever code runs on AWS (EC2, Lambda, ECS, EKS, CodeBuild) or when a human needs cross-account access. Use an IAM user only for break-glass local CLI access or legacy systems that cannot assume roles.
+> **Nuances & gotchas:** IAM Groups cannot be a principal in a trust policy, so you cannot say "any member of the Developers group may assume this role" — you must list individual users or federated identities. Roles can be assumed by multiple services and accounts simultaneously; users are one-to-one identities. Deleting an IAM user does not revoke issued access keys already in use — you must deactivate/delete the key first.
+
 #### Access Keys vs Roles
 
 | Approach | When to use | Risk |
@@ -111,6 +117,10 @@ MFA adds a second factor (TOTP app, hardware token, or passkey) to IAM user sign
 ---
 
 ### IAM Policy Evaluation Logic
+
+> **Why (the rationale):** AWS does not evaluate a single policy in isolation — every layer (SCP, RCP, permission boundary, session policy, identity policy, resource policy) must agree before access is granted. Understanding the evaluation order explains why adding an IAM Allow is sometimes not enough — a higher layer may be silently blocking the action.
+> **When to use:** Apply this mental model whenever a permission is mysteriously denied despite an "Allow" existing, or when designing multi-account guardrails where you need to predict the effective permission set.
+> **Nuances & gotchas:** An explicit `Deny` anywhere in any policy always wins — it cannot be overridden by any `Allow`. SCPs and RCPs are evaluated before identity/resource policies; if either is missing an Allow, the request is denied even if IAM grants it. The management (root) account of an AWS Organization is **never** restricted by SCPs. Resource-based policies can grant cross-account access without an identity-based policy only when both the principal and the resource are in the same account — cross-account still requires both sides to allow.
 
 When a request arrives, AWS evaluates all applicable policies in this order ([AWS IAM policy evaluation logic](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html)):
 
@@ -146,6 +156,10 @@ Effective permissions = `SCP ∩ RCP ∩ PermissionBoundary ∩ SessionPolicy �
 ### STS & Cross-Account AssumeRole
 
 [AWS Security Token Service (STS)](https://docs.aws.amazon.com/STS/latest/APIReference/welcome.html) issues **temporary security credentials** (access key + secret key + session token) when a principal assumes a role.
+
+> **Why (the rationale):** Sharing long-term access keys across accounts or embedding them in code creates a permanent credential leak risk. STS AssumeRole produces short-lived tokens (15 minutes to 12 hours) that expire automatically, limiting the blast radius of any compromise to the token's remaining lifetime. The cross-account trust is governed by IAM policy on both sides, so either account can revoke access instantly without touching the other.
+> **When to use:** Any time a principal in Account A needs to act on resources in Account B. Also the mechanism behind EC2 instance profiles, Lambda execution roles, ECS task roles, and OIDC-based CI/CD federation (GitHub Actions → AssumeRoleWithWebIdentity).
+> **Nuances & gotchas:** The default token duration is 1 hour; the maximum depends on the role's `MaxSessionDuration` setting (default 1 hour, max 12 hours). `sts:AssumeRole` from the management/root account is not restricted by SCPs. Revoking active sessions requires attaching an explicit Deny policy with a date condition (`aws:TokenIssueTime`) — simply removing the trust policy does not invalidate already-issued tokens until they naturally expire.
 
 #### Cross-Account Access Flow
 
@@ -184,6 +198,10 @@ When you attach an IAM role to an EC2 instance via an **instance profile**, the 
 
 [AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/) (formerly AWS SSO) is the **recommended service for workforce identity management** across multiple AWS accounts. It provides a single sign-on portal where employees can access all assigned accounts and applications.
 
+> **Why (the rationale):** Without Identity Center, managing hundreds of employees across dozens of accounts means creating individual IAM users in every account — a scaling nightmare and a security risk (stale accounts, inconsistent permissions). Identity Center centralizes login through one portal backed by the corporate IdP, issues short-lived credentials per session, and lets you manage access via Permission Sets applied across any number of accounts at once.
+> **When to use:** When humans need access to multiple AWS accounts in an Organization. When your company already uses an IdP (Okta, Azure AD, Active Directory) and wants SSO. When you need to deprovision a departing employee's access from all accounts in one action.
+> **Nuances & gotchas:** Identity Center is not for programmatic/machine access — CI/CD pipelines and scheduled jobs should use OIDC federation with `AssumeRoleWithWebIdentity` instead. Identity Center requires AWS Organizations to be enabled. Each user session vends short-lived STS credentials (not IAM user keys), but those credentials are scoped to the permission set — not the entire account. External IdP sync via SCIM only provisions the user objects; actual access requires explicit account assignments.
+
 #### How It Works
 
 ```mermaid
@@ -218,6 +236,10 @@ flowchart LR
 
 [AWS Organizations](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html) lets you centrally manage multiple AWS accounts. **Service Control Policies (SCPs)** are attached to the Organization root, Organizational Units (OUs), or individual accounts to define the *maximum* permissions available.
 
+> **Why (the rationale):** Individual account admins can always elevate IAM permissions within their account — SCPs are the only mechanism that can preventively constrain every principal in an account (including the account root user) from a central authority. This makes them the primary tool for enforcing organizational governance: region restrictions, service denylists, and compliance controls that cannot be overridden locally.
+> **When to use:** When you need a guardrail that no IAM admin in a member account can bypass — for example, "no one in the Production OU may disable CloudTrail" or "no resources may be created outside ap-southeast-1." Applied to OUs for tiered controls (Sandbox OU gets looser SCPs than Production OU).
+> **Nuances & gotchas:** SCPs never grant permissions — they only limit. Even `"Effect": "Allow", "Action": "*"` in an SCP doesn't give any access; IAM policies must still grant it. The management (root) account is completely unaffected by SCPs — governance of the management account must be handled out-of-band. SCPs do not affect service-linked roles. A `Deny` SCP applied to an OU cascades to all child OUs and accounts — there is no override at a lower level.
+
 #### SCP Mechanics
 
 - SCPs **never grant permissions**; they only restrict what member accounts can do.
@@ -240,6 +262,10 @@ flowchart LR
 
 #### Permission Boundary vs SCP
 
+> **Why (the rationale):** SCPs and permission boundaries both cap effective permissions, but at different scopes and for different reasons. SCPs are a central governance tool applied by an Organization admin to entire accounts — preventing any IAM entity in that account from exceeding the cap. Permission boundaries are a delegation tool: a senior admin sets a boundary on a role/user so that a junior admin can freely create additional permissions within that role without escalating beyond the boundary.
+> **When to use:** SCPs when you need account-wide or OU-wide policy enforcement (e.g., "no account in this OU can use us-west-1"). Permission boundaries when you want to delegate IAM user/role creation to a team but limit what those created identities can ever do (e.g., a developer can create Lambda execution roles, but only with S3 and CloudWatch permissions).
+> **Nuances & gotchas:** Neither SCPs nor permission boundaries grant any permissions on their own — they only restrict. A permission boundary on a role does not affect what other principals can do *to* that role (only what the role itself can do). SCPs do not apply to service-linked roles.
+
 | | SCP | Permission Boundary |
 |---|---|---|
 | **Applied to** | AWS account (org-level) | Individual IAM user or role |
@@ -258,6 +284,16 @@ flowchart LR
 ### Amazon Cognito
 
 [Amazon Cognito](https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html) provides authentication, authorization, and user management for web and mobile applications — **not** for AWS employee workforce access (that's IAM Identity Center).
+
+> **Why (the rationale):** External app users (customers, public) cannot have IAM users — that would be a massive IAM management problem and a security risk. Cognito provides a managed user directory and authentication layer specifically for external-facing applications, and then bridges those app identities to temporary AWS credentials so the app can call AWS services directly from the client (e.g., mobile app uploading to S3).
+> **When to use:** Building a web or mobile app that needs user sign-up/sign-in, MFA, and/or direct access to AWS services from the client side. Use a User Pool for the authentication layer; add an Identity Pool when clients need temporary AWS credentials to call services like S3, DynamoDB, or IoT.
+> **Nuances & gotchas:** User Pools and Identity Pools are separate services that are often confused. A User Pool alone gives you JWTs — it does NOT give AWS API credentials. Only an Identity Pool converts identities (including User Pool JWTs, social logins, or anonymous sessions) into temporary STS credentials. Identity Pools support unauthenticated (guest) access — you must explicitly disable this if you don't want it. Cognito User Pool tokens (JWTs) expire; the refresh token can be up to 10 years, but access/ID tokens default to 1 hour.
+
+#### Cognito User Pools vs Identity Pools
+
+> **Why (the rationale):** The two pools solve fundamentally different problems. A User Pool is a user directory — it handles sign-up, sign-in, MFA, and JWT issuance. An Identity Pool is a credentials broker — it accepts any identity (including a User Pool JWT, a Google token, or no identity at all) and exchanges it for temporary AWS STS credentials scoped to an IAM role. You need both when your app users must authenticate AND then directly call AWS services.
+> **When to use:** User Pool alone: app login only, no direct AWS API access needed. Identity Pool alone: IoT devices or apps using a non-Cognito IdP (e.g., Google) that need AWS credentials directly. Both together: standard mobile/web app where users log in and then access their own S3 objects or DynamoDB records directly from the client.
+> **Nuances & gotchas:** The Identity Pool issues different IAM role credentials based on whether the user is authenticated or unauthenticated — ensure the unauthenticated role is tightly scoped (or disabled). You can use identity pool role mapping rules to issue different roles per user attribute. Cognito does NOT integrate natively with SAML-only enterprise identity for machine-to-machine flows — that is the domain of IAM Identity Center.
 
 #### User Pools vs Identity Pools
 
@@ -294,6 +330,10 @@ flowchart LR
 ### AWS KMS
 
 [AWS Key Management Service (KMS)](https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html) is the central key management service. It stores and manages **KMS keys** (formerly Customer Master Keys / CMKs) inside FIPS 140-3 Level 3 validated HSMs (since February 2025).
+
+> **Why (the rationale):** Storing encryption keys in application code or alongside encrypted data defeats encryption — if the attacker gets both, they can decrypt everything. KMS stores keys in HSMs that never expose plaintext key material, enforces access via key policies + IAM, and logs every cryptographic operation to CloudTrail. Envelope encryption means the KMS key never touches your data directly; only the small DEK travels, and even that stays encrypted when stored.
+> **When to use:** Any time you need auditable, policy-controlled encryption for AWS service data at rest (S3, EBS, RDS, DynamoDB, Secrets Manager, etc.), or when you need to share encrypted data across accounts using a CMK.
+> **Nuances & gotchas:** Every KMS API call costs money — SSE-KMS on S3 incurs a KMS `GenerateDataKey` call on every PUT and a `Decrypt` call on every GET; at high S3 request volume this adds up. IAM alone is NOT sufficient to use a KMS key — the key policy must also grant access; if you delete the default key policy statement granting account root access, you can permanently lock yourself out of the key. Key rotation does NOT re-encrypt existing data — old key versions are retained to decrypt existing ciphertext. Deleting a CMK has a 7-to-30-day waiting period; data encrypted with it cannot be recovered after deletion.
 
 #### Key Types
 
@@ -348,6 +388,10 @@ Every KMS key has a **key policy** (resource-based policy). Unlike IAM policies,
 
 [AWS CloudHSM](https://aws.amazon.com/cloudhsm/) provides **dedicated, single-tenant HSM hardware** in your VPC. You own and control the key material — AWS cannot access it.
 
+> **Why (the rationale):** KMS operates on shared (multi-tenant) HSM infrastructure — AWS manages the HSM and theoretically has operational access to the hardware, even though key access is policy-controlled. CloudHSM eliminates that concern by giving you dedicated hardware in your VPC where AWS has zero ability to access keys. It also supports industry-standard APIs (PKCS#11, JCE) that some applications (Oracle TDE, SSL offloading) require and that KMS does not expose.
+> **When to use:** Compliance mandates requiring dedicated single-tenant key hardware, bring-your-own-key (BYOK) scenarios where you must import and retain sole custody, Oracle database Transparent Data Encryption (TDE), or custom cryptographic operations using PKCS#11/JCE that KMS does not support.
+> **Nuances & gotchas:** CloudHSM does NOT integrate natively with most AWS services — you cannot use a CloudHSM key to encrypt an S3 bucket, EBS volume, or RDS instance the way KMS can. You are responsible for the HSM cluster's availability — deploy at least two HSM nodes across two AZs. Cost is approximately $1.60/hour per HSM node (plus data charges) regardless of usage, vs KMS's pay-per-API-call model. If you lose your CloudHSM credentials and all backups, the key material is irrecoverable.
+
 | | KMS | CloudHSM |
 |---|---|---|
 | **Tenancy** | Shared (multi-tenant HSM) | Dedicated single-tenant hardware |
@@ -370,6 +414,10 @@ Every KMS key has a **key policy** (resource-based policy). Unlike IAM policies,
 ### Secrets Manager vs SSM Parameter Store
 
 Both store sensitive configuration, but they serve different use cases:
+
+> **Why (the rationale):** The key differentiator is automatic rotation. Secrets Manager has built-in Lambda-based rotation for RDS, Redshift, DocumentDB, and custom secrets — it automatically generates a new credential, updates the secret, and (for RDS) updates the database password in sync. Parameter Store has no native rotation mechanism; you must build and schedule a custom Lambda yourself. For anything that needs to rotate, Secrets Manager is the purpose-built choice.
+> **When to use:** Secrets Manager for database passwords, API keys, and any credential that must rotate automatically or needs fine-grained cross-account access. Parameter Store for non-rotating application configuration, environment variables, feature flags, and scenarios with thousands of parameters where cost matters (Standard tier is free up to 10,000 parameters).
+> **Nuances & gotchas:** Secrets Manager costs $0.40/secret/month — storing 10,000 secrets costs $4,000/month, making it unsuitable for high-volume configuration use cases. Parameter Store Standard is free but limited to 4 KB per parameter and 10,000 parameters per account/region; Advanced tier supports 8 KB and costs $0.05/parameter/month. Secrets Manager always encrypts with KMS (a cost per call); Parameter Store encrypts only `SecureString` type with KMS — `String` and `StringList` are plaintext. Parameter Store does NOT support cross-account access natively; Secrets Manager does via resource-based policy.
 
 | Feature | Secrets Manager | SSM Parameter Store |
 |---------|----------------|---------------------|
@@ -396,6 +444,10 @@ Both store sensitive configuration, but they serve different use cases:
 
 [AWS Certificate Manager](https://docs.aws.amazon.com/acm/latest/userguide/acm-overview.html) provisions, manages, and auto-renews **TLS/SSL certificates** for use with AWS services.
 
+> **Why (the rationale):** Manually purchasing, installing, and renewing TLS certificates is error-prone and leads to outages when certificates expire. ACM eliminates that by issuing free public certificates and auto-renewing them before expiry, with zero-downtime rotation on supported AWS services (ALB, CloudFront, API Gateway). The private key never leaves AWS — you cannot export it for public certificates.
+> **When to use:** Securing any public-facing HTTPS endpoint on ALB, NLB, CloudFront, API Gateway, or Elastic Beanstalk. For internal services requiring a private CA (internal microservices, VPN endpoints), use ACM Private CA to issue private certificates.
+> **Nuances & gotchas:** ACM public certificates **cannot be exported** — you cannot install one directly on an EC2 instance or on-premises server. The private key is managed entirely by ACM. For EC2-hosted TLS termination you must use a self-managed certificate or a private CA cert (which can be exported). ACM certificates are **region-specific** — to use one with CloudFront (a global service), the certificate must be provisioned in `us-east-1` specifically, regardless of where your origin resources are. ACM renewal is automatic but requires the DNS or email validation record to remain valid; removing the CNAME validation record will block renewal.
+
 - **Public certificates**: Free; issued by Amazon's CA; auto-renewed.
 - **Private certificates**: ACM Private CA (paid); issue certs for internal resources.
 - **Where used**: ALB, NLB, CloudFront, API Gateway, Elastic Beanstalk. **Cannot** be used directly on EC2 — export private key option available only for private CA certs.
@@ -412,6 +464,10 @@ Both store sensitive configuration, but they serve different use cases:
 ### S3 Encryption
 
 Since **January 5, 2023**, Amazon S3 **automatically encrypts all new objects** with SSE-S3 by default ([AWS S3 encryption docs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html)).
+
+> **Why (the rationale):** S3 holds some of the most sensitive data in many architectures. Encryption at rest protects against physical storage media theft and unauthorized access at the storage layer. The choice between SSE-S3, SSE-KMS, and SSE-C comes down to: who controls the key, what audit trail you need, and whether you must manage keys outside AWS. SSE-S3 is the zero-effort baseline; SSE-KMS adds key-level audit trails and policy control; SSE-C keeps key custody entirely outside AWS.
+> **When to use:** SSE-S3 for the default case where you just need encryption with no special key control. SSE-KMS when you need CloudTrail audit records of every encrypt/decrypt, when compliance requires a CMK, or when you need cross-account key sharing. SSE-C when regulatory requirements mandate that AWS never stores or sees your key material. DSSE-KMS for CNSA Suite B / NSA dual-layer requirements.
+> **Nuances & gotchas:** SSE-KMS generates a KMS API call (and incurs cost) on every S3 PUT and GET — at high throughput this can be significant; request KMS quota increases proactively. SSE-C requires the customer to send the key in every request header (PUT and GET) — AWS never stores it, so if you lose the key, the object is permanently unreadable. Client-side encryption (CSE) means AWS never sees plaintext at any point; SSE means AWS decrypts server-side (AWS sees plaintext in transit within the service). Enabling SSE-KMS on an existing bucket does NOT re-encrypt existing objects — you must copy them or use S3 Batch Operations to trigger re-encryption.
 
 #### Server-Side Encryption (SSE) Options
 
@@ -443,6 +499,10 @@ Since **January 5, 2023**, Amazon S3 **automatically encrypts all new objects** 
 ### Security Groups vs Network ACLs
 
 These are the two main VPC-level firewall controls. Understanding the **stateful vs stateless** distinction is critical.
+
+> **Why (the rationale):** Security Groups operate at the instance/ENI level and are stateful — they automatically track connection state, so you only need one allow rule per direction of intended traffic. NACLs operate at the subnet level and are stateless — they evaluate each packet independently, making them the right tool for blocking specific IPs or CIDRs at the subnet boundary (Security Groups have no Deny capability). Using both gives defense in depth: NACL as a coarse subnet gate, SG as fine-grained per-instance control.
+> **When to use:** Security Groups as the primary, instance-level firewall for all resources. NACLs as a supplementary subnet-level control when you need explicit IP Deny rules — for example, blocking a known attacker IP across an entire subnet, or adding an extra perimeter around a sensitive subnet.
+> **Nuances & gotchas:** NACLs are stateless — if you allow inbound TCP 443, you must ALSO allow outbound on ephemeral ports 1024–65535 for the response traffic to leave the subnet; forgetting this causes mysterious connection timeouts. NACL rules are evaluated in numerical order and the first match wins — a lower-numbered Allow before a higher-numbered Deny means the Allow wins. Security Groups can only Allow; the implicit default is Deny for anything not explicitly allowed. Security Groups can reference other Security Groups as sources (e.g., "allow traffic from the ALB SG") — NACLs can only reference CIDRs. One NACL can be associated with multiple subnets, but each subnet can only have one NACL.
 
 ```mermaid
 flowchart TB
@@ -502,6 +562,10 @@ flowchart TB
 
 [VPC Endpoints](https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html) allow resources in a private subnet to communicate with AWS services **without traversing the internet**.
 
+> **Why (the rationale):** Without VPC endpoints, private-subnet resources must route AWS API traffic through a NAT Gateway to the internet and back — adding latency, NAT data-processing charges, and an internet exposure surface. VPC endpoints keep traffic entirely within the AWS network backbone, eliminating internet dependency and NAT costs for AWS service calls.
+> **When to use:** Whenever resources in private subnets need to call AWS services. For S3 and DynamoDB, prefer the free Gateway endpoint. For all other services (KMS, SSM, CloudWatch, Secrets Manager, ECR, etc.), use Interface endpoints.
+> **Nuances & gotchas:** Gateway endpoints for S3 and DynamoDB are completely free — there is no per-hour or per-GB charge. Interface endpoints (PrivateLink) cost per AZ per hour plus per-GB data processed — in a 3-AZ setup with one endpoint per AZ, costs add up. Gateway endpoints work by adding a route-table entry — they require no DNS changes and no Security Group. Interface endpoints use an ENI in your subnet — they require Security Group rules allowing HTTPS (443) from the resources that use them. You can restrict which S3 buckets are accessible via a gateway endpoint using an endpoint policy, which is a useful perimeter control.
+
 #### Gateway Endpoints vs Interface Endpoints
 
 | | Gateway Endpoint | Interface Endpoint (PrivateLink) |
@@ -529,6 +593,10 @@ flowchart TB
 
 [AWS WAF](https://docs.aws.amazon.com/waf/latest/developerguide/what-is-aws-waf.html) is a **Layer 7 (application layer) web application firewall** that filters HTTP/HTTPS requests based on rules.
 
+> **Why (the rationale):** Network-level controls (Security Groups, NACLs, Shield Standard) cannot inspect HTTP content — they see only IPs and ports. WAF fills this gap by examining the actual HTTP request body, headers, URIs, and query strings to block application-layer attacks like SQL injection, cross-site scripting, and credential stuffing. It also enables content-aware controls like geo-blocking and per-IP rate limiting that have no equivalent at L3/L4.
+> **When to use:** Any public-facing web application or API that needs protection from OWASP Top 10 attacks, bot traffic, or abusive request rates. Deploy WAF on CloudFront for global edge filtering, on ALB for regional app protection, or on API Gateway for API-specific rules.
+> **Nuances & gotchas:** WAF operates on HTTP/HTTPS (Layer 7) only — it does not protect against volumetric L3/L4 DDoS floods; that is Shield's job. WAF rules are evaluated as Web ACL Capacity Units (WCUs) — each rule type costs WCUs, and a Web ACL has a default limit of 1,500 WCUs; complex rule sets may require requesting a quota increase. Managed rule groups (e.g., AWS Core Rule Set) can produce false positives — test in Count mode before switching to Block. WAF on CloudFront must be deployed in `us-east-1`; WAF on ALB/API GW is regional. Rate-based rules count requests per 5-minute window per IP — they cannot rate-limit by user session or JWT identity alone.
+
 - **Deployable on**: CloudFront, ALB, API Gateway, AWS AppSync, Cognito User Pool.
 - **Rule types**: AWS managed rule groups (OWASP Top 10, SQL injection, XSS, Bot Control), custom rules (IP sets, geo-matching, rate limiting, string matching, regex).
 - **Web ACL**: The container for rules; attached to a resource.
@@ -546,6 +614,10 @@ flowchart TB
 ### AWS Shield
 
 [AWS Shield](https://docs.aws.amazon.com/waf/latest/developerguide/ddos-overview.html) protects against **Distributed Denial of Service (DDoS)** attacks.
+
+> **Why (the rationale):** DDoS attacks at Layer 3/4 (volumetric SYN floods, UDP reflection) can overwhelm a network before traffic reaches your application — WAF and Security Groups cannot help at that point. Shield Standard provides baseline L3/L4 DDoS scrubbing automatically and for free for all AWS customers. Shield Advanced adds dedicated DRT (DDoS Response Team) support, financial cost protection (AWS credits scaling costs incurred during an attack), and enhanced L7 protection when combined with WAF.
+> **When to use:** Shield Standard is always on — nothing to enable. Shield Advanced when you have a high-profile application with real DDoS risk, need SLA-backed protection, want DRT on call, or need cost protection from scaling charges during an attack.
+> **Nuances & gotchas:** Shield Advanced requires a 1-year subscription commitment at $3,000/month (plus data transfer out fees) — it is not pay-per-use. The cost protection only applies to scaling charges on resources that are explicitly protected by Shield Advanced — you must add each resource (ALB, CloudFront distribution, EIP, etc.) to your protection list. Shield Advanced does NOT protect resources not on that list, even in the same account. Shield Standard protects EC2, ELB, CloudFront, and Route 53 automatically, but provides no financial protection and no DRT access.
 
 | | Shield Standard | Shield Advanced |
 |---|---|---|
@@ -568,6 +640,10 @@ flowchart TB
 ### AWS Network Firewall
 
 [AWS Network Firewall](https://docs.aws.amazon.com/network-firewall/latest/developerguide/what-is-aws-network-firewall.html) is a managed, **stateful/stateless network firewall and intrusion prevention system (IPS)** for VPCs.
+
+> **Why (the rationale):** Security Groups and NACLs can filter by IP and port, but they cannot inspect packet content, detect known exploit patterns, or enforce domain-based egress filtering (e.g., "allow only api.example.com, block everything else"). Network Firewall fills that gap with deep packet inspection (DPI), Suricata-compatible IPS rules, and protocol-aware filtering — all centrally managed rather than per-instance.
+> **When to use:** When you need centralized egress control (e.g., allowlist specific outbound FQDNs from private subnets), need to detect or block known exploit signatures (IPS mode), or must inspect TLS-encrypted traffic (with TLS inspection configured). Often deployed in a centralized "inspection VPC" behind AWS Transit Gateway in hub-and-spoke architectures.
+> **Nuances & gotchas:** Network Firewall requires dedicated firewall subnets (one per AZ) and route table changes to steer traffic through it — it does NOT work passively like a NACL; you must actively redirect traffic. It costs per firewall endpoint per AZ per hour plus per-GB processed — in multi-AZ deployments, costs are per AZ. Suricata rules in Network Firewall use the same syntax as open-source Suricata but not all Suricata features are supported (e.g., some preprocessors are absent). Network Firewall does NOT replace WAF for Layer 7 HTTP-specific protection; the two complement each other.
 
 - Deployed in a dedicated firewall subnet; traffic is routed through it.
 - Supports **Suricata-compatible IPS rules** for deep packet inspection (DPI).
@@ -596,6 +672,10 @@ flowchart TB
 
 [Amazon GuardDuty](https://docs.aws.amazon.com/guardduty/latest/ug/what-is-guardduty.html) is a **threat detection service** that continuously analyzes logs and runtime behavior to identify malicious activity.
 
+> **Why (the rationale):** Humans cannot manually review VPC Flow Logs, DNS logs, and CloudTrail events at scale fast enough to catch active threats. GuardDuty uses ML models and threat intelligence feeds to continuously correlate these sources and surface specific, actionable findings (e.g., "EC2 instance is querying a known C2 domain," "IAM credentials are being used from an unusual geolocation") — without requiring any log export or agent installation.
+> **When to use:** Enable GuardDuty in every account and region as a baseline security control — it operates on existing AWS log sources with no infrastructure changes. Use multi-account delegation via Organizations to centralize findings in an administrator account.
+> **Nuances & gotchas:** GuardDuty does NOT block anything — it detects and alerts. Automated remediation must be wired separately via EventBridge rules + Lambda. GuardDuty pricing is based on the volume of data analyzed (GB of VPC Flow Logs, number of CloudTrail events, etc.) — in busy accounts with high API call volumes or heavy VPC traffic, costs can be significant; use the cost estimator before enabling in production. Enabling GuardDuty does NOT enable CloudTrail or VPC Flow Logs — GuardDuty reads them if they exist; some data sources may need explicit enabling (e.g., S3 data events, EKS audit logs). Disabling GuardDuty deletes all findings immediately.
+
 **Data sources analyzed:**
 - VPC Flow Logs, DNS query logs, CloudTrail management events
 - S3 data events, EKS audit logs, ECS/EKS runtime
@@ -621,6 +701,10 @@ flowchart TB
 
 [Amazon Inspector](https://docs.aws.amazon.com/inspector/latest/user/what-is-inspector.html) is a **vulnerability assessment service** that scans workloads for known CVEs and software vulnerabilities.
 
+> **Why (the rationale):** GuardDuty detects attacks in progress; Inspector finds the vulnerabilities that would make those attacks possible. By continuously scanning EC2, ECR images, and Lambda functions against the CVE database and network reachability data, Inspector tells you which vulnerabilities are exploitable from the internet (higher risk) vs. isolated on a private instance (lower risk), enabling prioritized patching.
+> **When to use:** Enable Inspector in all accounts where you run EC2 instances, push container images to ECR, or deploy Lambda functions. Prioritize fixing findings with high Inspector Risk Scores — those combine CVE severity with actual network reachability.
+> **Nuances & gotchas:** Inspector does NOT test for misconfigurations (IAM overpermissions, open S3 buckets) — that is Config and Security Hub's job. Inspector v2 (the current version) is fundamentally different from Inspector Classic — it scans automatically and continuously, whereas Classic required you to manually define assessment targets and schedules. Inspector uses the SSM Agent for EC2 scanning — instances must have SSM Agent installed and the appropriate IAM role attached; without this, EC2 instances will not be scanned. Inspector findings in ECR are per-image per-layer — a base image vulnerability will appear on every derived image, which can look like a large number of findings.
+
 **What it scans:**
 - EC2 instances (OS packages, application packages)
 - Amazon ECR container images (on push or continuously)
@@ -643,6 +727,10 @@ flowchart TB
 
 [Amazon Macie](https://docs.aws.amazon.com/macie/latest/user/what-is-macie.html) uses **machine learning to discover, classify, and protect sensitive data in S3**.
 
+> **Why (the rationale):** Organizations accumulate data in S3 over time and often do not know exactly which buckets contain PII, financial records, or health data — especially after data migrations or development test data leaks into production buckets. Macie automates the discovery and classification of that sensitive data across all S3 buckets, surfacing both data exposure (PII found in a public bucket) and access risk (cross-account or public bucket with sensitive data).
+> **When to use:** When you need to demonstrate data classification and protection controls for compliance (GDPR, HIPAA, PCI DSS). When onboarding new S3 data lakes or auditing existing buckets for accidental PII storage. Enable it at the Organization level to cover all accounts.
+> **Nuances & gotchas:** Macie is **S3-only** — it does not scan RDS, DynamoDB, EFS, or other storage services. Macie costs are based on the number of S3 buckets evaluated per month (for bucket inventory) and the amount of data scanned (per GB). Scanning all data in large buckets can be expensive — use sampling mode for initial scans to estimate cost. Macie uses managed data identifiers (built-in patterns) and custom data identifiers (your own regex) — the managed identifiers cover common PII types globally but may need tuning for region-specific formats. Findings are generated per S3 object, not per bucket; a bucket with 1 million objects can generate a very large number of findings.
+
 - Detects PII (names, SSNs, credit card numbers, health information), financial data, credentials.
 - Identifies **S3 buckets with overly permissive access** (public, cross-account shared).
 - Generates findings in Security Hub.
@@ -660,6 +748,10 @@ flowchart TB
 
 [AWS Security Hub](https://docs.aws.amazon.com/securityhub/latest/userguide/what-is-securityhub.html) is a **centralized security posture management (CSPM) and finding aggregation service**.
 
+> **Why (the rationale):** Without Security Hub, security findings are scattered across GuardDuty, Inspector, Macie, Config, IAM Access Analyzer — each with its own console and no unified view of overall posture. Security Hub normalizes all findings into the ASFF (Amazon Security Finding Format), runs automated compliance checks against industry benchmarks, and provides a single prioritized view across hundreds of accounts.
+> **When to use:** As the central aggregator in any multi-account AWS environment. Enable Security Hub in every account via Organizations delegation, and nominate a security account as the administrator to receive aggregated findings from all member accounts.
+> **Nuances & gotchas:** Security Hub does NOT detect threats itself — it aggregates from services that do (GuardDuty, Inspector, Macie, etc.). Those services must be independently enabled; Security Hub does not enable them for you. Security Hub has a cost per compliance check per resource per month — in large environments with many resources and many enabled standards, this can be substantial; audit which compliance standards you actually need. The ASFF finding format has a severity normalization (INFORMATIONAL / LOW / MEDIUM / HIGH / CRITICAL) that may differ from the originating service's own severity scale. Cross-region aggregation requires explicit configuration; Security Hub is regional by default.
+
 - Aggregates findings from GuardDuty, Inspector, Macie, Firewall Manager, IAM Access Analyzer, Config, and third-party tools.
 - Runs automated **compliance checks** against standards: CIS AWS Foundations Benchmark, AWS Foundational Security Best Practices, PCI DSS, NIST 800-53.
 - **2025 update**: 1-year trend data and period-over-period analysis makes it a full CSPM tool, not just a finding aggregator.
@@ -676,6 +768,10 @@ flowchart TB
 ### AWS Config
 
 [AWS Config](https://docs.aws.amazon.com/config/latest/developerguide/WhatIsConfig.html) continuously **records configuration state** of AWS resources and evaluates them against desired configurations (rules).
+
+> **Why (the rationale):** After a security incident or an audit finding, you need to answer "what did this resource's configuration look like at a specific point in time, and when did it change?" CloudTrail tells you who made the API call; Config tells you what the resulting configuration was and whether it drifted from your compliance baseline. Config rules continuously evaluate resources as they change, enabling near-real-time compliance monitoring without manual audits.
+> **When to use:** When you need configuration history and point-in-time state ("what were this security group's rules last Tuesday?"). When you need ongoing compliance checking ("alert me when any security group allows 0.0.0.0/0 on port 22"). When you need automated remediation for configuration drift via Config + SSM Automation.
+> **Nuances & gotchas:** Config does NOT prevent changes — it records and evaluates after the fact. It is a detective control, not a preventive one (SCPs/permission boundaries are preventive). Config rules have two trigger types: configuration change (evaluated when the resource changes) and periodic (evaluated on a schedule) — choose based on how quickly you need to detect drift. Config costs per configuration item recorded and per rule evaluation — in large accounts with thousands of resources and many rules, costs accumulate quickly. Config requires explicit setup per region; enabling it in us-east-1 does not record resources in eu-west-1. The Config Aggregator provides multi-account/multi-region visibility but must be explicitly configured.
 
 - **Configuration history**: "What did this resource look like at 2pm yesterday?" → Config.
 - **Compliance rules**: Check if S3 buckets have encryption, security groups are not open to 0.0.0.0/0, CloudTrail is enabled.
@@ -695,6 +791,10 @@ flowchart TB
 ### AWS CloudTrail
 
 [AWS CloudTrail](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html) records **every API call** made in your AWS account — who called it, from where, when, and with what parameters.
+
+> **Why (the rationale):** Without an API audit log, there is no way to answer "who deleted that resource?" or "was this IAM change authorized?" after the fact. CloudTrail is the immutable paper trail of every control-plane action — it provides the forensic foundation for incident investigation, compliance auditing (SOC 2, PCI DSS, HIPAA all require audit logs), and security alerts on sensitive API calls.
+> **When to use:** CloudTrail management events are enabled by default for 90 days in the Event History — but you must create an explicit Trail (sending to S3 and/or CloudWatch Logs) for long-term retention, cross-account aggregation, or to enable data events and Insights. Enable an Organization Trail from the management account to capture all member accounts in one trail.
+> **Nuances & gotchas:** Management events are on by default for 90-day Event History only — this is NOT a persistent trail. Data events (S3 object-level: GetObject, PutObject, DeleteObject; Lambda Invoke) are **off by default** and must be explicitly enabled — many teams miss this and cannot audit S3 data access after an incident. CloudTrail logs have up to a 15-minute delivery delay to S3 — they are not real-time; use CloudWatch Logs subscription filters for near-real-time alerting. Log file integrity validation uses SHA-256 digest files stored alongside logs — validate these if you suspect log tampering. CloudTrail does NOT log every AWS action — some services/events are not logged (e.g., read-only metadata calls like `DescribeInstances` may not appear in all configurations); check the service-specific documentation.
 
 **Event types:**
 - **Management events** (control plane): CreateBucket, RunInstances, DeleteRole — on by default.
@@ -717,6 +817,10 @@ flowchart TB
 ### Amazon Detective
 
 [Amazon Detective](https://docs.aws.amazon.com/detective/latest/adminguide/what-is-detective.html) analyzes and **visualizes security findings** to help you understand root cause during incident investigation.
+
+> **Why (the rationale):** When GuardDuty surfaces a finding like "EC2 instance is communicating with a known C2 server," the next question is "what else did this instance or the actor do?" — tracing that manually through CloudTrail JSON and VPC Flow Logs is slow and error-prone. Detective pre-processes those same data sources into a graph model and provides interactive visualizations (timelines, entity relationships, geolocation maps) so an analyst can pivot from a finding to the full attack story in minutes rather than hours.
+> **When to use:** During active incident investigation after GuardDuty generates a finding. To understand the scope and blast radius of a compromise — which roles were used, which instances were involved, what data was accessed. Detective is a reactive, investigation tool; use GuardDuty for detection.
+> **Nuances & gotchas:** Detective is NOT a real-time alerting tool — it is used after the fact for investigation. It requires GuardDuty to be enabled in the same account/region (Detective ingests GuardDuty findings). Detective retains up to 1 year of behavioral data — this also means it takes time to build a meaningful baseline after initial enabling. Like other services, Detective is regional and must be enabled per region. It has a separate cost based on the volume of log data ingested (VPC Flow Logs, CloudTrail, GuardDuty findings).
 
 - Automatically ingests VPC Flow Logs, CloudTrail events, and GuardDuty findings.
 - Uses ML and graph-based analysis to show relationships: which IP contacted which instance, which role was used to make which API calls.
@@ -766,6 +870,10 @@ Resource-based IAM policies attached to a bucket. Can allow/deny access based on
 
 [S3 Block Public Access](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html) has four independent settings (can be applied at account, bucket, or access point level):
 
+> **Why (the rationale):** Bucket policies and ACLs are powerful enough to make a bucket public — but human error (a misplaced `"Principal": "*"`) or a misunderstood ACL can expose sensitive data publicly without any warning. Block Public Access is a safety override that sits above those policies and can prevent any public exposure regardless of what the bucket policy or ACL says, even if a developer inadvertently creates one.
+> **When to use:** Enable all four settings at the **account level** as a default baseline for every new AWS account. Override at the individual bucket level only for specific use cases that genuinely require public access (e.g., a static website bucket fronted by CloudFront — though even then, restricting direct S3 access via OAC and using CloudFront as the only public endpoint is preferred over truly public S3).
+> **Nuances & gotchas:** Block Public Access does NOT block presigned URLs — a presigned URL is considered an authorized, credential-bearing request and bypasses these settings. It also does NOT block cross-account access that is explicitly granted in a bucket policy (only public/anonymous access). The four settings are independent — you can `IgnorePublicAcls` without `BlockPublicAcls`, for example. Account-level Block Public Access overrides bucket-level settings — you must remove the account-level block before you can make any bucket public. New S3 buckets created after April 2023 have Block Public Access enabled by default at the bucket level.
+
 | Setting | What it does |
 |---------|-------------|
 | `BlockPublicAcls` | Prevents new ACLs that grant public access |
@@ -782,6 +890,10 @@ S3 ACLs (Access Control Lists) are a legacy mechanism. AWS recommends disabling 
 ### Presigned URLs
 
 A presigned URL grants time-limited access to a private S3 object without requiring the requester to have AWS credentials:
+
+> **Why (the rationale):** You often need to let an unauthenticated end user (a customer, a partner) download or upload a specific S3 object without making the bucket public and without giving them AWS credentials. Presigned URLs embed the signer's authorization into a time-limited URL — the requester gets access to exactly that one object for exactly that duration, and the bucket stays private.
+> **When to use:** Serving temporary download links for private content (e.g., a document delivery system, a secure file share). Allowing direct client-to-S3 uploads (presigned PUT URLs) without routing large files through your application server — this reduces server load and bandwidth costs while keeping the bucket private.
+> **Nuances & gotchas:** The presigned URL inherits the permissions of the IAM principal that generated it at the time of generation — if those permissions are later revoked, existing presigned URLs can still work until they expire (IAM permission removal does not immediately invalidate presigned URLs; however, revoking the session or deleting the IAM entity does). If a presigned URL is generated by a role's temporary credentials, the URL expires at the earlier of: the URL's own expiry or the role session's expiry — setting a URL expiry longer than the role session's remaining lifetime does not extend the URL's validity. Maximum expiry for presigned URLs generated with temporary credentials (STS/role) is 12 hours; for IAM user credentials, up to 7 days. Block Public Access does NOT block presigned URL access.
 
 - Generated by a principal with S3 read access.
 - Embedded with the signer's credentials and an expiry time.

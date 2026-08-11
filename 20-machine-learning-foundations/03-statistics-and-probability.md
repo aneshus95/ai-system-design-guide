@@ -2,6 +2,8 @@
 
 Statistics and probability form the bedrock of every data science role: you cannot run an A/B test, build a regression model, or evaluate a classifier without them. Interviewers at product and research companies treat this as a mandatory axis — weak answers here are a quick filter-out regardless of your ML or coding skills.
 
+> **Go deeper:** this page is a fast single-page refresher. For a thorough, one-page-per-topic treatment — distributions, estimation, hypothesis testing, A/B testing, regression stats, Bayesian, resampling, and causal inference — see the dedicated **[Statistics for Data Science](../26-statistics-for-data-science/README.md)** section.
+
 ## Table of Contents
 
 - [Descriptive Statistics](#descriptive-statistics)

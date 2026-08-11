@@ -144,6 +144,37 @@ Sources: [Cross-validation with time series — CodeCut](https://codecut.ai/cros
 
 ---
 
+## Key Decisions & Tradeoffs
+
+| Decision | Options considered | Why chosen | Tradeoff accepted |
+|---|---|---|---|
+| **CatBoost vs XGBoost vs LightGBM** | XGBoost (manual OHE required); LightGBM (fastest on large data); CatBoost | High-cardinality categoricals (carrier, depot, destination zone) are the dominant feature type — CatBoost's ordered target statistics handle them natively without leakage risk or manual encoding overhead; strong out-of-the-box regularization reduces tuning burden | Ordered boosting adds ~2× training time vs standard GBDT; symmetric trees can underfit if the target is highly asymmetric per subtree |
+| **±3-day tolerance accuracy as primary KPI** | Pure MAE; pure RMSE; percentage accuracy within tolerance window | Maps directly to the customer-facing delivery promise and is trivially communicable to stakeholders ("7 in 10 orders within 3 days") | Binary within/outside window hides magnitude — a 0.1-day miss and 2.9-day hit both count as success; must pair with MAE/RMSE |
+| **Walk-forward (chronological) CV vs random CV** | Random-shuffle k-fold; stratified k-fold; `TimeSeriesSplit` | Delivery times are time-correlated (seasonality, carrier changes) — random CV leaks future orders into train, inflating scores; chronological split simulates true deployment | Expanding-window folds give later folds more training data, making fold-to-fold metric variance harder to interpret |
+| **Log-transform of right-skewed target vs no transform** | No transform; log-transform then exponentiate predictions; clip outliers | Right skew from customs/lost-parcel outliers distorts the regression relationship; log-transform compresses the tail so the model optimizes a more symmetric error surface | Inverse-transforming the log-mean prediction is not the mean of the original distribution (Jensen's inequality); large tail errors still occur post-exponentiation |
+| **Feature engineering (distance/zone, holiday flags) vs raw features** | Raw timestamp and carrier code only; engineered features | Distance/zone, weekday, month, holiday flags, and order-size features encode the domain knowledge driving delivery variance; raw features force the model to learn these implicitly from limited data | Feature engineering requires maintenance when carrier lane definitions or holiday calendars change |
+| **Single CatBoost regressor vs per-carrier/per-lane models** | One global model; separate model per carrier; separate model per lane | Global model pools data across carriers/lanes, preventing cold-start for low-volume lanes; carrier and lane are features the model can leverage | Global model averages over carrier-specific behavior; a carrier that suddenly degrades pulls the global distribution without a dedicated signal |
+
+---
+
+## Production Issues & Fixes
+
+*Representative issues for this system class — mapped to what I actually hit; tailor to your own incidents.*
+
+- **Symptom:** ±3-day accuracy drops sharply in November–December despite stable training metrics. **Root cause:** Holiday-peak shipping volume causes carrier network saturation — transit times spike 2–4 days above the training distribution, which was dominated by non-peak months. The walk-forward validation folds didn't include a full holiday season, so the model didn't see this shift. **Fix:** Weighted recent training examples (past 2 holiday cycles) more heavily during peak-season retrains; added explicit `is_peak_season` and `days_to_holiday` features. **Prevention:** Added a distribution-shift monitor comparing weekly mean delivery time against a 90-day rolling baseline; alert threshold at >1.5 day deviation.
+
+- **Symptom:** Model accuracy degrades noticeably for one carrier over 6 weeks post-deployment without any model change. **Root cause:** The carrier rerouted 30% of domestic lanes through a new hub, shifting average transit time on those lanes by ~1.5 days. The training data predated the change, so the model used stale lane distributions. **Fix:** Triggered an emergency retrain scoped to that carrier's lanes using the most recent 8 weeks of post-change data. **Prevention:** Added per-carrier MAE tracking as a weekly metric; a carrier's rolling MAE rising >20% above its historical baseline triggers a retrain-candidate alert.
+
+- **Symptom:** Walk-forward CV showed strong metrics but deployed model was 15% worse on ±3-day accuracy for orders placed on Fridays. **Root cause:** A feature engineered from post-dispatch carrier scan timestamps was available in training data but wasn't available at order placement time in production — a form of label leakage. **Fix:** Audited every feature for its actual availability at prediction time; removed the post-dispatch feature and replaced it with estimated dispatch timing based on order cutoff rules. **Prevention:** Added a feature-availability registry documenting the earliest time each feature is known; enforced in the pipeline via a pre-training check.
+
+- **Symptom:** CatBoost predictions for new carrier/lane combinations (introduced by a logistics partner expansion) are far worse than for established lanes. **Root cause:** Ordered target statistics for new carrier codes default to the global prior, which may be far from the new carrier's true performance profile. **Fix:** For new carriers, blended the global prior with any available early data using a higher CatBoost `prior` smoothing weight; routed new-lane orders to a wider ±5-day tolerance bucket and displayed "estimated" rather than a precise ETA until 200+ observations were collected. **Prevention:** Flagged new carrier/lane codes in the feature pipeline; tracked cold-start MAE separately in monitoring.
+
+- **Symptom:** Stakeholders complain that some delivery-time predictions are confidently wrong (e.g., predicting 4 days for a route that realistically takes 10–12 days). **Root cause:** CatBoost point estimates lack calibrated uncertainty — the model has no way to express "low confidence" for out-of-distribution inputs (new routes, unusual order sizes). **Fix:** Added a quantile-regression pass (CatBoost's `loss_function='Quantile'` at q=0.1 and q=0.9) alongside the point estimate to produce a prediction interval; displayed the interval width to the customer when it exceeded 5 days. **Prevention:** Monitored empirical coverage of the 80% interval on the validation set weekly; an interval collapsing to <60% actual coverage triggered a recalibration job.
+
+- **Symptom:** Between scheduled monthly retrains, accuracy on ±3-day metric drifts down by ~5 percentage points before recovery at the next retrain. **Root cause:** Monthly retrains were too infrequent relative to the velocity of carrier/network changes; performance degraded in the second half of each retrain cycle. **Fix:** Moved to a rolling 2-week retrain cadence using an expanding window on the most recent 6 months of data; added an on-demand retrain trigger when monitored MAE exceeded the 10% degradation threshold. **Prevention:** Automated the retrain trigger based on monitoring alerts; kept the previous model warm as a fallback during the retrain window.
+
+---
+
 ## Interview Q&A
 
 **Q: Why CatBoost over XGBoost?**

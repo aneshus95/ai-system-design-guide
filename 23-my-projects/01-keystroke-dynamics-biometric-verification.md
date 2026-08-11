@@ -228,6 +228,61 @@ This project uses a **learned embedding + distance metric** instead — the same
 
 ---
 
+## Key Decisions & Tradeoffs
+
+| Decision | Options considered | Why chosen | Tradeoff accepted |
+|---|---|---|---|
+| **Verification (1:1) vs Identification (1:N)** | Softmax classifier over fixed N users (paper's approach) vs embedding + distance metric | Metric learning lets new users enroll by computing one embedding — no retraining; encoder is identity-agnostic | One-vs-rest models per target user don't scale to thousands of users; a shared encoder with triplet loss is the proper fix |
+| **Siamese CNN→GRU vs pure CNN or pure RNN** | CNN-only, GRU-only, Transformer | CNN extracts local digraph-level timing motifs; GRU sequences them across the 50-step window; hybrid beat either alone in the reference paper's ablation | Added model complexity and two sets of hyperparameters to tune (conv channels, GRU hidden size) |
+| **Cosine Embedding Loss vs Triplet Loss** | Triplet loss with online hard-negative mining, contrastive loss, softmax cross-entropy | Cosine embedding loss directly aligns the training objective with the cosine-similarity inference step; simpler to implement correctly than triplet mining | Does not control embedding norm (only direction); margin hyperparameter needs tuning; no built-in hard-negative mining |
+| **Kernel size 2 for Conv1d** | Kernel sizes 3, 5, larger | Digraph structure means only adjacent keystroke pairs carry the local identity signal; larger kernels average over unrelated transitions | Risk of under-smoothing if a 3- or 4-gram rhythm pattern matters — should ablate |
+| **16-dim embedding** | 32, 64, 128 dims | Compact enough for fast cosine comparison; sufficient to separate typists cleanly in experiments | May be a bottleneck for users with very similar typing styles; too small for large-scale multi-user enrollment |
+| **Non-overlapping 50-step windows** | Overlapping windows (40% overlap as in paper) | Simpler implementation; no correlated samples inflating eval metrics when train/val split is not carefully handled | Fewer training samples from the same corpus; boundary context discarded; small datasets benefit more from overlap |
+
+---
+
+## Production Issues & Fixes
+
+*Representative issues for this system class — mapped to what I actually hit; tailor to your own incidents.*
+
+**1. Threshold set on development data, real FAR spiked in deployment**
+- **Symptom:** After launch, users from a new office (different keyboard hardware) were being erroneously verified — false-accept rate well above the expected level.
+- **Root cause:** The cosine-similarity decision threshold was tuned on data from one keyboard layout/brand. Stiffer keyboards produce systematically shorter dwell times, shifting all embeddings slightly; impostors who happened to use the same keyboard as the target user fell inside the threshold.
+- **Fix:** Retune the threshold on a held-out split that includes hardware-diverse sessions; move from a single global threshold to per-user thresholds anchored on each enrollee's within-user similarity distribution.
+- **Prevention/monitoring:** Track per-user FAR and FRR weekly; alert when either drifts >2 percentage points from enrollment baseline; add keyboard-type metadata as a feature or stratification variable.
+
+**2. Typing-behavior drift causing rising FRR for long-tenured users**
+- **Symptom:** A cohort of users enrolled 6 months earlier started hitting false-reject rate of ~30%, while new enrolees were fine. No model change had been made.
+- **Root cause:** Genuine typing rhythm drifts with factors like injury, changing keyboard, or sustained fatigue. The enrollment embedding was a snapshot from 6 months prior; the user's current windows no longer pointed in the same direction.
+- **Fix:** Implement rolling re-enrollment: after each successful verification, append the new window embeddings to the user's enrollment set and recompute the mean profile vector (exponential moving average, downweighting old sessions).
+- **Prevention/monitoring:** Alert when a verified user's intra-session cosine similarity drops below a rolling 30-day average by more than 0.1.
+
+**3. Cold-start: new users enrolled from a single short session have unstable profiles**
+- **Symptom:** New users with fewer than 50 digraphs at enrollment (single short form submission) saw dramatically higher FRR than users enrolled from multiple sessions.
+- **Root cause:** A single window's embedding is noisy; the mean pool over 1–2 windows has high variance, so the enrollment vector doesn't represent the user's true typing distribution.
+- **Fix:** Enforce a minimum enrollment threshold (e.g., ≥3 sessions / ≥200 digraphs); gate verification until the enrollment vector is computed from sufficient samples; display a "complete enrollment" prompt after each session.
+- **Prevention/monitoring:** Track enrollment sample count per user; log and alert when a verification decision is made on fewer than the minimum enrollment windows.
+
+**4. Class imbalance in genuine vs impostor pairs degrading training**
+- **Symptom:** Validation loss plateaued early; the model's cosine scores showed little separation between same-user and different-user pairs for typographically similar users.
+- **Root cause:** With N users, genuine pairs are O(N × windows_per_user) but impostor pairs are O(N² × windows²) — easy negatives dominated the loss, and the model stopped learning from hard cases.
+- **Fix:** Subsample or cap impostor pairs to a 1:5 genuine-to-impostor ratio; add semi-hard-negative mining (select impostors whose embeddings fall within a similarity band around the genuine pairs rather than random impostors).
+- **Prevention/monitoring:** Log the ratio of genuine to impostor pairs per training batch; monitor loss curves for plateau; track embedding separation (intra-class vs inter-class cosine mean) as a training diagnostic.
+
+**5. Latency spike during batch verification at enrollment**
+- **Symptom:** During peak onboarding hours, verification latency jumped from ~12 ms to >200 ms for users with many enrolled sessions.
+- **Root cause:** The mean-pool step was computed lazily at verification time over all raw enrollment windows, re-running the encoder on every window every time rather than caching the enrollment vector.
+- **Fix:** Pre-compute and cache the L2-normalized mean enrollment embedding at enrollment time (or on first post-enrollment verification); store it in a fast key-value lookup alongside the user record.
+- **Prevention/monitoring:** Add a p99 latency metric for the verification endpoint; alert when it exceeds 50 ms; log whether the enrollment vector was served from cache or recomputed.
+
+**6. EER metric missing — only inspecting sample similarities at demo time**
+- **Symptom:** Demo showed clean separation on cherry-picked pairs, but the system had no principled operating point for a real deployment decision; early evaluators found the threshold selection arbitrary.
+- **Root cause:** Evaluation used visual inspection of cosine score distributions rather than sweeping the threshold and computing EER on a held-out set.
+- **Fix:** Implement a proper evaluation loop: sweep the decision threshold from −1 to 1 in steps of 0.01, compute FAR and FRR at each, find the crossing point (EER), and report EER as the primary metric alongside ROC-AUC.
+- **Prevention/monitoring:** Add an automated evaluation job that computes EER on a held-out split after any model change; gate deployment on EER below a defined ceiling.
+
+---
+
 ## Interview Talking Points
 
 **Elevator pitch:**

@@ -204,6 +204,37 @@ Sources: [Neo4j — graph traversal GraphRAG](https://neo4j.com/blog/developer/g
 
 ---
 
+## Key Decisions & Tradeoffs
+
+| Decision | Options considered | Why chosen | Tradeoff accepted |
+|---|---|---|---|
+| **Property graph vs vector store** | Neo4j LPG; pure vector store (Pinecone/Weaviate); RDF triple store | Architecture questions are multi-hop dependency traversals — a graph makes relationships first-class; vector stores can't walk edges | Graph construction is expensive and must be re-ingested on every BIAN version update; pure vector would have been faster to build |
+| **Hybrid construction (deterministic + LLM extraction)** | Pure LLM entity/relationship extraction; pure deterministic parsing; hybrid | Official BIAN artifacts (Service Landscape, CR-BQ, BOM) are semi-structured and map deterministically — LLM hallucinating a `DEPENDS_ON` edge would silently corrupt retrieval | LLM extraction for prose adds noise; deterministic parsing fails on looser business-scenario text, so both paths are needed |
+| **Property graph (Neo4j LPG) vs RDF** | Neo4j LPG; RDF/OWL triple store | Edge properties (functional pattern, asset type, API verb, landscape version) are core to BIAN edges; RDF requires reification to store them, making Cypher-equivalent queries verbose | LPG sacrifices OWL/SHACL formal inference and W3C linked-data interoperability |
+| **Hybrid retrieval (vector-then-traverse) vs text-to-Cypher only** | Pure text-to-Cypher; pure vector; hybrid vector-then-traverse | Users don't know exact BIAN node names — vector/full-text finds fuzzy entry points; Cypher then walks the exact structural graph | Two-step adds latency; text-to-Cypher generation can produce syntactically valid but semantically wrong queries that silently return wrong subgraphs |
+| **Local fan-out vs MS GraphRAG global search** | Microsoft GraphRAG (Leiden + community summaries); local subgraph fan-out | BIAN corpus is already structured — LLM community summaries are lossy and costly on authoritative structured content; local traversal gives higher precision | Local fan-out fails on broad "how does this whole business area hang together" questions, where community summaries would be better |
+| **Return subgraph as provenance** | Return only LLM answer; return source chunks; return traversed subgraph | Auditable provenance is essential for defending "BIAN-compliant" design to a client — the graph subgraph shows exactly which nodes and edges backed the answer | Larger response payload; subgraph must be rendered/explained to non-technical stakeholders |
+
+---
+
+## Production Issues & Fixes
+
+*Representative issues for this system class — mapped to what I actually hit; tailor to your own incidents.*
+
+- **Symptom:** Queries for well-known Service Domains return empty results. **Root cause:** Entity-resolution errors during LLM prose extraction created duplicate nodes with slightly different names (e.g., "Payment Execution" vs "PaymentExecution") — vector search matched one, Cypher traversal walked the other, finding no edges. **Fix:** Added a canonicalization step post-extraction: normalize node names to the official BIAN Service Landscape name list before merge; used `MERGE` on canonical key in Cypher to collapse duplicates. **Prevention:** Added a post-ingestion audit query counting nodes with near-duplicate names (`apoc.text.levenshteinDistance` < 3) as a pipeline health check.
+
+- **Symptom:** Multi-hop traversal queries (e.g., "trace every domain in a cross-border payment") time out or return unmanageably large subgraphs. **Root cause:** Highly connected Service Domains (e.g., Party Authentication, Fraud) are referenced by dozens of other domains, causing traversal depth `*1..3` to explode combinatorially. **Fix:** Bounded traversal to `*1..2` for fan-out queries and added relationship-type filters to prune irrelevant edge types early in the `MATCH` clause. **Prevention:** Added query-plan profiling (`PROFILE MATCH ...`) on representative deep queries; set a Neo4j query timeout guard (5 s) with a graceful fallback to a shallower traversal.
+
+- **Symptom:** Answers become stale after the client's BIAN implementation references domains introduced in v12, while the graph was built against v11. **Root cause:** BIAN publishes a new Service Landscape version approximately annually — new/renamed Service Domains are absent as graph nodes, so queries involving them return nothing or hallucinate via the LLM fallback. **Fix:** Versioned the graph construction pipeline; on a new BIAN release, re-ingested the structured artifacts into a parallel graph, ran a diff query (nodes in v12 not in v11), and promoted after validation. **Prevention:** Pinned a `landscape_version` property on every node; monitoring query flagged any traversal to a node whose `landscape_version` didn't match the declared active version.
+
+- **Symptom:** Retrieval misses highly relevant nodes when the user's phrasing differs from BIAN's terminology (e.g., "fraud screening" instead of "Financial Crime Prevention"). **Root cause:** Score-threshold cutoff on vector similarity (e.g., cosine > 0.75) excluded the correct node whose embedding didn't reach the threshold due to vocabulary mismatch. **Fix:** Lowered the threshold to 0.65 and added a full-text index on node aliases/synonyms as a fallback when vector search returns zero results. **Prevention:** Added a "zero-results" alert; tracked threshold-sensitivity by comparing recall at 0.65 vs 0.75 on a gold-labeled query set.
+
+- **Symptom:** Graph construction job for a fresh BIAN corpus ingestion runs for hours and occasionally OOMs. **Root cause:** The LLM extraction step sent every prose chunk individually to the API — no batching, no caching — and held all intermediate graph objects in memory before the bulk `MERGE` commit. **Fix:** Batched prose chunks into groups of 20 per API call; streamed `MERGE` writes to Neo4j incrementally rather than accumulating in memory; added checkpoint/resume so a failed job restarts from the last committed batch. **Prevention:** Monitored job memory usage and API token spend per ingestion run; set a budget cap alert at 2× the baseline token cost.
+
+- **Symptom:** LLM-generated Cypher occasionally uses relationship types that don't exist in the schema (e.g., `[:USES_SERVICE]` instead of `[:DEPENDS_ON]`), returning empty results silently. **Root cause:** The text-to-Cypher prompt didn't include the current schema, so the LLM improvised plausible-sounding but non-existent edge labels. **Fix:** Injected the live node-label and relationship-type list from Neo4j's `db.schema.visualization()` into the Cypher-generation prompt at query time. **Prevention:** Added a schema-validation step after Cypher generation that checks all relationship types in the generated query against the live schema before execution; invalid queries are rejected with a re-prompt.
+
+---
+
 ## Interview Q&A
 
 **Q: Why graph RAG instead of vector RAG here?**

@@ -145,6 +145,61 @@ Sources: [RAGAS — Context Recall](https://docs.ragas.io/en/stable/concepts/met
 
 ---
 
+## Key Decisions & Tradeoffs
+
+| Decision | Options considered | Why chosen | Tradeoff accepted |
+|---|---|---|---|
+| **Cluster semantic chunking vs breakpoint/recursive splitting** | Fixed-size, recursive character split (LangChain default), sequential breakpoint semantic split | Cluster-based grouping keeps topic-related sentences together even when non-adjacent, giving topic-pure chunks and raising context recall | Requires embedding every sentence at index time (significantly more expensive); can lose sentence-proximity context; doesn't consistently beat fixed-size on all corpora (NAACL 2025) |
+| **Hybrid BM25 + dense retrieval vs pure vector search** | Vector-only ANN retrieval, BM25-only keyword search, learned sparse (SPLADE) | The two fail orthogonally — dense misses rare exact tokens (codes, IDs, names), BM25 misses paraphrase — combining recovers what either alone would miss | Larger index (two retrieval paths to maintain), extra latency from running both in parallel, need to tune RRF k |
+| **RRF fusion vs score normalization** | Min-max normalize then add scores, learned fusion weights | RRF fuses by rank only, so incompatible score scales (BM25 unbounded; cosine −1..1) need no normalization; well-validated (Cormack et al., SIGIR 2009) | RRF's k=60 dampens top-ranked docs; tuning k is another hyperparameter; learned weights can outperform RRF but require labeled training data |
+| **Cross-encoder reranker as stage 2 vs single-stage bi-encoder** | Single bi-encoder at top-K, learned cross-encoder over all docs, colBERT late interaction | Cross-encoder reads `[query, doc]` jointly — full attention across tokens — giving far higher precision; restricting it to top-K keeps latency bounded | Adds 100–300 ms latency over the bi-encoder alone; cannot recover documents stage 1 missed (recall permanently capped) |
+| **RAGAS as evaluation framework vs manual annotation** | Human labelers, traditional IR metrics (nDCG, MRR), custom LLM judge | RAGAS provides reproducible automated metrics (context recall, context precision) with an LLM judge so evaluation can be rerun after each change without labeler cost | LLM-judge variance means absolute scores are noisy; results depend on which judge model and prompt version are used; must hold these constant across comparisons |
+| **Evaluate chunker and reranker in isolation vs end-to-end** | Only measure end-to-end answer quality (faithfulness), only measure nDCG | Isolating context recall and context precision to the relevant stage (chunker/retriever vs reranker) makes each intervention independently attributable | Two-stage evaluation is more setup work; context recall/precision don't directly measure final answer quality (faithfulness) |
+
+---
+
+## Production Issues & Fixes
+
+*Representative issues for this system class — mapped to what I actually hit; tailor to your own incidents.*
+
+**1. Embedding model updated silently, recall degraded across the board**
+- **Symptom:** Context recall dropped ~8 percentage points over two weeks with no code changes; answer quality complaints increased.
+- **Root cause:** The embedding provider rolled out a new default model version. Document embeddings in the index were computed with the old model; query embeddings at search time used the new one. Cosine similarity between old and new embedding spaces is meaningless — nearest-neighbor results became nearly random.
+- **Fix:** Pin the embedding model version explicitly in both the indexing pipeline and the query path; rebuild the index after any model version change; version-stamp the index with the model ID so mismatches are caught at startup.
+- **Prevention/monitoring:** Track context recall in a nightly regression job; alert on a drop >3% from the prior 7-day average; add an index metadata check that compares the stored model ID to the query-time model ID on startup.
+
+**2. Cross-encoder reranker latency exceeded SLA at high QPS**
+- **Symptom:** P99 latency spiked to >1.5 s during a traffic burst — the reranker was the bottleneck; everything upstream was fast.
+- **Root cause:** The cross-encoder ran top-50 → top-5 reranking synchronously in the request path. At high QPS, GPU inference queue depth grew; each extra request added ~80 ms of queuing on top of the base ~250 ms inference time.
+- **Fix:** Reduced top-K fed to reranker from 50 to 20 (upstream recall was sufficient to cover 20); moved the reranker to an async worker with a bounded queue; added a latency-based circuit breaker that bypasses reranking and serves the raw stage-1 top-5 when p95 reranker latency exceeds 400 ms.
+- **Prevention/monitoring:** Alert on reranker p95 latency >300 ms and on circuit-breaker trip rate >1% of requests; monitor context precision separately when reranker is bypassed to quantify the precision hit.
+
+**3. Chunk boundary error: a critical answer split across two chunks, both retrieved but neither sufficient alone**
+- **Symptom:** Questions requiring a multi-part technical definition returned answers that were half right; the retrieved chunks each contained one half of the required information.
+- **Root cause:** The cluster semantic chunker merged sentences topically but the topic changed mid-paragraph in a few documents, splitting a tightly coupled definition across two cluster boundaries.
+- **Fix:** Post-process chunks below a minimum token threshold by merging with the adjacent chunk; add a small overlap (e.g., the last 1–2 sentences of chunk N prepended to chunk N+1) for boundary-straddling answers.
+- **Prevention/monitoring:** Add a minimum chunk size guard (e.g., drop or merge chunks below 50 tokens); include chunk-size distribution in the index build report; flag chunks below threshold for manual review on new document types.
+
+**4. Stale index — documents updated in source but old content still retrieved**
+- **Symptom:** The RAG system confidently cited a policy number that had been revised two weeks earlier; users reported the system was giving outdated information.
+- **Root cause:** Document re-indexing was triggered manually and had been missed; no freshness check existed between the source document store and the vector index.
+- **Fix:** Implemented a daily delta-indexing job that compares document modification timestamps in the source to last-indexed timestamps in the index metadata; reindexes only changed/new documents.
+- **Prevention/monitoring:** Track per-document index age; alert when any document in the index is more than N days behind its source modification date; add a "last indexed" timestamp to retrieved chunk metadata so users can see document freshness.
+
+**5. RRF k=60 constant producing lopsided fusion when BM25 and dense lists had very different coverage**
+- **Symptom:** Queries for exact product codes (BM25 excels) were not receiving the expected boost from keyword matches — dense results dominated the fused ranking.
+- **Root cause:** The dense retriever returned 100 candidates; BM25 returned 8 (narrow corpus for that query type). RRF score contributions from 8 BM25 hits were overwhelmed by the larger dense list at the same k=60 dampening.
+- **Fix:** Tuned top-K per retrieval path separately (BM25 top-20, dense top-50) so the sparse list was not undersized relative to the dense list; experimented with k=20 to give higher weight to genuinely top-ranked BM25 results.
+- **Prevention/monitoring:** Log per-retrieval-path result counts and average RRF contribution per source; alert when BM25 contributes to fewer than 20% of final top-10 results across a rolling window of queries.
+
+**6. Over-retrieval — large top-K passed to LLM hurt precision and increased cost**
+- **Symptom:** LLM answer costs per query increased 40%; faithfulness scores dropped slightly despite high context recall; the LLM started citing irrelevant chunks.
+- **Root cause:** Stage-1 top-K was set to 100 "to be safe on recall." The reranker pruned to top-10 before the LLM, but top-10 was still too many for the LLM to stay focused; token cost scaled linearly.
+- **Fix:** Systematically swept top-K after reranking from 10 down to 3, measuring faithfulness and answer completeness at each; found top-5 gave the best cost/quality balance for this corpus and query mix.
+- **Prevention/monitoring:** Track per-query token cost and faithfulness score; add a cost-per-query budget alert; A/B test top-K changes with a frozen eval set before rolling out.
+
+---
+
 ## Interview Q&A
 
 **Q: Why cluster semantic chunking over recursive character splitting?**

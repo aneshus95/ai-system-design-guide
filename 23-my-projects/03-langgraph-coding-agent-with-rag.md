@@ -279,6 +279,61 @@ Sources: [Azure Container Apps — Dynamic sessions](https://learn.microsoft.com
 
 ---
 
+## Key Decisions & Tradeoffs
+
+| Decision | Options considered | Why chosen | Tradeoff accepted |
+|---|---|---|---|
+| **LangGraph StateGraph vs a simple ReAct loop or LCEL chain** | Hand-written loop, LCEL chain, AutoGen, CrewAI | StateGraph gives explicit nodes/conditional edges/checkpointing in one framework; HITL interrupt/resume is first-class; makes multi-step control flow inspectable and testable without custom machinery | Adds serialization overhead per step (Pregel checkpointing); steeper learning curve than a plain while-loop; LangGraph version churn can break APIs |
+| **CosmosDB for checkpoint persistence vs Postgres or Redis** | PostgresSaver (LangGraph built-in), Redis, in-memory (MemorySaver) | CosmosDB is Azure-native with globally distributed reads and atomic ETag/CAS enabling cross-replica thread claiming; schema-flexible JSON suits the evolving AgentState TypedDict | Higher cost than Postgres for low-traffic scenarios; CosmosDB ETag CAS adds implementation complexity for the thread-claim logic |
+| **Azure Dynamic Sessions for code execution vs subprocess on the backend host** | subprocess.run on the backend, Docker sidecar, AWS Lambda sandbox | Hyper-V isolation guarantees untrusted LLM-generated code cannot touch backend files or credentials; pre-warmed pool makes cold-start ~ms; zero infrastructure management | Adds a REST round-trip per code execution (~10–50 ms overhead); limited to the language/packages available in the session image; cost scales with session count |
+| **Hybrid BM25 + vector in Azure AI Search vs pure vector DB** | Pinecone vector-only, Weaviate hybrid, Qdrant | Azure AI Search bundles hybrid retrieval, RRF fusion, an optional semantic cross-encoder reranker, integrated vectorization, and enterprise security trimming in one managed Azure-native service | Vendor lock-in to Azure; semantic ranker is separately billed and adds latency; less flexibility for custom ANN configurations vs standalone vector DBs |
+| **HITL interrupt before plan execution vs always-on autonomous mode** | No human approval step (fully autonomous), approval only for destructive tool calls | Coding agent could open PRs, write files, run tests — irreversible actions that need human review before production impact; LangGraph interrupt/resume is the cleanest pattern | Adds a synchronous human wait in the loop; requires the frontend to handle an "awaiting approval" state and resume via the API |
+| **Managed Identity + Key Vault vs environment variables for secrets** | `.env` file, Azure App Configuration, hardcoded (never) | Managed Identity has no stored credential to rotate, leak, or commit to Git; Key Vault audit logs every secret access; MI works without code changes across dev/staging/prod | MI only works within Azure trust boundary; cross-cloud calls still need secrets; OBO token-exchange adds a round-trip per downstream call |
+
+---
+
+## Production Issues & Fixes
+
+*Representative issues for this system class — mapped to what I actually hit; tailor to your own incidents.*
+
+**1. Agent non-termination — tool call loop that never reached END**
+- **Symptom:** A percentage of user sessions consumed the full `recursion_limit` (100 default LangGraph turns) and returned a timeout error rather than an answer. Azure OpenAI costs spiked for those sessions.
+- **Root cause:** A tool (search_code) intermittently returned empty results, and the agent's system prompt instructed it to keep searching until it found something relevant. With no results to satisfy the condition, it looped identically, emitting the same tool call each turn.
+- **Fix:** Added a per-tool retry counter in AgentState; after 3 consecutive identical tool calls with no new result, the agent node injects a `ToolMessage` instructing the LLM to acknowledge failure and answer from what it has. Raised `recursion_limit` to 50 from the default 25, but added a hard check before the agent node that aborts gracefully if the counter exceeds threshold.
+- **Prevention/monitoring:** Track per-session tool-call counts and loop termination reason; alert when any session hits >20 agent turns; log `recursion_limit` exceptions to a separate error channel.
+
+**2. Hallucinated tool arguments causing ToolNode errors**
+- **Symptom:** The agent occasionally called `read_file` with a file path that did not exist (a plausible-sounding but fabricated path), received an error ToolMessage, then re-hallucinated a slightly different path — looping 3–4 times before giving up.
+- **Root cause:** The LLM generated structurally valid JSON for tool arguments but populated the `file_path` field from parametric memory (training data patterns) rather than from a prior `search_code` result. Tool schema validation passed; runtime execution failed.
+- **Fix:** Added a validation node between the agent and ToolNode that checks file-path arguments against a list of known files surfaced from prior tool results in the current session; returns a pre-emptive error ToolMessage if the path wasn't previously returned by a search. Also improved the `read_file` tool description to include "only use paths returned by search_code."
+- **Prevention/monitoring:** Log every tool argument and whether the path was grounded in a prior tool result; track the "hallucinated argument" rate per tool; alert when it exceeds 5% of calls.
+
+**3. Azure OpenAI / AI Search 429 throttling during traffic burst**
+- **Symptom:** Under afternoon peak load (~50 concurrent sessions), ~15% of agent turns returned HTTP 429 from Azure OpenAI; a smaller fraction hit 429 from Azure AI Search. The agent crashed without retry, leaving users mid-session.
+- **Root cause:** Container Apps auto-scaled but the Azure OpenAI TPM quota (tokens per minute) was a shared limit across all replicas; simultaneous long-context prompts from many sessions exhausted the quota. AI Search throttling was secondary, from the retrieval calls.
+- **Fix:** Implemented exponential backoff with jitter on all Azure client calls (OpenAI and AI Search); added a thin quota-aware rate-limiter in middleware that queues requests when the running TPM estimate approaches the limit; requested a TPM quota increase from Azure.
+- **Prevention/monitoring:** Track 429 rate per Azure service; alert at >2% of requests; expose running TPM consumption as a metric and alert at 80% of quota.
+
+**4. Token cost blowup from growing message history in long sessions**
+- **Symptom:** Sessions that went beyond ~15 turns cost 3× the expected token budget; context-window errors started appearing for sessions >25 turns.
+- **Root cause:** The `add_messages` reducer is append-only — every turn added to the history, which was injected fully into the LLM prompt. Long sessions accumulated thousands of tokens of old tool results (verbose JSON) that were no longer relevant.
+- **Fix:** Added a context compression node that runs before the agent node once the message history exceeds 8,000 tokens: it summarizes older turns into a compact running narrative and truncates raw ToolMessages older than the last 3 turns, keeping recent context intact.
+- **Prevention/monitoring:** Track per-session token count and cost; alert when a session exceeds 12,000 tokens in history; log context compression events.
+
+**5. Grounding failures — answers not supported by retrieved context**
+- **Symptom:** Despite the RAG layer, approximately 10% of answers on proprietary API questions contained correct-sounding but unverifiable claims not present in any retrieved chunk. Support tickets cited wrong parameter names.
+- **Root cause:** The system prompt said "prefer retrieved context" but didn't strictly prohibit using parametric knowledge. For topics where the LLM had strong priors (common patterns), it supplemented retrieved chunks with memorized guesses.
+- **Fix:** Hardened the system prompt to "answer only from the provided context passages; if the context does not contain the information, say so explicitly." Added a faithfulness check node using a lightweight LLM judge that samples 10% of responses and flags any claim not attributable to a retrieved chunk ID.
+- **Prevention/monitoring:** Run nightly faithfulness scoring with RAGAS on a held-out Q&A set; alert when faithfulness score drops below 0.85; track per-document attribution rates.
+
+**6. CosmosDB checkpoint size growing unbounded, checkpoint writes slowing**
+- **Symptom:** After 3 months in production, checkpoint write latency increased from ~15 ms to ~80 ms for some threads; a few long-lived sessions hit CosmosDB item size limits (2 MB per document).
+- **Root cause:** Checkpoints stored the full AgentState including the complete message history and all raw ToolMessages. Sessions with many tool calls and large code-execution outputs accumulated megabytes of state.
+- **Fix:** Implemented checkpoint pruning: only the last N=10 messages plus a compressed summary are persisted; large ToolMessage payloads (code output >2,000 chars) are stored in a separate Blob Storage reference rather than inline in the checkpoint document.
+- **Prevention/monitoring:** Track per-thread checkpoint document size; alert when any checkpoint exceeds 500 KB; monitor CosmosDB write latency p95 with an alert at 50 ms.
+
+---
+
 ## Interview Q&A
 
 **Q: Why LangGraph over a simple chain?**

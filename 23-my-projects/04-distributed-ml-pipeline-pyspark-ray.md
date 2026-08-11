@@ -143,6 +143,61 @@ Sources: [Analytics Vidhya — class imbalance techniques](https://www.analytics
 
 ---
 
+## Key Decisions & Tradeoffs
+
+| Decision | Options considered | Why chosen | Tradeoff accepted |
+|---|---|---|---|
+| **PySpark for feature engineering + Ray for training vs one framework** | Spark MLlib end-to-end, Ray Data + Ray Train end-to-end, Dask | Spark excels at data parallelism (ETL, windowed joins over billions of rows); Ray excels at compute parallelism (distributed training, hyperparameter sweeps) — each framework stays in its lane | Spark→Ray data hand-off (via `from_spark`/RayDP) is a serialization bottleneck; operational complexity of running and coordinating two distributed systems |
+| **Delta Lake as the offline feature store vs raw Parquet** | Raw Parquet on S3/ADLS, Iceberg, Hive tables | Delta adds ACID transactions, schema enforcement, and time-travel (point-in-time snapshots) needed for correct point-in-time training set construction without label leakage | Slight write overhead vs raw Parquet; requires Delta-compatible compute (Spark, Databricks); Delta log can grow large and needs periodic vacuuming |
+| **Class weights / cost-sensitive learning vs SMOTE resampling** | SMOTE, random oversampling, undersampling, ensemble methods | Class weights (XGBoost `scale_pos_weight`) are lower variance, don't generate synthetic samples, and are supported natively in Ray Train's distributed trainers | The right weight value is ambiguous when business costs of false positives and false negatives are asymmetric; doesn't synthesize hard minority examples at the decision boundary |
+| **Approval-probability regression vs binary classification** | Binary classifier (approved/not), multi-class (per network), probability regression | Predicting approval probability per network allows routing to the maximum-expected-approval network under an optional LCR cost constraint — enables multi-objective optimization rather than a hard argmax | Calibration of probability outputs is critical and adds evaluation complexity; a well-calibrated classifier is harder to build than a ranked binary one |
+| **Online store for real-time feature serving vs compute-at-inference** | Compute features on-the-fly from raw logs at auth time, columnar cache | Real-time feature computation over rolling window aggregations (per-issuer/per-BIN approval rates) is infeasible in <100 ms; pre-materialized KV lookup is single-digit-ms | Materialization lag — online store reflects state as of the last materialization, not real time; high-velocity signals go stale; streaming materialization needed for very fresh features |
+| **Ray Tune for hyperparameter search vs grid search** | Sequential grid search, random search, Optuna | Ray Tune distributes trials in parallel across the cluster using efficient search algorithms (ASHA early stopping); finds better hyperparameters faster than sequential search at the same compute budget | Requires a Ray cluster sized for concurrent trials; ASHA's early stopping can prematurely kill promising long-training-curve models |
+
+---
+
+## Production Issues & Fixes
+
+*Representative issues for this system class — mapped to what I actually hit; tailor to your own incidents.*
+
+**1. Data skew on high-volume issuer BINs causing Spark shuffle OOM and stragglers**
+- **Symptom:** The rolling per-issuer approval-rate window aggregation job consistently failed or ran 10× slower than expected; the job tracker showed one executor stuck at 99% while others finished.
+- **Root cause:** A handful of top-10 issuer BINs accounted for ~40% of all transactions. When Spark shuffled by `issuer_bin` for the window aggregation, all rows for the hot BINs landed on single executors — causing OOM kills and straggler tasks.
+- **Fix:** Salted the shuffle key (appended a random bucket suffix 0–9 to `issuer_bin` before the aggregation, then summed the buckets); configured `spark.sql.adaptive.skewJoin.enabled=true` (Spark 3.x AQE) to auto-detect and split skewed partitions.
+- **Prevention/monitoring:** Add a partition skew check (`df.groupBy(partition_key).count()` top-10) before heavy shuffles; alert when the max-to-median partition size ratio exceeds 5×; set executor memory headroom to 2× the expected max partition.
+
+**2. Training–serving skew: feature logic diverged between PySpark pipeline and online serving code**
+- **Symptom:** The model's offline PR-AUC was 0.82; production approval-lift was near zero — routing decisions were essentially random relative to baseline.
+- **Root cause:** The PySpark feature pipeline computed rolling approval rates over a 7-day trailing window; the online serving code recomputed a simpler 24-hour window (an unreviewed shortcut made during a deadline). The model had never seen the 24-hour features during training.
+- **Fix:** Refactored feature logic into a shared Python library imported by both the Spark job and the online serving code; added a feature-parity integration test that runs both paths on the same sample and asserts output agreement within tolerance.
+- **Prevention/monitoring:** Run the parity test in CI on every merge; add a live monitoring job that computes feature values for a sample of auth-time requests both online and offline and alerts on mean absolute deviation >1% for rolling-window features.
+
+**3. Spot-instance interruptions mid-Ray-Tune trial causing full sweep restart**
+- **Symptom:** The hyperparameter sweep on spot GPU instances was interrupted 3 times in one week, each time losing hours of trial results and restarting from scratch.
+- **Root cause:** Ray Tune was not configured with fault-tolerant checkpointing per trial; spot reclamations killed the trial workers, and Ray re-queued them with no saved state.
+- **Fix:** Enabled `ray.tune.RunConfig(storage_path=..., checkpoint_config=CheckpointConfig(checkpoint_frequency=1))` so each trial checkpoints after every epoch; surviving trials resume from their last checkpoint on restart. Mixed spot and on-demand (10% on-demand) to keep the Ray head node stable.
+- **Prevention/monitoring:** Track spot interruption rate per worker; alert when >20% of trial workers are reclaimed in a 30-minute window; log checkpoint save/restore events per trial.
+
+**4. Label leakage from a feature that used post-authorization information**
+- **Symptom:** Offline PR-AUC looked excellent (0.91); production approval lift was far below the expected 2–3%, and the model heavily over-predicted approval for one network.
+- **Root cause:** A "network response code frequency" feature was computed over a trailing window that included the current transaction's response code — information only available after the authorization decision (the outcome being predicted). The model learned to exploit this signal directly.
+- **Fix:** Strictly enforced point-in-time correctness in the Delta Lake join: each training row is joined to feature values as of `auth_timestamp - 1 second`; added a leakage audit that computes feature-outcome correlations on a hold-out set and flags any feature with correlation >0.9 with the label.
+- **Prevention/monitoring:** Run the leakage audit as a CI step after any feature addition; require all new features to include a timestamp provenance tag in the feature catalog; track feature–label correlation in offline experiments before promoting to production.
+
+**5. Class imbalance — model predicting "approved" for nearly all transactions**
+- **Symptom:** After deployment, the model's routing was almost identical to the baseline (always pick the historically highest-approval network); per-network probability scores clustered near 0.85–0.90 for all routes with little differentiation.
+- **Root cause:** Declines were ~8% of transactions; the model trained without class weighting and found it could achieve >90% accuracy by predicting approval for everything. The decision boundary never learned to distinguish routes for the minority decline class.
+- **Fix:** Set `scale_pos_weight` = (# approved) / (# declined) ≈ 11.5 for XGBoost; re-evaluated using PR-AUC and F1 on the minority class rather than accuracy; confirmed per-network differentiation in probability calibration plots before re-deploying.
+- **Prevention/monitoring:** Add PR-AUC and minority-class F1 as gating metrics for model promotion; alert when the model's per-network probability spread (max − min) averages below 0.05 on the eval set (indicates failure to differentiate routes).
+
+**6. Feature freshness lag — online store staleness causing incorrect routing during issuer incidents**
+- **Symptom:** During a 4-hour outage by a major issuer, the model continued routing significant volume to that issuer's network because its online-store approval rate feature still reflected yesterday's (pre-outage) high approval rate.
+- **Root cause:** The materialization job ran every 6 hours; the feature values in the online store were up to 6 hours stale. The model had no signal that the issuer was currently experiencing a high decline rate.
+- **Fix:** Switched the rolling per-issuer approval-rate feature to a streaming materialization pipeline (Kafka → Flink → online store), reducing freshness lag to <5 minutes for the most time-sensitive features; kept the batch pipeline for slower-moving BIN-level features.
+- **Prevention/monitoring:** Track online-store feature age per entity key; alert when any high-velocity feature is >15 minutes stale; add a "last materialized" timestamp to the serving payload and log it alongside each routing decision.
+
+---
+
 ## Interview Q&A
 
 **Q: Why both Spark and Ray — isn't one enough?**

@@ -10,11 +10,13 @@ Domain 5 is **14% of the AIF-C01 exam** — the last of the five domains, and th
 - [The mental model: three walls around your AI](#mental-model)
 - [The AWS Shared Responsibility Model for AI](#shared-responsibility)
 - [Task 5.1a — IAM: who can do what](#iam)
+- [Task 5.1a-ii — Securing agents: AgentCore Identity & Policy](#agentcore-security)
 - [Task 5.1b — Encryption & KMS: at rest and in transit](#encryption)
 - [Task 5.1c — Amazon Macie, PrivateLink & network isolation](#macie-privatelink)
 - [Task 5.1d — Source citation & documenting data origins](#data-origins)
 - [Task 5.1e — Secure data engineering best practices](#secure-data-eng)
 - [Task 5.1f — Prompt injection & AI-specific threats](#prompt-injection)
+- [Task 5.1g — Hallucination detection, grounding & output validation](#grounding-output)
 - [Task 5.2a — Regulatory compliance standards (ISO, SOC, algorithm laws)](#compliance-standards)
 - [Task 5.2b — AWS governance & compliance services](#governance-services)
 - [Task 5.2c — Data governance strategies](#data-governance)
@@ -124,6 +126,23 @@ flowchart LR
 > - "Give an application temporary, scoped access to AWS resources without hard-coding keys" → **IAM role** (not an IAM user with access keys).
 > - "Restrict which foundation models a team can call in Bedrock" → **IAM policy** on `bedrock:InvokeModel`.
 > - "Principle of granting only the minimum access needed" → **least privilege**.
+
+---
+
+## Task 5.1a-ii — Securing agents: AgentCore Identity & Policy <a name="agentcore-security"></a>
+
+> **Why (the rationale):** An autonomous agent acts on a user's behalf and calls tools/APIs — so it needs its **own identity** (to authenticate to downstream services without embedding long-lived secrets) and **authorization rules** (to bound what it's allowed to do). IAM secures *your AWS* access; these secure the *agent's* access to tools and third-party services.
+> **When to use:** Any production agent built on **Amazon Bedrock AgentCore** that must call AWS or third-party APIs on behalf of users.
+> **Nuances & gotchas:** Identity ≠ Policy. **Identity** = *who the agent is* + how it gets credentials; **Policy** = *what the agent may do*. Together with AgentCore Gateway they form a defense-in-depth stack (authenticate → authorize → expose tools).
+
+| Feature | What it does | Exam signal |
+|---|---|---|
+| **Amazon Bedrock AgentCore Identity** | Identity & **credential management for agents** — issues agent (workload) identities and brokers **OAuth 2.0 / SigV4 / API-key** access so an agent can act on a user's behalf without hard-coded secrets, with audit trails | "Let an agent securely authenticate to downstream services on behalf of a user" |
+| **Policy in Amazon Bedrock AgentCore** | **Authorization layer** — declarative rules that decide which resources/actions an agent may access at runtime | "Fine-grained control over what an agent is allowed to do" |
+
+> **On the exam:** "How does an agent get short-lived credentials to call an external API without embedding secrets?" → **AgentCore Identity**. "How do you restrict what actions an agent can take?" → **AgentCore Policy** (plus least-privilege IAM for the underlying AWS calls).
+
+Source: [Amazon Bedrock AgentCore Identity](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/identity.html), [AgentCore security (Identity, Gateway, Policy)](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/security-iam.html)
 
 ---
 
@@ -292,6 +311,23 @@ flowchart TB
 > - "A user embeds hidden instructions to make the LLM ignore its rules" → **prompt injection** (the AI-specific threat).
 > - "Native AWS way to filter harmful prompts/responses and block prompt attacks in Bedrock" → **Amazon Bedrock Guardrails**.
 > - "Detect software vulnerabilities / CVEs on your compute" → **Amazon Inspector** (not a prompt-injection defense).
+
+---
+
+## Task 5.1g — Hallucination detection, grounding & output validation <a name="grounding-output"></a>
+
+> **Why (the rationale):** An FM will produce confident but wrong answers (hallucinations). For a trustworthy AI system you must **ground** outputs in real sources and **validate** them before they reach a user or trigger an action — accuracy is a security/trust property, not just a quality one.
+> **When to use:** Any customer-facing or decision-driving AI output — especially RAG assistants, agents that take actions, and regulated domains.
+> **Nuances & gotchas:** Grounding **reduces** but does not **eliminate** hallucination — pair it with output validation. Guardrails **contextual grounding checks** score whether a response is supported by the retrieved source and relevant to the query; below-threshold responses are blocked/flagged.
+
+| Technique | What it does |
+|---|---|
+| **RAG grounding** | Retrieve authoritative context and require the model to answer **only** from it (with citations) — the primary hallucination defense |
+| **Contextual grounding & relevance checks** (Bedrock Guardrails) | Score a response's factual grounding against the source + its relevance to the query; block/flag ungrounded answers |
+| **Output validation / filtering** | Validate outputs against a schema/rules (e.g., structured JSON, allowed values), and filter disallowed or toxic content before returning them |
+| **Confidence scoring** | Attach/threshold a confidence signal; route low-confidence outputs to human review (**Amazon A2I**) or a fallback |
+
+> **On the exam:** "Reduce hallucinations in a RAG assistant" → **RAG grounding + Bedrock Guardrails contextual grounding check**. "Ensure the model's answer is actually supported by the retrieved documents before returning it" → **contextual grounding check**. "Guarantee the response is valid JSON / within allowed values" → **output validation**. "Send uncertain answers to a human" → **confidence scoring + Amazon A2I**.
 
 ---
 

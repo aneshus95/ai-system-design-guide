@@ -56,6 +56,7 @@ The exam gives you scenarios and asks which selection criterion matters most. Le
 | **Model complexity / capability** | Reasoning depth, tool use, context handling | Complex reasoning → larger model; simple classification → small model |
 | **Customization** | Can it be fine-tuned / continued pre-trained? | You have proprietary data to adapt to → check it supports customization |
 | **Input/output length (context window)** | Max tokens in + out it can handle | Long documents/RAG → large context window |
+| **Prompt caching support** | Whether the model/service can **cache a repeated prompt prefix** (system prompt, long reference context, tool definitions) so it isn't reprocessed on every call | High-volume apps that resend the **same large context** each request → cache it to cut input-token **cost** and **latency** (a Bedrock prompt-caching feature) |
 
 🎯 **On the exam — "if you see X pick Y":**
 - "Summarize thousands of long legal PDFs" → prioritize **large context window (input length)** + cost.
@@ -63,6 +64,7 @@ The exam gives you scenarios and asks which selection criterion matters most. Le
 - "Support customers in 20 languages" → **multi-lingual** capability.
 - "Generate product images from text" → **modality** (multi-modal/diffusion, e.g., Stability/Titan Image/Nova Canvas).
 - "We must adapt it to our internal jargon with our data" → model must support **customization** (fine-tuning).
+- "The same big system prompt / reference document is sent on **every** request — reduce cost and latency" → use **prompt caching** (reuse the cached prefix instead of reprocessing it each call).
 
 ---
 

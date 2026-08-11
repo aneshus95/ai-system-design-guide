@@ -404,7 +404,9 @@ flowchart TB
 | **SageMaker JumpStart** | An **ML hub** inside SageMaker: browse, **one-click deploy**, and **fine-tune** open and proprietary **foundation models** and built-in algorithms | You need **more control** — self-hosted endpoints, deeper customization, or specific open models | [`../services/sagemaker.md`](../services/sagemaker.md) |
 | **Amazon SageMaker AI** | Full ML platform to build, train, tune, and deploy models end to end | You're doing serious custom ML / MLOps | [`../services/sagemaker.md`](../services/sagemaker.md) |
 | **Amazon Q** | A ready-made **generative AI assistant**. **Q Business** = answers from your enterprise data/docs; **Q Developer** = AI coding help in the IDE and across AWS | You want a turnkey assistant, not to build one | [`../services/amazon-q.md`](../services/amazon-q.md) |
-| **Bedrock Agents / AgentCore, Strands Agents, Kiro** | Tools to build **agents** (tool use, memory, orchestration) and agentic dev workflows | You need agents that *act*, call tools, and run multi-step tasks | [`../services/bedrock.md`](../services/bedrock.md) |
+| **Bedrock Agents / AgentCore, Strands Agents, Kiro** | Tools to build **agents** (tool use, memory, orchestration) and agentic dev workflows. **Strands Agents** = AWS open-source agent SDK; **Kiro** = agentic (spec-driven) coding IDE; **Bedrock AgentCore** = managed agent runtime (memory, gateway, identity, code interpreter) | You need agents that *act*, call tools, and run multi-step tasks | [`../services/bedrock.md`](../services/bedrock.md) |
+| **Amazon Quick (Quick Suite)** | AWS's **agentic BI & analytics** platform — the evolution of Amazon QuickSight (rebranded Oct 2025). Keeps dashboards + SPICE (as *Amazon Quick Sight*) and adds **Quick Research, Quick Flows/Automate, Quick Index**, and a natural-language **Quick chat** assistant over your data | Business intelligence, natural-language questions over enterprise data, and workflow automation | — |
+| **AWS Transform** | **Agentic AI service for IT modernization** — expert agents that migrate/modernize **mainframe (COBOL→Java), .NET, and VMware** workloads and reduce tech debt | Large-scale legacy migration / application modernization | — |
 
 **Key distinctions the exam loves:**
 
@@ -415,9 +417,14 @@ flowchart TB
 | "One-click deploy or fine-tune open-source/proprietary FMs, self-hosted endpoint, more control" | **SageMaker JumpStart** |
 | "Enterprise assistant that answers from *our own documents*" | **Amazon Q Business** |
 | "AI pair-programmer in the IDE" | **Amazon Q Developer** |
+| "Spec-driven / agentic coding IDE" | **Kiro** |
+| "Open-source SDK to build agents (model-agnostic)" | **Strands Agents** |
+| "Managed runtime to deploy & operate production agents (memory, identity, tools)" | **Bedrock AgentCore** |
+| "Agentic BI / natural-language questions over dashboards & enterprise data + workflow automation" | **Amazon Quick (Quick Suite)** |
+| "Modernize mainframe/COBOL, .NET, or VMware workloads with AI agents" | **AWS Transform** |
 | "Build a custom model from scratch / full MLOps" | **Amazon SageMaker AI** |
 
-Sources: [SageMaker JumpStart foundation models](https://docs.aws.amazon.com/sagemaker/latest/dg/jumpstart-foundation-models.html) · [SageMaker JumpStart product page](https://aws.amazon.com/sagemaker/ai/jumpstart/) · [Bedrock or SageMaker decision guide](https://docs.aws.amazon.com/decision-guides/latest/bedrock-or-sagemaker/bedrock-or-sagemaker.html) · [Amazon Bedrock pricing/overview](https://aws.amazon.com/bedrock/pricing/).
+Sources: [SageMaker JumpStart foundation models](https://docs.aws.amazon.com/sagemaker/latest/dg/jumpstart-foundation-models.html) · [SageMaker JumpStart product page](https://aws.amazon.com/sagemaker/ai/jumpstart/) · [Bedrock or SageMaker decision guide](https://docs.aws.amazon.com/decision-guides/latest/bedrock-or-sagemaker/bedrock-or-sagemaker.html) · [Amazon Bedrock pricing/overview](https://aws.amazon.com/bedrock/pricing/) · [Amazon Quick Suite (QuickSight evolves)](https://aws.amazon.com/blogs/business-intelligence/reimagine-business-intelligence-amazon-quicksight-evolves-to-amazon-quick-suite/) · [AWS Transform](https://aws.amazon.com/transform/) · [Amazon Bedrock AgentCore](https://aws.amazon.com/bedrock/agentcore/) · [Strands Agents](https://strandsagents.com/).
 
 ### Advantages of AWS GenAI services <a name="aws-advantages"></a>
 

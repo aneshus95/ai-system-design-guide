@@ -110,7 +110,27 @@ Key facts:
 3. Bedrock invokes the model under evaluation, then passes (prompt, response, reference) to the judge model.
 4. Review the report in the Bedrock console or download from S3.
 
-#### 🎯 On the exam
+#### D. Amazon Bedrock Agent Evaluations (Task 5.1.7)
+
+> **Why (the rationale):** Standard LLM evaluation measures single-turn response quality; agent evaluation must capture correctness across **multi-step workflows** — whether the agent reached the goal, whether it called the right tools in the right order, and whether its reasoning stayed on track. Task completion rate and tool-usage effectiveness are not captured by BLEU/ROUGE or single-response faithfulness metrics.
+> **When to use:** Before deploying or updating a Bedrock Agent — especially when action groups, knowledge bases, or orchestration prompts change. Also use for ongoing production quality monitoring of agent task completion.
+
+[Amazon Bedrock Agent evaluations](https://docs.aws.amazon.com/bedrock/latest/userguide/evaluation.html) extend Bedrock Model Evaluation to **multi-step agentic workflows**. Key metrics differ from single-response evaluation:
+
+| Metric | What it measures |
+|---|---|
+| **Task completion rate** | Did the agent successfully complete the end-to-end task? |
+| **Tool-usage effectiveness** | Did the agent call the right tools with the right parameters? Were unnecessary tool calls avoided? |
+| **Reasoning quality** | Is the chain-of-thought (trace) coherent and logically correct across steps? |
+| **Step efficiency** | Did the agent complete the task in a reasonable number of steps (no loops or redundant actions)? |
+
+**Key distinction from RAG/LLM evaluation:** Single-response evaluation scores one output against one expected answer. Agent evaluation tracks **sequences of actions and decisions** across a full workflow — a correct final answer reached via wrong tool calls still indicates a quality problem.
+
+#### 🎯 On the exam (Agent Evaluations)
+- "Evaluate whether a Bedrock Agent correctly calls an API action group before answering" → **Amazon Bedrock Agent evaluations** (task completion rate + tool-usage effectiveness), not standard LLM eval.
+- "Distinguish agent evaluation from model evaluation" → agent eval tracks multi-step tool calls and reasoning across a workflow; model eval scores a single response.
+
+#### 🎯 On the exam (all Model Evaluation modes)
 - "Compare two prompts or two models on quality cheaply and quickly" → **LLM-as-a-judge** in Bedrock Model Evaluation.
 - "Need human sign-off before deploying to production" → **Human Evaluation** job.
 - "Automated nightly quality regression test" → **Automatic evaluation** job with a fixed prompt dataset.
@@ -201,10 +221,16 @@ When automated metrics are insufficient (e.g., nuanced tone, safety for regulate
 
 As models, prompts, and retrieved knowledge bases evolve, previously passing test cases can break. Establish a regression testing discipline:
 
-1. **Build a golden prompt suite:** a curated set of prompts with expected outputs (exact or range-based) covering key use cases, edge cases, and safety scenarios.
-2. **Automate evaluation:** run the suite against the new model/prompt version using Bedrock Automatic Evaluation or LLM-as-a-judge.
+1. **Build a golden dataset (Task 5.1.9 / 5.2):** a curated set of representative prompts paired with **known-good expected outputs** — covering key use cases, edge cases, and safety scenarios. Golden datasets are the ground truth used to **detect hallucinations and semantic drift**: run the dataset on every model or prompt update and compare faithfulness/accuracy scores against the baseline. A regression in faithfulness on the golden dataset gates the deployment. The same dataset drives both nightly CI checks and pre-production deployment gates.
+2. **Automate evaluation:** run the golden dataset against the new model/prompt version using Bedrock Automatic Evaluation or LLM-as-a-judge.
 3. **Gate deployments:** fail the CI/CD pipeline if any critical metric (e.g., faithfulness, exact-match accuracy) drops below threshold.
-4. **Track metric trends over time:** store evaluation scores in a time-series database (e.g., CloudWatch custom metrics) to catch gradual quality drift.
+4. **Canary rollout of new model/prompt versions (Task 5.1.2):** after the evaluation gate passes, deploy the new version to a **small slice of live traffic** (e.g., 5–10%) before a full rollout — analogous to a canary deployment in software engineering. Monitor quality metrics (faithfulness, error rate, latency) on canary traffic in real time. If quality or error regressions exceed a threshold, **automatically roll back** to the previous version; if metrics hold, gradually shift 100% of traffic to the new version. This limits blast radius for prompt regressions or model behaviour changes that automated tests did not catch.
+5. **Track metric trends over time:** store evaluation scores in a time-series database (e.g., CloudWatch custom metrics) to catch gradual quality drift.
+
+#### 🎯 On the exam
+- "Detect hallucinations or quality regressions after a model update" → **golden dataset** with faithfulness/accuracy metrics as a deployment gate.
+- "Roll out a new prompt version safely without risking a full production outage" → **canary rollout** (small traffic slice) with automatic rollback on metric regression.
+- "A/B test vs. canary test" → A/B runs two versions in parallel to compare quality; canary progressively shifts traffic to the new version after a quality gate passes — both appear on the exam.
 
 ---
 
@@ -505,6 +531,9 @@ Key principles:
 | Circuit breaker | Stops sending requests to a failing endpoint after repeated errors | Prevents cascade failures; allows partial recovery |
 | Idempotency token | A unique identifier on a request so retrying does not create duplicate resources | Safe retries on resource-creation operations |
 | Regression test suite (golden prompts) | Fixed set of prompts with expected outputs used to catch quality regressions | CI/CD gate for model and prompt changes |
+| Golden dataset | Curated prompts with known-good expected outputs covering representative use cases | Detect hallucinations, semantic drift, and regressions across model/prompt updates |
+| Canary rollout | Deploying a new model/prompt version to a small traffic slice before full rollout | Limits blast radius of quality regressions; enables automatic rollback |
+| Agent evaluation | Bedrock evaluation mode measuring task completion rate, tool-usage effectiveness, and reasoning quality across multi-step workflows | Evaluate agents (not just single-turn responses) before deployment |
 | Chunking | Splitting documents into smaller pieces for vector indexing in RAG | Affects retrieval precision and context window efficiency |
 | Re-ranker | A second model that reorders retrieved chunks by relevance before generation | Improves context relevance without changing the embedding model |
 
@@ -512,7 +541,7 @@ Key principles:
 
 ## References
 
-- [Evaluate the Performance of Amazon Bedrock Resources](https://docs.aws.amazon.com/bedrock/latest/userguide/evaluation.html)
+- [Evaluate the Performance of Amazon Bedrock Resources (incl. Agent Evaluations)](https://docs.aws.amazon.com/bedrock/latest/userguide/evaluation.html)
 - [Evaluate Model Performance Using Another LLM as a Judge](https://docs.aws.amazon.com/bedrock/latest/userguide/evaluation-judge.html)
 - [LLM-as-a-Judge on Amazon Bedrock Model Evaluation (AWS Blog)](https://aws.amazon.com/blogs/machine-learning/llm-as-a-judge-on-amazon-bedrock-model-evaluation/)
 - [Amazon Bedrock Model Evaluation LLM-as-a-Judge — GA Announcement](https://aws.amazon.com/about-aws/whats-new/2025/03/amazon-bedrock-model-evaluation-llm-as-a-judge/)

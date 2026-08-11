@@ -457,7 +457,8 @@ Macie is **not** a real-time inference guardrail — it operates on S3 objects a
 AWS advocates a set of **responsible AI dimensions** across all ML/AI services:
 
 - **Fairness** — Evaluate model outputs for disparate performance across demographic groups.
-- **Explainability** — Produce reasoning traces (Bedrock Agents support step-by-step trace output) and use SageMaker Clarify SHAP values for feature attribution.
+- **Explainability** — Produce reasoning traces and use SageMaker Clarify SHAP values for feature attribution.
+- **Agent reasoning traces (Task 3.4.1 — transparency)** — [Amazon Bedrock Agents can emit a detailed **trace**](https://docs.aws.amazon.com/bedrock/latest/userguide/agents-trace.html) of each step: the model's reasoning, which tool/action group was invoked, which Knowledge Base chunks were retrieved, and the final synthesis. Enable traces in `InvokeAgent` requests (`enableTrace: true`) and surface them as **user-facing explanations or source-attribution evidence** — for example, showing end-users which document supported an answer, or giving auditors a full chain-of-thought log. This is the primary AWS mechanism for making multi-step agent decisions **transparent and auditable** without building custom logging.
 - **Robustness** — Test models against adversarial inputs, edge cases, and out-of-distribution prompts.
 - **Privacy** — Apply data minimization; avoid including personal data in prompts or training sets.
 - **Human oversight** — Keep humans in the loop for high-stakes decisions; use "human review" nodes in SageMaker Pipelines or Amazon A2I (Augmented AI).
@@ -705,6 +706,7 @@ Prompt injection and jailbreak attacks attempt to override a model's instruction
 | **SageMaker Clarify** | Bias detection and explainability tool for ML models | Measure and mitigate bias in structured ML or generative output |
 | **SageMaker Model Card** | Customer-authored documentation for a custom ML model | Governance artifact recording intended use and evaluation results |
 | **Amazon A2I** | Human review workflow service | Route uncertain or flagged AI decisions to human reviewers |
+| **Agent reasoning trace** | Step-by-step log of a Bedrock Agent's thinking, tool calls, and KB lookups | Transparency and auditability of multi-step agent decisions; surfaced as user-facing explanations |
 | **Prompt injection** | Attack where a user's input overrides the model's system instructions | Defeated by input validation, prompt architecture, and Prompt Attack guardrail |
 | **Jailbreak** | Attempt to make a model ignore safety training | Detected by Prompt Attack content filter and guardrail checks |
 | **FedRAMP** | US government compliance framework | Required for Bedrock use in federal workloads; FIPS endpoints available |
@@ -714,6 +716,7 @@ Prompt injection and jailbreak attacks attempt to override a model's instruction
 
 ## 7. References
 
+- [Amazon Bedrock Agents — trace and reasoning logs](https://docs.aws.amazon.com/bedrock/latest/userguide/agents-trace.html)
 - [Amazon Bedrock Guardrails — components overview](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-components.html)
 - [Sensitive information filters — PII types and configuration](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-sensitive-filters.html)
 - [Contextual grounding check documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-contextual-grounding-check.html)

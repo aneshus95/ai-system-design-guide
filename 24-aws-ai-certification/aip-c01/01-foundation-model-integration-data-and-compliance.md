@@ -143,6 +143,25 @@ Key cost levers:
 
 ---
 
+### 1.2.1 AWS Well-Architected Generative AI Lens (Task 1.1.3)
+
+The **AWS Well-Architected Tool** includes a **Generative AI Lens** — a set of best-practice questions and guidance specifically for reviewing GenAI architectures against the six pillars (Operational Excellence, Security, Reliability, Performance Efficiency, Cost Optimization, Sustainability). Use it to standardise and audit a GenAI solution design before production launch.
+
+> **🎯 On the exam:** "Team needs a structured framework to review their GenAI architecture for best practices" → **AWS Well-Architected Tool with the Generative AI Lens** (not a generic Architecture Review Board process). ([AWS Well-Architected Generative AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genai-lens.html))
+
+---
+
+### 1.2.2 Dynamic Model Selection with AWS AppConfig (Task 1.2.2)
+
+**AWS AppConfig** (part of AWS Systems Manager) enables **dynamic model selection and provider switching at runtime, without code changes or redeployments**. Store the active `modelId`, routing weights, or provider configuration as an AppConfig feature flag or freeform configuration. A Lambda reads the config on each invocation (with AppConfig client-side caching) — changing the active model is an AppConfig deployment, not a Lambda deployment.
+
+**Pattern:** AppConfig (model routing config) → Lambda (reads config on start) → API Gateway → Bedrock `Converse`
+
+> **Why:** Eliminates the need to redeploy application code when switching between model providers or versions (e.g., migrating from Claude 3.5 Sonnet to Nova Pro, or A/B testing two models). Pair with Lambda environment variables for region and Bedrock endpoint.
+> **🎯 On the exam:** "Change the active FM without a code deployment" → **AWS AppConfig** for externalised model routing config. ([AWS AppConfig docs](https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html))
+
+---
+
 ### 1.3 Bedrock vs SageMaker JumpStart
 
 > **Why (the rationale):** Bedrock is zero-ops for app builders; SageMaker JumpStart is full-control for ML engineers who need custom training scripts, dedicated GPU instances, or models not in the Bedrock catalog.
@@ -165,6 +184,23 @@ Both services give access to foundation models, but they serve different develop
 > **🎯 On the exam:** A startup wants a customer-service chatbot with RAG on company documents; no ML team → **Bedrock + Knowledge Bases**. A research team needs to fine-tune Llama on proprietary data using custom training scripts → **SageMaker JumpStart**. Trap: SageMaker JumpStart is not the right answer when the scenario asks for "managed RAG" or "serverless inference."
 
 You can also **deploy a SageMaker JumpStart model and register it with Bedrock**, allowing access through Bedrock APIs — but this is an advanced integration pattern, not the default exam answer.
+
+### 1.3.1 Parameter-Efficient Fine-Tuning: LoRA / Adapters (Task 1.2.4)
+
+When full fine-tuning is too expensive or slow, **LoRA (Low-Rank Adaptation)** and similar **adapter** techniques offer a parameter-efficient alternative: only a small set of additional weight matrices (the "adapter") is trained and stored — the base model weights are frozen. This makes domain-specific fine-tuning dramatically cheaper and faster, and the tiny adapter weights are swappable without re-serving the full model.
+
+| Approach | What changes | Cost relative to full fine-tuning | Use case |
+|---|---|---|---|
+| **Full fine-tuning** | All weights updated | High | Large behaviour shift; maximum adaptation |
+| **LoRA / Adapters** | Only low-rank adapter layers trained | Low (< 1% of parameters typically) | Domain vocabulary, style, task format; faster iteration |
+
+**Lifecycle on AWS:**
+- Fine-tune (including LoRA) via **SageMaker Training Jobs** (open-weight models: Llama, Mistral).
+- Version and track adapter artifacts with **SageMaker Model Registry** — supports model approval workflows, lineage, and metadata.
+- Automated deployment with rollback: use **SageMaker Pipelines** or **EventBridge + Lambda** to trigger deployments; register new versions and use Model Registry approval gates for automated rollback if metrics regress.
+- Retire old adapters via Model Registry lifecycle (archive/deprecate state).
+
+> **🎯 On the exam:** "Cheapest/fastest way to fine-tune a domain-specific model" → **LoRA / parameter-efficient fine-tuning** (not full fine-tuning, not continued pre-training). "Versioning and lifecycle management of fine-tuned models" → **SageMaker Model Registry**.
 
 ---
 
@@ -393,6 +429,11 @@ This is a **high-frequency exam topic**. Know each store's sweet spot and the ex
 | **Pinecone** | No | Teams already using Pinecone | Third-party managed; credentials via Secrets Manager |
 | **Redis Enterprise Cloud** | No | Teams already using Redis | Third-party managed; TLS required |
 | **MongoDB Atlas** | No | Teams using MongoDB; document + vector in one DB | Requires manual metadata filter config in Atlas index |
+
+**OpenSearch Neural (neural search) plugin (Task 1.4.1):**
+Amazon OpenSearch Service includes a **Neural plugin** that integrates natively with Amazon Bedrock to **automatically generate embeddings at both ingest time and query time** — eliminating the need for a separate embedding step in your pipeline. You configure a Bedrock embedding model in an OpenSearch `ml_config`, and the plugin calls Bedrock automatically when you index a document or run a `neural_query`. This makes OpenSearch a self-contained vector search solution: ingest text, get vectors; query text, get semantically ranked results.
+
+> **🎯 On the exam:** "Vector search pipeline without a separate Lambda to call an embedding model" → **OpenSearch Service with the Neural plugin + Bedrock integration** — the plugin handles embedding automatically. ([OpenSearch neural search docs](https://opensearch.org/docs/latest/search-plugins/neural-search/))
 
 **S3 Vectors deep-dive (new 2025/2026 — high exam priority):**
 - First cloud object store with **native vector storage and query**.
@@ -722,6 +763,10 @@ Domain 1 concepts connect to all other AIP-C01 domains:
 | **Binary Vectors** | Bit-packed embeddings vs float32 | ~32× storage reduction; only on OpenSearch |
 | **Context Window** | Max tokens in a single FM call (input + output) | Determines how much retrieved context can be injected |
 | **Prompt Caching** | Cache repeated large system prompts | Reduces cost for multi-turn or multi-user apps with shared prompts |
+| **AWS Well-Architected Generative AI Lens** | Best-practice review framework for GenAI architectures (via AWS WA Tool) | Standardise and audit GenAI designs before production |
+| **AWS AppConfig** | Runtime configuration service; externalise model ID / routing config | Dynamic model selection without code redeployment |
+| **LoRA / Adapters** | Parameter-efficient fine-tuning — only small adapter weights trained | Cheaper/faster domain fine-tuning; managed via SageMaker Model Registry |
+| **OpenSearch Neural plugin** | OpenSearch plugin that auto-generates embeddings via Bedrock at ingest and query time | Self-contained vector search — no separate embedding Lambda needed |
 
 ---
 
@@ -748,6 +793,10 @@ Domain 1 concepts connect to all other AIP-C01 domains:
 - [AWS Compliance Services in Scope](https://aws.amazon.com/compliance/services-in-scope/)
 - [Amazon Bedrock FAQs (Data Privacy)](https://aws.amazon.com/bedrock/faqs/)
 - [Bedrock Advanced RAG with Terraform: Chunking, Hybrid Search, Reranking](https://medium.com/@suhasmallesh/bedrock-knowledge-base-advanced-rag-with-terraform-chunking-hybrid-search-and-reranking-02b15c5bc763)
+- [AWS Well-Architected Generative AI Lens — user guide](https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genai-lens.html)
+- [AWS AppConfig — user guide](https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html)
+- [OpenSearch neural search plugin — docs](https://opensearch.org/docs/latest/search-plugins/neural-search/)
+- [SageMaker Model Registry — user guide](https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry.html)
 
 ---
 

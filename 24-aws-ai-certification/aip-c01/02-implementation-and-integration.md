@@ -398,6 +398,18 @@ print(result)
 
 ---
 
+### 3.3.1 AWS Agent Squad (Task 2.1.1 / 2.5.5)
+
+**AWS Agent Squad** (formerly "Multi-Agent Orchestrator", open-source under AWS Labs) is a Python/TypeScript framework for **multi-agent orchestration**: it performs **intent classification to route each user request to the most appropriate agent**, manages context across agents, and runs anywhere — AWS Lambda, local development, or any cloud. Unlike Strands (which focuses on single-agent tool use with multi-agent patterns), Agent Squad focuses primarily on the **routing and dispatch layer** when you have multiple specialized agents.
+
+- **Intent classification/routing**: classifies incoming messages and dispatches to the best-fit agent (e.g., a billing agent vs. a technical support agent vs. a knowledge agent).
+- **Context management**: maintains conversation context across agent hops.
+- **Deployment-agnostic**: runs on Lambda, ECS, EC2, local, or non-AWS environments.
+
+> **🎯 On the exam:** "Route user requests to the correct specialized agent automatically" → **AWS Agent Squad** (for the routing/dispatch layer). Complement with AgentCore for managed runtime and memory. ([GitHub: awslabs/agent-squad](https://github.com/awslabs/agent-squad))
+
+---
+
 ### 3.4 Model Context Protocol (MCP)
 
 > **Why (the rationale):** Before MCP, every model-tool integration required bespoke glue code per model per tool. MCP standardizes the protocol so any MCP-compatible client (agent) can discover and call any MCP-compatible server (tool) without provider-specific adapters — reducing integration work and enabling a reusable tool ecosystem.
@@ -604,6 +616,24 @@ No persistent endpoint; you submit files and collect results later. Ideal when l
 
 ---
 
+### 5.0.1 Amazon Bedrock Data Automation (BDA) (Task 2.5.3)
+
+[Amazon Bedrock Data Automation](https://docs.aws.amazon.com/bedrock/latest/userguide/bda.html) (GA March 2025) is a **fully managed service** that extracts **structured data and insights from unstructured multimodal content** — including documents, images, video, and audio — without writing custom extraction pipelines. It is designed to enrich RAG pipelines by turning raw, unstructured content into clean, structured outputs that are easier to chunk, embed, and query.
+
+| Capability | What BDA does |
+|---|---|
+| **Intelligent Document Processing (IDP)** | Classify, extract, normalize, and validate data from complex documents (invoices, contracts, forms) |
+| **Image / Video / Audio** | Extract insights, transcripts, and summaries from multimodal content |
+| **Visual grounding** | Returns bounding-box coordinates for extracted entities (useful for audit) |
+| **Confidence scores** | Each extracted field includes a confidence score for validation and human-in-the-loop routing |
+| **Hallucination mitigation** | Grounded extraction reduces fabricated field values vs. prompt-only extraction |
+
+**Integration pattern:** S3 (raw docs) → BDA job → structured JSON output in S3 → Bedrock Knowledge Bases sync → RAG
+
+> **🎯 On the exam:** "Extract structured fields from thousands of invoices / contracts for RAG enrichment without custom code" → **Amazon Bedrock Data Automation**. Prefer BDA over Textract + custom Lambda when multimodal content (not just PDFs) and structured output with confidence scores are required.
+
+---
+
 ### 5.1 Synchronous invocation
 
 The caller blocks until the model responds. Use for:
@@ -685,6 +715,18 @@ The standard serverless pattern for exposing Bedrock to web / mobile clients:
 - **Lambda** validates input, manages session state, calls Bedrock, post-processes output
 - **Lambda response streaming** (since Lambda 2023) lets you stream `ConverseStream` chunks directly to the HTTP client without buffering
 
+### 5.4.1 AWS Amplify for AI Front-Ends (Task 2.5.2)
+
+**AWS Amplify** provides front-end libraries and a managed hosting/CI-CD platform for building **declarative UI components and web/mobile applications** that integrate with AI services. For GenAI applications, Amplify accelerates adoption by providing:
+
+- Pre-built **AI/chat UI components** (chat window, conversation history, streaming text display) that wire directly to Bedrock or API Gateway back-ends.
+- **Amplify Gen 2** (TypeScript-first): define back-end resources (APIs, auth, storage) as code; Amplify provisions them automatically.
+- Built-in **Amazon Cognito** integration for user authentication — the correct auth layer for consumer-facing GenAI apps.
+
+> **🎯 On the exam:** "Fastest path to build a web front-end for a Bedrock-powered chat application" → **AWS Amplify** (not a custom React app wired manually to API Gateway). ([AWS Amplify AI Kit](https://docs.amplify.aws/react/ai/))
+
+---
+
 ### 5.5 Provisioned Throughput vs On-Demand
 
 | Mode | Billing | When to use |
@@ -700,6 +742,34 @@ The standard serverless pattern for exposing Bedrock to web / mobile clients:
 > - **Need session state across devices or agent memory** → DynamoDB (server-side) or AgentCore Memory
 > - **Custom / fine-tuned model must use** → Provisioned Throughput (cannot use on-demand for custom models)
 > - Batch inference pricing ≈ 50% of on-demand; use when latency SLO > minutes
+
+---
+
+### 5.6 Edge and On-Premises Deployment: AWS Outposts and AWS Wavelength (Task 2.3.4)
+
+For workloads that cannot send data to an AWS region (data sovereignty, regulated industries, ultra-low latency), AWS offers two deployment models:
+
+| Service | Deployment location | Primary use case for GenAI |
+|---|---|---|
+| **AWS Outposts** | Your own data centre / co-lo (AWS-managed rack) | Keep inference data on-premises for data sovereignty; run FM inference inside the corporate perimeter while using Bedrock APIs |
+| **AWS Wavelength** | 5G carrier edge (Verizon, KDDI, etc.) | Sub-10ms latency for GenAI features in mobile/5G apps (e.g., real-time AI assistants on 5G devices); data processed at the carrier edge, not in a central region |
+
+Both extend the AWS API surface to non-cloud locations — your application code stays the same, but the compute runs closer to the data or user.
+
+> **🎯 On the exam:** "Regulated financial firm cannot send customer data outside their data centre" → **AWS Outposts** for on-premises FM inference. "Mobile app requires single-digit-ms GenAI responses over 5G" → **AWS Wavelength**. These are infrastructure deployment choices, not Bedrock features.
+
+---
+
+### 5.7 Amazon Q Developer for Code Generation and Troubleshooting (Task 2.5.4 / 2.5.6)
+
+**Amazon Q Developer** is AWS's AI coding assistant, integrated into IDEs (VS Code, JetBrains, IntelliJ) and the AWS Console. Relevant for AIP-C01 as a developer productivity tool for GenAI application development:
+
+- **Code generation and refactoring**: generates Bedrock API calls, Lambda handlers, and CDK/CloudFormation from natural language descriptions.
+- **API assistance**: suggests correct Bedrock SDK usage (e.g., correct `Converse` request structure, `toolConfig` shape, streaming event parsing).
+- **GenAI-specific error-pattern recognition**: identifies common Bedrock integration errors (malformed tool schemas, incorrect IAM permissions for `bedrock:InvokeModel`, throttling patterns) during troubleshooting — distinguishing application errors from Bedrock service errors.
+- **Unit test generation**: generates test cases for agent action group Lambda handlers and RAG pipeline functions.
+
+> **🎯 On the exam:** "Accelerate development of Bedrock integrations / reduce time debugging GenAI API errors" → **Amazon Q Developer**. It is a developer tool, not a production inference service; it does not replace Bedrock but assists the developers building on it. ([Amazon Q Developer docs](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/what-is.html))
 
 ---
 
@@ -731,6 +801,12 @@ The standard serverless pattern for exposing Bedrock to web / mobile clients:
 | `toolConfig` | Converse API field for declaring callable tools | Enables structured output / function calling |
 | `toolUse` / `toolResult` | Content blocks in the agentic loop | Model requests a tool call; you return the result |
 | Session state | Conversation history or context persisted across turns | Multi-turn coherence |
+| AWS Agent Squad | Open-source multi-agent orchestration framework (AWS Labs); intent classification + routing | Route requests to the right specialized agent |
+| Bedrock Data Automation (BDA) | Managed multimodal extraction service (docs, images, video, audio) | Structured data extraction for RAG enrichment |
+| AWS Amplify | Front-end platform with AI UI components and managed hosting | Build GenAI chat UIs quickly |
+| AWS Outposts | AWS-managed rack in your data centre | On-premises FM inference for data sovereignty |
+| AWS Wavelength | AWS compute at 5G carrier edge | Ultra-low-latency GenAI for mobile/5G apps |
+| Amazon Q Developer | AI coding assistant in IDE + console | Code generation, API help, error-pattern recognition for GenAI builds |
 
 ---
 
@@ -753,6 +829,12 @@ The standard serverless pattern for exposing Bedrock to web / mobile clients:
 - [Bedrock FAQs (distillation, fine-tuning)](https://aws.amazon.com/bedrock/faqs/)
 - [AIP-C01 official exam guide](https://docs.aws.amazon.com/aws-certification/latest/examguides/ai-professional-01.html)
 - [Building an AI gateway to Bedrock with API Gateway (AWS Architecture Blog)](https://aws.amazon.com/blogs/architecture/building-an-ai-gateway-to-amazon-bedrock-with-amazon-api-gateway/)
+- [AWS Agent Squad (awslabs/agent-squad) — GitHub](https://github.com/awslabs/agent-squad)
+- [Amazon Bedrock Data Automation — user guide](https://docs.aws.amazon.com/bedrock/latest/userguide/bda.html)
+- [AWS Amplify AI Kit — docs](https://docs.amplify.aws/react/ai/)
+- [AWS Outposts — product page](https://aws.amazon.com/outposts/)
+- [AWS Wavelength — product page](https://aws.amazon.com/wavelength/)
+- [Amazon Q Developer — user guide](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/what-is.html)
 
 ---
 

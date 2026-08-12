@@ -49,11 +49,11 @@ flowchart LR
 - **Entity recognition** — detects named entities: `PERSON`, `LOCATION`, `ORGANIZATION`, `COMMERCIAL_ITEM`, `EVENT`, `DATE`, `QUANTITY`, `TITLE`, `OTHER`.
 - **Key phrase extraction** — pulls out the main noun phrases ("what the text is about").
 - **Sentiment analysis** — one dominant sentiment per document: `POSITIVE`, `NEGATIVE`, `NEUTRAL`, or `MIXED`, each with a confidence score.
-- **Targeted sentiment** — sentiment *per entity* within the text (e.g., positive about "tacos", negative about "service"), including co-reference groups. English only.
-- **Language detection** — identifies the dominant language (100+ languages) and confidence; great as a pre-step before Translate.
+- **Targeted sentiment** — sentiment *per entity* within the text (e.g., positive about "tacos", negative about "service"), including co-reference groups. English only. **Why:** Plain document-level sentiment collapses a mixed review into a single MIXED label, losing the signal. Targeted sentiment preserves *which* aspect drove positive or negative feeling, enabling product-feature-level analytics.
+- **Language detection** — identifies the dominant language (~100 languages, per the official supported-languages list) and confidence; great as a pre-step before Translate. **Why:** Most other Comprehend APIs (sentiment, entities, key phrases) require you to specify the language code — language detection lets you auto-detect it first so the pipeline stays language-agnostic.
 - **Syntax analysis** — part-of-speech tagging (noun, verb, adjective…) for each token.
-- **PII detection & redaction** — `ContainsPiiEntities` (does this doc contain PII?), `DetectPiiEntities` (where + what type), and redaction jobs that produce a masked copy. Covers names, SSNs, credit cards, addresses, bank/routing numbers, emails, etc.
-- **Toxicity detection & prompt-safety classification** — flag harmful content and unsafe LLM prompts (used in responsible-AI / GenAI guardrail scenarios).
+- **PII detection & redaction** — `ContainsPiiEntities` (does this doc contain PII? — cheap screen, returns a label list but not offsets), `DetectPiiEntities` (where + what type, returns exact character offsets), and redaction jobs that produce a masked copy. Covers names, SSNs, credit cards, addresses, bank/routing numbers, emails, etc. **Why:** The two-tier approach (`ContainsPiiEntities` first, then `DetectPiiEntities` only when needed) is a cost-optimization pattern — `ContainsPiiEntities` is billed at a much lower rate than full detection.
+- **Toxicity detection & prompt-safety classification** — flag harmful content and unsafe LLM prompts (used in responsible-AI / GenAI guardrail scenarios). **Note: prompt safety classification is no longer available to new customers** — use Amazon Bedrock Guardrails instead.
 
 > **Why (the rationale):** Topic modeling is unsupervised — you don't need labeled data to discover themes in a corpus. It's the right tool when you have thousands of unlabeled documents and want to understand what they're about without predefined categories.
 > **When to use:** "Group unlabeled documents into themes/topics," "discover hidden structure in a corpus without labels." Runs only as an async job over S3.
@@ -61,7 +61,7 @@ flowchart LR
 
 **Batch-only (asynchronous) analysis:**
 
-- **Topic modeling** — unsupervised; groups a corpus of documents into topics by common word groups (based on LDA). **No labeling needed**, runs only as an async job over S3.
+- **Topic modeling** — unsupervised; groups a corpus of documents into topics by common word groups (based on LDA). **No labeling needed**, runs only as an async job over S3. **Note: Topic modeling (along with event detection and prompt safety classification) is no longer available to new customers** — existing accounts that used these features within the last 12 months retain access; AWS recommends Amazon Bedrock as the migration path. ([Source](https://docs.aws.amazon.com/comprehend/latest/dg/comprehend-availability-change.html))
 
 > **Why (the rationale):** The built-in entity types (PERSON, LOCATION, ORG…) and sentiment are general-purpose. Custom classification and CER let you teach Comprehend your domain-specific labels (e.g., "billing / bug / feature-request" or "policy number / part ID") without building your own NLP model.
 > **When to use:** "Classify documents into our own categories," "route tickets by type," "find domain-specific entities the built-in model doesn't know." Requires labeled training data.
@@ -140,7 +140,7 @@ Pay-per-use, no minimums. The pricing **unit for built-in NLP APIs is 100 charac
 - "Sentiment **for each product/feature** mentioned in a review" → **Comprehend targeted sentiment** (not plain sentiment).
 - "Route/tag documents using **our own categories**" → **Comprehend custom classification**.
 - "Find **our domain-specific** entities (policy #, part ID)" → **Comprehend custom entity recognition**.
-- "Group **unlabeled** documents into themes / topics" → **Comprehend topic modeling** (unsupervised, batch-only).
+- "Group **unlabeled** documents into themes / topics" → **Comprehend topic modeling** (unsupervised, batch-only) — but note this feature is **no longer available to new customers**; the current AWS-recommended alternative is Amazon Bedrock.
 - "Extract **medical conditions, medications, PHI, ICD-10 / RxNorm** codes" → **Comprehend Medical** (HIPAA-eligible).
 
 **Traps & distractors:**

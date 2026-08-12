@@ -2,9 +2,11 @@
 
 **Amazon Kendra** is a managed, ML-powered **intelligent enterprise search** service: users ask questions in natural language, and Kendra returns specific answers and the most relevant passages/documents from your indexed content — including an ACL-aware **Retrieve API** built for Retrieval Augmented Generation (RAG). ([How Kendra works](https://docs.aws.amazon.com/kendra/latest/dg/how-it-works.html), [Kendra features](https://aws.amazon.com/kendra/features/))
 
+> **⚠️ Availability change (July 2026):** Amazon Kendra is **no longer open to new customers** as of July 30, 2026, and entered Maintenance Mode on June 30, 2026 (bug fixes and security updates only; no new features). **AWS recommends that all new search and RAG applications use Amazon Bedrock Managed Knowledge Base (BMKB) instead.** Existing customers continue to be supported. ([Kendra availability change](https://docs.aws.amazon.com/kendra/latest/dg/kendra-availability-change.html))
+
 > **Why (the rationale):** Kendra gives you ML-powered "answer from a paragraph" search over messy enterprise documents (PDFs, SharePoint, Salesforce, etc.) with zero ML expertise and built-in ACL filtering. Pick it over OpenSearch when you want managed semantic search that just works rather than a general engine you tune yourself.
-> **When to use:** Internal knowledge bases, HR/IT self-service portals, RAG retriever for Bedrock when you need ACL-aware enterprise document grounding. Signal: "natural-language search," "intelligent enterprise search," "Q&A over company docs," "ACL-aware retrieval."
-> **Nuances & gotchas:** Kendra is search/retrieval only — it does NOT generate conversational responses on its own; pair with Bedrock or use Q Business for generation. Billing is by provisioned index capacity (hourly), so an idle index still costs money. The GenAI Index is the modern RAG-optimized option; the classic index is increasingly legacy for new RAG builds. For new projects where you want a finished chat assistant (not a retrieval pipeline), Q Business is the faster path.
+> **When to use (existing customers):** Internal knowledge bases, HR/IT self-service portals, RAG retriever for Bedrock when you need ACL-aware enterprise document grounding. Signal: "natural-language search," "intelligent enterprise search," "Q&A over company docs," "ACL-aware retrieval." **New projects should use Bedrock Managed Knowledge Base** — it provides native RAG (RetrieveAndGenerate API), hybrid search, selectable embedding models, and agentic retrieval without needing to provision a Kendra index.
+> **Nuances & gotchas:** Kendra is search/retrieval only — it does NOT generate conversational responses on its own; pair with Bedrock or use Q Business for generation. Billing is by provisioned index capacity (hourly), so an idle index still costs money. **Kendra is sunset for new projects** — Bedrock Knowledge Bases is the current AWS-recommended path for new RAG builds. For new projects where you want a finished chat assistant (not a retrieval pipeline), Q Business is the faster path.
 
 ---
 
@@ -46,20 +48,20 @@ flowchart LR
 
 - **Intelligent semantic search** — deep-learning models rank by *meaning*, not just keywords, and can return a specific **answer**, a **document**, or an **FAQ match** rather than a list of blue links. ([Features](https://aws.amazon.com/kendra/features/))
 - **Natural-language queries** — ask full questions ("how much annual leave do I accrue?") instead of typing keywords.
-- **Pre-built connectors** to many data sources — Amazon S3, SharePoint, Salesforce, ServiceNow, Confluence, Google Drive, databases, websites, and more — handling common formats (HTML, Word, PowerPoint, PDF, Excel, plain text). ([Connectors](https://docs.aws.amazon.com/kendra/latest/dg/hiw-connector.html))
+- **Pre-built connectors** to many data sources — Amazon S3, SharePoint, Salesforce, ServiceNow, Confluence, Google Drive, databases, websites, and more — handling common formats (HTML, Word, PowerPoint, PDF, Excel, plain text). ([Connectors](https://docs.aws.amazon.com/kendra/latest/dg/hiw-connector.html)) **Why connectors matter:** Enterprise content lives in dozens of silos; without connectors you'd build custom ingestion pipelines for each source. Connectors handle auth, crawling, incremental sync, and ACL extraction automatically — you configure credentials, not ETL code.
 - **Incremental sync + incremental learning** — connectors sync source changes, and Kendra **continuously optimizes results** based on user clicks and feedback. ([Incremental learning](https://aws.amazon.com/kendra/features/))
 - **Relevance tuning** — boost results by data source, author, or **freshness/recency**, and add **custom synonyms** for domain vocabulary. ([Relevance tuning](https://docs.aws.amazon.com/kendra/latest/dg/tuning.html))
-- **Access-control-aware results** — honors source **document ACLs / token-based user-context filtering** so users only see permitted content. ([User context filtering](https://docs.aws.amazon.com/kendra/latest/dg/user-context-filter.html))
+- **Access-control-aware results** — honors source **document ACLs / token-based user-context filtering** so users only see permitted content. ([User context filtering](https://docs.aws.amazon.com/kendra/latest/dg/user-context-filter.html)) **Why this is critical for enterprise:** In a typical organization, the same search index spans HR documents (visible to all), payroll records (finance only), and executive briefings (executives only). Without per-user ACL filtering at the retrieval layer, a search UI would expose confidential documents to unauthorized employees — even if the source system had access controls, a naive index strips them out.
 - **Retrieve API for RAG** — returns semantically relevant passages with chunking optimized for LLM payloads; pair with Amazon Bedrock to build grounded generative apps. ([Retrieve API / RAG](https://docs.aws.amazon.com/kendra/latest/dg/searching-retrieve.html))
 
 > **Why (the rationale):** The Retrieve API returns LLM-ready chunks from ACL-filtered enterprise content, making Kendra a managed retriever for Bedrock without you managing a vector store.
 > **When to use:** When you need RAG over enterprise documents that already live in Kendra connectors (SharePoint, S3, Confluence, etc.) and must respect per-user document permissions. Signal: "RAG over enterprise content," "ACL-aware passages for LLM."
 > **Nuances & gotchas:** Query units are shared between the Query API and Retrieve API — heavy RAG usage counts against the same throughput budget. For highest-accuracy RAG, use the **GenAI Index** variant, not a classic Enterprise Edition index.
-- **Kendra GenAI Index** — a newer index option purpose-built for GenAI/RAG, offering enhanced semantic retrieval and usable as a **Bedrock Knowledge Base** retriever while keeping connectors, metadata, relevance tuning, and user-context filtering. ([Kendra GenAI Index](https://aws.amazon.com/blogs/machine-learning/introducing-amazon-kendra-genai-index-enhanced-semantic-search-and-retrieval-capabilities/))
+- **Kendra GenAI Index** — a newer index option (introduced December 2024) purpose-built for GenAI/RAG, offering enhanced semantic retrieval via hybrid search (keyword + vector), semantic embedding, and re-ranker models; usable as a **Bedrock Knowledge Base** retriever while keeping connectors, metadata, relevance tuning, and user-context filtering. **Only available in US East (N. Virginia) and US West (Oregon).** ([Kendra GenAI Index](https://aws.amazon.com/blogs/machine-learning/introducing-amazon-kendra-genai-index-enhanced-semantic-search-and-retrieval-capabilities/))
 
-> **Why (the rationale):** The GenAI Index uses a Transformer-based retrieval model giving higher semantic accuracy than the classic Enterprise Edition index, and it can plug directly into Bedrock Knowledge Bases as a retriever — keeping all Kendra connectors and ACL filtering while adding modern RAG quality.
-> **When to use:** Any new RAG build over enterprise data. Prefer GenAI Index over classic Enterprise Edition for new projects requiring Bedrock Knowledge Base integration.
-> **Nuances & gotchas:** GenAI Enterprise Edition is the most expensive index tier. Classic Enterprise/Developer Edition indexes cannot be upgraded in place — you create a new index. The GenAI Index is Kendra's answer to competition from native Bedrock Knowledge Bases, but Bedrock KB with OpenSearch/pgvector is still the choice when you want full vector-store control without connectors.
+> **Why (the rationale):** The GenAI Index uses a Transformer-based hybrid retrieval model (keyword + vector + re-ranker) giving higher semantic accuracy than the classic Enterprise Edition index, and it can plug directly into Bedrock Knowledge Bases as a managed retriever — keeping all Kendra connectors and ACL filtering while adding modern RAG quality. **Why Kendra is being superseded by Bedrock Knowledge Bases for new RAG:** Bedrock KB offers a native end-to-end RAG pipeline with a RetrieveAndGenerate API (no external LLM wiring needed), selectable embedding models, agentic multi-step retrieval, and managed vector storage — capabilities Kendra never built natively. With Kendra in Maintenance Mode as of June 2026, AWS now directs all new RAG projects to Bedrock Managed Knowledge Base.
+> **When to use (existing Kendra customers):** Prefer GenAI Index over classic Enterprise Edition for Bedrock Knowledge Base integration. For all new projects, use Bedrock Managed Knowledge Base directly.
+> **Nuances & gotchas:** GenAI Enterprise Edition is only available in 2 regions (us-east-1, us-west-2); classic Enterprise Edition has wider regional availability. GenAI Index supports English language content only. Classic Enterprise/Developer Edition indexes cannot be upgraded in place — you create a new index. **Kendra is in Maintenance Mode — no new features will be added.**
 - **Custom Document Enrichment, Experience Builder (no-code search app), analytics dashboard, and query autocomplete.** ([Features](https://aws.amazon.com/kendra/features/))
 
 ---
@@ -68,8 +70,8 @@ flowchart LR
 
 | Scenario | Pick | Why (and not the others) |
 |---|---|---|
-| Natural-language **enterprise search** over messy internal docs, with connectors and ACL filtering | **Amazon Kendra** | Purpose-built ML search that understands questions and returns answers/passages, permissions-aware, minimal tuning. |
-| A **retriever** to ground an LLM (RAG) using existing enterprise content | **Kendra** (Retrieve API / **GenAI Index**) | Delivers ACL-aware, LLM-ready passages; plugs into Bedrock. |
+| Natural-language **enterprise search** over messy internal docs, with connectors and ACL filtering | **Amazon Kendra** (existing customers) / **Bedrock Managed Knowledge Base** (new projects) | Kendra is in Maintenance Mode (no new customers as of July 2026); BMKB is the recommended path for new builds. |
+| A **retriever** to ground an LLM (RAG) using existing enterprise content | **Bedrock Managed Knowledge Base** (new) / **Kendra Retrieve API / GenAI Index** (existing) | BMKB delivers native RAG with RetrieveAndGenerate API and managed vector store. Kendra is legacy for existing deployments only. |
 | You need a **general-purpose search/analytics/vector engine** you fully control (log search, custom scoring, your own embeddings, k-NN) | **Amazon OpenSearch Service** | More flexible and lower-level; you build ranking, embeddings, and relevance yourself. Kendra is managed and opinionated. |
 | A **finished conversational assistant** over enterprise data (chat UI, generation, actions, connectors) with no pipeline to build | **Amazon Q Business** | Full RAG assistant that *can use Kendra as its retriever*; Kendra alone is search/retrieval, not a chat+generation app. |
 | Store and query your **own vector embeddings** at scale | **OpenSearch (k-NN)**, Aurora/RDS pgvector, or a Bedrock Knowledge Base | Kendra abstracts embeddings away; choose a vector DB when you want direct control of vectors. |
@@ -81,6 +83,8 @@ flowchart LR
 **Kendra vs OpenSearch (the classic exam contrast):** **Kendra = managed, ML "just-works" question-answering search** with pre-built connectors and semantic ranking out of the box. **OpenSearch = a flexible, general-purpose search/analytics engine** (also does vector k-NN) where *you* own the relevance logic and embeddings. Choose Kendra for fast, accurate NL search over documents with least effort; choose OpenSearch for custom search/analytics/logging or when you need full control.
 
 **Kendra vs Q Business:** Kendra *finds* content (search/retrieval). Q Business *converses and generates* grounded, cited answers and can perform actions — and can use Kendra underneath as its retriever.
+
+**Kendra vs Bedrock Managed Knowledge Base (the new primary contrast for exam):** Kendra (Maintenance Mode, no new customers) was a managed ML search index with 32+ connectors and ACL-aware retrieval. Bedrock Managed Knowledge Base (BMKB) is AWS's current recommendation — fully managed RAG pipeline, RetrieveAndGenerate API, agentic retrieval, selectable embedding models, managed vector store. BMKB has only 7 native connectors (vs Kendra's 32+) but provides native generation, while Kendra required an external LLM. **For exam: new RAG/search projects → BMKB; existing Kendra → maintain in place.**
 
 ---
 
@@ -107,8 +111,9 @@ Key takeaway for the exam: **Kendra bills largely on provisioned index capacity 
 ## 🎯 On the exam
 
 **Reflexes — "if you see X, pick Y":**
-- "**Natural-language search** over enterprise documents / connectors / least effort" → **Amazon Kendra**.
-- "**Retriever for RAG** / ground an LLM with enterprise content / ACL-aware passages" → **Kendra Retrieve API** (or **GenAI Index** for Bedrock Knowledge Bases).
+- "**Natural-language search** over enterprise documents / connectors / least effort" → **Amazon Kendra** (existing; for new projects: **Bedrock Managed Knowledge Base**).
+- "**Retriever for RAG** / ground an LLM with enterprise content / ACL-aware passages" → **Bedrock Managed Knowledge Base** (new); **Kendra Retrieve API / GenAI Index** (existing).
+- "Kendra is in **Maintenance Mode** / **no longer open to new customers**" → Migrate to or build new on **Bedrock Managed Knowledge Base**.
 - "Boost recent docs / a trusted source / add synonyms" → **relevance tuning**.
 - "Results must respect who can see what" → **user-context / ACL filtering**.
 - "General search/analytics, **log analytics**, custom vector k-NN, our own relevance" → **Amazon OpenSearch Service**, not Kendra.
@@ -117,9 +122,10 @@ Key takeaway for the exam: **Kendra bills largely on provisioned index capacity 
 **Traps:**
 - **Kendra is search/retrieval, not a chatbot.** It returns answers/passages; it doesn't *generate* conversational responses on its own — pair it with an LLM (Bedrock) for that, or use Q Business.
 - **Kendra vs OpenSearch:** managed ML QA-search (Kendra) vs flexible general engine you tune yourself (OpenSearch). Don't pick OpenSearch when the scenario stresses "natural-language answers with minimal ML effort."
+- **Kendra is in Maintenance Mode (June 2026) and closed to new customers (July 2026).** For new RAG/search applications, AWS recommends **Amazon Bedrock Managed Knowledge Base**. Exam questions framing a "new project" scenario should point to BMKB, not Kendra.
 - **Capacity-based billing:** you pay for provisioned index units by the hour even when idle — relevant to cost-optimization questions.
 - **Incremental learning ≠ retraining a model** — it's continuous re-ranking from user feedback/clicks, no ML work by you.
-- **GenAI Index** is the RAG-optimized option and integrates with **Bedrock Knowledge Bases** — remember it exists for "highest-accuracy RAG retriever" scenarios.
+- **GenAI Index** is the RAG-optimized Kendra option (existing customers) — limited to us-east-1 and us-west-2, English-only, introduced Dec 2024; integrates with **Bedrock Knowledge Bases** as a managed retriever.
 
 ---
 

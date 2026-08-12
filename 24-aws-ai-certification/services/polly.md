@@ -38,10 +38,10 @@ flowchart LR
 > **Nuances & gotchas:** Not every voice is available on every engine — a voice you tested on Neural may not exist on Generative. Long-form is 6× more expensive than Neural per character. SSML tags are NOT billed (only the spoken text characters count). Generative engine is NOT available in all AWS regions.
 
 **Voice engines** (quality/cost tiers)
-- **Standard** — original concatenative TTS; cheapest, more "synthetic." `$4 / 1M chars`.
-- **Neural (NTTS)** — deep-learning voices; noticeably more natural. `$16 / 1M chars`.
-- **Long-form** — optimized for **longer content** (articles, training, audiobooks); expressive and engaging over long passages. `$100 / 1M chars`.
-- **Generative** — the most **human-like, emotionally engaged, conversational** voices (great for assistants and agents). `$30 / 1M chars`.
+- **Standard** — original concatenative TTS; cheapest, more "synthetic." `$4 / 1M chars`. **Why it sounds robotic:** Standard stitches together pre-recorded phoneme segments (concatenative synthesis), so transitions between sounds can be audibly mechanical — the human voice was recorded in isolation, not in flowing speech context.
+- **Neural (NTTS)** — deep-learning voices; noticeably more natural. `$16 / 1M chars`. **Why it sounds better:** Neural TTS generates speech as a continuous waveform using a deep neural network trained on real speech, producing natural prosody, stress, and intonation rather than stitched segments.
+- **Long-form** — optimized for **longer content** (articles, training, audiobooks); expressive and engaging over long passages. `$100 / 1M chars`. **Why a separate engine:** Reading a multi-minute article requires maintaining consistent energy, varying expressiveness to avoid monotony, and adapting rhythm — Long-form is trained specifically on longer spoken content, whereas Neural can sound flat over extended passages.
+- **Generative** — the most **human-like, emotionally engaged, conversational** voices (great for assistants and agents). `$30 / 1M chars`. **Why it's conversational:** Generative TTS is a billion-parameter transformer model that generates speech tokens end-to-end (like a language model generates text), enabling emergent emotional tone and natural colloquial delivery — not achievable with concatenative or standard neural approaches. **Does NOT support speech marks (including visemes).**
 - *Not every voice exists on every engine* — Neural/Generative offer a curated set of higher-quality voices.
 
 > **Why (the rationale):** SSML and lexicons let you control exactly how Polly speaks — pronunciation, pauses, emphasis, and phonetic spelling — without switching engine or modifying the source text globally.
@@ -57,7 +57,7 @@ flowchart LR
 > **Nuances & gotchas:** Speech Marks requests are billed the same rate as speech synthesis (per character). You can request Speech Marks alongside audio or instead of audio. Viseme marks are supported on Standard, Neural, and Long-form engines; they are NOT available on the Generative engine.
 
 **Timing metadata**
-- **Speech Marks** — instead of (or alongside) audio, Polly returns JSON metadata with timing: **word**, **sentence**, **SSML**, and **viseme** marks. Used for **highlighting text as it's spoken** and **lip-syncing** avatars/characters (visemes = mouth shapes per phoneme).
+- **Speech Marks** — instead of (or alongside) audio, Polly returns JSON metadata with timing: **word**, **sentence**, **SSML**, and **viseme** marks. Used for **highlighting text as it's spoken** and **lip-syncing** avatars/characters (visemes = mouth shapes per phoneme). **Why visemes exist:** Lip-sync animation requires knowing *which mouth shape* (viseme) to display at *which millisecond* in the audio — speech marks provide this alignment data so your app doesn't have to build its own phoneme-to-time alignment. **Supported on Standard, Neural, and Long-form engines only; NOT available on the Generative engine.** Why not Generative: the Generative engine's billion-parameter transformer generates speech tokens in an autoregressive, streaming manner — it doesn't produce deterministic phoneme-level timing metadata that maps neatly to visemes the way the Standard/Neural/Long-form models do.
 
 > **Why (the rationale):** Real-time SynthesizeSpeech is for interactive low-latency use; async StartSpeechSynthesisTask is for long documents that exceed the per-request character limit, writing output to S3 in the background.
 > **When to use:** SynthesizeSpeech → live IVR prompts, chatbot responses, short dynamic text. StartSpeechSynthesisTask → articles, training content, audiobooks where text exceeds 6,000 characters.
@@ -108,8 +108,8 @@ Billed **per character** of input text (per 1 million characters), by **engine**
 | Generative | $30.00 / 1M chars | 100,000 |
 | Long-form | $100.00 / 1M chars | 500,000 |
 
-- **Speech Marks requests are billed the same as speech** requests (per character).
-- Real-time `SynthesizeSpeech`: 3,000 billable chars/request; async `StartSpeechSynthesisTask`: up to 100,000 billable chars.
+- **Speech Marks requests are billed the same as speech** requests (per character). **Why:** Generating speech marks requires the same synthesis computation as generating audio — Polly must process the text through the TTS model to compute timing; you're billed for the processing regardless of whether audio or metadata is returned.
+- Real-time `SynthesizeSpeech`: 3,000 billable chars/request (6,000 total); async `StartSpeechSynthesisTask`: up to 100,000 billable chars (200,000 total). **SSML tags are not billed** — only the spoken (non-markup) characters count. **Why:** SSML tags are control instructions to the engine (like "pause here" or "emphasize this"), not spoken content — billing only the characters that are actually voiced reflects the real synthesis workload.
 - **Standard free tier is 5M chars/month**; Neural/Generative/Long-form free tiers apply for the **first 12 months**.
 
 *Confirm current per-region rates — see References.*

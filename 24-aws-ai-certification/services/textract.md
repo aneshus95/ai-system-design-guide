@@ -54,9 +54,9 @@ flowchart LR
 **AnalyzeDocument** — the structured-analysis API; you request one or more feature types:
 - **FORMS** — extracts **key-value pairs** (e.g., `Name → Jane Doe`), so you don't have to guess which text is a label vs. a value. ([Forms](https://docs.aws.amazon.com/textract/latest/dg/how-it-works-kvp.html))
 - **TABLES** — reconstructs **tables** with rows, columns, and cell relationships. ([Tables](https://docs.aws.amazon.com/textract/latest/dg/how-it-works-tables.html))
-- **QUERIES** — ask **natural-language questions** ("What is the customer's account number?") and get the answer, no template needed. **Custom Queries** can be tuned for your document types. ([Queries](https://docs.aws.amazon.com/textract/latest/dg/queryresponse.html))
+- **QUERIES** — ask **natural-language questions** ("What is the customer's account number?") and get the answer, no template needed. **Custom Queries** can be tuned for your document types. ([Queries](https://docs.aws.amazon.com/textract/latest/dg/queryresponse.html)) **Why:** FORMS extraction works well for consistent layouts but breaks when the same field appears in different positions across document variants. QUERIES sidestep layout sensitivity — you describe *what* you want in plain English and Textract finds it regardless of where it appears on the page.
 - **SIGNATURES** — detects the presence and location of signatures.
-- **LAYOUT** — identifies layout elements (titles, headers, paragraphs, lists) and preserves reading order — useful for feeding clean text into an LLM/RAG pipeline.
+- **LAYOUT** — identifies layout elements (titles, headers, paragraphs, lists) and preserves reading order — useful for feeding clean text into an LLM/RAG pipeline. **Why:** When a multi-column PDF is OCR'd naively, words from adjacent columns get interleaved into nonsense sentences. LAYOUT reconstructs the true reading order so the text fed to a downstream LLM or search index makes sense.
 
 > **Why (the rationale):** Generic FORMS extraction doesn't understand that "Total" on a receipt is different from "Total" on a contract. AnalyzeExpense is trained specifically on financial documents and returns normalized, semantically-meaningful fields.
 > **When to use:** "Process invoices, receipts, or expense reports," extract vendor name, total, tax, line items.
@@ -82,10 +82,10 @@ flowchart LR
 
 **Sync vs. async**
 - **Synchronous** APIs (`DetectDocumentText`, `AnalyzeDocument`, `AnalyzeExpense`, `AnalyzeID`) process a **single-page image or a small document** and return results immediately. ([Sync](https://docs.aws.amazon.com/textract/latest/dg/sync.html))
-- **Asynchronous** APIs (`StartDocumentTextDetection`, `StartDocumentAnalysis`, `StartExpenseAnalysis`, `StartLendingAnalysis`) handle **multi-page PDFs/TIFFs** stored in S3; you `Start…`, get a **JobId**, are notified via **SNS** on completion, then `Get…` the paginated results. ([Async](https://docs.aws.amazon.com/textract/latest/dg/async.html))
+- **Asynchronous** APIs (`StartDocumentTextDetection`, `StartDocumentAnalysis`, `StartExpenseAnalysis`, `StartLendingAnalysis`) handle **multi-page PDFs/TIFFs** stored in S3; you `Start…`, get a **JobId**, are notified via **SNS** on completion, then `Get…` the paginated results. ([Async](https://docs.aws.amazon.com/textract/latest/dg/async.html)) **Why:** A 100-page PDF may take tens of seconds to process — holding an HTTP connection open that long is impractical. The async pattern decouples submission (fast `Start…` returns immediately) from retrieval (`Get…` once SNS signals completion), which is why multi-page documents must always use the async path.
 
 **Integrations you should know**
-- **Amazon A2I (Augmented AI)** — route **low-confidence** extractions to **human reviewers** by setting confidence thresholds on key fields. Textract has a **built-in A2I integration** for exactly this human-in-the-loop review. ([A2I + Textract](https://docs.aws.amazon.com/textract/latest/dg/a2i-textract.html))
+- **Amazon A2I (Augmented AI)** — route **low-confidence** extractions to **human reviewers** by setting confidence thresholds on key fields. Textract has a **built-in A2I integration** for exactly this human-in-the-loop review. ([A2I + Textract](https://docs.aws.amazon.com/textract/latest/dg/a2i-textract.html)) **Why:** No OCR model is 100% accurate on degraded, handwritten, or unusual-format documents. Rather than silently accepting a wrong extraction, A2I lets you set a confidence floor (e.g., flag any field below 90%) so a human only reviews the uncertain cases — keeping automation high while avoiding costly downstream errors.
 - **Amazon Comprehend** — feed Textract's extracted text **downstream into Comprehend** for NLP: entity recognition, PII redaction, sentiment, custom classification. Textract reads the document; Comprehend *understands* the language. ([Comprehend](https://docs.aws.amazon.com/comprehend/latest/dg/what-is.html))
 
 ---
@@ -115,17 +115,17 @@ Pay-per-page, no minimums; each **feature is billed separately and additively** 
 
 | API / feature | Unit | Price (first tier) |
 |---|---|---|
-| Detect Document Text (OCR) | per 1,000 pages | $1.50 (→ $0.60 beyond 1M) |
-| AnalyzeDocument – **Forms** | per 1,000 pages | $50.00 |
-| AnalyzeDocument – **Tables** | per 1,000 pages | $15.00 (→ $10.00) |
-| AnalyzeDocument – **Queries** | per 1,000 pages | $15.00 |
-| AnalyzeDocument – **Custom Queries** | per 1,000 pages | $25.00 (→ $15.00) |
-| AnalyzeDocument – **Signatures** | per 1,000 pages | $3.50 (→ $1.40) |
-| **AnalyzeExpense** | per 1,000 pages | $10.00 (→ $8.00) |
-| **AnalyzeID** | per 1,000 pages | $25.00 (→ $10.00) |
-| **AnalyzeLending** | per 1,000 pages | $70.00 (→ $55.00) |
+| Detect Document Text (OCR) | per 1,000 pages | $1.50 (→ $0.60 beyond 1M pages) |
+| AnalyzeDocument – **Forms** | per 1,000 pages | $50.00 (→ $40.00 beyond 1M pages) |
+| AnalyzeDocument – **Tables** | per 1,000 pages | $15.00 (→ $10.00 beyond 1M pages) |
+| AnalyzeDocument – **Queries** | per 1,000 pages | $15.00 (→ $10.00 beyond 1M pages) |
+| AnalyzeDocument – **Custom Queries** | per 1,000 pages | $25.00 (→ $15.00 beyond 1M pages) |
+| AnalyzeDocument – **Signatures** | per 1,000 pages | $3.50 (→ $1.40 beyond 1M pages) |
+| **AnalyzeExpense** | per 1,000 pages | $10.00 (→ $8.00 beyond 1M pages) |
+| **AnalyzeID** | per 1,000 pages | $25.00 (→ $10.00 beyond 100K pages) |
+| **AnalyzeLending** | per 1,000 pages | $70.00 (→ $55.00 beyond 1M pages) |
 
-**Free tier (3 months, new accounts):** Detect Document Text 1,000 pages/mo; Analyze Document (Forms/Tables) 100 pages/mo; AnalyzeExpense 100; AnalyzeID 100; AnalyzeLending 2,000.
+**Free tier (3 months, new accounts):** Detect Document Text 1,000 pages/mo; Analyze Document (Forms/Tables) 100 pages/mo; AnalyzeExpense 100 pages/mo; AnalyzeID 100 pages/mo; AnalyzeLending 2,000 pages/mo. *Always verify current free tier limits on the [Textract pricing page](https://aws.amazon.com/textract/pricing/).*
 
 **Cost reflexes:**
 - **Features stack.** Requesting FORMS **and** TABLES on the same page bills for **both** — it's additive, not a max. Only request the features you need.

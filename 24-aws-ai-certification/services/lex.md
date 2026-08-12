@@ -1,6 +1,6 @@
 # Amazon Lex
 
-**Amazon Lex is a fully managed AWS service for building conversational interfaces (chatbots, voice bots, and IVR systems) into any application using voice and text — powered by the same deep-learning technology that runs Amazon Alexa.** ([What is Amazon Lex V2](https://docs.aws.amazon.com/lexv2/latest/dg/what-is.html))
+**Amazon Lex is a fully managed AWS service for building conversational interfaces (chatbots, voice bots, and IVR systems) into any application using voice and text — powered by the same deep-learning technology that runs Amazon Alexa.** ([What is Amazon Lex V2](https://docs.aws.amazon.com/lexv2/latest/dg/what-is.html)) **Why this matters:** Alexa is one of the most widely deployed voice assistants in the world, trained on massive volumes of real speech data. Using the same ASR and NLU technology means Lex inherits proven, production-grade models for speech recognition accuracy and language understanding — you don't have to build or fine-tune these models yourself.
 
 > **Exam scope:** Lex appears on both **AIF-C01** (as an AWS AI/ML service you should recognize) and **MLA-C01** (as a managed conversational-AI building block). You need to know *what it does*, its core building blocks (**intents, utterances, slots, fulfillment**), and *when to pick it over Amazon Q or Bedrock Agents*.
 
@@ -52,7 +52,7 @@ flowchart TD
 > **When to use:** Building any task bot where users must supply structured information before an action can be taken. Multi-turn dialog with re-prompting for missing slots, voice *and* text from one definition, multi-language via locales.
 > **Nuances & gotchas:** The ML model for NLU generalizes from your sample utterances but needs at least a few varied examples per intent — the fewer utterances, the more mistakes the NLU makes. Lex does NOT understand documents or free text; it maps utterances to the intents you defined. Every slot must have a defined slot type (built-in or custom).
 
-Amazon Lex V2 gives you a fully managed pipeline of ASR + NLU + dialog management. Core building blocks:
+Amazon Lex V2 gives you a fully managed pipeline of ASR + NLU + dialog management. **Why intents + slots instead of a free-form LLM?** Intents and slots give you a *structured, deterministic* conversation model: the bot only accepts goals you explicitly defined, validates inputs against typed slot types, and triggers exact Lambda business logic when all required information is collected. A general LLM chatbot is flexible but unpredictable — it may answer out of scope, invent information, or skip required data. For transactional tasks (book a flight, check an account balance, route a call) where you need guaranteed data collection and auditable control flow, the intent/slot model is more reliable and compliant than open-ended generation. Core building blocks:
 
 | Building block | What it is | Example |
 |---|---|---|
@@ -63,14 +63,14 @@ Amazon Lex V2 gives you a fully managed pipeline of ASR + NLU + dialog managemen
 | **Slot type** | Defines the set of valid values for a slot. **Built-in** (e.g. `AMAZON.Date`, `AMAZON.Number`, `AMAZON.City`) or **custom** (a list of values you supply, with optional synonyms). | Custom `RoomType` = {suite, standard, deluxe} |
 | **Prompts & responses** | The questions Lex asks to elicit slots, plus confirmation and closing messages. | "What city are you traveling to?" |
 | **Code hooks** | Optional **Lambda** functions. A **dialog code hook** runs during the conversation to validate input / set slots dynamically; a **fulfillment code hook** runs when the intent is complete to *do the work*. | Validate date is in the future; call booking API |
-| **Session & context** | Lex maintains **session state** and **session attributes** across turns, and supports **context tags** to control which intents are eligible next. | Carry `userId` across turns |
+| **Session & context** | Lex maintains **session state** and **session attributes** across turns, and supports **context tags** to control which intents are eligible next. **Why:** Multi-turn conversation requires remembering what was said in previous turns (e.g., "the city you mentioned earlier") — Lex manages this server-side so your Lambda and client code don't have to maintain a conversation history manually. | Carry `userId` across turns |
 
 ([Intent structure](https://docs.aws.amazon.com/lexv2/latest/dg/intent-structure.html) · [Built-in & custom slot types](https://docs.aws.amazon.com/lexv2/latest/dg/howitworks-builtins-slots.html) · [Lambda code hooks](https://docs.aws.amazon.com/lexv2/latest/dg/lambda.html))
 
 **Key capabilities to remember:**
 
 - **Voice *and* text** from one bot definition — a single bot serves web chat, SMS, and phone/IVR.
-- **Multi-turn dialog management** — Lex automatically re-prompts for missing slots, confirms, and handles clarification.
+- **Multi-turn dialog management** — Lex automatically re-prompts for missing slots, confirms, and handles clarification. **Why:** Users rarely provide all required information in one utterance ("book me a hotel" gives no city, date, or duration). Rather than requiring your code to track which slots are still needed and what prompt to ask next, Lex's dialog engine handles the elicitation loop automatically — reducing the bot-building code to business logic, not conversation orchestration.
 - **Multi-language** via locales in one bot.
 - **Generative AI features** (Lex V2) that use **Amazon Bedrock** foundation models to speed up bot building and improve understanding: **Assisted slot resolution**, **descriptive bot builder** (generate a bot from a description), **utterance generation**, and a **QnA intent** (`AMAZON.QnAIntent`) that answers questions from a Bedrock knowledge base instead of a scripted flow. ([Generative AI features for Lex V2](https://docs.aws.amazon.com/lexv2/latest/dg/generative-features.html))
 - **`AMAZON.BedrockAgentIntent`** — hands a turn to a **Bedrock Agent** for multi-step, tool-using GenAI task completion. ([Bedrock agent intent](https://docs.aws.amazon.com/lexv2/latest/dg/generative-features.html))
@@ -133,7 +133,7 @@ Amazon Lex V2 uses **pay-per-request** with **no upfront cost and no minimums**.
 
 **Free Tier:** for the first 12 months, **10,000 text** and **5,000 speech** requests per month.
 
-> Speech costs more than text because it includes ASR/TTS processing. You also pay separately for any **Lambda**, **Polly**, **Connect**, or **Bedrock** usage the bot invokes. Always confirm current numbers on the [official pricing page](https://aws.amazon.com/lex/pricing/) — exam questions test the *model* (per-request, voice > text), not the exact cents.
+> **Why speech costs ~5× more than text:** Speech requests include Automatic Speech Recognition (ASR) processing — the audio must be decoded by a deep neural network before NLU can even begin. Text requests skip the ASR step entirely, going straight to NLU. The higher speech price reflects the additional compute. You also pay separately for any **Lambda**, **Polly**, **Connect**, or **Bedrock** usage the bot invokes. Always confirm current numbers on the [official pricing page](https://aws.amazon.com/lex/pricing/) — exam questions test the *model* (per-request, voice > text), not the exact cents.
 
 ---
 

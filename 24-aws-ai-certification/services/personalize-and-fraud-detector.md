@@ -52,7 +52,7 @@ flowchart LR
 
 | Dataset | Holds | Notes |
 |---|---|---|
-| **Interactions** | User–item events (view, click, purchase, watch). | **Required and most influential.** Behavioral signal. |
+| **Interactions** | User–item events (view, click, purchase, watch). | **Required and most influential.** Behavioral signal. Minimum **1,000 unique interactions** needed to train most recipes (e.g., User-Personalization, SIMS). **Why:** collaborative filtering learns "users like you also liked X" from co-occurrence patterns — below ~1,000 interactions there's insufficient signal to generalize. |
 | **Users** | User metadata (age, gender, tier, location). | Optional; improves personalization. |
 | **Items** | Item metadata (category, price, genre, description). | Optional; key for **cold-start** on new items. |
 
@@ -132,11 +132,11 @@ Pay-per-use, no minimums. Dimensions (v2 "Enhanced custom" recipes shown; **veri
 
 **Amazon Fraud Detector is a fully managed service that uses machine learning — built on 20+ years of Amazon fraud-detection experience — to identify potentially fraudulent online activities such as payment fraud, account takeover, and fake account creation, with no ML expertise required.** ([What is Amazon Fraud Detector](https://docs.aws.amazon.com/frauddetector/latest/ug/what-is-frauddetector.html))
 
-> ⚠️ **Important (2025+):** **Amazon Fraud Detector is closed to new customers.** For new builds AWS points to **Amazon SageMaker AI**, **AutoGluon**, and **AWS WAF**. It still appears on exams, so know the concepts and the trigger phrase. ([Fraud Detector pricing / status](https://aws.amazon.com/fraud-detector/pricing/))
+> ⚠️ **Important:** **Amazon Fraud Detector stopped accepting new customers on November 7, 2025.** Existing customers continue to have access. For new fraud-detection builds AWS points to **Amazon SageMaker AI**, **AutoGluon**, and **AWS WAF**. It still appears on exams, so know the concepts and the trigger phrase. ([Fraud Detector availability change](https://docs.aws.amazon.com/frauddetector/latest/ug/frauddetector-availability-change.html))
 
 > **Why (the rationale):** Fraud Detector gives you ML-based fraud risk scoring (backed by Amazon's own 20+ years of fraud-detection experience) without building a custom classifier. You supply labeled historical events, Fraud Detector trains a private model, and you get a 0–1000 risk score + rule-driven outcomes at inference time.
 > **When to use:** Online fraud scenarios: payment/card-not-present fraud, new-account fake registrations, account takeover. Signal: "detect fraud," "score risk per transaction/sign-up," "no ML expertise," "approve/review/deny outcomes."
-> **Nuances & gotchas:** Fraud Detector is CLOSED to new customers (as of 2025+) — for new builds AWS directs to SageMaker AI or AutoGluon. It still appears on exams so know the concepts. Fraud Detector scores BUSINESS EVENTS (not web/HTTP requests); for blocking bots/DDoS use AWS WAF. Score direction: 0 = least risky, 1000 = most risky (higher = more fraud). ML-model predictions cost ~6× more than rules-only predictions.
+> **Nuances & gotchas:** Fraud Detector is CLOSED to new customers (as of **November 7, 2025**) — for new builds AWS directs to SageMaker AI or AutoGluon. Existing customers may continue using it. It still appears on exams so know the concepts. Fraud Detector scores BUSINESS EVENTS (not web/HTTP requests); for blocking bots/DDoS use AWS WAF. Score direction: 0 = least risky, 1000 = most risky (higher = more fraud). **Why the score runs to 1000 (not 1.0):** the integer scale gives rules authors intuitive threshold values (e.g., `score > 900 → deny`) that correspond to documented false-positive rates (score 900 ≈ 2% FPR, score 600 ≈ 10% FPR). ML-model predictions cost substantially more than rules-only predictions.
 
 ## 🧠 Mental model
 
@@ -183,14 +183,14 @@ flowchart TD
 
 | If you need… | Pick | Why |
 |---|---|---|
-| **Detect online fraud** (payments, sign-ups, ATO) with **little ML expertise** | **Amazon Fraud Detector** *(existing customers)* | Turnkey ML + rules + Amazon fraud intelligence; **no model building** |
-| A **new** fraud build (Fraud Detector is closed to new customers) | **Amazon SageMaker AI** / **AutoGluon** | Build/host a custom fraud classifier yourself |
+| **Detect online fraud** (payments, sign-ups, ATO) with **little ML expertise** | **Amazon Fraud Detector** *(existing customers only — closed to new customers Nov 7 2025)* | Turnkey ML + rules + Amazon fraud intelligence; **no model building** |
+| A **new** fraud build (Fraud Detector closed to new customers Nov 7 2025) | **Amazon SageMaker AI** / **AutoGluon** | Build/host a custom fraud classifier yourself |
 | Block **web/bot/DDoS** and application-layer attacks at the edge | **AWS WAF** (+ Bot Control / Fraud Control) | Network/request-layer protection, not transaction risk scoring |
 | **General anomaly detection** on metrics/streams | **SageMaker Random Cut Forest** / CloudWatch anomaly detection | Not fraud-specific labeled events |
 
 ## Pricing model
 
-Pay-per-use, no minimums (verify — service is closed to new customers): ([Amazon Fraud Detector pricing](https://aws.amazon.com/fraud-detector/pricing/))
+Pay-per-use, no minimums (service closed to new customers as of **November 7, 2025**; existing customers still billed at these rates — verify current): ([Amazon Fraud Detector pricing](https://aws.amazon.com/fraud-detector/pricing/))
 
 | Dimension | Price (verify) |
 |---|---|
@@ -212,7 +212,7 @@ Pay-per-use, no minimums (verify — service is closed to new customers): ([Amaz
 - "Uses **Amazon's own fraud experience**" → Fraud Detector.
 
 **Traps:**
-- **Fraud Detector vs SageMaker:** if the scenario stresses **no ML expertise / managed**, it's Fraud Detector; if it stresses **custom model / full control**, it's SageMaker. (Also recall: new builds must use SageMaker/AutoGluon since Fraud Detector is closed to new customers.)
+- **Fraud Detector vs SageMaker:** if the scenario stresses **no ML expertise / managed**, it's Fraud Detector; if it stresses **custom model / full control**, it's SageMaker. (Also recall: Fraud Detector closed to new customers **November 7, 2025** — new builds must use SageMaker/AutoGluon.)
 - **Fraud Detector vs AWS WAF:** WAF blocks **web/bot/DDoS traffic** at the request layer; Fraud Detector scores **business events** (transactions, sign-ups) for fraud risk. "Block bad HTTP requests / bots" → WAF, not Fraud Detector.
 - **Fraud Detector vs GuardDuty / Macie:** those protect **AWS account/data security**, not customer transaction fraud.
 - Score direction: **0 = least risky, 1000 = most risky** (higher = more fraud).
@@ -278,6 +278,7 @@ Pay-per-use, no minimums (verify — service is closed to new customers): ([Amaz
 
 **Amazon Fraud Detector**
 - [What is Amazon Fraud Detector?](https://docs.aws.amazon.com/frauddetector/latest/ug/what-is-frauddetector.html)
+- [Amazon Fraud Detector availability change (closed to new customers Nov 7 2025)](https://docs.aws.amazon.com/frauddetector/latest/ug/frauddetector-availability-change.html)
 - [Core concepts and terms](https://docs.aws.amazon.com/frauddetector/latest/ug/frauddetector-ml-concepts.html)
 - [Model scores (insight scores)](https://docs.aws.amazon.com/frauddetector/latest/ug/model-scores.html)
 - [Amazon Fraud Detector features](https://aws.amazon.com/fraud-detector/features/)

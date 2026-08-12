@@ -22,7 +22,7 @@
 - [Apache Kafka / Amazon MSK](#msk)
 - [Amazon Redshift (+ Redshift ML)](#redshift)
 - [Amazon OpenSearch Service](#opensearch)
-- [Amazon QuickSight (+ Amazon Q / QuickSight Q)](#quicksight)
+- [Amazon Quick Suite (formerly QuickSight) (+ Amazon Q in Quick Suite)](#quicksight)
 - [AWS Data Exchange](#data-exchange)
 - [Data formats for ML: Parquet / ORC / CSV / JSON / Avro / RecordIO](#formats)
 - [Decision cheat table](#cheat)
@@ -71,7 +71,7 @@ flowchart LR
     end
     subgraph SERVE["6 Serve to ML / BI"]
         SM["SageMaker (train / RAG)"]
-        QS["QuickSight (BI + Q)"]
+        QS["Amazon Quick Suite (BI + Q)"]
     end
 
     KDS --> FH
@@ -106,7 +106,7 @@ flowchart LR
 | **3 Catalog** | What *is* this data, and who can see it? | Glue Data Catalog + crawlers, Lake Formation |
 | **4 Transform** | How do we clean/reshape it? | Glue, EMR, DataBrew, Flink, Glue Data Quality |
 | **5 Query** | How do we ask questions of it? | Athena, Redshift Spectrum |
-| **6 Serve** | How does ML / a human consume it? | SageMaker, QuickSight |
+| **6 Serve** | How does ML / a human consume it? | SageMaker, Amazon Quick Suite (formerly QuickSight) |
 
 ---
 
@@ -132,6 +132,8 @@ flowchart LR
 
 **When to use vs alternatives:** Use **S3** as the lake; use **Redshift** when you need a SQL data warehouse with joins/BI at scale; use **FSx for Lustre / Amazon EFS** when a training job needs a POSIX file system with very high throughput (FSx for Lustre is commonly linked to S3 for large-scale distributed training).
 
+**S3 gateway VPC endpoint:** When ML training jobs or ETL workloads run inside a VPC (e.g., SageMaker, Glue, EMR), traffic to S3 would normally leave the VPC and traverse the public internet, incurring data-transfer costs and latency. A **VPC gateway endpoint for S3** routes that traffic privately within the AWS network at no extra charge. **Why it matters for ML:** large training-data reads from S3 inside a SageMaker VPC go through the gateway endpoint, eliminating NAT gateway costs (which can be significant at hundreds of GB/run) and keeping data off the public internet for security compliance.
+
 🎯 **On the exam:** "Data lake foundation" = S3. **Express One Zone** = fastest access for ML training / latency-sensitive. **Intelligent-Tiering** = unknown/changing access patterns with no retrieval fees. Pair S3 with a Glue crawler + Athena to get "serverless SQL over your lake."
 
 ---
@@ -146,7 +148,7 @@ flowchart LR
 
 **What it does:**
 - **Data Catalog** — a persistent metadata store (databases → tables → columns/partitions). It is the AWS-wide "single source of truth" for what your data looks like. Acts as a Hive-compatible metastore.
-- **Crawlers** — automatically scan S3 (and JDBC sources), infer schema and partitions, and populate the Data Catalog. Run on schedule or on demand.
+- **Crawlers** — automatically scan S3 (and JDBC sources), infer schema and partitions, and populate the Data Catalog. Run on schedule or on demand. **Why crawlers exist:** S3 is schema-less object storage — Athena and Redshift Spectrum can't query a file until they know its columns, types, and partitions. Without crawlers you'd write DDL statements manually for every new dataset or partition. Crawlers automate schema discovery so new data landing in S3 is immediately queryable without manual intervention.
 - **ETL jobs** — serverless Spark jobs authored visually (Glue Studio), in code (PySpark/Scala), or interactively (notebooks). Supports **batch and streaming** ETL (Spark Structured Streaming).
 - **Glue DataBrew** and **Glue Data Quality** are sub-features (own sections below).
 
@@ -195,11 +197,11 @@ flowchart LR
 
 ## AWS Lake Formation <a name="lake-formation"></a>
 
-> **Why (the rationale):** Plain S3 bucket policies and IAM only give you object-level access control. Lake Formation adds column-, row-, and cell-level security on top of your Glue Data Catalog, enforced consistently across Athena, Redshift Spectrum, EMR, Glue, and QuickSight — without custom per-service IAM policies.
+> **Why (the rationale):** Plain S3 bucket policies and IAM only give you object-level access control. Lake Formation adds column-, row-, and cell-level security on top of your Glue Data Catalog, enforced consistently across Athena, Redshift Spectrum, EMR, Glue, and Quick Suite (formerly QuickSight) — without custom per-service IAM policies.
 > **When to use:** "Fine-grained (column/row/cell) access control on a data lake," "centrally govern who can query which columns," "cross-account data sharing," "LF-Tag-based permissions at scale," or "PII column must not be visible to certain users."
 > **Nuances & gotchas:** Lake Formation **augments IAM — it does not replace it**. Both IAM and Lake Formation permissions must allow an action for it to succeed. Lake Formation governs access to the **Glue Data Catalog** and registered S3 locations — it doesn't control access to raw S3 objects outside the catalog. If the scenario only needs object-level security, plain S3 bucket policies suffice; bring in Lake Formation only for column/row/cell-level control.
 
-🧠 **Mental model:** Lake Formation is the **governance and fine-grained permissions layer** on top of your S3 data lake + Glue Data Catalog. Instead of hand-crafting bucket policies and IAM, you grant **database / table / column / row / cell-level** access with a simple grant/revoke model (RDBMS-style), enforced consistently across Athena, Redshift Spectrum, EMR, Glue, and QuickSight.
+🧠 **Mental model:** Lake Formation is the **governance and fine-grained permissions layer** on top of your S3 data lake + Glue Data Catalog. Instead of hand-crafting bucket policies and IAM, you grant **database / table / column / row / cell-level** access with a simple grant/revoke model (RDBMS-style), enforced consistently across Athena, Redshift Spectrum, EMR, Glue, and Quick Suite (formerly QuickSight).
 
 **What it does:**
 - Centralizes lake permissions and augments (does not replace) IAM.
@@ -223,7 +225,7 @@ flowchart LR
 
 **What it does:** Run ANSI SQL over CSV, JSON, ORC, Avro, and Parquet in S3. Supports partitions, CTAS (create-table-as-select to write curated Parquet), federated queries (via connectors to RDS/DynamoDB/etc.), and Apache Iceberg tables. Great for ad-hoc exploration, log analytics, and building/curating ML training datasets without ETL infrastructure.
 
-**Cost/performance levers (heavily tested):** Convert to **columnar Parquet/ORC** + **compress** + **partition** the data → scans drop 85–99% and cost drops proportionally, because you pay per byte scanned. **Partition projection** avoids per-query Glue partition lookups for large predictable layouts.
+**Cost/performance levers (heavily tested):** Convert to **columnar Parquet/ORC** + **compress** + **partition** the data → scans drop 85–99% and cost drops proportionally, because you pay per byte scanned. **Why columnar Parquet slashes Athena cost:** Athena charges ~$5 per TB of data *scanned*. A typical analytics query touches 2–3 columns out of 50 in a table. With row-format CSV, reading any column means scanning *every* column in every row. With columnar Parquet, Athena reads only the blocks for the columns it actually needs — 2 columns out of 50 means roughly 4% of the data. Add compression (Parquet's run-length and dictionary encoding compress repeated values well) and partitioning (Athena skips entire S3 prefixes that don't match the WHERE clause), and a query that would cost $5 on CSV might cost under $0.10 on partitioned Parquet. **Partition projection** avoids per-query Glue partition lookups for large predictable layouts.
 
 **When to use vs alternatives:**
 - **Athena vs Redshift:** Athena = serverless, ad-hoc, pay-per-query, data stays in S3, no infra. Redshift = provisioned/serverless warehouse for frequent complex joins, dashboards, and high-concurrency BI where you want data loaded and indexed.
@@ -259,7 +261,7 @@ flowchart LR
 
 🧠 **Mental model:** Kinesis Data Streams (KDS) is a **durable, replayable real-time buffer** — a highway of **shards** that many consumers can read from independently, in order, with sub-second latency. It stores the stream so you can *replay* and fan out to multiple apps. You build/manage the consumers.
 
-**What it does:** Ingests high-volume streaming records (clickstream, IoT, logs, telemetry). Retention **24 hours by default, up to 365 days**. Records up to **10 MiB** (increased from 1 MiB in Oct 2025). Ordering per shard; multiple independent consumers via Enhanced Fan-Out. Capacity via **provisioned shards** or **on-demand** mode. Consumers: Lambda, KCL apps, Managed Flink, Firehose.
+**What it does:** Ingests high-volume streaming records (clickstream, IoT, logs, telemetry). Retention **24 hours by default, up to 365 days** — **Why replay/retention matters:** downstream consumers (Lambda, Flink, KCL apps) can fail and restart; a durable buffer lets them replay from their last checkpoint without losing data, unlike Firehose which discards data once delivered. Records up to **10 MiB** max (increased from 1 MiB on **October 28, 2025**; you must explicitly enable 10 MiB per stream — the default remains 1 MiB). **Why the default remains 1 MiB:** most event-streaming records (clickstream, IoT, logs) are well under 1 KB; maintaining the 1 MiB default guards against accidental over-sized writes that would saturate shard throughput for existing producers. Ordering per shard; multiple independent consumers via Enhanced Fan-Out. Capacity via **provisioned shards** or **on-demand** mode. Consumers: Lambda, KCL apps, Managed Flink, Firehose.
 
 **When to use vs alternatives:** Use KDS when you need **custom real-time processing, replay, ordering, or multiple independent consumers** of the same stream. If all you need is "dump the stream into S3/Redshift/OpenSearch with no code," use **Firehose** instead (often KDS → Firehose).
 
@@ -329,7 +331,7 @@ flowchart LR
 > **When to use:** "Data warehouse," "complex SQL joins at scale," "high-concurrency BI," "analysts want to train/predict with SQL (`CREATE MODEL`)," "load structured data for frequent queries." Use Redshift Spectrum to also query cold data in S3 without loading it.
 > **Nuances & gotchas:** **Athena vs Redshift** is a key decision — Athena for ad-hoc, data stays in S3, pay per scan, no loading; Redshift for high-concurrency BI on frequently-queried loaded data. **Redshift ML** delegates training to **SageMaker Autopilot** behind the scenes — you write SQL, Autopilot does the ML — but you do not manage a SageMaker endpoint; inference runs in-database. Zero-ETL from Aurora eliminates the need to build Aurora→Redshift ETL pipelines.
 
-🧠 **Mental model:** Redshift is AWS's **petabyte-scale, columnar, MPP data warehouse** — the place for fast SQL over structured data, complex joins, and BI dashboards at high concurrency. **Redshift ML** lets analysts train and run ML models with plain **SQL** (`CREATE MODEL`), delegating training to SageMaker Autopilot behind the scenes.
+🧠 **Mental model:** Redshift is AWS's **petabyte-scale, columnar, MPP data warehouse** — the place for fast SQL over structured data, complex joins, and BI dashboards at high concurrency. **Why columnar + MPP?** Analytics queries typically touch only a few columns across billions of rows (e.g., `SUM(revenue) WHERE region='US'`). Columnar storage reads only those columns from disk, skipping irrelevant ones — dramatically reducing I/O. MPP (Massively Parallel Processing) distributes each query across many compute nodes simultaneously, so what would take minutes on a single machine finishes in seconds. This combination makes Redshift fast for analytical scans but not optimized for row-by-row OLTP (use RDS/Aurora for that). **Redshift ML** lets analysts train and run ML models with plain **SQL** (`CREATE MODEL`), delegating training to SageMaker Autopilot behind the scenes.
 
 **What it does:**
 - Warehouse: columnar storage, MPP query engine, **Redshift Serverless** or provisioned. **Redshift Spectrum** queries S3 data directly (extends the warehouse over the lake). Loads via COPY, streaming ingestion from Kinesis/MSK, and zero-ETL from Aurora.
@@ -359,19 +361,21 @@ flowchart LR
 
 ---
 
-## Amazon QuickSight (+ Amazon Q / QuickSight Q) <a name="quicksight"></a>
+## Amazon Quick Suite (formerly QuickSight) <a name="quicksight"></a>
 
-> **Why (the rationale):** After data has been processed and models have generated insights, business users need to consume results through dashboards and natural-language queries — not SQL or code. QuickSight is the last mile that turns data into business decisions.
+> ⚠️ **Naming note (Oct 2025):** On **October 9, 2025**, AWS rebranded **Amazon QuickSight** to **Amazon Quick Suite**, expanding it from a BI dashboard tool into a broader AI-powered analytics platform. The core BI engine (dashboards, SPICE, embedded analytics) is unchanged; Quick Suite adds Quick Research, Quick Flows, Quick Automate, and Quick Index on top. Exam questions written before Oct 2025 still say "QuickSight" — both names refer to the same service. ([Official announcement](https://aws.amazon.com/blogs/business-intelligence/reimagine-business-intelligence-amazon-quicksight-evolves-to-amazon-quick-suite/))
+
+> **Why (the rationale):** After data has been processed and models have generated insights, business users need to consume results through dashboards and natural-language queries — not SQL or code. Quick Suite (formerly QuickSight) is the last mile that turns data into business decisions, without requiring users to know SQL or write code.
 > **When to use:** "BI dashboards," "visualize results for business users," "ask questions of your data in natural language," "executive summaries," "generative BI." The "6 Serve" stage of the pipeline.
-> **Nuances & gotchas:** QuickSight is a **BI tool, not an ETL or storage tool** — data must be in a connected source (Redshift, Athena, S3, RDS) first. **SPICE** is QuickSight's in-memory cache — loading data into SPICE speeds up dashboards but adds storage cost and requires manual/scheduled refresh. **Amazon Q in QuickSight** replaced the older "QuickSight Q" branding — same natural-language BI capability, updated name.
+> **Nuances & gotchas:** Quick Suite is a **BI/analytics tool, not an ETL or storage tool** — data must be in a connected source (Redshift, Athena, S3, RDS) first. **SPICE** is its in-memory cache — loading data into SPICE speeds up dashboards but adds storage cost and requires manual/scheduled refresh. **Why SPICE exists:** pre-computing query results in memory removes per-query Athena/Redshift load and lets thousands of dashboard users get sub-second response times simultaneously. **Amazon Q in QuickSight** (formerly "QuickSight Q") is the natural-language BI assistant embedded in Quick Suite.
 
-🧠 **Mental model:** QuickSight is AWS's **serverless BI / dashboard** service (with an in-memory engine called **SPICE**). **Amazon Q in QuickSight** (which absorbed the older **QuickSight Q**) adds **generative BI**: ask questions in **natural language**, auto-build visuals, and get executive summaries — no dashboard-building skills needed.
+🧠 **Mental model:** Amazon Quick Suite (formerly QuickSight) is AWS's **serverless BI / dashboard** service (with an in-memory engine called **SPICE**). **Amazon Q in Quick Suite** adds **generative BI**: ask questions in **natural language**, auto-build visuals, and get executive summaries — no dashboard-building or SQL skills needed. **Why it's serverless:** you pay per session/user rather than provisioning a report server, which makes it elastic for bursty executive-dashboard traffic.
 
-**What it does:** Connects to Redshift, RDS/Aurora, Athena, S3, and third-party/SaaS sources; builds interactive dashboards; embeds analytics into apps; ML Insights (anomaly detection, forecasting). **Amazon Q / QuickSight Q**: natural-language Q&A over your data, generative visual/calculation authoring, and auto-generated narrative summaries.
+**What it does:** Connects to Redshift, RDS/Aurora, Athena, S3, and third-party/SaaS sources; builds interactive dashboards; embeds analytics into apps; ML Insights (anomaly detection, forecasting). **Amazon Q in Quick Suite**: natural-language Q&A over your data, generative visual/calculation authoring, and auto-generated narrative summaries. Quick Suite (post-Oct 2025) additionally offers Quick Research (AI-driven multi-source research), Quick Flows (agentic workflow automation), and Quick Index (unified data discovery).
 
-**When to use vs alternatives:** Use QuickSight to **serve data to humans** (the last mile of the pipeline) — BI dashboards and NL Q&A. It's the "6 Serve" counterpart to SageMaker (which serves data to *models*). Not an ETL or storage tool.
+**When to use vs alternatives:** Use Quick Suite to **serve data to humans** (the last mile of the pipeline) — BI dashboards and NL Q&A. It's the "6 Serve" counterpart to SageMaker (which serves data to *models*). Not an ETL or storage tool.
 
-🎯 **On the exam:** "**BI dashboards** / visualize results for business users" = **QuickSight**. "Ask questions of your data in **natural language** / generative BI" = **Amazon Q in QuickSight (QuickSight Q)**.
+🎯 **On the exam:** "**BI dashboards** / visualize results for business users" = **Amazon Quick Suite / QuickSight**. "Ask questions of your data in **natural language** / generative BI" = **Amazon Q in Quick Suite (formerly QuickSight Q)**. Both the old name (QuickSight) and the new name (Quick Suite) refer to the same service on current and legacy exam questions.
 
 ---
 
@@ -448,7 +452,7 @@ flowchart TB
 | **Rule-based** data quality validation (DQDL) in pipeline | **Glue Data Quality** | Clarify (bias) / Macie (PII) |
 | **Fine-grained (column/row/cell)** lake access control & governance | **AWS Lake Formation** | plain IAM/bucket policies |
 | **Vector store / embeddings / k-NN / RAG** + search & log analytics | **Amazon OpenSearch Service** | Redshift |
-| **BI dashboards**; ask data questions in natural language | **QuickSight** (+ **Q**) | Athena |
+| **BI dashboards**; ask data questions in natural language | **Amazon Quick Suite** (formerly QuickSight; + **Amazon Q**) | Athena |
 | Acquire **third-party/external** datasets | **AWS Data Exchange** | S3 upload |
 | Cheapest Athena queries / analytics-ready format | **Parquet/ORC (columnar) + partition + compress** | CSV/JSON |
 | Most efficient format for SageMaker built-in algos | **RecordIO-protobuf** (+ Pipe mode) | CSV |
@@ -575,9 +579,9 @@ Tie-breaker: if the question emphasizes **serverless / no cluster** → Glue; **
 | Embeddings | Dense numerical vector representations of text, images, or other data produced by a model | The format in which data must be stored to enable semantic similarity search in a vector database |
 | OpenSearch Serverless | A fully managed, auto-scaling OpenSearch deployment requiring no cluster management | Used as the default vector store option for Amazon Bedrock Knowledge Bases |
 | RAG (Retrieval-Augmented Generation) | A technique where an AI retrieves relevant documents before generating an answer | Grounds LLM responses in your actual data; OpenSearch is the vector retrieval engine |
-| Amazon QuickSight | AWS's serverless BI service for building interactive dashboards from data in Redshift, Athena, S3, and more | Serves analyzed data to business users through visualizations and natural language Q&A |
-| SPICE | QuickSight's in-memory query engine that caches data for fast interactive dashboard performance | Allows QuickSight to serve dashboards to many users simultaneously at high speed |
-| Amazon Q in QuickSight | An AI assistant embedded in QuickSight for asking data questions in plain English | Generates charts, narratives, and summaries for business users who don't know SQL |
+| Amazon Quick Suite (formerly Amazon QuickSight) | AWS's serverless BI and AI analytics platform rebranded from QuickSight on October 9, 2025; builds interactive dashboards from Redshift, Athena, S3, and more | Serves analyzed data to business users through visualizations, natural language Q&A, and AI-driven research/automation |
+| SPICE | Quick Suite's in-memory query engine that caches data for fast interactive dashboard performance | Allows Quick Suite to serve dashboards to many concurrent users at high speed without hitting the source database on each request |
+| Amazon Q in Quick Suite (formerly Amazon Q in QuickSight / QuickSight Q) | An AI assistant embedded in Quick Suite for asking data questions in plain English | Generates charts, narratives, and summaries for business users who don't know SQL |
 | AWS Data Exchange | An AWS marketplace for discovering, subscribing to, and receiving third-party datasets | Lets teams enrich ML features with external data like financial, demographic, or weather signals |
 | Parquet | An open-source columnar file format widely used for analytics and ML training data | Reduces Athena scan costs and training I/O by storing data column-by-column with compression |
 | ORC | An open-source columnar file format optimized for Hive and Presto workloads | Similar to Parquet; preferred in the Hadoop ecosystem for Hive and EMR-based pipelines |
@@ -616,4 +620,5 @@ Tie-breaker: if the question emphasizes **serverless / no cluster** → Glue; **
 - OpenSearch vector database — https://aws.amazon.com/opensearch-service/serverless-vector-database/
 - OpenSearch vector search collections — https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless-vector-search.html
 - Amazon Q in QuickSight (generative BI GA) — https://aws.amazon.com/blogs/business-intelligence/amazon-q-is-now-generally-available-in-amazon-quicksight-bringing-generative-bi-capabilities-to-the-entire-organization/
+- Amazon QuickSight evolves to Amazon Quick Suite (Oct 9 2025 rebrand) — https://aws.amazon.com/blogs/business-intelligence/reimagine-business-intelligence-amazon-quicksight-evolves-to-amazon-quick-suite/
 - AWS Data Exchange — https://docs.aws.amazon.com/data-exchange/latest/userguide/what-is.html

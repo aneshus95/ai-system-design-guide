@@ -85,6 +85,10 @@ Both exams love to hand you a scenario and ask "which SageMaker feature?" The tr
 
 When **both** are enabled they sync, so the features you trained on match the features you serve. Data Wrangler can export directly into a feature group.
 
+**Why the ~15 min offline lag exists:** `PutRecord` writes to the online store immediately (single-digit millisecond response). Propagating those records to the S3-backed offline store is done asynchronously in micro-batches, which typically settles within ~15 minutes. This means the two stores are not instantaneously consistent — if you read from the offline store right after a `PutRecord`, you may not see the latest value yet. For training datasets you always query the offline store; for real-time inference you always use the online store — so the lag is normally irrelevant to production flows.
+
+**Why Feature Store eliminates training-serving skew:** Without a feature store, teams typically compute features in a training pipeline (e.g., Spark job) and separately re-implement feature logic in an inference service (e.g., Lambda). Any divergence in that logic — a different scaler, a different imputation rule — causes the model to receive different numbers at inference than it was trained on, silently degrading accuracy. Feature Store eliminates this by being the single definition and compute path for every feature: both the offline store (training) and online store (inference) are written by the same `PutRecord` call, guaranteeing identical feature values.
+
 ```mermaid
 flowchart LR
     Src["Raw data / Data Wrangler"] -->|"PutRecord"| FS["Feature Store<br/>(feature group)"]
@@ -192,6 +196,10 @@ flowchart LR
 
 Supports **early stopping** and **warm start** (reuse prior tuning jobs).
 
+**Why Bayesian is sequential:** Bayesian optimization builds a probabilistic surrogate model of the objective function; each new run's result updates the surrogate, so run N+1 cannot start until run N finishes and its result is incorporated. This makes Bayesian unsuitable for massively parallel budgets but very sample-efficient.
+
+**Why Hyperband suits deep learning:** Deep learning training emits a validation metric after every epoch (an intermediate result). Hyperband exploits this signal — it runs many jobs for a few epochs, eliminates the bottom performers early, and reallocates their compute budget to the surviving candidates. AWS benchmarks show up to 3x faster convergence than Bayesian for large neural networks.
+
 🎯 **On the exam:** "automatically find the best hyperparameters" → **AMT**. Strategy triggers: "want each trial to learn from the last / most efficient" → **Bayesian**; "run all trials in parallel" → **Random**; "deep learning, stop bad jobs early, fastest for large models" → **Hyperband**; "reproducible / exhaustive small grid" → **Grid**.
 
 ---
@@ -265,6 +273,8 @@ flowchart TD
 
 **What it does:** Catalog models in **model groups** with versioned **model packages**; attach metadata and evaluation metrics; manage **approval status** (PendingManualApproval → Approved/Rejected); and trigger **CI/CD deployment** automatically on approval. Now integrates with **Model Cards** for unified governance.
 
+**Why approval status is the key mechanism:** The registry itself doesn't prevent a bad model from going live — the deployment CI/CD pipeline is wired to check for `Approved` status before proceeding. A human (or automated evaluation step) sets the status; only then does CodePipeline/EventBridge trigger the deploy. This decouples "training succeeded" from "safe to promote," which is the governance checkpoint most regulated industries require.
+
 **When to use it:** You need governed, versioned model promotion — "only approved model versions get deployed."
 
 🎯 **On the exam:** "version models, manage approval status, gate deployment via CI/CD" → **Model Registry**. It's the hand-off point between training (Pipelines) and deployment.
@@ -320,7 +330,9 @@ flowchart LR
 
 🧠 **Mental model:** the *compile-once-run-anywhere optimizer* — compiles a trained model to run faster on a specific target (cloud instance or **edge device**).
 
-**What it does:** Compiles/optimizes a trained model (TensorFlow, PyTorch, XGBoost, ONNX, etc.) for a **target hardware platform**, so it runs up to ~2x faster with a smaller footprint and **no accuracy loss** — including edge/IoT devices (via the Neo runtime / integration with AWS IoT Greengrass).
+**What it does:** Compiles/optimizes a trained model (TensorFlow, PyTorch, MXNet, XGBoost, ONNX, TensorFlow-Lite, DarkNet, Keras, and more) for a **target hardware platform**, so it runs significantly faster (AWS cites up to **~25x faster** on some hardware targets) with a smaller footprint and **no accuracy loss** — including edge/IoT devices (Arm, Intel, Nvidia, Qualcomm, Texas Instruments, Xilinx, etc.) via the Neo runtime / integration with AWS IoT Greengrass.
+
+**Why Neo exists:** A model trained in PyTorch is packaged for a generic runtime (Python, CUDA), not the specific instruction set or memory layout of the target chip. Neo applies hardware-specific graph optimizations, operator fusion, and quantization so the model's compute graph maps efficiently onto the target silicon — squeezing out latency and power consumption without changing what the model predicts.
 
 **When to use it:** You need to deploy to constrained **edge devices** or squeeze more inference performance out of a specific instance type.
 
@@ -361,6 +373,8 @@ flowchart LR
 | Invocation | Specify `TargetModel` per request | Invoke a specific container directly, **or** chain as a **serial inference pipeline** (output of one → input of next) |
 | Best for | Many similar models (e.g., per-customer), cost efficiency | Heterogeneous models or preprocessing→model→postprocessing chains |
 
+**Why MME loads on demand (and why that causes latency spikes):** MME stores all model artifacts in S3 and loads only a subset into the container's memory at any time. When a request arrives for a model that is not currently in memory, the container must download and deserialize it from S3 — a "cold load" that adds latency. Frequently used models stay warm in memory; rarely used ones get evicted. This trade-off (low cost, occasional cold-load latency vs. one endpoint per model which is always warm but expensive) is exactly the cost-vs-latency decision the exam tests.
+
 🎯 **On the exam:** "thousands of models, same framework, one endpoint, cost-efficient" → **multi-model endpoint**; "different frameworks / chain preprocessing→inference→postprocessing on one endpoint" → **multi-container endpoint (serial inference pipeline)**.
 
 ---
@@ -390,9 +404,9 @@ flowchart LR
 🧠 **Mental model:** the *bias + explainability engine* — detects bias **before and after** training and explains **why** a model made a prediction.
 
 **What it does:** Runs as a **Processing job** and provides:
-- **Pre-training bias metrics** — computed on the **data** (no trained model needed), e.g., class imbalance across a sensitive facet.
-- **Post-training bias metrics** — computed on **model predictions** (requires a trained model), catching bias introduced by the algorithm/hyperparameters.
-- **Explainability** — feature attributions via model-agnostic **SHAP (KernelSHAP)** (per-prediction contribution of each feature) and **Partial Dependence Plots (PDP)**.
+- **Pre-training bias metrics** — computed on the **data** (no trained model needed), e.g., class imbalance across a sensitive facet. **Why this matters:** if your data is already skewed (e.g., 95% male applicants), any model trained on it will encode that skew before you even write the first line of model code. Catching this early is cheaper than retraining.
+- **Post-training bias metrics** — computed on **model predictions** (requires a trained model), catching bias *introduced* by the algorithm/hyperparameters. **Why both are needed:** a perfectly balanced dataset can still produce a biased model if the algorithm overfits to a majority group; post-training metrics catch what pre-training metrics miss.
+- **Explainability** — feature attributions via model-agnostic **SHAP (KernelSHAP)** (per-prediction contribution of each feature) and **Partial Dependence Plots (PDP)**. **Why SHAP:** most production models (XGBoost, neural nets) are black boxes — SHAP assigns each feature a game-theoretic contribution score so you can audit "the model gave this applicant a low score primarily because of feature X."
 - Feeds bias-drift and feature-attribution-drift monitoring (with Model Monitor) post-deployment.
 
 ```mermaid
@@ -409,11 +423,15 @@ flowchart LR
 
 ## SageMaker Model Monitor <a name="model-monitor"></a>
 
+> ⚠️ **Service availability change:** Amazon SageMaker Model Monitor is **closed to new customers effective July 30, 2026**. Existing customers can continue to use it; AWS will maintain security and availability but will not add new features. AWS recommends open-source SageMaker monitoring solutions + Amazon CloudWatch + Amazon QuickSight governance dashboards as alternatives. Source: [Model Monitor availability change](https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-availability-change.html)
+
 > **Why (the rationale):** A model that was accurate at deployment can degrade over time as real-world data distributions shift. Model Monitor continuously watches deployed endpoints and alerts you before users notice quality problems.
 > **When to use:** "Monitor a deployed/production model over time," "detect data drift," "accuracy dropped on the live endpoint," "bias changed in production," "feature importance shifted."
 > **Nuances & gotchas:** Model Monitor is **production/inference-time** only — it does NOT run during training (that's Debugger). The **model quality monitor requires ground-truth labels** to be merged back in after the fact — predictions alone are not enough to measure accuracy drift. Bias drift and feature attribution drift monitors require a Clarify baseline. Each monitor type is set up and scheduled separately.
 
 🧠 **Mental model:** the *production watchdog* — continuously monitors a **deployed** endpoint for drift and quality degradation and alerts you.
+
+**Why Model Monitor needs DataCapture:** Model Monitor cannot observe your endpoint's behavior unless you tell SageMaker to record the actual inference inputs and outputs. You enable **DataCapture** in the endpoint configuration (setting `EnableCapture=True` with a sampling rate and S3 destination); SageMaker then asynchronously writes request/response payloads to S3. Model Monitor reads those captured records and compares their statistical distributions against your baseline — without DataCapture, there is simply nothing to compare. **Note:** DataCapture stops capturing at high disk utilization (keep disk below 75%); for batch transform, a separate output capture mechanism applies.
 
 **What it does:** Captures live inference data and compares it against a **baseline** to detect drift across **four monitor types**:
 
@@ -470,7 +488,7 @@ Emits results/violations to CloudWatch for alerting and scheduled runs.
 | **Multi-container endpoint** | Deploy | Different containers / **serial inference pipeline** on one endpoint |
 | **Model Cards** | Govern | Standardized, immutable model documentation for audit |
 | **Clarify** | Responsible AI | **Bias** (pre/post-training) + **explainability** (SHAP, PDP) |
-| **Model Monitor** | Monitor | **Production** drift watchdog: data / model quality / bias / feature-attribution drift |
+| **Model Monitor** | Monitor | **Production** drift watchdog: data / model quality / bias / feature-attribution drift *(closed to new customers 7/30/26)* |
 | **Role Manager** | Govern / security | Least-privilege IAM roles for ML personas |
 
 ---
@@ -501,6 +519,8 @@ flowchart LR
 🎯 **Triggers:** "is my model **biased** / explain a prediction" → **Clarify**. "has my **deployed** model **drifted** / accuracy dropped" → **Model Monitor**. "send **low-confidence live predictions to a human** for review" → **A2I**. And remember the labeling cousin: "label a **training** dataset with humans" → **Ground Truth** (not A2I).
 
 > **A2I** is *Amazon Augmented AI*, a standalone AWS service (not branded "SageMaker"), but it appears in the same question pool. It reviews **inference-time** predictions; **Ground Truth** labels **training-time** data.
+
+> ⚠️ **Exam note:** Amazon SageMaker Model Monitor closed to new customers on **July 30, 2026**. Existing implementations continue to work. On exams sat before or around this date, Model Monitor remains the correct answer for production drift monitoring. AWS-recommended alternatives for new setups: open-source SageMaker monitoring + CloudWatch + QuickSight. Source: [Model Monitor availability change](https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-availability-change.html)
 
 ---
 
@@ -553,7 +573,7 @@ flowchart LR
 | SageMaker Pipelines | A native ML workflow orchestrator that defines training, evaluation, and deployment as a directed acyclic graph | Automates the entire ML lifecycle in a versioned, repeatable, and lineage-tracked way |
 | DAG (Directed Acyclic Graph) | A graph of steps where each step depends on earlier steps and there are no cycles | The structure of a SageMaker Pipeline, ensuring steps run in the correct dependency order |
 | SageMaker Projects | A service that provisions a full MLOps environment (source repos, CI/CD pipelines, and templates) in one click | Gives teams a standardized, reproducible foundation for team-scale ML operations |
-| SageMaker Neo | A tool that compiles a trained model for a specific target hardware platform to run faster | Optimizes models for edge devices or cloud instances without retraining or sacrificing accuracy |
+| SageMaker Neo | A tool that compiles a trained model for a specific target hardware platform to run significantly faster (AWS cites up to ~25x on some targets) | Optimizes models for edge devices or cloud instances without retraining or sacrificing accuracy |
 | Inference Recommender | A SageMaker tool that load-tests your model across instance types and returns the best configuration for your latency and cost targets | Replaces manual endpoint sizing with automated benchmarking |
 | Multi-Model Endpoint (MME) | A SageMaker endpoint that hosts thousands of same-framework models behind one endpoint, loading them on demand per request | Reduces infrastructure cost when serving many similar models that don't all need to be hot at once |
 | Multi-Container Endpoint (MCE) | A SageMaker endpoint hosting up to 15 different containers that can be invoked independently or chained as a serial pipeline | Supports heterogeneous model stacks or preprocessing-inference-postprocessing chains on one endpoint |
@@ -564,7 +584,7 @@ flowchart LR
 | Post-training bias metrics | Bias measures computed on the trained model's predictions | Detect whether the training process introduced or amplified unfairness beyond the data |
 | SHAP (KernelSHAP) | A model-agnostic method that assigns each feature a contribution score for a given prediction | Answers "why did the model predict this?" at the level of individual input features |
 | PDP (Partial Dependence Plot) | A visualization showing the marginal effect of one feature on model predictions across its range | Reveals the overall relationship between a feature and the prediction without per-instance detail |
-| SageMaker Model Monitor | A service that continuously monitors a deployed endpoint for data drift and model quality degradation | Alerts you when your production model's input distribution or accuracy changes over time |
+| SageMaker Model Monitor | A service that continuously monitors a deployed endpoint for data drift and model quality degradation (closed to new customers July 30, 2026; existing customers continue normally) | Alerts you when your production model's input distribution or accuracy changes over time |
 | Data quality monitor | A Model Monitor type that checks whether incoming feature distributions match a baseline | Catches upstream data pipeline problems that would silently degrade model accuracy |
 | Model quality monitor | A Model Monitor type that tracks accuracy metrics by comparing predictions to delayed ground-truth labels | Measures actual performance degradation in production, not just input drift |
 | Bias drift monitor | A Model Monitor type that tracks whether fairness metrics change over time in production | Detects if the model becomes more or less biased as the real-world population shifts |
@@ -600,6 +620,8 @@ flowchart LR
 - Pipelines — https://docs.aws.amazon.com/sagemaker/latest/dg/pipelines.html
 - Projects (MLOps) — https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-projects.html
 - Neo (model compilation) — https://docs.aws.amazon.com/sagemaker/latest/dg/neo.html
+- Neo supported frameworks (edge) — https://docs.aws.amazon.com/sagemaker/latest/dg/neo-supported-devices-edge-frameworks.html
+- Neo supported instance types (cloud) — https://docs.aws.amazon.com/sagemaker/latest/dg/neo-supported-cloud.html
 - Inference Recommender — https://docs.aws.amazon.com/sagemaker/latest/dg/inference-recommender.html
 - Multi-model endpoints — https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-endpoints.html
 - Multi-container endpoints — https://docs.aws.amazon.com/sagemaker/latest/dg/multi-container-endpoints.html
@@ -608,6 +630,7 @@ flowchart LR
 **Responsible AI / monitor / govern**
 - Clarify (fairness & explainability) — https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-configure-processing-jobs.html
 - Model Monitor — https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html
+- Model Monitor availability change (closed to new customers 7/30/26) — https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-availability-change.html
 - Bias drift monitoring — https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-model-monitor-bias-drift.html
 - Feature attribution drift monitoring — https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-model-monitor-feature-attribution-drift.html
 - ML governance (Role Manager, Model Cards, Dashboard) — https://docs.aws.amazon.com/sagemaker/latest/dg/governance.html

@@ -126,7 +126,7 @@ Managed, ephemeral compute for anything *around* training — data pre/post-proc
 > **When to use:** After you have a working training job and want to squeeze out performance improvements. Also when the question says "automatically find the best hyperparameters."
 > **Nuances & gotchas:** **Bayesian cannot massively parallelize** — it's sequential by design; if the question asks "run as many jobs in parallel as possible," the answer is **Random**, not Bayesian. Hyperband is the fastest for deep-learning jobs with early-stopping signals. Grid is only practical for small discrete spaces.
 
-You define hyperparameter ranges and an objective metric; SageMaker launches many training jobs to find the best combination. Four search strategies — **memorize these for MLA-C01**:
+You define hyperparameter ranges and an objective metric; SageMaker launches many training jobs to find the best combination. **Why AMT beats manual tuning:** it treats the hyperparameter space as a statistical regression problem (for Bayesian) or a multi-fidelity resource allocation problem (for Hyperband), converging on a good configuration far more efficiently than human intuition. Four search strategies — **memorize these for MLA-C01**:
 
 | Strategy | How it works | When to pick it |
 |---|---|---|
@@ -145,15 +145,20 @@ You define hyperparameter ranges and an objective metric; SageMaker launches man
 
 This is the **single most heavily tested MLA-C01 decision.** Memorize the limits.
 
+**Why four modes exist:** Latency, payload size, and traffic pattern are all orthogonal dimensions. A synchronous REST call cannot hold a 1 GB request open for an hour; a persistent always-on instance is wasteful for a webhook that fires twice a day; offline batch scoring needs no live endpoint at all. Each mode matches a different workload shape so you only pay for what your workload actually needs.
+
 | Option | Best for | Payload | Processing time | Scales to zero? | Persistent? |
 |---|---|---|---|---|---|
 | **Real-time endpoint** | Low-latency, sustained traffic; live REST API | up to **25 MB** | 60 s (8 min streaming) | No (always-on instances; auto-scales min ≥ 1) | Yes |
 | **Serverless inference** | Intermittent / unpredictable traffic; no infra to manage | up to **4 MB** | up to **60 s** | **Yes** (pay per use, no idle cost; cold starts) | Managed |
 | **Asynchronous inference** | Large payloads, long processing, near-real-time | up to **1 GB** | up to **1 hour** | **Yes** (down to 0 when queue empty) | Yes (queued) |
-| **Batch Transform** | Offline scoring of a whole dataset; no endpoint needed | GBs (large datasets) | up to **days** | N/A (ephemeral job) | No |
+| **Batch Transform** | Offline scoring of a whole dataset; no endpoint needed | Up to **100 MB** per mini-batch (`MaxPayloadInMB`); total dataset unlimited (streamed from S3) | Per-invocation timeout up to **1 hour** (`InvocationsTimeoutInSeconds`); overall job can run hours-to-days | N/A (ephemeral job) | No |
 
 Quick reflex: **big payload / slow → async; whole dataset offline → batch; spiky traffic → serverless; steady low-latency → real-time.**
-> Source: [Inference options in SageMaker AI](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model-options.html)
+
+> **Why Batch Transform caps per-batch payload at 100 MB (not the full dataset size):** SageMaker splits S3 input into mini-batches and sends each mini-batch to the container via an HTTP invocation. The 100 MB cap (`MaxPayloadInMB`) is the per-invocation limit — the total dataset can be arbitrarily large (multi-GB S3 objects) because the job streams records across many invocations.
+
+> Source: [Inference options in SageMaker AI](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model-options.html) · [Batch Transform API — CreateTransformJob](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_CreateTransformJob.html)
 
 ### Spot training
 
@@ -162,6 +167,8 @@ Quick reflex: **big payload / slow → async; whole dataset offline → batch; s
 > **Nuances & gotchas:** **Checkpointing to S3 is required** — without it, an interrupted Spot job restarts from scratch, wasting all prior compute. Not suitable for time-critical or short jobs where interruption risk and overhead outweigh the discount.
 
 Use **Managed Spot Training** to run training jobs on spare EC2 capacity for up to **~90% off** on-demand. SageMaker manages Spot interruptions via **checkpointing** to S3 (so an interrupted job resumes rather than restarts). Ideal for long, fault-tolerant training; set `max_wait` ≥ `max_run`.
+
+**Why checkpointing is required:** Spot instances are spare EC2 capacity that AWS can reclaim with a two-minute warning. Without periodic checkpoints saved to S3, any interruption discards all training progress and the job must restart from epoch 0 — wasting all prior compute time and cost. With checkpoints, SageMaker restores the last saved state when the job resumes on a new Spot instance, so you only lose at most the work since the last checkpoint.
 > Source: [Managed Spot Training](https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html)
 
 ### Distributed training
@@ -270,7 +277,7 @@ SageMaker has **no upfront cost and no minimum fee** — you pay for the underly
 | Real-time endpoint | A persistent SageMaker endpoint serving a live REST API for low-latency predictions | Used for applications that need instant responses to individual prediction requests |
 | Serverless inference | A SageMaker endpoint that scales to zero when idle and only runs when requests arrive | Ideal for intermittent traffic where paying for an always-on instance is wasteful |
 | Asynchronous inference | A SageMaker inference option that accepts large payloads or slow jobs through a queue and delivers results to S3 | Used when payloads are too big or processing too slow for a synchronous response |
-| Batch Transform | A SageMaker job that scores an entire dataset offline without needing a persistent endpoint | Used for bulk predictions where results are not needed in real time |
+| Batch Transform | A SageMaker job that scores an entire dataset offline without needing a persistent endpoint; SageMaker splits the S3 input into mini-batches (up to 100 MB each) and streams them through the container | Used for bulk predictions where results are not needed in real time |
 | Managed Spot Training | Using spare EC2 capacity for training jobs at up to 90% discount | Dramatically cuts training costs for fault-tolerant, long-running jobs |
 | Checkpointing | Saving training progress to S3 at regular intervals so an interrupted job can resume instead of restart | Makes Spot Training reliable by preventing loss of progress on interruption |
 | EC2 Spot instance | Spare AWS compute capacity available at a steep discount but subject to interruption | The underlying compute type for Managed Spot Training |
@@ -305,6 +312,7 @@ SageMaker has **no upfront cost and no minimum fee** — you pay for the underly
 - [SageMaker Developer Guide — What is SageMaker AI](https://docs.aws.amazon.com/sagemaker/latest/dg/whatis.html)
 - [Inference options in SageMaker AI](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model-options.html)
 - [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html) · [Asynchronous Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference.html) · [Batch Transform](https://docs.aws.amazon.com/sagemaker/latest/dg/batch-transform.html)
+- [Batch Transform API — CreateTransformJob (MaxPayloadInMB limit)](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_CreateTransformJob.html)
 - [Choose an algorithm / built-in vs script vs BYOC](https://docs.aws.amazon.com/sagemaker/latest/dg/algorithms-choose.html)
 - [Automatic Model Tuning — how it works](https://docs.aws.amazon.com/sagemaker/latest/dg/automatic-model-tuning-how-it-works.html)
 - [Managed Spot Training](https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html)

@@ -41,6 +41,26 @@ flowchart LR
 - **Batch transcription** — process recorded audio stored in Amazon S3. `$0.006/min` (standard). Best for accuracy, large files, and features that need the whole file.
 - **Real-time streaming transcription** — transcribe live audio over HTTP/2 or WebSocket with low latency (for live captions, live agent assist). `$0.01/min` (standard).
 
+#### Why streaming (live) is less accurate than batch — and how to close the gap
+
+**The core reason: context.** Speech-recognition accuracy comes largely from surrounding words. **Batch** sees the *entire* audio file, so it uses both past *and future* context to disambiguate homophones and unclear speech ("their/there", "recognize speech" vs "wreck a nice beach"). **Streaming** must emit words as it hears them with only a tiny lookahead, so it decides with incomplete information. AWS states this directly: *"accuracy may differ between modes for the same audio."* ([Transcribing streaming audio](https://docs.aws.amazon.com/transcribe/latest/dg/streaming.html), [Transcribe FAQs](https://aws.amazon.com/transcribe/faqs/))
+
+Contributing factors:
+- **Partial results get revised** — early streaming words are low-confidence guesses that Transcribe *corrects as more audio arrives*; if you consume the flickering **partials** instead of the finalized segments, you'll see (and act on) errors that later get fixed.
+- **Single-pass, latency-optimized decoding** — batch can afford heavier processing and stronger language-model rescoring; streaming is a fast left-to-right pass.
+- **Live endpointing** — deciding where a phrase ends must happen without seeing the next words → more boundary errors.
+- **Live-audio conditions** — network jitter, buffering, noise, cross-talk/barge-in, and lower/variable sample rates hurt live capture more than a clean recorded file.
+- **Fewer features** — Custom Language Models and some diarization options are **batch-only** (see gotcha below).
+
+**How to close the gap when you must stream:**
+- Consume the **finalized** results, not the partials, whenever the UX allows.
+- Add a **Custom Vocabulary** (and a **CLM** in batch) for domain terms/names/acronyms — the single biggest accuracy lever.
+- Feed clean audio: **16 kHz+**, lossless where possible, noise reduction, and **channel identification** (separate tracks) instead of relying on diarization.
+- Use **partial-results stabilization** and **vocabulary filtering** to reduce churn.
+- Accuracy-critical, non-real-time transcript? Stream for immediacy **and** re-run in **batch** for the archival transcript — the standard live-captions pattern. ([AWS M&E: increasing live subtitle accuracy](https://aws.amazon.com/blogs/media/what-was-that-increasing-subtitle-accuracy-for-live-broadcasts-using-amazon-transcribe/))
+
+> **Note:** this is a general property of streaming speech-to-text (true of Google/Azure too), not an AWS-specific limitation.
+
 > **Why (the rationale):** Standard ASR struggles with domain jargon, product names, and acronyms. Custom vocabulary is a free quick fix; CLMs are heavier but give deeper accuracy gains for specialized domains.
 > **When to use:** Custom vocabulary → brand names, acronyms, medical/legal terms spelled correctly with minimal effort. CLM → highly technical domains (legal transcripts, scientific papers) where a word list isn't enough; requires a text corpus for training.
 > **Nuances & gotchas:** Custom vocabulary is FREE to use (no per-minute add-on). CLMs incur an extra per-minute charge when applied to a job and take time to train. Vocabulary filtering (profanity masking) is also free. You CAN submit a CLM and a custom vocabulary on the same job via the API, but custom vocabulary effects (such as DisplayAs rendering) are silently ignored when a CLM is active — in practice the CLM takes precedence and vocabulary features have no effect.

@@ -94,6 +94,8 @@ mindmap
 | — | Practice questions + explanations | — | [aip-c01/99-practice-questions.md](aip-c01/99-practice-questions.md) |
 
 ### 🧩 Shared AWS service deep-dives (linked from all tracks)
+**🗺️ Start here: [AWS Service Map — how services group & interconnect](services/00-service-map.md)** — the single-page mental model (layers + lifecycle) tying every service below together.
+
 [Amazon Bedrock](services/bedrock.md) · [Amazon SageMaker](services/sagemaker.md) · [SageMaker built-in features](services/sagemaker-features.md) · [Amazon Q](services/amazon-q.md) · [Comprehend](services/comprehend.md) · [Rekognition](services/rekognition.md) · [Textract](services/textract.md) · [Transcribe](services/transcribe.md) · [Polly](services/polly.md) · [Translate](services/translate.md) · [Lex](services/lex.md) · [Kendra](services/kendra.md) · [Personalize & Fraud Detector](services/personalize-and-fraud-detector.md) · [Data & analytics services](services/data-and-analytics.md) · [Security & governance services](services/security-and-governance.md)
 
 ### 🃏 Cheatsheets & rapid review
